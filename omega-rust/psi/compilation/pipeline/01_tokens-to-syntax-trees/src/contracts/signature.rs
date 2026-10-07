@@ -346,13 +346,11 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     ))
 }
 
-/// After a signature clause's `;`, parsing continues at a hard clause
-/// boundary — otherwise it resumes at the caller's input.
-fn resume_after_signature_clause<'tokens, 'source>(
+fn take_invokes_signature_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    after_semicolon: Input<'tokens, 'source>,
     allow_following_contract_clauses: bool,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
+    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
         || after_semicolon.at_contextual("reaches")
         || after_semicolon.at_contextual("effects")
@@ -373,71 +371,3 @@ fn resume_after_signature_clause<'tokens, 'source>(
         Ok(input)
     }
 }
-<<<<<<< HEAD
-||||||| parent of 7f4a80a32c9 (psi: share the after-semicolon clause resume)
-
-fn take_operational_signature_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    name: &str,
-    allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_name = input.take_contextual(name)?;
-    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
-        || after_semicolon.at_contextual("reaches")
-        || after_semicolon.at_contextual("effects")
-        || after_semicolon.at_contextual("invokes")
-        || after_semicolon.at_contextual("suspends")
-        || after_semicolon.at_contextual("blocks")
-        || after_semicolon.at_contextual("crashes")
-        || after_semicolon.at_contextual("terminates")
-        || (allow_following_contract_clauses
-            && (after_semicolon.at_contextual("requires")
-                || after_semicolon.at_contextual("ensures")
-                || after_semicolon.at_contextual("where")))
-    {
-        Ok(after_semicolon)
-    } else {
-        // A bodyless requirement shares its final clause semicolon with the
-        // signature terminator; leave it for the owning parser.
-        Ok(after_name)
-    }
-}
-=======
-
-fn take_invokes_signature_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    resume_after_signature_clause(input, after_semicolon, allow_following_contract_clauses)
-}
-
-fn take_operational_signature_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    name: &str,
-    allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after_name = input.take_contextual(name)?;
-    let after_semicolon = after_name.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
-        || after_semicolon.at_contextual("reaches")
-        || after_semicolon.at_contextual("effects")
-        || after_semicolon.at_contextual("invokes")
-        || after_semicolon.at_contextual("suspends")
-        || after_semicolon.at_contextual("blocks")
-        || after_semicolon.at_contextual("crashes")
-        || after_semicolon.at_contextual("terminates")
-        || (allow_following_contract_clauses
-            && (after_semicolon.at_contextual("requires")
-                || after_semicolon.at_contextual("ensures")
-                || after_semicolon.at_contextual("where")))
-    {
-        Ok(after_semicolon)
-    } else {
-        // A bodyless requirement shares its final clause semicolon with the
-        // signature terminator; leave it for the owning parser.
-        Ok(after_name)
-    }
-}
->>>>>>> 7f4a80a32c9 (psi: share the after-semicolon clause resume)
