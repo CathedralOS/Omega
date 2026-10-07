@@ -1,17 +1,20 @@
 #!/bin/sh
-# Shared driver for the product Psi gates. Each gate is its own package under
-# tests/psi/<gate>/ with a gate-owned Omega harness and a semantic-free Python
-# decoder: `gate.sh <gate> <decoder.py>` reviews the package, builds the
-# harness natively once and runs the decoder's cases against that artifact.
+# Shared driver for the product compiler gates. A gate names the package it
+# builds and a semantic-free Python decoder: the Psi gates under tests/psi/
+# build their own harness packages around source/psi, and the product gates
+# under tests/product/ build the product root source/omega itself.
+# `gate.sh <name> <package-directory> <decoder.py>` reviews the package,
+# builds its program natively once and runs the decoder's cases against that
+# artifact.
 set -eu
 
-if [ "$#" -ne 2 ]; then
-    echo "usage: gate.sh <gate-directory-name> <decoder.py>" >&2
+if [ "$#" -ne 3 ]; then
+    echo "usage: gate.sh <name> <package-directory> <decoder.py>" >&2
     exit 2
 fi
-gate=$(CDPATH= cd -- "$(dirname -- "$0")/$1" && pwd)
 gate_name=$1
-decoder=$2
+gate=$(CDPATH= cd -- "$2" && pwd)
+decoder=$(CDPATH= cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")
 
 if [ -z "${OMEGA_CLI:-}" ] || [ -z "${OMEGA_TARGET:-}" ]; then
     echo "set OMEGA_CLI to the exact freshly built comparator CLI" >&2
@@ -42,11 +45,11 @@ if [ -f "$review" ] && grep -Eq '^decision row [0-9a-f]+ pending$' "$review"; th
     "$omega_cli" update --project "$gate" --resume
 fi
 
-build_dir=$(mktemp -d "${TMPDIR:-/tmp}/omega-psi-$gate_name.XXXXXX")
+build_dir=$(mktemp -d "${TMPDIR:-/tmp}/omega-gate-$gate_name.XXXXXX")
 trap 'rm -rf "$build_dir"' EXIT HUP INT TERM
 "$omega_cli" --target "$target" --build-dir "$build_dir" "$gate/main.omg"
 cli_identity=$(shasum -a 256 "$omega_cli" | awk '{print $1}')
 artifact_identity=$(shasum -a 256 "$build_dir/omega-program" | awk '{print $1}')
 printf '%s-gate cli_sha256=%s target=%s artifact_sha256=%s\n' \
     "$gate_name" "$cli_identity" "$target" "$artifact_identity"
-python3 "$gate/$decoder" "$build_dir/omega-program"
+python3 "$decoder" "$build_dir/omega-program"

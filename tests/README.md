@@ -14,6 +14,8 @@ span more than one bootstrap rung.
   package manager tests build.
 - `psi/` contains black-box gates for the Omega-written Psi product source in
   `source/psi/`; each gate is its own package beside, not inside, that root.
+- `product/` holds `gate.sh`, the review, build and run driver every gate of
+  the Omega-written product compiler shares.
 
 Rust tests whose subject is one crate remain beside that crate in its `tests/`
 directory (or its internal `#[cfg(test)]` modules). Those directories are local

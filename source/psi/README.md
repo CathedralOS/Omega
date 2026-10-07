@@ -72,7 +72,8 @@ remains a differential comparator and may continue in parallel; no Rust
 implementation belongs in this product subtree.
 
 Each phase has a gate package under `tests/psi/`, driven by
-[`tests/psi/gate.sh`](../../tests/psi/gate.sh).
+[`tests/product/gate.sh`](../../tests/product/gate.sh), the driver the
+product compiler gates share.
 [`tests/psi/parser/test-parser.sh`](../../tests/psi/parser/test-parser.sh)
 compiles the gate-owned Omega harness once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
