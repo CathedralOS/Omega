@@ -1371,6 +1371,7 @@ dependencies = [
 name = "post-handoff-writer-plan"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "layout-plans",
 ]
 

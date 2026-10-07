@@ -22,5 +22,5 @@ pub use post_handoff_writer::{
     POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH, POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET,
     PostHandoffWriterFitConstraint, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
-    derive_post_handoff_writer, post_handoff_writer_context_byte_len,
+    derive_post_handoff_writer, post_handoff_writer_context_byte_len, validate_step,
 };

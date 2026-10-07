@@ -9,4 +9,5 @@ name = "post_handoff_writer_plan"
 path = "src/lib.rs"
 
 [dependencies]
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }

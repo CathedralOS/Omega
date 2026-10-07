@@ -14,9 +14,9 @@ use calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
 use diagnostics::Diagnostic;
 use layout_plans::ByteOrder;
 use post_handoff_writer_plan::{
-    GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
-    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,
-    POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, post_handoff_writer_context_byte_len,
+    GeneratedPostHandoffWriterFragmentPlan, POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
+    POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH, POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET,
+    post_handoff_writer_context_byte_len, validate_step,
 };
 
 const CONTEXT_REGISTER: u8 = 9;
@@ -196,54 +196,6 @@ fn validate_generated_post_handoff_writer(
         ));
     }
     Ok(pointer_register)
-}
-
-fn validate_step(
-    step: &GeneratedPostHandoffWriterStep,
-    byte_len: u64,
-    used_slots: &mut [bool],
-) -> Result<(), Diagnostic> {
-    let slot_count = used_slots.len();
-    let Some(used) = used_slots.get_mut(step.source_slot) else {
-        return Err(Diagnostic::error(format!(
-            "generated writer fragment names source slot {}, but the context has {slot_count}",
-            step.source_slot
-        )));
-    };
-    *used = true;
-    if !matches!(step.container_width_bits, 8 | 16 | 32 | 64) {
-        return Err(Diagnostic::error(format!(
-            "generated writer has invalid {}-bit container",
-            step.container_width_bits
-        )));
-    }
-    if step.width == 0
-        || step.width > 64
-        || step
-            .source_lsb
-            .checked_add(step.width)
-            .is_none_or(|end| end > 64)
-        || step
-            .destination_lsb
-            .checked_add(step.width)
-            .is_none_or(|end| end > step.container_width_bits)
-    {
-        return Err(Diagnostic::error(
-            "generated writer has an invalid source or destination bit range",
-        ));
-    }
-    let container_bytes = u64::from(step.container_width_bits / 8);
-    if step
-        .container_byte_offset
-        .checked_add(container_bytes)
-        .is_none_or(|end| end > byte_len)
-    {
-        return Err(Diagnostic::error(format!(
-            "generated writer fragment at byte {} lies outside its {byte_len}-byte destination",
-            step.container_byte_offset
-        )));
-    }
-    Ok(())
 }
 
 const fn low_mask(width: u16) -> u64 {
