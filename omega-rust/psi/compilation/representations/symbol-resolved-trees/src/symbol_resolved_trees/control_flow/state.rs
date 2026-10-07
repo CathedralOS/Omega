@@ -34,3 +34,21 @@ impl DerefMut for State {
         &mut self.storage
     }
 }
+
+#[cfg(test)]
+pub(crate) fn test_state(statements: HandleSpan<Statement>) -> State {
+    State {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated("entry"),
+        storage: StateStorage {
+            parameters: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
+            return_type: Some(crate::types::TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: DiagnosticName::generated("i32"),
+            }),
+            statements,
+            statement_nodes: HandleSpan::empty(),
+        },
+    }
+}

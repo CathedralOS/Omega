@@ -249,3 +249,49 @@ impl Default for OwnedData {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
+    Machine {
+        symbol: SymbolHandle::invalid(),
+        generic_data_origin: Default::default(),
+        trait_default_origin: Default::default(),
+        name: DiagnosticName::generated("main"),
+        attached_data: None,
+        attached_data_symbol: SymbolHandle::invalid(),
+        attached_data_application: None,
+        spelling: None,
+        is_public: false,
+        supply_mode: Default::default(),
+        target: None,
+        target_symbol_name: Default::default(),
+        authored_target: None,
+        target_family: SymbolHandle::invalid(),
+        body_is_present: true,
+        body_status: crate::machine::MachineBodyStatus::Complete,
+        has_structural_type_equations: false,
+        structural_type_equations_pending: false,
+        termination_plan: Default::default(),
+        service_reach_row: Default::default(),
+        service_reach_is_installation_bound: false,
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        compiler_selection_partition: None,
+        storage: MachineStorage {
+            lifetime_parameters: Vec::new(),
+            type_parameters: HandleSpan::empty(),
+            owned_data: HandleSpan::empty(),
+            satisfies: HandleSpan::empty(),
+            conformance_bounds: Vec::new(),
+            ranking_subjects: HandleSpan::empty(),
+            ranking_view: HandleSpan::empty(),
+            ranking_view_arguments: HandleSpan::empty(),
+            ranking_range: Default::default(),
+            invokes: HandleSpan::empty(),
+            suspends: false,
+            blocks: false,
+            contracts: HandleSpan::empty(),
+            states,
+        },
+    }
+}
