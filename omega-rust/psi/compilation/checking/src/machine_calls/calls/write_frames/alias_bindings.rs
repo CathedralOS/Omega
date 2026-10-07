@@ -233,6 +233,38 @@ where
     Some(true)
 }
 
+
+/// The shared direct-place mutable-alias rebind used by the assignment
+/// walks: `Some(Some(relative))` means the stable alias record replaced the
+/// write and carries the rebound relative path (callers may still record
+/// it); `Some(None)` leaves the ordinary target path to resolve; `None`
+/// fails the walk closed.
+pub(super) fn rebind_direct_assignment_target<ResolveOrigin>(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    assignment: &TableAssignment,
+    aliases: &mut [(String, FramePlaceOrigin)],
+    resolve_origin: ResolveOrigin,
+) -> Option<Option<String>>
+where
+    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)], &str) -> Option<FramePlaceOrigin>,
+{
+    let Some(relative) = coarse_place_path(program, assignment.target) else {
+        return Some(None);
+    };
+    rebind_stable_local_mutable_alias_origin(
+        program,
+        machine,
+        state,
+        &relative,
+        assignment.value,
+        aliases,
+        |established| resolve_origin(established, &relative),
+    )
+    .map(|rebound| rebound.then_some(relative))
+}
+
 /// Check whether a reborrow expression can replace an established local alias
 /// without mutating it. The origin callback runs only after exact target and
 /// reference-shaped replacement admission, preserving fail-closed ordering.

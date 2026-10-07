@@ -2,7 +2,7 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_stable_local_mutable_alias_origin, representable_assignment_alias_rebinding,
+    rebind_direct_assignment_target, representable_assignment_alias_rebinding,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_alias_initializer_origin, stable_alias_initializer_origins,
@@ -25,7 +25,7 @@ use crate::machine_calls::calls::write_frames::path_instantiation::{
     instantiate_written_path, instantiate_written_path_with_origins,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, coarse_place_path,
+    FramePathPrecision, FramePlaceOrigin,
 };
 use crate::machine_calls::calls::write_frames::state_paths::{
     push_visible_frame_path, relative_state_path_is_visible,
@@ -333,32 +333,30 @@ fn build_cycle_frame_equation<'program>(
                     false,
                     representable_alias_rebinding,
                 )?;
-                let direct_target = coarse_place_path(program, assignment.target);
-                if let Some(relative) = direct_target.as_deref()
-                    && rebind_stable_local_mutable_alias_origin(
-                        program,
-                        machine,
-                        state,
-                        relative,
-                        assignment.value,
-                        &mut local_alias_origins,
-                        |aliases| {
-                            stable_alias_initializer_origin(
-                                program,
-                                machine,
-                                machine_symbols,
-                                &mut inference,
-                                assignment.value,
-                                parameters,
-                                &isolated_local_roots,
-                                aliases,
-                                &[],
-                                symbols,
-                                true,
-                                &stored,
-                            )
-                        },
-                    )?
+                if rebind_direct_assignment_target(
+                    program,
+                    machine,
+                    state,
+                    assignment,
+                    &mut local_alias_origins,
+                    |aliases, _| {
+                        stable_alias_initializer_origin(
+                            program,
+                            machine,
+                            machine_symbols,
+                            &mut inference,
+                            assignment.value,
+                            parameters,
+                            &isolated_local_roots,
+                            aliases,
+                            &[],
+                            symbols,
+                            true,
+                            &stored,
+                        )
+                    },
+                )?
+                .is_some()
                 {
                     continue;
                 }

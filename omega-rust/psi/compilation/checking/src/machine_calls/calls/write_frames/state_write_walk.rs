@@ -8,7 +8,7 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_stable_local_mutable_alias_origin, representable_assignment_alias_rebinding,
+    rebind_direct_assignment_target, representable_assignment_alias_rebinding,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_alias_initializer_origin, stable_alias_initializer_origins,
@@ -853,59 +853,56 @@ fn walk_state_write_prefix_inner(
                     include_shared,
                     replaces_local_binding,
                 )?;
-                let direct_target = coarse_place_path(program, assignment.target);
-                if let Some(relative) = direct_target.as_deref()
-                    && rebind_stable_local_mutable_alias_origin(
-                        program,
-                        machine,
-                        state,
-                        relative,
-                        assignment.value,
-                        &mut local_alias_origins,
-                        |aliases| {
-                            let origin = if include_shared {
-                                reference_subjects::backing_origin(
+                if let Some(relative) = rebind_direct_assignment_target(
+                    program,
+                    machine,
+                    state,
+                    assignment,
+                    &mut local_alias_origins,
+                    |aliases, relative| {
+                        let origin = if include_shared {
+                            reference_subjects::backing_origin(
+                                program,
+                                machine,
+                                assignment.value,
+                                symbols,
+                                inference,
+                                aliases,
+                                &stored,
+                            )
+                        } else {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                inference,
+                                assignment.value,
+                                parameters,
+                                &isolated_local_roots,
+                                aliases,
+                                &divergent_alias_origins,
+                                symbols,
+                                true,
+                                &stored,
+                            )
+                        };
+                        origin.or_else(|| {
+                            if !include_shared {
+                                return None;
+                            }
+                            let reference =
+                                crate::value_custody::places::declared_place_type_raw(
                                     program,
                                     machine,
-                                    assignment.value,
-                                    symbols,
-                                    inference,
-                                    aliases,
-                                    &stored,
-                                )
-                            } else {
-                                stable_alias_initializer_origin(
-                                    program,
-                                    machine,
-                                    &machine_symbols,
-                                    inference,
-                                    assignment.value,
-                                    parameters,
-                                    &isolated_local_roots,
-                                    aliases,
-                                    &divergent_alias_origins,
-                                    symbols,
-                                    true,
-                                    &stored,
-                                )
-                            };
-                            origin.or_else(|| {
-                                if !include_shared {
-                                    return None;
-                                }
-                                let reference =
-                                    crate::value_custody::places::declared_place_type_raw(
-                                        program,
-                                        machine,
-                                        Some(state),
-                                        assignment.target,
-                                    )?;
-                                reference_subjects::unknown_readonly_origin(
-                                    program, reference, relative,
-                                )
-                            })
-                        },
-                    )?
+                                    Some(state),
+                                    assignment.target,
+                                )?;
+                            reference_subjects::unknown_readonly_origin(
+                                program, reference, relative,
+                            )
+                        })
+                    },
+                )?
                 {
                     if queried_assignment {
                         record_local_replacement_assignment(
