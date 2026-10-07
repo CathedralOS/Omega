@@ -263,23 +263,42 @@ pub(super) fn resolve<'a>(
                 state.symbol,
                 u32::try_from(local_ordinal).ok()?,
             )?;
-            Some(Destination {
-                root: Root::Local {
-                    symbol: root_symbol,
-                },
+            Some(local_destination(
+                program,
+                &facts.operators,
+                root_symbol,
+                local.type_reference,
                 place,
                 dynamic_index,
-                recast_view: None,
-                view_loan: false,
                 selectors,
-                root_type: local.type_reference,
-                root_owner: crate::facts::field_domain::data_definition_for_field_type(
-                    program,
-                    local.type_reference,
-                ),
-                operators: &facts.operators,
-            })
+            ))
         }
+    }
+}
+
+/// A store rooted at a declared local: the unique `LocalData` symbol names
+/// the root and its declared type fixes the owner and projection base.
+fn local_destination<'a>(
+    program: &'a TypedTrees,
+    operators: &'a checked_trees::CheckedOperatorFacts,
+    root_symbol: SymbolHandle,
+    root_type: typed_trees::types::TypeReferenceHandle,
+    place: crate::flow::CanonicalPlace,
+    dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
+    selectors: Option<super::selectors::TargetSelectors>,
+) -> Destination<'a> {
+    Destination {
+        root: Root::Local {
+            symbol: root_symbol,
+        },
+        place,
+        dynamic_index,
+        recast_view: None,
+        view_loan: false,
+        selectors,
+        root_type,
+        root_owner: crate::facts::field_domain::data_definition_for_field_type(program, root_type),
+        operators,
     }
 }
 
@@ -350,22 +369,15 @@ fn owned_local_root<'a>(
     {
         return None;
     }
-    Some(Destination {
-        root: Root::Local {
-            symbol: root_symbol,
-        },
+    Some(local_destination(
+        program,
+        operators,
+        root_symbol,
+        local.type_reference,
         place,
         dynamic_index,
-        recast_view: None,
-        view_loan: false,
         selectors,
-        root_type: local.type_reference,
-        root_owner: crate::facts::field_domain::data_definition_for_field_type(
-            program,
-            local.type_reference,
-        ),
-        operators,
-    })
+    ))
 }
 
 impl<'a> Destination<'a> {
