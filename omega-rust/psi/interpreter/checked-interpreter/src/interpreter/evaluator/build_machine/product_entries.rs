@@ -266,24 +266,11 @@ impl<'program> Evaluator<'program> {
         expression: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Vec<u8>> {
-        match self.eval_expression(expression, frame)? {
-            Value::Str(bytes) => Ok(bytes.borrow().to_vec()),
-            Value::Array(cells) => cells
-                .iter()
-                .map(|cell| {
-                    cell.borrow()
-                        .as_int()
-                        .and_then(|byte| u8::try_from(byte).ok())
-                        .ok_or_else(|| {
-                            Halt::Trap(
-                                "product entry operand contains a non-byte element".to_owned(),
-                            )
-                        })
-                })
-                .collect(),
-            other => Err(Halt::Trap(format!(
-                "product entry operands must be byte data, got {other:?}"
-            ))),
-        }
+        self.eval_byte_data_operand(
+            expression,
+            frame,
+            "product entry operand",
+            "product entry operands",
+        )
     }
 }

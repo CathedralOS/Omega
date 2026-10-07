@@ -45,25 +45,8 @@ impl<'program> Evaluator<'program> {
                 "build logging requires one byte-string argument".to_owned(),
             ));
         };
-        let bytes = match self.eval_expression(*text, frame)? {
-            Value::Str(bytes) => bytes.borrow().to_vec(),
-            Value::Array(cells) => cells
-                .iter()
-                .map(|cell| {
-                    cell.borrow()
-                        .as_int()
-                        .and_then(|byte| u8::try_from(byte).ok())
-                        .ok_or_else(|| {
-                            Halt::Trap("build log text contains a non-byte element".to_owned())
-                        })
-                })
-                .collect::<EvalResult<Vec<_>>>()?,
-            other => {
-                return Err(Halt::Trap(format!(
-                    "build log text must be byte data, got {other:?}"
-                )));
-            }
-        };
+        let bytes =
+            self.eval_byte_data_operand(*text, frame, "build log text", "build log text")?;
         let appended = bytes
             .len()
             .checked_add(1)

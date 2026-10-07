@@ -398,22 +398,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
         context: &str,
     ) -> EvalResult<Vec<u8>> {
-        match self.eval_expression(expression, frame)? {
-            Value::Str(bytes) => Ok(bytes.borrow().to_vec()),
-            Value::Array(cells) => cells
-                .iter()
-                .map(|cell| {
-                    let value = cell.borrow();
-                    value
-                        .as_int()
-                        .and_then(|byte| u8::try_from(byte).ok())
-                        .ok_or_else(|| Halt::Trap(format!("{context} contains a non-byte element")))
-                })
-                .collect(),
-            other => Err(Halt::Trap(format!(
-                "{context} must be byte data, got {other:?}"
-            ))),
-        }
+        self.eval_byte_data_operand(expression, frame, context, context)
     }
 
     /// Update sealed-output custody from one completed filesystem attempt.
