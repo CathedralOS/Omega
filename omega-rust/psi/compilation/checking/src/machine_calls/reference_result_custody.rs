@@ -2748,22 +2748,14 @@ pub fn result_loan(
                 {
                     return None;
                 }
-                let (mut selected_path, projected) = declared_field_path(
+                let selected_path = callee_parameter_leaf_path(
                     program,
+                    callee,
+                    position,
                     input.type_reference,
                     members.iter().rev().copied(),
+                    &path,
                 )?;
-                if program
-                    .state_parameters(callee)
-                    .get(position)
-                    .is_none_or(|parameter| {
-                        program.normalized_type_identity(parameter.type_reference)
-                            != program.normalized_type_identity(projected)
-                    })
-                {
-                    return None;
-                }
-                selected_path.extend(path.iter().cloned());
                 let loans =
                     local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
                 let mut matching = loans
@@ -2790,22 +2782,14 @@ pub fn result_loan(
                 if !is_reference_record(program, nested_destination.return_type) {
                     return None;
                 }
-                let (mut selected_path, projected) = declared_field_path(
+                let selected_path = callee_parameter_leaf_path(
                     program,
+                    callee,
+                    position,
                     nested_destination.return_type,
                     members.iter().rev().copied(),
+                    &path,
                 )?;
-                if program
-                    .state_parameters(callee)
-                    .get(position)
-                    .is_none_or(|parameter| {
-                        program.normalized_type_identity(parameter.type_reference)
-                            != program.normalized_type_identity(projected)
-                    })
-                {
-                    return None;
-                }
-                selected_path.extend(path.iter().cloned());
                 let sources = returned_record_sources(program, nested_destination)?;
                 let mut matching = sources.iter().filter(|source| source.path == selected_path);
                 let nested_leaf = matching.next()?;
@@ -3547,4 +3531,31 @@ fn state_flow(
         .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
     let flow = states.next()?;
     states.next().is_none().then_some(flow)
+}
+
+/// The structural path a returned leaf names through a callee formal: the
+/// projection off `record_type` must land on `position`'s declared type
+/// identity, then the leaf's own `path` is appended. Both the local-carrier
+/// and nested-call lanes select their sole matching leaf this way.
+fn callee_parameter_leaf_path<'a>(
+    program: &TypedTrees,
+    callee: &typed_trees::state::State,
+    position: usize,
+    record_type: TypeReferenceHandle,
+    members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
+    let (mut selected_path, projected) = declared_field_path(program, record_type, members)?;
+    if program
+        .state_parameters(callee)
+        .get(position)
+        .is_none_or(|parameter| {
+            program.normalized_type_identity(parameter.type_reference)
+                != program.normalized_type_identity(projected)
+        })
+    {
+        return None;
+    }
+    selected_path.extend(path.iter().cloned());
+    Some(selected_path)
 }
