@@ -12,7 +12,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, DataVariant};
 
 use super::const_materializable::{
-    hash_byte, hash_bytes, hash_text, hash_u64, hash_value, unique_data_by_name, validate_value,
+    hash_byte, hash_bytes, hash_text, hash_u64, unique_data_by_name, validate_value,
     value_kind,
 };
 use super::{
@@ -759,15 +759,7 @@ fn non_authoritative_sum_materialization_report_fingerprint(
         None => hash_byte(&mut hash, 0),
     }
     hash_u64(&mut hash, u64::from(selected_case_ordinal));
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }

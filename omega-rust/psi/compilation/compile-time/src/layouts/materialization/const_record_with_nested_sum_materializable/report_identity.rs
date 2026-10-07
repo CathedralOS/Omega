@@ -356,17 +356,9 @@ pub(super) fn recursive_level_materialization_report_fingerprint(
     for (row, child) in path_layout.children.iter().zip(children) {
         hash_child_row_with_custody(&mut hash, row, child);
     }
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 pub(super) fn nested_record_sum_materialization_report_fingerprint(
     schema_name: &str,
@@ -404,17 +396,9 @@ pub(super) fn nested_record_sum_materialization_report_fingerprint(
         &mut hash,
         inner.non_authoritative_materialization_report_fingerprint(),
     );
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 
 pub(super) fn nested_record_sums_materialization_report_fingerprint(
@@ -458,15 +442,7 @@ pub(super) fn nested_record_sums_materialization_report_fingerprint(
                 .non_authoritative_materialization_report_fingerprint(),
         );
     }
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }

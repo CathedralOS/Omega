@@ -376,3 +376,25 @@ pub(super) fn supplied_record_fields<'a, 't>(
     }
     Ok((supplied, members))
 }
+
+/// The shared fingerprint tail every materialization report ends on: byte
+/// order discriminant, declared value, encoded bytes, and the never-zero
+/// finalizer.
+pub(super) fn finish_materialization_fingerprint(
+    mut hash: u64,
+    byte_order: ByteOrder,
+    value: &BuildTimeValue,
+    bytes: &[u8],
+) -> u64 {
+    const_materializable::hash_byte(
+        &mut hash,
+        match byte_order {
+            ByteOrder::LittleEndian => 0,
+            ByteOrder::BigEndian => 1,
+        },
+    );
+    const_materializable::hash_value(&mut hash, value);
+    const_materializable::hash_u64(&mut hash, bytes.len() as u64);
+    const_materializable::hash_bytes(&mut hash, bytes);
+    if hash == 0 { 1 } else { hash }
+}

@@ -583,17 +583,9 @@ fn non_authoritative_materialization_report_fingerprint(
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
     hash_u64(&mut hash, layout_report_fingerprint);
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 
 pub(super) fn hash_value(hash: &mut u64, value: &BuildTimeValue) {

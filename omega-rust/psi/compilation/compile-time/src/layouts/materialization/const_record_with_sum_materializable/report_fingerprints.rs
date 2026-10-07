@@ -99,17 +99,9 @@ pub(crate) fn non_authoritative_record_with_sum_array_materialization_fingerprin
     hash_u64(&mut hash, schema_report_fingerprint);
     hash_u64(&mut hash, layout_report_fingerprint);
     hash_sum_array_occurrence(&mut hash, array_layout, elements);
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 
 pub(crate) fn non_authoritative_record_with_sum_arrays_materialization_fingerprint(
@@ -134,17 +126,9 @@ pub(crate) fn non_authoritative_record_with_sum_arrays_materialization_fingerpri
     for (layout, array) in array_layouts.iter().zip(arrays) {
         hash_compact_sum_array_occurrence(&mut hash, layout, &array.elements);
     }
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 
 pub(crate) fn non_authoritative_record_with_sum_materialization_report_fingerprint(
@@ -191,17 +175,9 @@ pub(crate) fn non_authoritative_record_with_sum_materialization_report_fingerpri
             u64::from(nested.nested_sum.selected_case_ordinal()),
         );
     }
-    hash_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_value(&mut hash, value);
-    hash_u64(&mut hash, bytes.len() as u64);
-    hash_bytes(&mut hash, bytes);
-    if hash == 0 { 1 } else { hash }
+    crate::layouts::materialization::finish_materialization_fingerprint(
+        hash, byte_order, value, bytes,
+    )
 }
 
 /// Hash a sum-array field's retained element selections in packed order:
