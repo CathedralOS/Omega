@@ -258,6 +258,32 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
 }
 
 #[allow(clippy::too_many_arguments)]
+
+/// Close every literal element under the shared leaf shape — the element
+/// mapping both fixed-array lanes of the correspondence walk run.
+fn closed_array_elements(
+    program: &TypedTrees,
+    elements: &[ExpressionHandle],
+    element_type: TypeReferenceHandle,
+    leaf_type: TypeReferenceHandle,
+    leaf_primitive: PrimitiveType,
+    position: usize,
+) -> Result<Vec<ClosedRecursiveArrayElement>, RelationPlanError> {
+    elements
+        .iter()
+        .map(|element| {
+            closed_recursive_array_element(
+                program,
+                *element,
+                element_type,
+                leaf_type,
+                leaf_primitive,
+                position,
+            )
+        })
+        .collect()
+}
+
 fn derive_define_position_runtime_correspondence(
     program: &TypedTrees,
     machine: &Machine,
@@ -417,19 +443,14 @@ pub(super) fn closed_lift_literal_for_representative(
             literal_fixed_array_leaf(program, representative_type)
             && depth >= 3
         {
-            let values = elements
-                .iter()
-                .map(|element| {
-                    closed_recursive_array_element(
-                        program,
-                        *element,
-                        *element_type,
-                        leaf_type,
-                        leaf_primitive,
-                        position,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let values = closed_array_elements(
+                program,
+                elements,
+                *element_type,
+                leaf_type,
+                leaf_primitive,
+                position,
+            )?;
             return Ok(Some(ClosedLiftLiteral::RecursivePrimitiveArray {
                 elements: values.into(),
                 target_type: program.normalized_type_identity(representative_type),
@@ -715,21 +736,16 @@ fn closed_recursive_array_element(
             if elements.len() != *width {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
-            elements
-                .iter()
-                .map(|element| {
-                    closed_recursive_array_element(
-                        program,
-                        *element,
-                        *element_type,
-                        leaf_type,
-                        leaf_primitive,
-                        position,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(std::sync::Arc::from)
-                .map(ClosedRecursiveArrayElement::Array)
+            closed_array_elements(
+                program,
+                elements,
+                *element_type,
+                leaf_type,
+                leaf_primitive,
+                position,
+            )
+            .map(std::sync::Arc::from)
+            .map(ClosedRecursiveArrayElement::Array)
         }
         _ if target_type == leaf_type
             && exact_primitive_type(program, target_type) == Some(leaf_primitive) =>
