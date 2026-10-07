@@ -25,11 +25,20 @@ use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 use terminal_psi::{Operation, StructuralResultDeclaration};
 
+/// The reference descriptor owns this complete captured association. Moves
+/// relocate its carrier key and retain both view and original primitive home;
+/// ordinary reference disposition removes them together, never the payload.
+#[derive(Clone)]
+pub(crate) struct ReferenceReferent {
+    pub(crate) view: TerminalStructuralValue,
+    pub(crate) primitive_loan: Option<crate::primitive_storage::PrimitiveLoan>,
+}
+
 /// Disposition ends carrier custody, never the captured primitive backing.
 /// Ownership transfers deliberately keep using ordinary map removal instead.
 pub(crate) fn discard_structural_value(
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
-    referents: &mut BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    referents: &mut BTreeMap<StructuralRuntimePlace, ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
 ) -> Option<TerminalStructuralValue> {
@@ -123,14 +132,55 @@ impl TerminalExecution {
         source: &StructuralArgument,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let (_, access) = self.reference_contract(result.structural_type)?;
+        let (referent_type, access) = self.reference_contract(result.structural_type)?;
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.
-        let referent = self
-            .resolve_reference_call_arguments(std::slice::from_ref(source))?
-            .pop()
-            .ok_or_else(malformed)?;
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let primitive_loan = if matches!(
+            self.program
+                .structural_types
+                .get(&referent_type)
+                .ok_or_else(malformed)?
+                .shape,
+            StructuralTypeShape::PrimitiveScalar(_)
+        ) {
+            // Retain the actual projected carrier, including shared total views
+            // into differently represented primitives. The reference contract
+            // below independently decides whether its declared view is valid.
+            let root_type = self.live_structural_type(source.place)?;
+            let original_type = if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
+                self.program.structural_types.values(),
+                root_type,
+                &source.path,
+            ) {
+                tip.id
+            } else {
+                self.resolve_live_projection(source.place, &source.path, source.access)?
+                    .structural_type
+            };
+            let parameter = StructuralParameterDeclaration {
+                place: source.place,
+                position: 0,
+                structural_type: original_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: source.access,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            };
+            let mut loan = self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+            loan.access = access;
+            Some(loan)
+        } else {
+            None
+        };
+        let referent = match &primitive_loan {
+            Some(loan) => loan.referent.clone(),
+            None => self
+                .resolve_reference_call_arguments(std::slice::from_ref(source))?
+                .pop()
+                .ok_or_else(malformed)?,
+        };
         if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
@@ -150,14 +200,21 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         let carrier = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
             path: Vec::new(),
         };
-        self.reference_referents
-            .insert(StructuralRuntimePlace::from(&carrier), referent);
+        self.reference_referents.insert(
+            StructuralRuntimePlace::from(&carrier),
+            ReferenceReferent {
+                view: referent,
+                primitive_loan,
+            },
+        );
         self.structural_values.insert(result.place, carrier);
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,
@@ -258,7 +315,7 @@ impl TerminalExecution {
                 value = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
-                    .cloned()
+                    .map(|referent| referent.view.clone())
                     .ok_or_else(malformed)?;
                 if !terminal_semantics::reference_source_compatible(
                     self.program.structural_types.values(),
@@ -429,7 +486,7 @@ impl TerminalExecution {
             let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
             if !access_covers(source.access, access)
                 || expected.structural_type != referent_type
-                || expected != actual
+                || expected != &actual.view
             {
                 return Err(malformed());
             }

@@ -416,7 +416,11 @@ impl TerminalExecution {
             result: boundary_declaration.result.clone(),
         };
         let returned = handler
-            .handle_effect_with_byte_buffers(&effect, &mut boundary_arguments.buffers)
+            .handle_effect_with_buffers(
+                &effect,
+                &mut boundary_arguments.buffers,
+                &mut boundary_arguments.scalar_loans.buffers,
+            )
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
                 operation: operation.id,
                 rejection,
@@ -432,7 +436,7 @@ impl TerminalExecution {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback()?;
+        boundary_arguments.validate_writeback(self)?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
@@ -481,7 +485,7 @@ impl TerminalExecution {
                 }
             }
         }
-        boundary_arguments.commit(self);
+        boundary_arguments.commit(self)?;
         self.effects.push(effect);
         Ok(OperationFlow::Advance)
     }
@@ -558,6 +562,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
+            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             element_view_values: std::mem::take(&mut self.element_view_values),

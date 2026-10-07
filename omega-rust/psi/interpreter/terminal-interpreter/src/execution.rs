@@ -87,7 +87,8 @@ pub struct TerminalExecution {
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
-    pub(crate) reference_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    pub(crate) reference_referents:
+        BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -119,6 +120,7 @@ pub struct TerminalExecution {
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     /// Shared immutable element views rebound to callee parameters, parallel
     /// to `byte_sequence_values` for borrowed `&[T]` storage.
     pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
@@ -169,6 +171,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
@@ -314,6 +317,7 @@ impl TerminalExecution {
             scalar_case_values: BTreeMap::new(),
             scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
+            primitive_loan_values: BTreeMap::new(),
             element_view_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,

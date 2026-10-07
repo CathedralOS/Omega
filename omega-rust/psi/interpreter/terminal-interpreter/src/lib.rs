@@ -66,6 +66,7 @@ pub use capabilities::{
 };
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::results::TerminalEffectResult;
+pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::{
     AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
     AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,

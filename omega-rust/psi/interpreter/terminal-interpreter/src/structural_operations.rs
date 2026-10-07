@@ -186,8 +186,10 @@ impl TerminalExecution {
             BTreeMap::new();
         let mut staged_primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue> =
             BTreeMap::new();
-        let mut staged_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue> =
-            BTreeMap::new();
+        let mut staged_referents: BTreeMap<
+            StructuralRuntimePlace,
+            crate::reference::ReferenceReferent,
+        > = BTreeMap::new();
         let mut staged_element_views = BTreeMap::new();
         let mut consumed = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();

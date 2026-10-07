@@ -11,7 +11,7 @@ pub(super) struct ConstructorStorage {
     scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     bytes: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     views: BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
-    references: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     cases: BTreeMap<

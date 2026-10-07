@@ -5,6 +5,7 @@ use crate::byte_sequences::binding::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
 use crate::effects::TerminalEffectRejection;
+use crate::effects::scalar_loans::BoundaryScalarLoans;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::structural_identities::LocalStructuralIdentities;
@@ -69,8 +70,10 @@ pub(crate) struct BoundaryArguments {
     pub(crate) values: Vec<TerminalStructuralValue>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
+    pub(crate) scalar_loans: BoundaryScalarLoans,
     bindings: Vec<BoundaryByteBufferBinding>,
     byte_sequences: Vec<Option<ByteSequenceBinding>>,
+    primitive_loans: Vec<Option<crate::primitive_storage::PrimitiveLoan>>,
     element_views: Vec<Option<crate::element_views::ElementView>>,
 }
 
@@ -95,6 +98,17 @@ impl BoundaryArguments {
             return Err(malformed());
         }
         let mut byte_sequences = BTreeMap::new();
+        let mut primitive_loans = BTreeMap::new();
+        for (parameter, loan) in parameters.iter().zip(self.primitive_loans) {
+            if let Some(loan) = loan {
+                if values.get(&parameter.place) != Some(&loan.referent)
+                    || loan.access != parameter.access
+                    || primitive_loans.insert(parameter.place, loan).is_some()
+                {
+                    return Err(malformed());
+                }
+            }
+        }
         let mut element_views = BTreeMap::new();
         for (parameter, view) in parameters.iter().zip(self.element_views) {
             let Some(view) = view else {
@@ -144,6 +158,7 @@ impl BoundaryArguments {
             local_identity_cursor: self.local_identity_cursor,
             values,
             byte_sequences,
+            primitive_loans,
             scalar_arrays: BTreeMap::new(),
             scalar_cases: BTreeMap::new(),
             element_views,
@@ -152,7 +167,10 @@ impl BoundaryArguments {
 
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
     /// Check every binding before committing either fields or the result.
-    pub(crate) fn validate_writeback(&self) -> Result<(), TerminalInterpretError> {
+    pub(crate) fn validate_writeback(
+        &self,
+        execution: &TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
         if self.buffers.len() != self.bindings.len()
             || self
                 .buffers
@@ -166,10 +184,13 @@ impl BoundaryArguments {
         {
             return Err(malformed());
         }
-        Ok(())
+        self.scalar_loans.validate_writeback(execution)
     }
 
-    pub(crate) fn commit(self, execution: &mut TerminalExecution) {
+    pub(crate) fn commit(
+        self,
+        execution: &mut TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
         execution
             .local_structural_identities
             .commit_cursor(self.local_identity_cursor);
@@ -178,6 +199,7 @@ impl BoundaryArguments {
                 .structural_byte_sequence_fields
                 .insert(binding.field, ByteSequenceView::new(buffer.bytes));
         }
+        self.scalar_loans.commit(execution)
     }
 }
 
@@ -187,7 +209,55 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
-        let mut resolved = self.prepare_boundary_arguments(parameters, arguments)?;
+        if parameters.len() != arguments.len() {
+            return Err(malformed());
+        }
+        // Primitive loans use the general scalar backing owner rather than
+        // the byte-view presentation protocol. Prepare all other arguments
+        // together so shared array presentations keep their invocation-local
+        // identity association, then restore the original structural order.
+        let mut ordinary_parameters = Vec::new();
+        let mut ordinary_arguments = Vec::new();
+        let mut ordinary_indices = Vec::new();
+        let mut scalar_indices = Vec::new();
+        for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
+        {
+            let scalar_loan = matches!(
+                self.program
+                    .structural_types
+                    .get(&parameter.structural_type)
+                    .ok_or_else(malformed)?
+                    .shape,
+                StructuralTypeShape::PrimitiveScalar(_)
+            ) && parameter.access != StructuralAccess::Owned;
+            if scalar_loan {
+                scalar_indices.push(argument_index);
+            } else {
+                ordinary_parameters.push(parameter.clone());
+                ordinary_arguments.push(argument.clone());
+                ordinary_indices.push(argument_index);
+            }
+        }
+        let mut resolved =
+            self.prepare_boundary_arguments(&ordinary_parameters, &ordinary_arguments)?;
+        for binding in &mut resolved.bindings {
+            binding.argument_index = *ordinary_indices
+                .get(binding.argument_index)
+                .ok_or_else(malformed)?;
+        }
+        for argument_index in scalar_indices {
+            let value = resolved.scalar_loans.capture(
+                self,
+                &parameters[argument_index],
+                &arguments[argument_index],
+                argument_index,
+                &mut resolved.local_identity_cursor,
+            )?;
+            resolved.values.insert(argument_index, value);
+            resolved.byte_sequences.insert(argument_index, None);
+            resolved.primitive_loans.insert(argument_index, None);
+            resolved.element_views.insert(argument_index, None);
+        }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
             match binding {
                 None => resolved.bytes.push(None),
@@ -230,13 +300,36 @@ impl TerminalExecution {
             values: Vec::with_capacity(arguments.len()),
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
+            scalar_loans: BoundaryScalarLoans::default(),
             bindings: Vec::new(),
             byte_sequences: Vec::with_capacity(arguments.len()),
+            primitive_loans: Vec::with_capacity(arguments.len()),
             element_views: Vec::with_capacity(arguments.len()),
         };
         let mut local_array_roots = BTreeMap::new();
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
+            if matches!(
+                self.program
+                    .structural_types
+                    .get(&parameter.structural_type)
+                    .ok_or_else(malformed)?
+                    .shape,
+                StructuralTypeShape::PrimitiveScalar(_)
+            ) && parameter.access != StructuralAccess::Owned
+            {
+                let loan = self.capture_primitive_loan(
+                    parameter,
+                    argument,
+                    &mut resolved.local_identity_cursor,
+                )?;
+                resolved.values.push(loan.referent.clone());
+                resolved.primitive_loans.push(Some(loan));
+                resolved.byte_sequences.push(None);
+                resolved.element_views.push(None);
+                continue;
+            }
+            resolved.primitive_loans.push(None);
             if let Some((referent, binding)) =
                 self.prepare_shared_descriptor_argument(parameter, argument)?
             {

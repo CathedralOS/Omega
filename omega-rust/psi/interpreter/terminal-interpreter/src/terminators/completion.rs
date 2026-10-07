@@ -70,6 +70,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
+            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             element_view_values: std::mem::take(&mut self.element_view_values),
@@ -101,6 +102,7 @@ impl TerminalExecution {
         self.scalar_array_values = caller.scalar_array_values;
         self.element_view_values = caller.element_view_values;
         self.byte_sequence_values = caller.byte_sequence_values;
+        self.primitive_loan_values = caller.primitive_loan_values;
         self.live_affine_frontier = caller.live_affine_frontier;
         self.live_claims = caller.live_claims;
         self.current_machine = caller.current_machine;

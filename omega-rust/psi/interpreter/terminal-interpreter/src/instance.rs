@@ -23,6 +23,7 @@ use terminal_fuel::TerminalFuelMeter;
 use crate::adapters::TerminalImportAdapter;
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
+use crate::effects::scalar_loans::TerminalBoundaryScalarBuffer;
 use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
@@ -495,6 +496,27 @@ struct ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        byte_buffers: &mut [TerminalBoundaryByteBuffer],
+        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        match effect {
+            TerminalEffect::BoundaryCall { boundary, .. } => self
+                .bindings
+                .get_mut(boundary)
+                .ok_or_else(|| {
+                    TerminalEffectRejection::new("boundary call reached an unbound import slot")
+                })?
+                .adapter
+                .handle_effect_with_buffers(effect, byte_buffers, scalar_buffers),
+            TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
+                "port output requires an admitted target-environment provider",
+            )),
+        }
+    }
+
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         match effect {
             TerminalEffect::BoundaryCall { boundary, .. } => self

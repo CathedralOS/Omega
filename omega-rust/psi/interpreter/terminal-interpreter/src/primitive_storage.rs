@@ -1,12 +1,21 @@
 //! Activation-local primitive roots share backing only through explicit loans.
+//!
+//! A primitive descriptor alone cannot address an owned array's payload: that
+//! payload remains in its owner's activation when an ordinary helper runs.
+//! `capture_primitive_loan` therefore binds the visible qualified referent to
+//! its exact storage endpoint; calls, successors and stored reference carriers
+//! retain that association instead of allocating a shadow scalar. Accessors
+//! below validate the owner frame and use that endpoint for every load/store.
+//! Shared representation observations stay ordinary language semantics; the
+//! stricter host replacement protocol lives in `effects::scalar_loans`.
 
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId, ScalarType, StructuralPlaceKind,
     StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    StructuralPathSegment,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
 };
 
 use crate::custody::resolve_structural_path_type;
@@ -28,7 +37,8 @@ pub(crate) struct PrimitiveStorageHome {
     structural_type: StructuralTypeId,
 }
 
-enum PrimitiveStorage {
+#[derive(Clone)]
+pub(crate) enum PrimitiveStorage {
     Scalar(StructuralRuntimePlace),
     /// One scalar leaf inside a shared referent's containing record. The key
     /// addresses `structural_scalar_fields` directly: primitive root storage
@@ -42,6 +52,17 @@ enum PrimitiveStorage {
         home: PrimitiveStorageHome,
         index: usize,
     },
+}
+
+/// One ordinary primitive loan retains a storage endpoint, not copied data.
+/// Frame-local place bindings may change; the pinned owner activation does not.
+#[derive(Clone)]
+pub(crate) struct PrimitiveLoan {
+    pub(crate) storage: PrimitiveStorage,
+    pub(crate) scalar_type: ScalarType,
+    pub(crate) shared_view: bool,
+    pub(crate) access: StructuralAccess,
+    pub(crate) referent: TerminalStructuralValue,
 }
 
 fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralTypeId> {
@@ -75,6 +96,151 @@ fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralT
 }
 
 impl TerminalExecution {
+    /// Prepare the same original endpoint for ordinary calls and host staging.
+    /// In particular, a local array's scalar payload stays in its owner's
+    /// activation; its observation descriptor never creates another scalar row.
+    pub(crate) fn capture_primitive_loan(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<PrimitiveLoan, TerminalInterpretError> {
+        let terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) = self
+            .program
+            .structural_types
+            .get(&parameter.structural_type)
+            .ok_or_else(malformed)?
+            .shape
+        else {
+            return Err(malformed());
+        };
+        if parameter.access != argument.access
+            || !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            )
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        {
+            return Err(malformed());
+        }
+        if argument.path.is_empty()
+            && let Some(loan) = self.primitive_loan_values.get(&argument.place)
+        {
+            let value = self
+                .structural_values
+                .get(&argument.place)
+                .ok_or_else(malformed)?;
+            if *value != loan.referent
+                || value.structural_type != parameter.structural_type
+                || (parameter.access != StructuralAccess::SharedBorrow
+                    && loan.access == StructuralAccess::SharedBorrow)
+                || (parameter.access == StructuralAccess::SharedBorrow
+                    && loan.access == StructuralAccess::WriteOnlyBorrow)
+                || (parameter.access == StructuralAccess::MutableBorrow
+                    && loan.access == StructuralAccess::WriteOnlyBorrow)
+            {
+                return Err(malformed());
+            }
+            let mut rebound = loan.clone();
+            rebound.access = parameter.access;
+            return Ok(rebound);
+        }
+        let retained_reference = if let Some(crossing) = argument
+            .path
+            .iter()
+            .rposition(|segment| *segment == StructuralPathSegment::Referent)
+            .filter(|crossing| *crossing + 1 == argument.path.len())
+        {
+            let carrier = self.resolve_live_projection(
+                argument.place,
+                &argument.path[..crossing],
+                argument.access,
+            )?;
+            self.reference_referents
+                .get(&StructuralRuntimePlace::from(&carrier))
+                .and_then(|referent| referent.primitive_loan.as_ref())
+        } else {
+            None
+        };
+        let (referent, storage, scalar_type, shared_view) = if let Some(loan) = retained_reference {
+            // Reference-path resolution independently checks every crossing's
+            // declared access. Its view retains actual qualifications.
+            let referent =
+                self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+            if referent.structural_type != parameter.structural_type {
+                return Err(malformed());
+            }
+            (
+                referent,
+                loan.storage.clone(),
+                expected,
+                parameter.access == StructuralAccess::SharedBorrow,
+            )
+        } else if self.scalar_array_values.contains_key(&argument.place)
+            || matches!(
+                self.byte_sequence_values.get(&argument.place),
+                Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { .. })
+            )
+        {
+            let (storage, scalar_type, shared_view) = self.primitive_access(
+                argument.place,
+                parameter.access != StructuralAccess::SharedBorrow,
+                &argument.path,
+            )?;
+            let (opaque_identity, path) = match &storage {
+                PrimitiveStorage::ArrayElement { array, index } => {
+                    let mut path = array.referent.path.clone();
+                    path.push(StructuralPathSegment::FixedIndex(
+                        u64::try_from(*index).map_err(|_| malformed())?,
+                    ));
+                    (array.referent.opaque_identity, path)
+                }
+                PrimitiveStorage::OwnedArrayElement { .. } => (
+                    self.local_structural_identities
+                        .allocate_staged(identity_cursor)?,
+                    argument.path.clone(),
+                ),
+                _ => return Err(malformed()),
+            };
+            (
+                TerminalStructuralValue {
+                    opaque_identity,
+                    structural_type: parameter.structural_type,
+                    qualifications: Vec::new(),
+                    path,
+                },
+                storage,
+                scalar_type,
+                shared_view,
+            )
+        } else {
+            let value =
+                self.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+            if value.structural_type != parameter.structural_type {
+                return Err(malformed());
+            }
+            let (storage, scalar_type, shared_view) = self.primitive_view_access(
+                &value,
+                &[],
+                expected,
+                parameter.access == StructuralAccess::SharedBorrow,
+            )?;
+            (value, storage, scalar_type, shared_view)
+        };
+        if scalar_type != expected {
+            return Err(malformed());
+        }
+        Ok(PrimitiveLoan {
+            storage,
+            scalar_type,
+            shared_view,
+            access: parameter.access,
+            referent,
+        })
+    }
+
     /// Initialized arrays carry their own payload instead of an opaque row.
     /// Every storage observer must resolve that same exclusive live root.
     pub(crate) fn live_structural_type(
@@ -98,7 +264,7 @@ impl TerminalExecution {
     /// runtime-selected element with the fixed index its value names. The final
     /// flag retains shared observation authority from the current formal; only
     /// that authority permits a stored primitive to expose a different carrier.
-    fn primitive_access(
+    pub(crate) fn primitive_access(
         &self,
         place: PlaceId,
         writing: bool,
@@ -123,6 +289,21 @@ impl TerminalExecution {
                 suffix,
             )
             .ok_or_else(malformed)?;
+            if suffix.is_empty() {
+                let carrier = self.resolve_live_projection(place, &path[..crossing], access)?;
+                if let Some(captured) = self
+                    .reference_referents
+                    .get(&StructuralRuntimePlace::from(&carrier))
+                    && let Some(loan) = &captured.primitive_loan
+                {
+                    if captured.view != loan.referent
+                        || (writing && loan.access != StructuralAccess::MutableBorrow)
+                    {
+                        return Err(malformed());
+                    }
+                    return Ok((loan.storage.clone(), scalar_type, !writing));
+                }
+            }
             let canonical = terminal_semantics::canonical_primitive_path(
                 self.program.structural_types.values(),
                 referent.structural_type,
@@ -153,23 +334,30 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         let place = home.place;
-        let (machine_id, structural_values, scalar_array_values, byte_sequence_values) =
-            if home.depth == self.call_stack.len() {
-                (
-                    self.current_machine,
-                    &self.structural_values,
-                    &self.scalar_array_values,
-                    &self.byte_sequence_values,
-                )
-            } else {
-                let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
-                (
-                    frame.current_machine,
-                    &frame.structural_values,
-                    &frame.scalar_array_values,
-                    &frame.byte_sequence_values,
-                )
-            };
+        let (
+            machine_id,
+            structural_values,
+            scalar_array_values,
+            byte_sequence_values,
+            primitive_loan_values,
+        ) = if home.depth == self.call_stack.len() {
+            (
+                self.current_machine,
+                &self.structural_values,
+                &self.scalar_array_values,
+                &self.byte_sequence_values,
+                &self.primitive_loan_values,
+            )
+        } else {
+            let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+            (
+                frame.current_machine,
+                &frame.structural_values,
+                &frame.scalar_array_values,
+                &frame.byte_sequence_values,
+                &frame.primitive_loan_values,
+            )
+        };
         if machine_id != home.machine {
             return Err(malformed());
         }
@@ -178,6 +366,43 @@ impl TerminalExecution {
             .machines
             .get(&machine_id)
             .ok_or_else(malformed)?;
+        if let Some(loan) = primitive_loan_values.get(&place) {
+            let parameter = machine
+                .structural_parameters
+                .iter()
+                .chain(
+                    machine
+                        .blocks
+                        .values()
+                        .flat_map(|block| &block.structural_parameters),
+                )
+                .find(|parameter| parameter.place == place)
+                .ok_or_else(malformed)?;
+            if !path.is_empty()
+                || structural_values.get(&place) != Some(&loan.referent)
+                || loan.referent.structural_type != home.structural_type
+                || parameter.structural_type != home.structural_type
+                || parameter.access != loan.access
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || if writing {
+                    !matches!(
+                        loan.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    )
+                } else {
+                    !matches!(
+                        loan.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                }
+            {
+                return Err(malformed());
+            }
+            // Ordinary ingress already binds the exact qualified view. This
+            // endpoint association does not erase its qualifiers or convert
+            // stored payload; host replacement admission remains separate.
+            return Ok((loan.storage.clone(), loan.scalar_type, loan.shared_view));
+        }
         let (structural_type, shared_view) = local_type(machine, place)
             .map(|structural_type| (structural_type, false))
             .or_else(|| {
@@ -372,7 +597,7 @@ impl TerminalExecution {
     /// Resolve a typed primitive suffix against its original runtime backing.
     /// Borrowed formals and stored references share this storage selection;
     /// neither creates an independent copy of the observed or written leaf.
-    fn primitive_view_access(
+    pub(crate) fn primitive_view_access(
         &self,
         view: &TerminalStructuralValue,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
@@ -705,7 +930,7 @@ impl TerminalExecution {
         self.read_primitive_storage(home.place, storage, scalar_type, expected, shared_view)
     }
 
-    fn read_primitive_storage(
+    pub(crate) fn read_primitive_storage(
         &self,
         source: PlaceId,
         storage: PrimitiveStorage,
@@ -715,6 +940,17 @@ impl TerminalExecution {
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         let scalar = match storage {
             PrimitiveStorage::OwnedArrayElement { home, index } => {
+                let owner_machine = if home.depth == self.call_stack.len() {
+                    self.current_machine
+                } else {
+                    self.call_stack
+                        .get(home.depth)
+                        .ok_or_else(malformed)?
+                        .current_machine
+                };
+                if owner_machine != home.machine {
+                    return Err(malformed());
+                }
                 let arrays = if home.depth == self.call_stack.len() {
                     &self.scalar_array_values
                 } else {
@@ -808,7 +1044,7 @@ impl TerminalExecution {
         self.store_primitive_storage(home.place, storage, scalar_type, scalar)
     }
 
-    fn store_primitive_storage(
+    pub(crate) fn store_primitive_storage(
         &mut self,
         destination: PlaceId,
         storage: PrimitiveStorage,
@@ -820,6 +1056,17 @@ impl TerminalExecution {
         }
         match storage {
             PrimitiveStorage::OwnedArrayElement { home, index } => {
+                let owner_machine = if home.depth == self.call_stack.len() {
+                    self.current_machine
+                } else {
+                    self.call_stack
+                        .get(home.depth)
+                        .ok_or_else(malformed)?
+                        .current_machine
+                };
+                if owner_machine != home.machine {
+                    return Err(malformed());
+                }
                 let arrays = if home.depth == self.call_stack.len() {
                     &mut self.scalar_array_values
                 } else {

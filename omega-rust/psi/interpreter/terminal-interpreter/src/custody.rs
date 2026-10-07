@@ -47,7 +47,7 @@ pub(crate) fn commit_cleanup_action(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
-    reference_referents: &mut BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
@@ -137,9 +137,9 @@ pub(crate) fn commit_cleanup_action(
             if reference_referents.iter().any(|(carrier, referent)| {
                 (carrier.opaque_identity == value.opaque_identity
                     && terminal_semantics::structural_paths_may_overlap(&carrier.path, &value.path))
-                    || (referent.opaque_identity == value.opaque_identity
+                    || (referent.view.opaque_identity == value.opaque_identity
                         && terminal_semantics::structural_paths_may_overlap(
-                            &referent.path,
+                            &referent.view.path,
                             &value.path,
                         ))
             }) {

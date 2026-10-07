@@ -139,6 +139,7 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) local_identity_cursor: Option<u64>,
     pub(crate) values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     pub(crate) element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
@@ -390,7 +391,8 @@ impl TerminalExecution {
                     .structural_types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
-                        declaration.shape.is_borrowed_byte_carrier()
+                        matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                            || declaration.shape.is_borrowed_byte_carrier()
                             || matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
@@ -419,6 +421,7 @@ impl TerminalExecution {
             local_identity_cursor: self.local_structural_identities.cursor(),
             values: bind_structural_arguments(&opaque_parameters, &values)?,
             byte_sequences,
+            primitive_loans: BTreeMap::new(),
             scalar_arrays,
             scalar_cases,
             element_views,

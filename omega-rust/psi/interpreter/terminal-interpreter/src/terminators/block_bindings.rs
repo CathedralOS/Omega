@@ -28,6 +28,7 @@ pub(crate) struct BlockBindings {
     scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
+    primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
     owned_sources: BTreeSet<PlaceId>,
     claims: BTreeMap<ClaimId, LiveClaim>,
@@ -74,21 +75,25 @@ impl BlockBindings {
             execution.scalar_case_values.remove(&source);
             execution.scalar_array_values.remove(&source);
             execution.element_view_values.remove(&source);
+            execution.primitive_loan_values.remove(&source);
             remove_affine_root(&mut execution.live_affine_frontier, source);
         }
         for destination in self.structural.keys() {
             execution.scalar_case_values.remove(destination);
             execution.scalar_array_values.remove(destination);
+            execution.primitive_loan_values.remove(destination);
         }
         for destination in self.scalar_cases.keys() {
             execution.structural_values.remove(destination);
             execution.scalar_array_values.remove(destination);
             execution.element_view_values.remove(destination);
+            execution.primitive_loan_values.remove(destination);
         }
         for destination in self.scalar_arrays.keys() {
             execution.structural_values.remove(destination);
             execution.scalar_case_values.remove(destination);
             execution.element_view_values.remove(destination);
+            execution.primitive_loan_values.remove(destination);
         }
         execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
@@ -96,6 +101,7 @@ impl BlockBindings {
         execution.scalar_case_values.extend(self.scalar_cases);
         execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
+        execution.primitive_loan_values.extend(self.primitive_loans);
         execution.element_view_values.extend(self.element_views);
         execution
             .live_affine_frontier
@@ -231,6 +237,8 @@ impl TerminalExecution {
         let mut descriptor_arguments = Vec::new();
         let mut scalar_cases = BTreeMap::new();
         let mut scalar_arrays = BTreeMap::new();
+        let mut primitive_loans = BTreeMap::new();
+        let mut identity_cursor = self.local_structural_identities.cursor();
         let mut case_destinations = BTreeSet::new();
         let mut owned_sources = BTreeSet::new();
         let mut claims = BTreeMap::new();
@@ -257,6 +265,29 @@ impl TerminalExecution {
                     ) || parameter.access == StructuralAccess::Owned))
             {
                 return Err(malformed());
+            }
+            if parameter.access != StructuralAccess::Owned
+                && matches!(
+                    self.program
+                        .structural_types
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?
+                        .shape,
+                    StructuralTypeShape::PrimitiveScalar(_)
+                )
+            {
+                if !self.block_parameter_is_declared(target, parameter) {
+                    return Err(malformed());
+                }
+                let loan =
+                    self.capture_primitive_loan(parameter, argument, &mut identity_cursor)?;
+                resolved_arguments.push(loan.referent.clone());
+                primitive_loans.insert(parameter.place, loan);
+                if contains_payloads {
+                    descriptor_parameters.push(parameter.clone());
+                    descriptor_arguments.push(argument.clone());
+                }
+                continue;
             }
             if self.scalar_array_values.contains_key(&argument.place) {
                 // Arrays already have a complete value carrier. Capture it by
@@ -589,7 +620,6 @@ impl TerminalExecution {
             descriptor_arguments,
             &resolved_arguments,
         )?;
-        let mut identity_cursor = self.local_structural_identities.cursor();
         let record_payload = self.stage_owned_record_arguments(
             descriptor_parameters,
             &mut structural,
@@ -601,6 +631,7 @@ impl TerminalExecution {
             scalar_cases,
             scalar_arrays,
             byte_sequences,
+            primitive_loans,
             element_views,
             owned_sources,
             claims,

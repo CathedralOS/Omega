@@ -166,6 +166,34 @@ Borrowed aggregate parameters, partial transfers, host interfaces, and native
 execution remain unsupported; an opaque entry identity cannot supply nested
 reference carriers.
 
+## External primitive loans
+
+Ordinary primitive arguments also retain their original storage endpoints.
+In particular, a local array element stays in its suspended owner's frame;
+callee parameters, successor bindings and stored references carry a loan
+association rather than a copied scalar. Shared representation views and
+qualifiers retain their ordinary rules. The stricter host admission described
+below applies only when an external adapter receives a payload buffer.
+
+`TerminalEffectHandler::handle_effect_with_buffers` receives captured scalar
+payloads beside byte buffers. A `TerminalBoundaryScalarBuffer` identifies its
+structural argument index and admitted access, but exposes no interpreter
+storage handle. Mutable replacements stage an exactly typed value; shared
+borrows cannot replace it. The core captures the original local, field or array
+element home before dispatch, including a suspended caller's backing, validates
+every staged payload and original field restriction before result publication,
+then writes back to those captured homes. It never resolves the source again
+after host code. A per-buffer token prevents substituting a retained buffer from
+another invocation.
+
+This protocol admits only unqualified initialized shared/mutable primitive
+loans. Write-only input and qualified owner storage reject before dispatch;
+observing a plain formal does not erase the caller's stronger restrictions.
+Adapters that implement only the old byte callback refuse scalar loans before
+performing effects. Checked provider bodies still borrow the ordinary live
+storage and may forward it into an external call; they do not receive a staged
+copy that could overwrite nested changes on return.
+
 ## Bounded byte fields
 
 Whole-field replacement supplies live backing associated with the original
