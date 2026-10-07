@@ -1,10 +1,15 @@
 //! Typed trees to checked trees.
 //!
-//! One entrance: [`lower_typed_trees`], in `checking.rs`, which takes a
-//! [`CheckingRequest`] naming the package checkpoint and the settled
-//! selections. Read that function to read this stage — the module order
-//! below is the order it runs them in. [`lower_typed_trees_reusing`] is the
-//! same entrance for a caller that hands back an earlier [`RetainedCheck`].
+//! Checking starts at [`lower_typed_trees`] in `checking.rs`. It consumes
+//! the readonly typed owner produced by [`prepare_typed_trees`], plus retained
+//! preparation judgments and a [`CheckingRequest`] naming source admission.
+//! [`lower_typed_trees_reusing`] takes an earlier invocation-owned judgment
+//! under the same immutable input. No checking entry rewrites typed tables.
+//!
+//! `preparation.rs` owns the preceding typed-to-typed operation: specialize
+//! bodies and rebind call identities, then seal the result. It is still housed
+//! in this package while its shared source-query dependencies are separated;
+//! independent stage extraction remains TYPED-FROZEN-BEFORE-CHECKING work.
 //!
 //! Wire codec and compatibility admission runs at the entrance for every
 //! request, including a reused judgment; Build supplies demands, not their
@@ -46,6 +51,9 @@ mod flow;
 mod lookup;
 mod monomorphization;
 mod operators;
+mod preparation;
+#[cfg(test)]
+mod immutable_checking_input;
 mod proof;
 mod semantic;
 mod values;
@@ -64,7 +72,10 @@ pub use build_program::{project_build_program, project_selected_program};
 
 pub use checking::{
     CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
-    normalize_open_index_identities, specialize_static_machine_calls,
+};
+pub use preparation::{
+    TypedPreparation, normalize_open_index_identities, prepare_typed_trees,
+    specialize_static_machine_calls,
 };
 
 pub use package_review::{

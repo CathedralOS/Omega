@@ -12,6 +12,8 @@
 mod authored_targets;
 pub mod calls;
 mod commitments;
+mod frozen;
+pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
 pub mod declaration_index;
 mod declaration_tables;

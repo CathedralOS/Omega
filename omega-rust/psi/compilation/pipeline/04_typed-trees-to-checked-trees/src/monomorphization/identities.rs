@@ -292,7 +292,7 @@ pub(super) fn accepted_template_commitment(
 pub(crate) fn prepare_specialization_contract_identities(
     program: &dyn ::validation::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
-) -> Result<PreparedSpecializationIdentities, Vec<Diagnostic>> {
+) -> Result<checked_trees::CheckedSpecializationIdentities, Vec<Diagnostic>> {
     let operational = validation::infer_operational_may(program);
     let identities: Result<Vec<_>, _> = program
         .machine_specializations
@@ -302,27 +302,8 @@ pub(crate) fn prepare_specialization_contract_identities(
         })
         .collect();
     identities
-        .map(PreparedSpecializationIdentities)
+        .map(checked_trees::CheckedSpecializationIdentities::with_rows)
         .map_err(|diagnostic| vec![diagnostic])
-}
-
-/// Prepared over the final specialization roster. Checking reads none of the
-/// published metadata and cannot mutate that roster while it owns the context.
-pub(crate) struct PreparedSpecializationIdentities(Vec<MachineSpecializationIdentity>);
-
-impl PreparedSpecializationIdentities {
-    pub(crate) fn publish(self, program: &mut TypedTrees) {
-        for (specialization, identity) in program.machine_specializations.iter_mut().zip(self.0) {
-            specialization.machine_argument_contract_commitments =
-                identity.machine_contract_commitments;
-            specialization.commitment = identity.commitment;
-        }
-    }
-}
-
-struct MachineSpecializationIdentity {
-    machine_contract_commitments: Vec<[u8; 32]>,
-    commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
 }
 
 /// Encode one specialization's identity from the template contract and
@@ -335,7 +316,7 @@ fn machine_specialization_identity(
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
-) -> Result<MachineSpecializationIdentity, Diagnostic> {
+) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Diagnostic> {
     let instance = crate::lookup::machine_by_symbol(program, specialization.instance)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its concrete instance"))?;
     let instance_identity = normalized_machine_identity(program, instance).ok_or_else(|| {
@@ -419,8 +400,9 @@ fn machine_specialization_identity(
     let mut strong = Sha256::new();
     strong.update(b"omega.machine-specialization.v2\0");
     strong.update(&bytes);
-    Ok(MachineSpecializationIdentity {
-        machine_contract_commitments,
+    Ok(checked_trees::CheckedMachineSpecializationIdentity {
+        instance: specialization.instance,
+        machine_argument_contract_commitments: machine_contract_commitments.into_boxed_slice(),
         commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
             strong.finalize().into(),
         ),

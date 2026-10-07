@@ -185,6 +185,7 @@ pub use checked_trees::{
     QualificationFacts, QuantifiedBoundFact, QuantifiedRangeFact, RealizedMachineContractEnvelope,
     ReferenceCustodyFacts, ReferenceCustodyRow, RequirementCallSpecializationFacts,
     ResolvedCarrierType, ResolvedExpressionType, ResolvedTypeFacts, RetainedBorrowCustodyFact,
+    CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
     RetiredFlowCall, ServiceReachFacts, StateAcceptance, StateBorrowFact, StateOperationAcceptance,
     StateOperationAcceptanceKind, StateReferenceCustodyFacts, StateReferenceCustodyRow,
     StateServiceReachRows, StateWriteFramePlan, StatementAcceptance, StaticRequirementDispatchFact,

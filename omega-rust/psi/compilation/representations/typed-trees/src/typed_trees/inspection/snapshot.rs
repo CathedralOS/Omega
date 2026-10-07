@@ -300,8 +300,6 @@ pub struct MachineSpecializationSnapshot {
     pub template_contract_commitment: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_template_commitment: Option<String>,
-    pub machine_argument_contract_commitments: Vec<String>,
-    pub commitment: String,
 }
 
 /// The canonical calling-policy identity selected for one boundary trait's
@@ -630,12 +628,6 @@ impl TypedTreesSnapshot {
                     accepted_template_commitment: specialization
                         .accepted_template_commitment
                         .clone(),
-                    machine_argument_contract_commitments: specialization
-                        .machine_argument_contract_commitments
-                        .iter()
-                        .map(hex_digest)
-                        .collect(),
-                    commitment: hex_digest(&specialization.commitment.as_bytes()),
                 })
                 .collect(),
             boundary_calling_plans: program

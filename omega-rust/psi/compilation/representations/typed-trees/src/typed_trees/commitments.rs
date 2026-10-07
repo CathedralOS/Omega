@@ -58,9 +58,8 @@ digest_commitment! {
 
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
-/// becomes a runtime value. Stage 04 computes `commitment` once; Terminal Psi
-/// and package review carry it as the specialization's portable identity, and
-/// no later stage recomputes it.
+/// becomes a runtime value. Preparation records the template and arguments;
+/// checking retains the specialization's portable identity in checked facts.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
@@ -100,8 +99,8 @@ pub struct MachineSpecialization {
     /// bytes below.
     pub template_contract_commitment: MachineTemplateCommitment,
     /// Exact canonical universal-template encoding captured before in-place
-    /// substitution consumes its generic parameter declarations. Stage 04
-    /// folds it into `commitment` once checked contract plans exist.
+    /// substitution consumes its generic parameter declarations. Checking
+    /// folds it into checked commitments once contract plans exist.
     pub canonical_template_contract_bytes: Vec<u8>,
     /// Package-qualified normalized overload identity of the authored generic
     /// template before substitution. ProviderPlan checked-adapter joins and
@@ -111,16 +110,6 @@ pub struct MachineSpecialization {
     /// instance points at the same template commitment; none spends a new
     /// grant. `None` for checked templates.
     pub accepted_template_commitment: Option<String>,
-    /// Exact checked public-contract commitments of the selected static
-    /// machine owners, in specialization argument order.
-    /// Stored as the exact 32-byte digest because the typed representation
-    /// cannot depend cyclically on the checked representation that owns the
-    /// `MachineContractCommitment` newtype.
-    pub machine_argument_contract_commitments: Vec<[u8; 32]>,
-    /// Domain-separated SHA-256 commitment to the canonical template, exact
-    /// argument identities, selected machine contracts, closed conformances,
-    /// and accepted-template grant relied upon by this instance.
-    pub commitment: MachineSpecializationCommitment,
 }
 
 digest_commitment! {

@@ -40,4 +40,5 @@ pub use typed_trees::{
     BoundaryCompletionDeclaration, PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField,
     PlanLaidLayout, PlanLaidRepeatedField, ProgramIdentity, TypedTreeRoots, TypedTreeTables,
     TypedTrees,
+    FrozenTypedTrees,
 };

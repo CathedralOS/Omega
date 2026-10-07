@@ -16,13 +16,17 @@ use super::dependencies::MachineIndex;
 /// handles from other retained rows remain as valid dead evidence and are
 /// unreachable through the pruned declaration surface.
 pub(super) fn apply_pruning(
-    checked: &mut CheckedTrees,
+    checked: CheckedTrees,
     retained: &HashSet<SymbolHandle>,
     pruned: &HashSet<SymbolHandle>,
     index: &MachineIndex,
-) {
-    apply_typed_pruning(&mut checked.typed, retained, pruned);
-    apply_fact_pruning(checked, retained, pruned, index);
+) -> CheckedTrees {
+    let mut typed = checked.typed.into_inner();
+    let mut facts = checked.facts;
+    apply_typed_pruning(&mut typed, retained, pruned);
+    super::retain_live_family_members(&mut typed);
+    apply_fact_pruning(&mut facts, retained, pruned, index);
+    CheckedTrees::with_roots(typed, facts)
 }
 
 /// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
@@ -118,12 +122,11 @@ pub(crate) fn apply_declaration_sidecar_pruning(
 }
 
 fn apply_fact_pruning(
-    checked: &mut CheckedTrees,
+    facts: &mut checked_trees::CheckFacts,
     retained: &HashSet<SymbolHandle>,
     pruned: &HashSet<SymbolHandle>,
     index: &MachineIndex,
 ) {
-    let facts = &mut checked.facts;
 
     facts
         .mutation

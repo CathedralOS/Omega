@@ -42,6 +42,9 @@ pub(crate) fn retain_closed_reach_applications(
     let operational = &checked.facts.operational;
     let inferred = &checked.facts.service_reaches;
     for specialization in &checked.machine_specializations {
+        let checked_identity = checked.facts.specialization_identities
+            .for_instance(specialization.instance)
+            .ok_or(LoweringError::Unsupported("closed reach application lost its checked specialization identity"))?;
         let Some(owner) = exact_machine(source_machines, specialization.instance)? else {
             continue;
         };
@@ -109,7 +112,7 @@ pub(crate) fn retain_closed_reach_applications(
         let mut machines = specialization
             .machine_arguments
             .iter()
-            .zip(&specialization.machine_argument_contract_commitments);
+            .zip(checked_identity.machine_argument_contract_commitments.iter());
         let mut covered = true;
         for (position, parameter) in parameters.iter().enumerate() {
             telescope.push(match &parameter.kind {
@@ -382,7 +385,7 @@ pub(crate) fn retain_closed_reach_applications(
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
             template_identity: specialization.normalized_template_identity.clone(),
             template_commitment: specialization.template_contract_commitment.as_bytes(),
-            specialization_commitment: specialization.commitment.as_bytes(),
+            specialization_commitment: checked_identity.commitment.as_bytes(),
             telescope,
             fixed,
             dependencies,
@@ -497,11 +500,14 @@ fn closed_call_application(
             "closed schema call lost its specialization",
         ))?;
     let mut types = specialization.type_argument_identities.iter();
+    let checked_identity = checked.facts.specialization_identities
+        .for_instance(specialization.instance)
+        .ok_or(LoweringError::Unsupported("closed schema call lost its checked specialization identity"))?;
     let mut constants = specialization.const_argument_identities.iter();
     let mut machines = specialization
         .machine_arguments
         .iter()
-        .zip(&specialization.machine_argument_contract_commitments);
+        .zip(checked_identity.machine_argument_contract_commitments.iter());
     let mut arguments = Vec::with_capacity(specialization.template_parameters.len());
     for parameter in checked
         .data_type_parameters
@@ -563,7 +569,7 @@ fn closed_call_application(
     }
     Ok(Some(ClosedReachCallApplication {
         callee,
-        specialization_commitment: specialization.commitment.as_bytes(),
+        specialization_commitment: checked_identity.commitment.as_bytes(),
         arguments,
     }))
 }

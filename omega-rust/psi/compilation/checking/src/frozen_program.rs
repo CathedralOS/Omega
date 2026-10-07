@@ -24,6 +24,7 @@ mod sealed {
     impl Sealed for typed_trees::TypedTrees {}
     impl Sealed for super::CheckingContext<'_> {}
     impl Sealed for super::CheckingProjection<'_> {}
+    impl Sealed for typed_trees::FrozenTypedTrees {}
 }
 
 /// Read-only source checking input. A prepared invocation owns reusable memos;
@@ -59,6 +60,16 @@ impl Eq for dyn CheckingInput + '_ {}
 impl CheckingInput for TypedTrees {
     fn typed_program(&self) -> &TypedTrees {
         self
+    }
+
+    fn checking_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
+}
+
+impl CheckingInput for typed_trees::FrozenTypedTrees {
+    fn typed_program(&self) -> &TypedTrees {
+        self.as_ref()
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {

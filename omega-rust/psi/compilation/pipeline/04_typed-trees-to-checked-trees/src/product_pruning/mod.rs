@@ -284,8 +284,7 @@ pub fn prune_checked_tree_product(
         .filter(|symbol| !retained.contains(symbol))
         .collect();
 
-    apply_pruning(&mut checked, &retained, &pruned, &index);
-    retain_live_family_members(&mut checked.typed);
+    checked = apply_pruning(checked, &retained, &pruned, &index);
 
     let retained_machines: Vec<SymbolHandle> = checked
         .typed
@@ -348,8 +347,7 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> CheckedTrees {
         .map(|machine| machine.symbol)
         .filter(|symbol| !pruned.contains(symbol))
         .collect();
-    apply_pruning(&mut checked, &retained, &pruned, &index);
-    retain_live_family_members(&mut checked.typed);
+    checked = apply_pruning(checked, &retained, &pruned, &index);
     checked
 }
 

@@ -83,6 +83,7 @@ pub use facts::{
     ProgressDemandCallSite, QualificationFacts, RealizedMachineContractEnvelope,
     ReferenceCustodyFacts, ReferenceCustodyRow, RequirementCallSpecializationFacts,
     ResolvedCarrierType, ResolvedExpressionType, ResolvedTypeFacts, RetainedBorrowCustodyFact,
+    CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
     ServiceReachFacts, StateReferenceCustodyFacts, StateReferenceCustodyRow, StateServiceReachRows,
     StateWriteFramePlan, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,
     SuspensionCrossingStorage, SuspensionCrossingValueOrigin, SuspensionFacts,
@@ -227,13 +228,13 @@ pub use values::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedTrees {
-    pub typed: typed_trees::TypedTrees,
+    pub typed: typed_trees::FrozenTypedTrees,
     pub facts: CheckFacts,
 }
 
 impl CheckedTrees {
-    pub fn with_roots(typed: typed_trees::TypedTrees, facts: CheckFacts) -> Self {
-        Self { typed, facts }
+    pub fn with_roots(typed: impl Into<typed_trees::FrozenTypedTrees>, facts: CheckFacts) -> Self {
+        Self { typed: typed.into(), facts }
     }
 }
 

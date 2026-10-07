@@ -117,6 +117,9 @@ fn derive_one(
             specializations.len(),
         )));
     };
+    let checked_identity = checked.facts.specialization_identities
+        .for_instance(specialization.instance)
+        .ok_or_else(|| Diagnostic::error("selected generic realization lost its checked specialization identity"))?;
     let retained = specialization
         .operator_realizations
         .iter()
@@ -189,7 +192,7 @@ fn derive_one(
         realization_template: specialization.template,
         realization_machine,
         realization_state,
-        specialization_commitment: specialization.commitment,
+        specialization_commitment: checked_identity.commitment,
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
     })

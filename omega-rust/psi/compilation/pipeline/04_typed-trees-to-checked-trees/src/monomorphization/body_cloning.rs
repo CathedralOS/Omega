@@ -588,8 +588,6 @@ pub(super) fn clone_specialized_machine(
             canonical_template_contract_bytes,
             normalized_template_identity,
             accepted_template_commitment,
-            machine_argument_contract_commitments: Vec::new(),
-            commitment: typed_trees::typed_trees::MachineSpecializationCommitment::default(),
         });
 
     Ok(state_symbols)

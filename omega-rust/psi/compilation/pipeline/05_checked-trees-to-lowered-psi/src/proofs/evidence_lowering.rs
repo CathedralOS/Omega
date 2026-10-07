@@ -288,6 +288,9 @@ pub(crate) fn checked_evidence_machine_identity(
         .iter()
         .filter(|specialization| specialization.instance == machine.symbol);
     if let Some(specialization) = specializations.next() {
+        let checked_identity = checked.facts.specialization_identities
+            .for_instance(specialization.instance)
+            .ok_or(LoweringError::Unsupported("evidence machine lost its checked specialization identity"))?;
         if specializations.next().is_some() {
             return unsupported("evidence machine has ambiguous generic application identity");
         }
@@ -295,7 +298,7 @@ pub(crate) fn checked_evidence_machine_identity(
             "specialized-machine|callable={}:{}|application={}",
             identity.len(),
             identity,
-            hex_bytes(&specialization.commitment.as_bytes()),
+            hex_bytes(&checked_identity.commitment.as_bytes()),
         );
     }
     Ok(identity)

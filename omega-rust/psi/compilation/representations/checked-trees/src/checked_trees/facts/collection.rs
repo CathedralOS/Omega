@@ -10,6 +10,8 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    /// Portable specialization identities derived from checked machine contracts.
+    pub specialization_identities: crate::CheckedSpecializationIdentities,
     /// Frozen executable place/result types and type-reference carriers.
     /// Lowering consumes these decisions instead of reconstructing them.
     pub resolved_types: crate::ResolvedTypeFacts,

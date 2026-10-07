@@ -47,6 +47,8 @@ mod index_compatibility;
 mod placement;
 mod reference_custody;
 mod resolved_types;
+mod specialization_identities;
+pub use specialization_identities::{CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities};
 mod state_reference_custody;
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
