@@ -138,17 +138,7 @@ fn parameter_available(
     else {
         return false;
     };
-    parameter.place == expected_source
-        && optimized.entry_claims.is_empty()
-        && graph
-            .parameters
-            .iter()
-            .filter(|candidate| candidate.place == expected_source)
-            .eq(std::iter::once(parameter))
-        && parameter.structural_type == declaration.structural_type
-        && parameter.access == declaration.access
-        && parameter.multiplicity == declaration.multiplicity
-        && parameter.projected_qualifications.is_empty()
+    parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
         && super::super::super::aggregate_results::block_home_layout(declaration, plan)
             .ok()
             .as_ref()
@@ -181,17 +171,7 @@ fn borrowed_parameter_available(
     ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
         && declaration.qualifications.is_empty()
         && declaration.projected_qualifications.is_empty()
-        && parameter.place == expected_source
-        && optimized.entry_claims.is_empty()
-        && graph
-            .parameters
-            .iter()
-            .filter(|candidate| candidate.place == expected_source)
-            .eq(std::iter::once(parameter))
-        && parameter.structural_type == declaration.structural_type
-        && parameter.access == declaration.access
-        && parameter.multiplicity == declaration.multiplicity
-        && parameter.projected_qualifications.is_empty()
+        && parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
         // The carrier is the pointer; the layout describes the referent.
         && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
         && super::super::super::aggregate_results::sum_type_layout(
@@ -340,4 +320,26 @@ pub(super) fn matches(
                         && actual.field_byte_offset == field_layout.byte_offset
                 })
         })
+}
+
+/// The retained `parameter` is the unique graph row for `expected_source`
+/// and spells `declaration`'s type, access, multiplicity, and projections.
+fn parameter_corresponds(
+    graph: &TargetControlGraph,
+    optimized: &PsiOptimizationFunction,
+    parameter: &TargetStructuralParameter,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    expected_source: PlaceId,
+) -> bool {
+    parameter.place == expected_source
+        && optimized.entry_claims.is_empty()
+        && graph
+            .parameters
+            .iter()
+            .filter(|candidate| candidate.place == expected_source)
+            .eq(std::iter::once(parameter))
+        && parameter.structural_type == declaration.structural_type
+        && parameter.access == declaration.access
+        && parameter.multiplicity == declaration.multiplicity
+        && parameter.projected_qualifications.is_empty()
 }
