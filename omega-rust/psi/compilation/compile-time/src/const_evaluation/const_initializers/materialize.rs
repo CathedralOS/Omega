@@ -208,14 +208,7 @@ fn nominal_literal(
             )
         }
         BuildTimeValue::Case { variant, payload } => {
-            let case = members
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == variant.as_str() => {
-                        Some(case)
-                    }
-                    _ => None,
-                })
+            let case = variant_member_by_name(members, variant.as_str())
                 .ok_or_else(|| {
                     format!("evaluated aggregate leaf case `{variant}` is absent from its owner")
                 })?;
@@ -405,14 +398,7 @@ fn nominal_value(
             })
         }
         BuildTimeValue::Case { variant, payload } => {
-            let case = members
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == variant.as_str() => {
-                        Some(case)
-                    }
-                    _ => None,
-                })
+            let case = variant_member_by_name(members, variant.as_str())
                 .ok_or_else(|| {
                     format!("evaluated leaf case `{variant}` is absent from its owner")
                 })?;
@@ -483,4 +469,15 @@ fn floating_bits(
         PrimitiveType::F64 => Ok((FloatFormat::F64, value.to_bits())),
         _ => Err("constant result does not retain one exact binary32 value".into()),
     }
+}
+
+/// The declared variant member carrying `name`, when the owner lists one.
+fn variant_member_by_name<'m>(
+    members: &'m [DataMember],
+    name: &str,
+) -> Option<&'m typed_trees::data::DataVariant> {
+    members.iter().find_map(|member| match member {
+        DataMember::Variant(case) if case.name.as_str() == name => Some(case),
+        _ => None,
+    })
 }
