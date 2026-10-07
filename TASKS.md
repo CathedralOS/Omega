@@ -4949,9 +4949,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     the portable service, not the raw POSIX trait.
   - `native_metadata_ino` stops at the proof-search budget
     (`proof_search_result_guarantee_work`); PCC removal owns it.
-  - `pass/time/runtime_fs_mtime_system_time_interop_exit`: stage 05 refuses
-    moving its `let mut` stat buffer into a successor state ("Unit graph
-    moved local is mutable").
   - `read_link`, `read_dir`, metadata and timestamp adapters still stage
     through 4096-byte buffers. Remove unnecessary byte copying; preserve
     the native layout, alignment and minimum-storage requirements of
