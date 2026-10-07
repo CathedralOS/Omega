@@ -307,15 +307,17 @@ fn intrinsic_realization_candidate(
         .then_some((authored_binding, inferred_hosted_intrinsic))
 }
 
-/// The supported byte-input result, resolved by declaration identity. This is
-/// typed shape validation, not selected-package or native execution admission.
-pub fn exact_byte_read_result_type(
-    program: &TypedTrees,
+/// A `CheckedShape` data declaration resolved through a type reference's
+/// exact named head — the admission prologue hosted intrinsic result
+/// contracts share. `None` for anything but a plain (no lifetime or type
+/// parameters, generic instance, quotient, where-facts, zero-gate, carry or
+/// Linear multiplicity) `CheckedShape` data named `name`. The returned
+/// symbol is the type reference's head, which the declaration resolved to.
+pub fn checked_shape_data_declaration<'program>(
+    program: &'program TypedTrees,
     result_type: typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    use typed_trees::data::DataMember;
-    use typed_trees::types::TypeConstraintNode;
-
+    name: &str,
+) -> Option<(&'program typed_trees::data::DataDefinition, SymbolHandle)> {
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(result_type)
     else {
@@ -323,7 +325,7 @@ pub fn exact_byte_read_result_type(
     };
     let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
     if !symbol.is_valid()
-        || data.name.as_str() != "ByteRead"
+        || data.name.as_str() != name
         || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         || !data.lifetime_parameters.is_empty()
         || !program.data_type_parameters(data).is_empty()
@@ -336,6 +338,19 @@ pub fn exact_byte_read_result_type(
     {
         return None;
     }
+    Some((data, *symbol))
+}
+
+/// The supported byte-input result, resolved by declaration identity. This is
+/// typed shape validation, not selected-package or native execution admission.
+pub fn exact_byte_read_result_type(
+    program: &TypedTrees,
+    result_type: typed_trees::types::TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::TypeConstraintNode;
+
+    let (data, symbol) = checked_shape_data_declaration(program, result_type, "ByteRead")?;
     let [DataMember::Variant(eof), DataMember::Variant(byte)] = program.data_members(data) else {
         return None;
     };
@@ -377,7 +392,7 @@ pub fn exact_byte_read_result_type(
         }
         carrier = *base_type;
     }
-    Some(*symbol)
+    Some(symbol)
 }
 
 fn exact_direct_intrinsic_signature(

@@ -103,6 +103,7 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_parameter_case_membership_meaning,
 };
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
+pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
 pub use value_custody::intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;
 pub use value_custody::intrinsic_boundaries::exact_external_leaf_boundary_requirement;

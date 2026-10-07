@@ -2,7 +2,7 @@ use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
     Value, trap, unsupported,
 };
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// The host operations the interpreter serves directly, named by the selected
 /// requirement (or exact intrinsic leaf) the caller resolved. The name is read
@@ -441,32 +441,11 @@ impl<'program> Evaluator<'program> {
     /// `u64` field named `count`. Mirrors the `ByteRead` shape check the
     /// validation crate applies to `read_byte`.
     fn line_read_result_shape(&self, return_type: TypeReferenceHandle) -> Option<SymbolHandle> {
-        let TypeReferenceNode::Named { symbol, .. } = self
-            .program
-            .type_reference_table
-            .type_reference(return_type)
-        else {
-            return None;
-        };
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
-        if !symbol.is_valid()
-            || data.name.as_str() != "LineReadResult"
-            || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-            || !data.lifetime_parameters.is_empty()
-            || !self.program.data_type_parameters(data).is_empty()
-            || data.generic_instance.is_some()
-            || data.quotient.is_some()
-            || !data.where_facts.is_empty()
-            || data.zero_gated
-            || data.properties.carry.is_some()
-            || data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        {
-            return None;
-        }
+        let (data, symbol) = validation::checked_shape_data_declaration(
+            self.program,
+            return_type,
+            "LineReadResult",
+        )?;
         let [
             DataMember::Variant(invalid),
             DataMember::Variant(line_complete),
@@ -496,7 +475,7 @@ impl<'program> Evaluator<'program> {
                 return None;
             }
         }
-        Some(*symbol)
+        Some(symbol)
     }
 
     /// Greedy bounded line read per the `LineReadResult` contract: stop at the
