@@ -51,7 +51,6 @@ fn domain_predicate_meaning(
     subjects: &mut Vec<typed_trees::expression::ExpressionHandle>,
     depth: usize,
 ) -> Option<Option<typed_trees::types::TypeReferenceHandle>> {
-    use language_core::OperatorSpelling;
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
@@ -100,7 +99,10 @@ fn domain_predicate_meaning(
             let left = domain_predicate_meaning(program, domain, binary.left, subjects, depth + 1)?;
             let right =
                 domain_predicate_meaning(program, domain, binary.right, subjects, depth + 1)?;
-            let spelling = crate::operators::binary_operator_spelling(binary.operator)?;
+            let spelling = crate::operators::binary_operator_spelling(binary.operator);
+            if binary.operator == BinaryOperator::CaseMembership {
+                return None;
+            }
             if spelling.is_some_and(|spelling| {
                 !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
