@@ -443,3 +443,29 @@ pub(super) fn admit_checked_shape_owner(
     }
     Ok(())
 }
+
+/// The runtime-relevant declared fields `value` must supply, in authored
+/// order: every member needs a supplied field of the same name, and erased
+/// members skip out of staging.
+pub(super) fn required_supplied_fields<'m, 's>(
+    supplied: &'s std::collections::BTreeMap<&'s str, &'s BuildTimeValue>,
+    members: &'m [DataMember],
+) -> Result<Vec<&'m DataField>, MaterializationDiagnostic> {
+    let mut fields = Vec::new();
+    for member in members {
+        let DataMember::Field(field) = member else {
+            unreachable!("outer record shape was validated above")
+        };
+        if !supplied.contains_key(field.name.as_str()) {
+            return Err(MaterializationDiagnostic(format!(
+                "value has no declared field `{}`",
+                field.name
+            )));
+        }
+        if field.relevance.is_erased() {
+            continue;
+        }
+        fields.push(field);
+    }
+    Ok(fields)
+}

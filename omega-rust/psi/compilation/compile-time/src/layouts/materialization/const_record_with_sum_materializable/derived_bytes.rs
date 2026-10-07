@@ -495,19 +495,8 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             )
         })?;
     let mut reachability = SumReachability::new(typed);
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        if !supplied.contains_key(field.name.as_str()) {
-            return Err(MaterializationDiagnostic(format!(
-                "value has no declared field `{}`",
-                field.name
-            )));
-        }
-        if field.relevance.is_erased() {
-            continue;
-        }
+    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    for field in runtime_fields {
         let mut selected_direct_array = false;
         match typed
             .type_reference_table

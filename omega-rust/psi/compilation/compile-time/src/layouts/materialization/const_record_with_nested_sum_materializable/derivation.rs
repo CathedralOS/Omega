@@ -93,19 +93,8 @@ pub(super) fn classify_record_level_children<'a>(
             "ConstMaterializable record-level child set exceeds compiler resources".into(),
         )
     })?;
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        if !supplied.contains_key(field.name.as_str()) {
-            return Err(MaterializationDiagnostic(format!(
-                "value has no declared field `{}`",
-                field.name
-            )));
-        }
-        if field.relevance.is_erased() {
-            continue;
-        }
+    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    for field in runtime_fields {
         if !reachability.type_contains_sum(field.type_reference)? {
             continue;
         }
@@ -809,19 +798,8 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
             "ConstMaterializable nested-record occurrence set exceeds compiler resources".into(),
         )
     })?;
-    for member in members {
-        let DataMember::Field(field) = member else {
-            unreachable!("outer record shape was validated above")
-        };
-        if !supplied.contains_key(field.name.as_str()) {
-            return Err(MaterializationDiagnostic(format!(
-                "value has no declared field `{}`",
-                field.name
-            )));
-        }
-        if field.relevance.is_erased() {
-            continue;
-        }
+    let runtime_fields = crate::layouts::materialization::required_supplied_fields(&supplied, members)?;
+    for field in runtime_fields {
         reject_sum_array_type(
             typed,
             field.type_reference,
