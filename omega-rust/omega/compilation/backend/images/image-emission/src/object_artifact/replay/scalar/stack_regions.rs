@@ -1,5 +1,7 @@
 //! Stack replay within a straight-line region of a scalar control-flow graph.
 
+use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+
 use std::collections::BTreeMap;
 
 use machine_code::ScalarStackMutation;
@@ -109,26 +111,7 @@ pub(crate) fn replay_region(
                     }
                     validate_x86_scalar_mutation(machine, bytes, &instruction, row)?;
                     replay_scalar_mutation(machine, offset, row.kind, &mut depth, peak)?;
-                } else if information
-                    .info(&instruction)
-                    .used_registers()
-                    .iter()
-                    .any(|register| {
-                        matches!(
-                            register.register(),
-                            iced_x86::Register::RSP
-                                | iced_x86::Register::ESP
-                                | iced_x86::Register::SP
-                                | iced_x86::Register::SPL
-                        ) && matches!(
-                            register.access(),
-                            iced_x86::OpAccess::Write
-                                | iced_x86::OpAccess::CondWrite
-                                | iced_x86::OpAccess::ReadWrite
-                                | iced_x86::OpAccess::ReadCondWrite
-                        )
-                    })
-                {
+                } else if x86_register_info_writes_stack_pointer(information.info(&instruction)) {
                     return Err(ObjectError::UnsupportedScalarStackMutation { machine, offset });
                 }
             }

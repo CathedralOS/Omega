@@ -5,6 +5,8 @@
 //! and returns. It does not infer stack evidence, select ABI policy, or emit
 //! instructions.
 
+use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+
 use machine_code::{
     ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence, ScalarStackEvidence,
     SemanticCodeAttribution,
@@ -237,21 +239,7 @@ pub(crate) fn validate_scalar_stack(
                     continue;
                 }
                 let info = info_factory.info(&instruction);
-                if info.used_registers().iter().any(|register| {
-                    matches!(
-                        register.register(),
-                        iced_x86::Register::RSP
-                            | iced_x86::Register::ESP
-                            | iced_x86::Register::SP
-                            | iced_x86::Register::SPL
-                    ) && matches!(
-                        register.access(),
-                        iced_x86::OpAccess::Write
-                            | iced_x86::OpAccess::CondWrite
-                            | iced_x86::OpAccess::ReadWrite
-                            | iced_x86::OpAccess::ReadCondWrite
-                    )
-                }) {
+                if x86_register_info_writes_stack_pointer(info) {
                     return Err(ObjectError::UnsupportedScalarStackMutation { machine, offset });
                 }
             }

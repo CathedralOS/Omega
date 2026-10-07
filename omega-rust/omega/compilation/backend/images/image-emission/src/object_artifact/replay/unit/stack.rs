@@ -5,6 +5,8 @@
 //! encodings shared by neighboring scalar replay. It does not construct stack
 //! demand or emit executable images.
 
+use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+
 use machine_code::{
     ForeignCallRelocation, StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
 };
@@ -426,21 +428,7 @@ pub(crate) fn validate_complete_unit_stack_evidence(
                         continue;
                     }
                     let info = info_factory.info(&instruction);
-                    let writes_stack_pointer = info.used_registers().iter().any(|register| {
-                        matches!(
-                            register.register(),
-                            iced_x86::Register::RSP
-                                | iced_x86::Register::ESP
-                                | iced_x86::Register::SP
-                                | iced_x86::Register::SPL
-                        ) && matches!(
-                            register.access(),
-                            iced_x86::OpAccess::Write
-                                | iced_x86::OpAccess::CondWrite
-                                | iced_x86::OpAccess::ReadWrite
-                                | iced_x86::OpAccess::ReadCondWrite
-                        )
-                    });
+                    let writes_stack_pointer = x86_register_info_writes_stack_pointer(info);
                     if writes_stack_pointer
                         && !is_expected_x86_64_linkage_instruction(
                             &instruction,
