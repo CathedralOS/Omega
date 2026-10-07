@@ -9,6 +9,7 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::can
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::{non_authoritative_template_compatibility_fingerprint};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{ElfProcedureLinkageFixup, ElfProcedureLinkageFixupStorage, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplateBytes, ElfProcedureLinkageTemplateContents, ElfProcedureLinkageTemplatePolicy};
 use crate::dynamic_executable::checked::{require};
+pub(super) use crate::dynamic_executable::checked::{read_u32, read_u64};
 
 pub(crate) fn validate_candidate(
     candidate: Candidate,
@@ -339,32 +340,6 @@ pub(crate) fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, 
             "ELF procedure-linkage fixup has an unsupported field width",
         )),
     }
-}
-
-pub(crate) fn read_u32(
-    bytes: &[u8],
-    offset: usize,
-    context: &'static str,
-) -> Result<u32, Diagnostic> {
-    let end = checked_sum(offset, 4, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u32::from_le_bytes(value))
-}
-
-pub(crate) fn read_u64(
-    bytes: &[u8],
-    offset: usize,
-    context: &'static str,
-) -> Result<u64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u64::from_le_bytes(value))
 }
 
 pub(crate) fn checked_product(

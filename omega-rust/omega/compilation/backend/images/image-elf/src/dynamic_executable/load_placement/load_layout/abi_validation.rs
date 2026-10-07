@@ -8,7 +8,7 @@ use crate::dynamic_executable::load_placement::load_layout::compatibility_finger
 use crate::dynamic_executable::load_placement::load_layout::{
     AARCH64_RELOCATION_PAGE_SIZE, DYNAMIC_PROGRAM_HEADER_COUNT, ElfLoadProgramHeaderKind,
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, PF_R,
-    PF_W, PF_X, PLACEMENT_FIXUP_COUNT,
+    PF_W, PF_X, PLACEMENT_FIXUP_COUNT, public_section_kind,
 };
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
 use crate::dynamic_executable::section_headers::relative_section_layout::{
@@ -16,7 +16,6 @@ use crate::dynamic_executable::section_headers::relative_section_layout::{
 };
 use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
 use crate::dynamic_executable::section_headers::section_payload_roster::ElfIndexedProcedureFixupStorage;
-use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
@@ -527,39 +526,6 @@ pub(crate) fn section(
         .get(kind as usize)
         .filter(|section| section.kind == kind && section.index as usize == kind as usize)
         .ok_or_else(|| Diagnostic::error("dynamic ELF placed-section roster drifted"))
-}
-
-pub(crate) const fn public_section_kind(
-    kind: ElfDynamicRosterSectionKind,
-) -> ElfPlacedDynamicSectionKind {
-    match kind {
-        ElfDynamicRosterSectionKind::Null => ElfPlacedDynamicSectionKind::Null,
-        ElfDynamicRosterSectionKind::Interpreter => ElfPlacedDynamicSectionKind::Interpreter,
-        ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
-        ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
-        ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
-        ElfDynamicRosterSectionKind::GnuSymbolVersion => {
-            ElfPlacedDynamicSectionKind::GnuSymbolVersion
-        }
-        ElfDynamicRosterSectionKind::GnuVersionRequirement => {
-            ElfPlacedDynamicSectionKind::GnuVersionRequirement
-        }
-        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
-        ElfDynamicRosterSectionKind::ProcedureLinkage => {
-            ElfPlacedDynamicSectionKind::ProcedureLinkage
-        }
-        ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
-        ElfDynamicRosterSectionKind::ProcedureRelocation => {
-            ElfPlacedDynamicSectionKind::ProcedureRelocation
-        }
-        ElfDynamicRosterSectionKind::GeneralRelocation => {
-            ElfPlacedDynamicSectionKind::GeneralRelocation
-        }
-        ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
-        ElfDynamicRosterSectionKind::SectionNameTable => {
-            ElfPlacedDynamicSectionKind::SectionNameTable
-        }
-    }
 }
 
 pub(crate) fn align_for_region(

@@ -162,6 +162,20 @@ pub(crate) enum ElfDynamicValue {
     Null,
 }
 
+pub(crate) const fn encoded_value(value: ElfDynamicValue) -> u64 {
+    match value {
+        ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
+        ElfDynamicValue::ProcedureRelocationByteCount(count)
+        | ElfDynamicValue::GeneralRelocationByteCount(count)
+        | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
+        | ElfDynamicValue::DynamicStringByteCount(count)
+        | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
+        | ElfDynamicValue::VersionRequirementRecordCount(count) => count,
+        ElfDynamicValue::RelocationTag(tag) => (tag as i64) as u64,
+        ElfDynamicValue::AddressPlaceholder | ElfDynamicValue::Null => 0,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfDynamicSemanticRow {
     pub(crate) tag: ElfDynamicTag,

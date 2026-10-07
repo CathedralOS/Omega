@@ -14,7 +14,9 @@
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
 use crate::bytes::{write_u16, write_u32, write_u64};
-use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
+use crate::dynamic_executable::checked::{
+    checked_product, checked_sum, read_u16, read_u32, read_u64, require,
+};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };
@@ -541,24 +543,6 @@ const fn segment_type(kind: ElfLoadProgramHeaderKind) -> u32 {
         | ElfLoadProgramHeaderKind::LoadReadWrite => PT_LOAD,
         ElfLoadProgramHeaderKind::Dynamic => PT_DYNAMIC,
     }
-}
-
-fn read_u16(bytes: &[u8], offset: usize, context: &'static str) -> Result<u16, Diagnostic> {
-    let end = checked_sum(offset, 2, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u16::from_le_bytes(value))
-}
-
-fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    let end = checked_sum(offset, 4, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u32::from_le_bytes(value))
 }
 
 fn checked_sum_u64(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {

@@ -18,9 +18,8 @@ use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ValidatedElfResolvedProcedureLinkage,
 };
 use crate::dynamic_executable::load_placement::load_layout::{
-    ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
+    ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout, public_section_kind,
 };
-use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use crate::imports::ElfImportLocator;
 use diagnostics::Diagnostic;
 use image::{
@@ -778,37 +777,6 @@ fn load_layout(
         .resolved_dynamic_table()
         .placed_section_headers()
         .load_layout()
-}
-
-const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDynamicSectionKind {
-    match kind {
-        ElfDynamicRosterSectionKind::Null => ElfPlacedDynamicSectionKind::Null,
-        ElfDynamicRosterSectionKind::Interpreter => ElfPlacedDynamicSectionKind::Interpreter,
-        ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
-        ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
-        ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
-        ElfDynamicRosterSectionKind::GnuSymbolVersion => {
-            ElfPlacedDynamicSectionKind::GnuSymbolVersion
-        }
-        ElfDynamicRosterSectionKind::GnuVersionRequirement => {
-            ElfPlacedDynamicSectionKind::GnuVersionRequirement
-        }
-        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
-        ElfDynamicRosterSectionKind::ProcedureLinkage => {
-            ElfPlacedDynamicSectionKind::ProcedureLinkage
-        }
-        ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
-        ElfDynamicRosterSectionKind::ProcedureRelocation => {
-            ElfPlacedDynamicSectionKind::ProcedureRelocation
-        }
-        ElfDynamicRosterSectionKind::GeneralRelocation => {
-            ElfPlacedDynamicSectionKind::GeneralRelocation
-        }
-        ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
-        ElfDynamicRosterSectionKind::SectionNameTable => {
-            ElfPlacedDynamicSectionKind::SectionNameTable
-        }
-    }
 }
 
 const fn fragment_kind_order(kind: ElfDynamicFileFragmentKind) -> u8 {

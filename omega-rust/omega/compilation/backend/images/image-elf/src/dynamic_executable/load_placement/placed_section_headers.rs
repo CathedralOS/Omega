@@ -12,14 +12,15 @@
 
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
-use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
+use crate::dynamic_executable::checked::{
+    checked_product, checked_sum, read_u32, read_u64, require,
+};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, ValidatedElfDynamicLoadLayout,
+    public_section_kind,
 };
 use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
-use crate::dynamic_executable::section_headers::section_roster::{
-    ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor,
-};
+use crate::dynamic_executable::section_headers::section_roster::ElfNumericSectionDescriptor;
 use diagnostics::Diagnostic;
 
 const ELF64_SECTION_HEADER_SIZE: usize = 64;
@@ -521,46 +522,6 @@ fn field_mut(bytes: &mut [u8], offset: usize, width: u8) -> Result<&mut [u8], Di
     bytes
         .get_mut(offset..end)
         .ok_or_else(|| Diagnostic::error("section-header placement exceeds the template"))
-}
-
-fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    let end = checked_sum(offset, 4, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u32::from_le_bytes(value))
-}
-
-const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDynamicSectionKind {
-    match kind {
-        ElfDynamicRosterSectionKind::Null => ElfPlacedDynamicSectionKind::Null,
-        ElfDynamicRosterSectionKind::Interpreter => ElfPlacedDynamicSectionKind::Interpreter,
-        ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
-        ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
-        ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
-        ElfDynamicRosterSectionKind::GnuSymbolVersion => {
-            ElfPlacedDynamicSectionKind::GnuSymbolVersion
-        }
-        ElfDynamicRosterSectionKind::GnuVersionRequirement => {
-            ElfPlacedDynamicSectionKind::GnuVersionRequirement
-        }
-        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
-        ElfDynamicRosterSectionKind::ProcedureLinkage => {
-            ElfPlacedDynamicSectionKind::ProcedureLinkage
-        }
-        ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
-        ElfDynamicRosterSectionKind::ProcedureRelocation => {
-            ElfPlacedDynamicSectionKind::ProcedureRelocation
-        }
-        ElfDynamicRosterSectionKind::GeneralRelocation => {
-            ElfPlacedDynamicSectionKind::GeneralRelocation
-        }
-        ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
-        ElfDynamicRosterSectionKind::SectionNameTable => {
-            ElfPlacedDynamicSectionKind::SectionNameTable
-        }
-    }
 }
 
 fn non_authoritative_placed_compatibility_fingerprint(

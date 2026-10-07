@@ -12,7 +12,9 @@
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
 use crate::bytes::{write_u32, write_u64};
-use crate::dynamic_executable::checked::{checked_product, checked_sum, require};
+use crate::dynamic_executable::checked::{
+    checked_product, checked_sum, read_u32, read_u64, require,
+};
 use crate::dynamic_executable::section_headers::section_roster::{
     ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor, ValidatedElfDynamicSectionRoster,
 };
@@ -500,24 +502,6 @@ fn validate_fixup_coverage(
         }
     }
     Ok(())
-}
-
-fn read_u32(bytes: &[u8], offset: usize, context: &'static str) -> Result<u32, Diagnostic> {
-    let end = checked_sum(offset, 4, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u32::from_le_bytes(value))
-}
-
-fn read_u64(bytes: &[u8], offset: usize, context: &'static str) -> Result<u64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u64::from_le_bytes(value))
 }
 
 fn non_authoritative_template_compatibility_fingerprint(

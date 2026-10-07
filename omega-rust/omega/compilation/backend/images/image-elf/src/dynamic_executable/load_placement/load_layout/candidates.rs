@@ -2,8 +2,7 @@
 
 use crate::constants::{ELF_HEADER_SIZE, IMAGE_BASE, PROGRAM_HEADER_SIZE};
 use crate::dynamic_executable::load_placement::load_layout::abi_validation::{
-    align_for_region, placed_coordinates, public_section_kind, retained_image, retained_target,
-    section, validate_abi,
+    align_for_region, placed_coordinates, retained_image, retained_target, section, validate_abi,
 };
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::{
     checked_align, checked_product, checked_sum,
@@ -14,7 +13,7 @@ use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ElfPlacedDynamicSection,
     ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,
     ElfSectionPlacementResolutionKind, PF_R, PF_W, PF_X, PLACEMENT_FIXUP_COUNT, SECTION_COUNT,
-    ValidatedElfDynamicLoadLayout,
+    ValidatedElfDynamicLoadLayout, public_section_kind,
 };
 use crate::dynamic_executable::section_headers::relative_section_layout::{
     ElfRelativeSectionPayloadRegion, ValidatedElfRelativeSectionPayloadLayout,

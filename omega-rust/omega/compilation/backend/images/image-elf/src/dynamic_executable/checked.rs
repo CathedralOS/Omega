@@ -42,3 +42,42 @@ pub(super) fn read_u64(
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
     Ok(u64::from_le_bytes(value))
 }
+
+pub(super) fn read_u16(
+    bytes: &[u8],
+    offset: usize,
+    context: &'static str,
+) -> Result<u16, Diagnostic> {
+    let end = checked_sum(offset, 2, context)?;
+    let value = bytes
+        .get(offset..end)
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
+    Ok(u16::from_le_bytes(value))
+}
+
+pub(super) fn read_u32(
+    bytes: &[u8],
+    offset: usize,
+    context: &'static str,
+) -> Result<u32, Diagnostic> {
+    let end = checked_sum(offset, 4, context)?;
+    let value = bytes
+        .get(offset..end)
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
+    Ok(u32::from_le_bytes(value))
+}
+
+pub(super) fn read_i64(
+    bytes: &[u8],
+    offset: usize,
+    context: &'static str,
+) -> Result<i64, Diagnostic> {
+    let end = checked_sum(offset, 8, context)?;
+    let value = bytes
+        .get(offset..end)
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
+    Ok(i64::from_le_bytes(value))
+}

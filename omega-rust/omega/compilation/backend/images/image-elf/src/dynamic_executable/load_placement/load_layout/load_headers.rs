@@ -2,6 +2,7 @@
 //! placements.
 
 use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
+use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 
 /// Ordered program-header role closed by the dynamic load-layout carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +33,39 @@ pub enum ElfPlacedDynamicSectionKind {
     GeneralRelocation = 11,
     DynamicTable = 12,
     SectionNameTable = 13,
+}
+
+pub(crate) const fn public_section_kind(
+    kind: ElfDynamicRosterSectionKind,
+) -> ElfPlacedDynamicSectionKind {
+    match kind {
+        ElfDynamicRosterSectionKind::Null => ElfPlacedDynamicSectionKind::Null,
+        ElfDynamicRosterSectionKind::Interpreter => ElfPlacedDynamicSectionKind::Interpreter,
+        ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
+        ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
+        ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
+        ElfDynamicRosterSectionKind::GnuSymbolVersion => {
+            ElfPlacedDynamicSectionKind::GnuSymbolVersion
+        }
+        ElfDynamicRosterSectionKind::GnuVersionRequirement => {
+            ElfPlacedDynamicSectionKind::GnuVersionRequirement
+        }
+        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
+        ElfDynamicRosterSectionKind::ProcedureLinkage => {
+            ElfPlacedDynamicSectionKind::ProcedureLinkage
+        }
+        ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
+        ElfDynamicRosterSectionKind::ProcedureRelocation => {
+            ElfPlacedDynamicSectionKind::ProcedureRelocation
+        }
+        ElfDynamicRosterSectionKind::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
+        }
+        ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
+        ElfDynamicRosterSectionKind::SectionNameTable => {
+            ElfPlacedDynamicSectionKind::SectionNameTable
+        }
+    }
 }
 
 /// Absolute geometry for one future `Elf64_Phdr`.

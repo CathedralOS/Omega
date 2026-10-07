@@ -12,9 +12,12 @@
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
 use crate::bytes::write_u64;
-use crate::dynamic_executable::checked::{checked_product, checked_sum, require};
+use crate::dynamic_executable::checked::{
+    checked_product, checked_sum, read_i64, read_u64, require,
+};
 use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTagContents, ElfDynamicValue, ValidatedElfDynamicTagPlan,
+    encoded_value,
 };
 use diagnostics::Diagnostic;
 
@@ -208,20 +211,6 @@ fn encode_contents(
     })
 }
 
-const fn encoded_value(value: ElfDynamicValue) -> u64 {
-    match value {
-        ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
-        ElfDynamicValue::ProcedureRelocationByteCount(count)
-        | ElfDynamicValue::GeneralRelocationByteCount(count)
-        | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
-        | ElfDynamicValue::DynamicStringByteCount(count)
-        | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
-        | ElfDynamicValue::VersionRequirementRecordCount(count) => count,
-        ElfDynamicValue::RelocationTag(tag) => (tag as i64) as u64,
-        ElfDynamicValue::AddressPlaceholder | ElfDynamicValue::Null => 0,
-    }
-}
-
 fn validate_candidate(
     candidate: Candidate,
 ) -> Result<ValidatedElfDynamicTablePayload, CandidateValidationError> {
@@ -363,24 +352,6 @@ fn validate_fixup_coverage(fixups: &[ElfDynamicPayloadAddressFixup]) -> Result<(
         }
     }
     Ok(())
-}
-
-fn read_i64(bytes: &[u8], offset: usize, context: &'static str) -> Result<i64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(i64::from_le_bytes(value))
-}
-
-fn read_u64(bytes: &[u8], offset: usize, context: &'static str) -> Result<u64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|value| value.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(u64::from_le_bytes(value))
 }
 
 fn non_authoritative_payload_compatibility_fingerprint(

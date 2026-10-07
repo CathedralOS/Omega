@@ -9,12 +9,15 @@
 
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
-use crate::dynamic_executable::checked::{checked_product, checked_sum, read_u64, require};
+use crate::dynamic_executable::checked::{
+    checked_product, checked_sum, read_i64, read_u64, require,
+};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{
     ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload,
 };
 use crate::dynamic_executable::dynamic_table::dynamic_tags::{
     ElfDynamicAddressTarget, ElfDynamicTag, ElfDynamicValue, ValidatedElfDynamicTagPlan,
+    encoded_value,
 };
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
@@ -629,20 +632,6 @@ const fn target_tag(target: ElfDynamicAddressApplicationTarget) -> ElfDynamicTag
     }
 }
 
-const fn encoded_value(value: ElfDynamicValue) -> u64 {
-    match value {
-        ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
-        ElfDynamicValue::ProcedureRelocationByteCount(count)
-        | ElfDynamicValue::GeneralRelocationByteCount(count)
-        | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
-        | ElfDynamicValue::DynamicStringByteCount(count)
-        | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
-        | ElfDynamicValue::VersionRequirementRecordCount(count) => count,
-        ElfDynamicValue::RelocationTag(tag) => (tag as i64) as u64,
-        ElfDynamicValue::AddressPlaceholder | ElfDynamicValue::Null => 0,
-    }
-}
-
 fn decode_rows(
     bytes: &[u8],
     expected_count: usize,
@@ -676,15 +665,6 @@ fn field_mut(bytes: &mut [u8], offset: usize, width: u8) -> Result<&mut [u8], Di
     bytes
         .get_mut(offset..end)
         .ok_or_else(|| Diagnostic::error("dynamic address fixup exceeds its storage"))
-}
-
-fn read_i64(bytes: &[u8], offset: usize, context: &'static str) -> Result<i64, Diagnostic> {
-    let end = checked_sum(offset, 8, context)?;
-    let value = bytes
-        .get(offset..end)
-        .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
-    Ok(i64::from_le_bytes(value))
 }
 
 fn non_authoritative_resolved_compatibility_fingerprint(
