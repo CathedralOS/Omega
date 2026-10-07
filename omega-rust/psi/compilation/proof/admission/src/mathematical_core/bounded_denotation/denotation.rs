@@ -726,13 +726,11 @@ impl Denotation {
         proposition: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
         let key = lift_fixed_integer_relation(proposition).unwrap_or_else(|| proposition.clone());
-        if let Some(&position) = self.atoms.get(&key) {
-            return Ok(self.constant(position));
-        }
-        let position = self.position()?;
-        self.declarations
-            .push(Declaration::assumption(0, self.type_zero));
-        self.atoms.insert(key, position);
+        let position = self.interned_keyed_assumption(
+            |this| &mut this.atoms,
+            key,
+            |this| Ok(this.type_zero),
+        )?;
         Ok(self.constant(position))
     }
 

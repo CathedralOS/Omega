@@ -13,6 +13,7 @@ use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, FloatRange, ProofConstraint,
     ProofPlan,
 };
+use arena::HandleSpan;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -22,109 +23,82 @@ pub(crate) fn float_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<FloatRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.argument)
-    {
-        ExpressionNode::Float(value) => {
-            let value = finite_float_literal(value)?;
-            Some(FloatRange::closed(value))
-        }
-        _ => float_range_at(
-            proof_plan,
-            obligation.machine_symbol,
-            obligation.state_symbol,
-            obligation.statement_index,
-            obligation.argument,
-        )
-        .or_else(|| {
-            float_range_from_constraints(type_constraints(
-                proof_plan,
-                obligation.argument_constraints,
-            ))
-        }),
-    }
+    float_range(
+        proof_plan,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.argument,
+        obligation.argument_constraints,
+    )
 }
 
 pub(crate) fn float_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<FloatRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
-        ExpressionNode::Float(value) => {
-            let value = finite_float_literal(value)?;
-            Some(FloatRange::closed(value))
-        }
-        _ => float_range_at(
-            proof_plan,
-            obligation.machine_symbol,
-            obligation.state_symbol,
-            obligation.statement_index,
-            obligation.value,
-        )
-        .or_else(|| {
-            float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
-        }),
-    }
+    float_range(
+        proof_plan,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.value,
+        obligation.value_constraints,
+    )
 }
 
 pub(crate) fn float_range_for_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<FloatRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.argument)
-    {
-        ExpressionNode::Float(value) => {
-            let value = finite_float_literal(value)?;
-            Some(FloatRange::closed(value))
-        }
-        _ => float_range_at(
-            proof_plan,
-            obligation.machine_symbol,
-            obligation.state_symbol,
-            obligation.statement_index,
-            obligation.argument,
-        )
-        .or_else(|| {
-            float_range_from_constraints(type_constraints(
-                proof_plan,
-                obligation.argument_constraints,
-            ))
-        }),
-    }
+    float_range(
+        proof_plan,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.argument,
+        obligation.argument_constraints,
+    )
 }
 
 pub(crate) fn float_range_for_return_value(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
 ) -> Option<FloatRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
+    float_range(
+        proof_plan,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.value,
+        obligation.value_constraints,
+    )
+}
+
+/// The literal-or-consulted float range spine every per-role
+/// `float_range_for_*` shares — the role wrappers read out their own
+/// operand and constraint fields and delegate here.
+fn float_range(
+    proof_plan: &ProofPlan,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
+    operand: ExpressionHandle,
+    constraints: HandleSpan<ProofConstraint>,
+) -> Option<FloatRange> {
+    match proof_plan.program.expression_table.expression(operand) {
         ExpressionNode::Float(value) => {
             let value = finite_float_literal(value)?;
             Some(FloatRange::closed(value))
         }
         _ => float_range_at(
             proof_plan,
-            obligation.machine_symbol,
-            obligation.state_symbol,
-            obligation.statement_index,
-            obligation.value,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            operand,
         )
-        .or_else(|| {
-            float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
-        }),
+        .or_else(|| float_range_from_constraints(type_constraints(proof_plan, constraints))),
     }
 }
 
