@@ -22,7 +22,7 @@ boundary requirement Receipt::ack(receipt: Receipt);
 
 data ReceiptSink {}
 
-windows_x86_64 machine receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "msvcrt.dll",
@@ -31,7 +31,7 @@ windows_x86_64 machine receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
     }
 }
 
-linux_x86_64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
@@ -41,7 +41,7 @@ linux_x86_64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
     }
 }
 
-linux_arm64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
@@ -51,7 +51,7 @@ linux_arm64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
     }
 }
 
-macos_arm64 machine receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
@@ -61,13 +61,13 @@ macos_arm64 machine receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
 }
 
 windows_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via receipt_sink_binding();
+satisfies Receipt::ack via windows_x86_64_receipt_sink_binding();
 linux_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via receipt_sink_binding();
+satisfies Receipt::ack via linux_x86_64_receipt_sink_binding();
 linux_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via receipt_sink_binding();
+satisfies Receipt::ack via linux_arm64_receipt_sink_binding();
 macos_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
-satisfies Receipt::ack via receipt_sink_binding();
+satisfies Receipt::ack via macos_arm64_receipt_sink_binding();
 
 data Main { console: Binding<Console>; }
 
