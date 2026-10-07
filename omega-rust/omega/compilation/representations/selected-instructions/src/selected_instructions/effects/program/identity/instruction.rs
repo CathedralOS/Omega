@@ -8,7 +8,8 @@ use crate::{
 };
 
 use super::provenance::encode_provenance;
-use super::values::{encode_constraint_key, encode_len, encode_units};
+use super::values::{encode_len, encode_units};
+use register_model::encode_constraint_key;
 
 /// Encodes an ordinary CFG instruction, retaining the complete semantic
 /// effect row. Scalar calls make these fields nontrivial.

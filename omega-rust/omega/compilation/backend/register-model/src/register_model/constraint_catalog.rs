@@ -41,6 +41,20 @@ pub struct RegisterConstraintKey {
     pub variant: u32,
 }
 
+/// Canonical identity bytes for one constraint key: the family tag byte
+/// followed by the variant word. Every identity codec that walks a register
+/// catalog spells this row the same way.
+pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
+    bytes.push(match key.family {
+        RegisterConstraintFamily::Call => 0,
+        RegisterConstraintFamily::Return => 1,
+        RegisterConstraintFamily::SystemCall => 2,
+        RegisterConstraintFamily::InlineAssembly => 3,
+        RegisterConstraintFamily::Instruction => 4,
+    });
+    bytes.extend_from_slice(&key.variant.to_le_bytes());
+}
+
 /// Exact ordinary instruction keys selected by one target register
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]

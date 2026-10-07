@@ -168,16 +168,6 @@ pub(super) fn decode_integer(
     }
 }
 
-pub(super) fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
-    bytes.push(match key.family {
-        RegisterConstraintFamily::Call => 0,
-        RegisterConstraintFamily::Return => 1,
-        RegisterConstraintFamily::SystemCall => 2,
-        RegisterConstraintFamily::InlineAssembly => 3,
-        RegisterConstraintFamily::Instruction => 4,
-    });
-    bytes.extend_from_slice(&key.variant.to_le_bytes());
-}
 
 pub(super) fn decode_constraint_key(
     cursor: &mut Cursor<'_>,

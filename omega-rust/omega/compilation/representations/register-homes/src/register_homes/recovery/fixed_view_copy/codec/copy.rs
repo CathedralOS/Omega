@@ -6,12 +6,11 @@ use crate::{FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination};
 
 use optimization_unit::encode_value_definition_site_identity;
 
+use register_model::encode_constraint_key;
+
 use super::{
     primitives::{Cursor, decode_id, length},
-    values::{
-        decode_constraint_key, decode_definition_site, decode_fixed_site, encode_constraint_key,
-        encode_fixed_site,
-    },
+    values::{decode_constraint_key, decode_definition_site, decode_fixed_site, encode_fixed_site},
 };
 
 pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {

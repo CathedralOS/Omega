@@ -1,4 +1,5 @@
 use legalized_operations::encode_integer;
+use register_model::encode_constraint_key;
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
 use selected_instructions::effects::program::encoding::saturating_kind;
 use selected_instructions::{
@@ -17,10 +18,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
         Cursor, decode_id, decode_option_u16, decode_u16s, encode_option_u16, encode_u16s, length,
     },
-    values::{
-        access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer,
-        encode_constraint_key,
-    },
+    values::{access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
 
 pub(super) fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {

@@ -1,4 +1,4 @@
-use register_model::{RegisterConstraintFamily, RegisterConstraintKey, RegisterUnitId};
+use register_model::RegisterUnitId;
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
@@ -15,16 +15,6 @@ pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
-pub(super) fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
-    bytes.push(match key.family {
-        RegisterConstraintFamily::Call => 0,
-        RegisterConstraintFamily::Return => 1,
-        RegisterConstraintFamily::SystemCall => 2,
-        RegisterConstraintFamily::InlineAssembly => 3,
-        RegisterConstraintFamily::Instruction => 4,
-    });
-    bytes.extend_from_slice(&key.variant.to_le_bytes());
-}
 
 pub(super) fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
     encode_len(bytes, units.len());
