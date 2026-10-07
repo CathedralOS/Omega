@@ -3072,16 +3072,8 @@ deletions, which the commit lists.
   narrower than their semantic carrier. This is an independent representation
   and ABI outcome, not a prerequisite for deleting PCC certificates.
 
-  `pass/layouts/runtime_callee_integer_at_fitting_write_exit` requires a
-  helper's `&mut i64` writes of -128 and 127 to use signed eight-bit storage
-  without changing neighboring byte 85. Parent and leaf formation must retain
-  their original endpoint and authored storage codec. Landing is blocked by
-  `pass/layouts/runtime_plan_laid_compact_bits_exit`: native lowering rejects
-  the authored one-byte record because its catalog retains a `Fragmented`
-  marker instead of the admitted fragment recipe. This program runs on base
-  `2207c9988d5`. Retain the complete physical recipe through catalog identity,
-  encoding, field initialization, reads and masked writes; a semantic-width
-  home or invented contiguous scalar address is not a substitute. Carry
+  Parent and leaf formation must retain their original endpoint and authored
+  storage codec. Carry
   backing and encoding through joins, returns, recursion and stored references in native
   and both interpreters. The checked interpreter currently declines encoded
   reference-valued results because its Value-only seam loses view metadata;

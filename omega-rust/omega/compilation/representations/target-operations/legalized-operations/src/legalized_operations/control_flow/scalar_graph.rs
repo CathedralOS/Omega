@@ -561,7 +561,10 @@ pub enum LegalizedScalarInstructionKind {
         field: semantic_vocabulary::StructuralFieldId,
         value: abstract_operations::AbstractResult,
         byte_offset: u32,
-        byte_size: u8,
+        /// Physical access envelope, not the semantic register width or a
+        /// single hardware transfer size. Fragment emission consumes its
+        /// exact container recipe separately.
+        byte_size: u32,
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     EstablishByteSequenceLiteral {

@@ -1117,7 +1117,17 @@ fn field_storage_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, InvalidStructuralShape> {
-    if let Some(stored) = field.storage.and_then(|storage| storage.stored_scalar()) {
+    if matches!(
+        field.storage.as_ref(),
+        Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
+    ) {
+        return Err(InvalidStructuralShape);
+    }
+    if let Some(stored) = field
+        .storage
+        .as_ref()
+        .and_then(|storage| storage.stored_scalar())
+    {
         return Ok(ValueShape::integer(
             u32::from(
                 runtime_abi::ScalarStorageCodec::from_scalar(stored)
@@ -1135,7 +1145,7 @@ fn field_offset(
     conventional_offset: u32,
     alignment: u16,
 ) -> Result<u32, InvalidStructuralShape> {
-    match field.storage {
+    match field.storage.as_ref() {
         Some(storage) => storage
             .byte_offset()
             .and_then(|offset| u32::try_from(offset).ok())

@@ -81,7 +81,8 @@ pub(super) fn emit(
                     )
                     .ok_or_else(|| invalid())?;
                 if !signature.entry_claims.is_empty()
-                    || (geometry.byte_offset, geometry.byte_size) != (*byte_offset, *byte_size)
+                    || (geometry.byte_offset, geometry.byte_size)
+                        != (*byte_offset, u32::from(*byte_size))
                     || !runtime_indices_match(indices, &geometry.elements)
                 {
                     return Err(invalid());
@@ -90,7 +91,7 @@ pub(super) fn emit(
                     destination.clone(),
                     value,
                     *byte_offset,
-                    *byte_size,
+                    u32::from(*byte_size),
                     indices,
                     false,
                     geometry.pointer_slots,
@@ -184,6 +185,37 @@ pub(super) fn emit(
         .as_ref()
         .ok_or_else(|| invalid())?
         .structural_types;
+    if let LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } =
+        &row.kind
+    {
+        if let Some(fragments) =
+            crate::structural_inputs::structural_reference_input::scalar_field_fragments(
+                destination.structural_type(),
+                path,
+                *field,
+                declarations,
+            )
+        {
+            // A fragmented update reads complete containers before preserving
+            // sibling bits. Write-only authority cannot license that RMW.
+            if matches!(&destination,
+                abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+                    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
+            {
+                return Err(invalid());
+            }
+            return super::fragmented_scalar::write(
+                builder,
+                row,
+                destination.place(),
+                address,
+                byte_offset,
+                fragments,
+                leaf_indices,
+                value.value,
+            );
+        }
+    }
     let codec = match &row.kind {
         LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } => {
             crate::structural_inputs::structural_reference_input::scalar_field_codec(
@@ -247,7 +279,7 @@ pub(super) fn emit(
     builder.emit(
         SelectedInstructionKind::Store {
             byte_offset: displacement,
-            byte_size,
+            byte_size: u8::try_from(byte_size).map_err(|_| invalid())?,
         },
         builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[address, register],

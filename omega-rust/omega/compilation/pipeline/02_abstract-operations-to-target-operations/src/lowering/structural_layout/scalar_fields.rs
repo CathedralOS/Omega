@@ -24,6 +24,26 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
     expected_type: ScalarType,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<u32, LoweringError> {
+    if declarations
+        .get(&structural_type)
+        .is_some_and(|declaration| {
+            let fields = match &declaration.shape {
+                StructuralTypeShape::Record { fields, .. }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => return false,
+            };
+            fields.iter().any(|candidate| {
+                candidate.id == field
+                    && matches!(
+                        candidate.storage.as_ref(),
+                        Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
+                    )
+            })
+        })
+    {
+        // A full-container access envelope is not a direct scalar address.
+        return Err(LoweringError::UnknownStructuralType(structural_type));
+    }
     direct_scalar_field_geometry(structural_type, field, expected_type, declarations)
         .map(|(offset, _)| offset)
 }
@@ -75,6 +95,31 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
     {
         if matches!(candidate.field_type, StructuralFieldType::Erased { .. }) {
             continue;
+        }
+        if candidate.storage.is_some() && candidate.id != field {
+            continue;
+        }
+        if candidate.id == field
+            && let Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) =
+                candidate.storage.as_ref()
+        {
+            if matches!(candidate.field_type, StructuralFieldType::Atomic(_))
+                || candidate.field_type.scalar_type() != Some(expected_type)
+            {
+                return Err(LoweringError::UnknownStructuralType(structural_type));
+            }
+            // This is the full-container access envelope, not a field ABI
+            // shape or a contiguous scalar pointer. Projection rejects that
+            // latter interpretation because fragmented storage has no offset.
+            let (start, width) = fragments
+                .byte_envelope()
+                .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+            return Ok((
+                u32::try_from(start)
+                    .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
+                u32::try_from(width)
+                    .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
+            ));
         }
         let shape = super::structural_field_storage_shape(
             candidate,

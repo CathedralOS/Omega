@@ -80,7 +80,7 @@ pub(super) fn encode_type(
             encode_fields(bytes, fields)?;
             if storage.is_some() {
                 for field in fields {
-                    encode_authored_field_storage(bytes, field.storage);
+                    encode_authored_field_storage(bytes, field.storage.as_ref());
                 }
             }
         }
@@ -155,7 +155,7 @@ pub(super) fn decode_type(
 
 fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
-    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {
     use semantic_vocabulary::AuthoredFieldStorage;
     match storage {
@@ -167,7 +167,7 @@ fn encode_authored_field_storage(
             bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             if let Some(scalar) = stored_scalar {
-                encode_scalar(bytes, scalar);
+                encode_scalar(bytes, *scalar);
             }
         }
         Some(AuthoredFieldStorage::Repeated {
@@ -182,7 +182,17 @@ fn encode_authored_field_storage(
             bytes.push(4);
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
+        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
+            bytes.push(6);
+            length(bytes, recipe.fragments().len());
+            for fragment in recipe.fragments() {
+                bytes.extend_from_slice(&fragment.container_byte_offset.to_le_bytes());
+                bytes.extend_from_slice(&fragment.container_width_bits.to_le_bytes());
+                bytes.extend_from_slice(&fragment.destination_lsb.to_le_bytes());
+                bytes.extend_from_slice(&fragment.source_lsb.to_le_bytes());
+                bytes.extend_from_slice(&fragment.width.to_le_bytes());
+            }
+        }
     }
 }
 
@@ -207,7 +217,25 @@ fn decode_authored_field_storage(
         4 => Some(AuthoredFieldStorage::Direct {
             byte_offset: cursor.u64()?,
         }),
-        5 => Some(AuthoredFieldStorage::Fragmented),
+        6 => {
+            let count = cursor.length()?;
+            if count == 0 || count > cursor.remaining() / 40 {
+                return Err(FixedViewCopyDecodeError::UnknownOption(6));
+            }
+            let mut fragments = Vec::with_capacity(count);
+            for _ in 0..count {
+                fragments.push(semantic_vocabulary::AuthoredBitFragment {
+                    container_byte_offset: cursor.u64()?,
+                    container_width_bits: cursor.u64()?,
+                    destination_lsb: cursor.u64()?,
+                    source_lsb: cursor.u64()?,
+                    width: cursor.u64()?,
+                });
+            }
+            Some(AuthoredFieldStorage::Fragmented(
+                semantic_vocabulary::AuthoredBitFragments::new(fragments),
+            ))
+        }
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     })
 }

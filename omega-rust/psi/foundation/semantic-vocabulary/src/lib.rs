@@ -35,7 +35,9 @@ pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
 pub use scalar_refinement::{ScalarRefinement, ScalarRefinementError};
 
-pub use authored_storage::{AuthoredFieldStorage, AuthoredRecordStorage};
+pub use authored_storage::{
+    AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
+};
 pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use content::{

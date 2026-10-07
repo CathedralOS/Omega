@@ -55,7 +55,16 @@ pub(super) fn fields(
         }
         let field_shape = field_shape(source, result, field, expected)?;
         let alignment = u32::from(field_shape.alignment);
-        offset = offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment;
+        offset = match expected.storage.as_ref() {
+            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
+                u32::try_from(fragments.byte_envelope()?.0).ok()?
+            }
+            Some(storage) => u32::try_from(storage.byte_offset()?).ok()?,
+            None => offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment,
+        };
+        if offset.checked_add(field_shape.byte_size)? > shape.byte_size {
+            return None;
+        }
         placed.push((offset, field_shape, expected.field_type.scalar_type()));
         offset = offset.checked_add(field_shape.byte_size)?;
     }
@@ -82,7 +91,25 @@ pub(super) fn field_shape(
             {
                 return None;
             }
-            super::scalar_call_abi::scalar_shape(expected.field_type.scalar_type()?)
+            let scalar = expected.field_type.scalar_type()?;
+            match expected.storage.as_ref() {
+                Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
+                    if expected.field_type.atomic_scalar_type().is_some() {
+                        return None;
+                    }
+                    Some(ValueShape::integer(
+                        u32::try_from(fragments.byte_envelope()?.1).ok()?,
+                        1,
+                    ))
+                }
+                Some(storage) => {
+                    let codec = runtime_abi::ScalarStorageCodec::from_scalar(
+                        storage.stored_scalar().unwrap_or(scalar),
+                    )?;
+                    Some(ValueShape::integer(u32::from(codec.byte_size()), 1))
+                }
+                None => super::scalar_call_abi::scalar_shape(scalar),
+            }
         }
         RecordFieldValue::Structural(argument) => {
             structural_operand_shape(source, parent, argument, &expected.field_type)

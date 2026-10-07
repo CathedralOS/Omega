@@ -155,7 +155,7 @@ pub(super) fn write(
     builder.emit(
         SelectedInstructionKind::Store {
             byte_offset,
-            byte_size: byte_count,
+            byte_size: u8::try_from(byte_count).map_err(|_| invalid())?,
         },
         builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[address, value_register],

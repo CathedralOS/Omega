@@ -35,6 +35,7 @@ fn field_geometry<'types>(
         return scalar_geometry(
             field
                 .storage
+                .as_ref()
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
         );
@@ -123,7 +124,7 @@ pub fn reference_storage_projection<'types>(
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
                 let offset = if storage.is_some() {
-                    field.storage?.byte_offset()?
+                    field.storage.as_ref()?.byte_offset()?
                 } else {
                     let mut offset = 0;
                     for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
@@ -138,8 +139,14 @@ pub fn reference_storage_projection<'types>(
                     offset
                 };
                 byte_offset = byte_offset.checked_add(offset)?;
-                selected_storage = field.storage.and_then(AuthoredFieldStorage::stored_scalar);
-                repeated_stride = field.storage.and_then(AuthoredFieldStorage::element_stride);
+                selected_storage = field
+                    .storage
+                    .as_ref()
+                    .and_then(AuthoredFieldStorage::stored_scalar);
+                repeated_stride = field
+                    .storage
+                    .as_ref()
+                    .and_then(AuthoredFieldStorage::element_stride);
                 if let Some(logical_scalar) = field.field_type.scalar_type() {
                     if position + 1 != path.len() {
                         return None;
@@ -267,7 +274,24 @@ mod tests {
                 fields: vec![field(
                     1,
                     StructuralFieldType::Scalar(scalar(8)),
-                    Some(AuthoredFieldStorage::Fragmented),
+                    Some(AuthoredFieldStorage::Fragmented(
+                        semantic_vocabulary::AuthoredBitFragments::new([
+                            semantic_vocabulary::AuthoredBitFragment {
+                                container_byte_offset: 0,
+                                container_width_bits: 8,
+                                destination_lsb: 4,
+                                source_lsb: 0,
+                                width: 4,
+                            },
+                            semantic_vocabulary::AuthoredBitFragment {
+                                container_byte_offset: 0,
+                                container_width_bits: 8,
+                                destination_lsb: 0,
+                                source_lsb: 4,
+                                width: 4,
+                            },
+                        ]),
+                    )),
                 )],
             },
         }];

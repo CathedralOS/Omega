@@ -745,7 +745,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
-                    storage: field.storage,
+                    storage: field.storage.clone(),
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: field.identity.clone(),
                     relevance,
@@ -795,7 +795,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                         }
                                         let field_type = crate::structural_types::lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
-                                            storage: field.storage,
+                                            storage: field.storage.clone(),
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,
                                             )?),

@@ -35,6 +35,7 @@ pub(super) fn establish(
         row,
         builder,
         result.place,
+        result.structural_type,
         pointer,
         initializers,
         &fields,
@@ -104,6 +105,7 @@ pub(super) fn write_fields(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
     destination: PlaceId,
+    parent: semantic_vocabulary::StructuralTypeId,
     pointer: VirtualRegisterId,
     initializers: &[terminal_psi::RecordFieldInitializer],
     fields: &[(
@@ -124,8 +126,77 @@ pub(super) fn write_fields(
                 range_obligation,
             } => {
                 let (_, register, _, scalar) = builder.resolve(*value).ok_or_else(|| invalid())?;
-                if Some(scalar) != expected_scalar
-                    || crate::selection::scalar_call_abi::scalar_shape(scalar) != Some(field_shape)
+                if Some(scalar) != expected_scalar {
+                    return Err(invalid());
+                }
+                let declarations = &source
+                    .structural
+                    .as_ref()
+                    .ok_or_else(invalid)?
+                    .structural_types;
+                if let Some(fragments) =
+                    crate::structural_inputs::structural_reference_input::scalar_field_fragments(
+                        parent,
+                        &[],
+                        initializer.field,
+                        declarations,
+                    )
+                {
+                    super::fragmented_scalar::write(
+                        builder,
+                        row,
+                        destination,
+                        pointer,
+                        offset,
+                        fragments,
+                        &[],
+                        *value,
+                    )?;
+                    continue;
+                }
+                let codec =
+                    crate::structural_inputs::structural_reference_input::scalar_field_codec(
+                        parent,
+                        &[],
+                        initializer.field,
+                        declarations,
+                    );
+                if let Some(codec) = codec {
+                    let canonical =
+                        runtime_abi::ScalarStorageCodec::from_scalar(scalar).ok_or_else(invalid)?;
+                    if u32::from(codec.byte_size()) != field_shape.byte_size {
+                        return Err(invalid());
+                    }
+                    if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
+                        let address = super::encoded_scalar::backing_address(
+                            builder,
+                            row,
+                            destination,
+                            pointer,
+                            offset,
+                        )?;
+                        let codec = super::encoded_scalar::constant_codec(
+                            builder,
+                            row,
+                            destination,
+                            codec,
+                        )?;
+                        super::encoded_scalar::write(
+                            builder,
+                            row,
+                            destination,
+                            address,
+                            codec,
+                            abstract_operations::AbstractResult {
+                                value: *value,
+                                scalar_type: scalar,
+                            },
+                        )?;
+                        continue;
+                    }
+                }
+                if codec.is_none()
+                    && crate::selection::scalar_call_abi::scalar_shape(scalar) != Some(field_shape)
                 {
                     return Err(invalid());
                 }

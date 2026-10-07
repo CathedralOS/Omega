@@ -69,7 +69,7 @@ pub(super) fn form(
     )?;
     (indices.is_empty()
         && offset == *field_byte_offset
-        && size == form.width.bytes()
-        && offset % u32::from(size) == 0)
+        && size == u32::from(form.width.bytes())
+        && offset % size == 0)
         .then_some(form)
 }

@@ -115,7 +115,11 @@ pub(super) fn storage(
                     *scalar_type,
                     declarations,
                 )?;
-                (base.checked_add(field_offset)?, field_width, elements)
+                (
+                    base.checked_add(field_offset)?,
+                    u32::from(field_width),
+                    elements,
+                )
             }
             terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
                 crate::structural_inputs::structural_reference_input::primitive_geometry(
@@ -164,7 +168,7 @@ pub(super) fn storage(
                 }
                 (
                     base.checked_add(layout.tag_byte_offset)?,
-                    u8::try_from(layout.tag_shape.byte_size).ok()?,
+                    layout.tag_shape.byte_size,
                     elements,
                 )
             }
@@ -172,7 +176,7 @@ pub(super) fn storage(
         if !elements.is_empty() {
             return None;
         }
-        stores.push((offset, width));
+        stores.push((offset, u8::try_from(width).ok()?));
     }
     Some(stores)
 }

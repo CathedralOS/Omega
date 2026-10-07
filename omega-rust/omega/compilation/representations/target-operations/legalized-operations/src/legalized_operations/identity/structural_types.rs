@@ -254,7 +254,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             encode_structural_fields(bytes, fields);
             if storage.is_some() {
                 for field in fields {
-                    encode_authored_field_storage(bytes, field.storage);
+                    encode_authored_field_storage(bytes, field.storage.as_ref());
                 }
             }
         }
@@ -287,7 +287,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
 
 fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
-    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {
     use semantic_vocabulary::AuthoredFieldStorage;
     match storage {
@@ -299,7 +299,7 @@ fn encode_authored_field_storage(
             bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             if let Some(scalar) = stored_scalar {
-                encode_scalar_type(bytes, scalar);
+                encode_scalar_type(bytes, *scalar);
             }
         }
         Some(AuthoredFieldStorage::Repeated {
@@ -314,7 +314,17 @@ fn encode_authored_field_storage(
             bytes.push(4);
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
+        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
+            bytes.push(6);
+            encode_len(bytes, recipe.fragments().len());
+            for fragment in recipe.fragments() {
+                bytes.extend_from_slice(&fragment.container_byte_offset.to_le_bytes());
+                bytes.extend_from_slice(&fragment.container_width_bits.to_le_bytes());
+                bytes.extend_from_slice(&fragment.destination_lsb.to_le_bytes());
+                bytes.extend_from_slice(&fragment.source_lsb.to_le_bytes());
+                bytes.extend_from_slice(&fragment.width.to_le_bytes());
+            }
+        }
     }
 }
 

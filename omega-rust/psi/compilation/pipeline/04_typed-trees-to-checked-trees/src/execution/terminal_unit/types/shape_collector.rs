@@ -1202,17 +1202,35 @@ fn authored_field_storage(
     symbol: SymbolHandle,
     field_type: &CheckedUnitStructuralFieldType,
 ) -> Option<semantic_vocabulary::AuthoredFieldStorage> {
-    use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, IntegerType, ScalarType};
+    use semantic_vocabulary::{
+        AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, IntegerSign, IntegerType,
+        ScalarType,
+    };
     let field_index = layout
         .field_symbols
         .iter()
         .position(|candidate| *candidate == symbol)?;
-    if layout
+    if let Some(field) = layout
         .bit_fields
         .iter()
-        .any(|field| field.field_index == field_index)
+        .find(|field| field.field_index == field_index)
     {
-        return Some(AuthoredFieldStorage::Fragmented);
+        let fragments = field
+            .fragments
+            .iter()
+            .map(|fragment| {
+                Some(AuthoredBitFragment {
+                    container_byte_offset: u64::try_from(fragment.container_byte_offset).ok()?,
+                    container_width_bits: u64::from(fragment.container_width_bits),
+                    destination_lsb: u64::from(fragment.destination_lsb),
+                    source_lsb: u64::from(fragment.source_lsb),
+                    width: u64::from(fragment.width),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(AuthoredFieldStorage::Fragmented(AuthoredBitFragments::new(
+            fragments,
+        )));
     }
     let byte_offset = u64::try_from(*layout.offsets.get(field_index)?).ok()?;
     if let Some(field) = layout

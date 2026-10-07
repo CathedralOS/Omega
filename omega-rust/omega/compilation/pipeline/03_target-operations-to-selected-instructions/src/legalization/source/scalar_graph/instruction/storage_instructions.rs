@@ -232,7 +232,7 @@ pub(super) fn project_write_only_primitive_store(
             path: path.clone(),
             value: *value,
             byte_offset: geometry.byte_offset,
-            byte_size: geometry.byte_size,
+            byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
             indices: crate::legalization::runtime_indices::operands(
                 optimized,
                 unit,

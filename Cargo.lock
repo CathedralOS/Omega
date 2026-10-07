@@ -1760,6 +1760,9 @@ dependencies = [
 [[package]]
 name = "semantic-vocabulary"
 version = "0.1.0"
+dependencies = [
+ "arena",
+]
 
 [[package]]
 name = "serde"

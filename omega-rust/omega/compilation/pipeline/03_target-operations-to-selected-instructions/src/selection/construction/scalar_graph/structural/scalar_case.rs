@@ -75,6 +75,7 @@ pub(super) fn establish(
         row,
         builder,
         result.place,
+        result.structural_type,
         pointer,
         fields,
         &placements,

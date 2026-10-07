@@ -416,7 +416,7 @@ pub(super) fn encode_structural_type(
             bytes.slice(fields, encode_structural_field);
             if storage.is_some() {
                 for field in fields {
-                    encode_authored_field_storage(bytes, field.storage);
+                    encode_authored_field_storage(bytes, field.storage.as_ref());
                 }
             }
         }
@@ -449,7 +449,7 @@ pub(super) fn encode_structural_type(
 
 fn encode_authored_field_storage(
     bytes: &mut CanonicalBytes,
-    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) {
     use semantic_vocabulary::AuthoredFieldStorage;
     match storage {
@@ -459,9 +459,9 @@ fn encode_authored_field_storage(
             stored_scalar,
         }) => {
             bytes.u8(if stored_scalar.is_some() { 2 } else { 1 });
-            bytes.u64(byte_offset);
+            bytes.u64(*byte_offset);
             if let Some(scalar) = stored_scalar {
-                encode_scalar_type(bytes, scalar);
+                encode_scalar_type(bytes, *scalar);
             }
         }
         Some(AuthoredFieldStorage::Repeated {
@@ -469,14 +469,24 @@ fn encode_authored_field_storage(
             element_stride,
         }) => {
             bytes.u8(3);
-            bytes.u64(byte_offset);
-            bytes.u64(element_stride);
+            bytes.u64(*byte_offset);
+            bytes.u64(*element_stride);
         }
         Some(AuthoredFieldStorage::Direct { byte_offset }) => {
             bytes.u8(4);
-            bytes.u64(byte_offset);
+            bytes.u64(*byte_offset);
         }
-        Some(AuthoredFieldStorage::Fragmented) => bytes.u8(5),
+        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
+            bytes.u8(6);
+            bytes.len(recipe.fragments().len());
+            for fragment in recipe.fragments() {
+                bytes.u64(fragment.container_byte_offset);
+                bytes.u64(fragment.container_width_bits);
+                bytes.u64(fragment.destination_lsb);
+                bytes.u64(fragment.source_lsb);
+                bytes.u64(fragment.width);
+            }
+        }
     }
 }
 

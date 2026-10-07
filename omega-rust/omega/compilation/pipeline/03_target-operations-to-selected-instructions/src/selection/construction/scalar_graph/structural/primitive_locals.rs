@@ -148,6 +148,19 @@ pub(in crate::selection) fn read(
     let indices = &indices[leaf_index..];
     let pointer =
         super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
+    if let Some(fragments) =
+        crate::selection::primitive_local_input::read_storage_fragments(source, row)
+    {
+        return super::fragmented_scalar::read(
+            builder,
+            row,
+            place,
+            pointer,
+            byte_offset,
+            fragments,
+            indices,
+        );
+    }
     let codec = crate::selection::primitive_local_input::read_storage_codec(source, row)
         .ok_or_else(|| invalid())?;
     let canonical = runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type)

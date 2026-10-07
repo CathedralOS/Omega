@@ -69,7 +69,7 @@ pub(crate) fn encode_structural_types(
                 encode_structural_fields(bytes, fields)?;
                 if storage.is_some() {
                     for field in fields {
-                        encode_authored_field_storage(bytes, field.storage)?;
+                        encode_authored_field_storage(bytes, field.storage.as_ref())?;
                     }
                 }
             }
@@ -192,7 +192,7 @@ pub(crate) fn decode_structural_types(
 
 fn encode_authored_field_storage(
     bytes: &mut Vec<u8>,
-    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
 ) -> Result<(), InstallationError> {
     use semantic_vocabulary::AuthoredFieldStorage;
     match storage {
@@ -202,9 +202,11 @@ fn encode_authored_field_storage(
             stored_scalar,
         }) => {
             bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
-            push_u64(bytes, byte_offset);
+            push_u64(bytes, *byte_offset);
             if let Some(scalar) = stored_scalar {
-                crate::installation_record::codec::unit::scalar::encode_scalar_type(bytes, scalar)?;
+                crate::installation_record::codec::unit::scalar::encode_scalar_type(
+                    bytes, *scalar,
+                )?;
             }
         }
         Some(AuthoredFieldStorage::Repeated {
@@ -212,14 +214,28 @@ fn encode_authored_field_storage(
             element_stride,
         }) => {
             bytes.push(3);
-            push_u64(bytes, byte_offset);
-            push_u64(bytes, element_stride);
+            push_u64(bytes, *byte_offset);
+            push_u64(bytes, *element_stride);
         }
         Some(AuthoredFieldStorage::Direct { byte_offset }) => {
             bytes.push(4);
-            push_u64(bytes, byte_offset);
+            push_u64(bytes, *byte_offset);
         }
-        Some(AuthoredFieldStorage::Fragmented) => bytes.push(5),
+        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
+            bytes.push(6);
+            push_u32(
+                bytes,
+                u32::try_from(recipe.fragments().len())
+                    .map_err(|_| InstallationError::TooManyStructuralTypes)?,
+            );
+            for fragment in recipe.fragments() {
+                push_u64(bytes, fragment.container_byte_offset);
+                push_u64(bytes, fragment.container_width_bits);
+                push_u64(bytes, fragment.destination_lsb);
+                push_u64(bytes, fragment.source_lsb);
+                push_u64(bytes, fragment.width);
+            }
+        }
     }
     Ok(())
 }
@@ -247,7 +263,26 @@ fn decode_authored_field_storage(
         4 => Some(AuthoredFieldStorage::Direct {
             byte_offset: reader.u64()?,
         }),
-        5 => Some(AuthoredFieldStorage::Fragmented),
+        6 => {
+            let count =
+                usize::try_from(reader.u32()?).map_err(|_| InstallationError::UnexpectedEnd)?;
+            if count == 0 || count > reader.remaining() / 40 {
+                return Err(InstallationError::InvalidStructuralTypeShape);
+            }
+            let mut fragments = Vec::with_capacity(count);
+            for _ in 0..count {
+                fragments.push(semantic_vocabulary::AuthoredBitFragment {
+                    container_byte_offset: reader.u64()?,
+                    container_width_bits: reader.u64()?,
+                    destination_lsb: reader.u64()?,
+                    source_lsb: reader.u64()?,
+                    width: reader.u64()?,
+                });
+            }
+            Some(AuthoredFieldStorage::Fragmented(
+                semantic_vocabulary::AuthoredBitFragments::new(fragments),
+            ))
+        }
         _ => return Err(InstallationError::InvalidStructuralTypeShape),
     })
 }

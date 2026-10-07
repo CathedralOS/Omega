@@ -217,8 +217,8 @@ fn contiguous_primitive_read_projection(
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
     let scalar = field.field_type.scalar_type()?;
-    let field_offset =
-        direct_scalar_field_offset(carrier_type, field.id, scalar, declarations).ok()?;
+    let (field_offset, _) =
+        direct_scalar_field_geometry(carrier_type, field.id, scalar, declarations).ok()?;
     Some((scalar, carrier_offset.checked_add(field_offset)?, runs))
 }
 
@@ -511,7 +511,17 @@ fn structural_field_storage_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, LoweringError> {
-    if let Some(stored) = field.storage.and_then(|storage| storage.stored_scalar()) {
+    if matches!(
+        field.storage.as_ref(),
+        Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
+    ) {
+        return Err(LoweringError::UnknownStructuralType(owner));
+    }
+    if let Some(stored) = field
+        .storage
+        .as_ref()
+        .and_then(|storage| storage.stored_scalar())
+    {
         let codec = runtime_abi::ScalarStorageCodec::from_scalar(stored)
             .ok_or(LoweringError::UnknownStructuralType(owner))?;
         return Ok(ValueShape::integer(u32::from(codec.byte_size()), 1));
@@ -525,7 +535,7 @@ fn structural_field_offset(
     alignment: u16,
     owner: StructuralTypeId,
 ) -> Result<u32, LoweringError> {
-    match field.storage {
+    match field.storage.as_ref() {
         Some(storage) => storage
             .byte_offset()
             .and_then(|offset| u32::try_from(offset).ok())

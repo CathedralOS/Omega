@@ -47,6 +47,7 @@ mod structural_local;
 mod zeroed;
 pub(super) use primitive_locals::read;
 mod encoded_scalar;
+mod fragmented_scalar;
 pub(super) mod runtime_address;
 mod scalar_store;
 mod subslice;

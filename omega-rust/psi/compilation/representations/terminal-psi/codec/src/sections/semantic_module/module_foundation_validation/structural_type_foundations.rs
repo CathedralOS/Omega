@@ -42,8 +42,9 @@ pub(super) fn validate_type_shape(
                 fields.iter().map(|field| field.identity.as_str()),
                 "structural field identity",
             )?;
+            let mut destinations = Vec::new();
             for field in fields {
-                match (storage, field.storage) {
+                match (storage, field.storage.as_ref()) {
                     (Some(_), None) if !field.relevance.is_erased() => {
                         return malformed("authored record field has no storage interpretation");
                     }
@@ -58,12 +59,26 @@ pub(super) fn validate_type_shape(
                                 "authored field storage has invalid offset, stride or relevance",
                             );
                         }
-                        validate_authored_field_extent(
+                        let extent = validate_authored_field_extent(
                             module,
                             field,
                             field_storage,
                             record.byte_size,
                         )?;
+                        if let semantic_vocabulary::AuthoredFieldStorage::Fragmented(recipe) =
+                            field_storage
+                        {
+                            for fragment in recipe.fragments() {
+                                let start = u128::from(fragment.container_byte_offset) * 8
+                                    + u128::from(fragment.destination_lsb);
+                                destinations.push((start, start + u128::from(fragment.width)));
+                            }
+                        } else if let Some((offset, extent)) = extent
+                            && extent != 0
+                        {
+                            let start = u128::from(offset) * 8;
+                            destinations.push((start, start + u128::from(extent) * 8));
+                        }
                         if let Some(stored) = field_storage.stored_scalar() {
                             let logical = field
                                 .field_type
@@ -145,6 +160,7 @@ pub(super) fn validate_type_shape(
                     _ => {}
                 }
             }
+            validate_authored_destination_intervals(destinations)?;
         }
         StructuralTypeShape::FixedArray { element, .. } => {
             if !has_structural_type(module, *element) {
@@ -274,12 +290,13 @@ pub(super) fn validate_type_shape(
 /// Check the entire contiguous extent, not only its starting coordinate.
 /// Opaque and fragmented layouts remain unavailable to direct projection;
 /// absence of portable geometry never means an invented native pointer width.
+/// The known contiguous extent also supplies the record's overlap check.
 fn validate_authored_field_extent(
     module: &TerminalModule,
     field: &terminal_psi::StructuralFieldDeclaration,
-    storage: semantic_vocabulary::AuthoredFieldStorage,
+    storage: &semantic_vocabulary::AuthoredFieldStorage,
     record_size: u64,
-) -> Result<(), CodecError> {
+) -> Result<Option<(u64, u64)>, CodecError> {
     use semantic_vocabulary::AuthoredFieldStorage;
 
     let scalar = field
@@ -297,12 +314,15 @@ fn validate_authored_field_extent(
         terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
     };
     let (offset, extent) = match storage {
-        AuthoredFieldStorage::Fragmented => return Ok(()),
+        AuthoredFieldStorage::Fragmented(recipe) => {
+            validate_authored_fragments(module, field, recipe, record_size)?;
+            return Ok(None);
+        }
         AuthoredFieldStorage::Scalar {
             byte_offset,
             stored_scalar: Some(stored),
         } => {
-            let width = terminal_semantics::reference_storage_byte_width(stored).ok_or(
+            let width = terminal_semantics::reference_storage_byte_width(*stored).ok_or(
                 CodecError::MalformedStructuralFoundation(
                     "encoded field has no contiguous scalar footprint",
                 ),
@@ -336,14 +356,14 @@ fn validate_authored_field_extent(
                 *element,
             ) {
                 if alignment == 0
-                    || element_stride < size
-                    || element_stride % alignment != 0
-                    || byte_offset % alignment != 0
+                    || *element_stride < size
+                    || *element_stride % alignment != 0
+                    || *byte_offset % alignment != 0
                 {
                     return malformed("repeated field stride overlaps or misaligns its elements");
                 }
             }
-            let extent = length.checked_mul(element_stride).ok_or(
+            let extent = length.checked_mul(*element_stride).ok_or(
                 CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
             )?;
             (byte_offset, Some(extent))
@@ -355,6 +375,115 @@ fn validate_authored_field_extent(
             .is_none_or(|end| end > record_size)
     }) {
         return malformed("authored field extent exceeds its record storage");
+    }
+    Ok(extent.map(|extent| (*offset, extent)))
+}
+
+/// Validate the recipe against the declaration, not against its largest
+/// fragment. Container bounds cover full transfers; source rows must tile
+/// every represented bit exactly once, regardless of destination ordering.
+fn validate_authored_fragments(
+    module: &TerminalModule,
+    field: &terminal_psi::StructuralFieldDeclaration,
+    recipe: &semantic_vocabulary::AuthoredBitFragments,
+    record_size: u64,
+) -> Result<(), CodecError> {
+    let source_width = authored_fragment_source_width(module, &field.field_type).ok_or(
+        CodecError::MalformedStructuralFoundation(
+            "fragmented field requires a known scalar representation width",
+        ),
+    )?;
+    if recipe.fragments().is_empty() {
+        return malformed("fragmented field requires a complete recipe");
+    }
+    let mut source_intervals = Vec::with_capacity(recipe.fragments().len());
+    for fragment in recipe.fragments() {
+        if fragment.container_width_bits == 0
+            || !fragment.container_width_bits.is_multiple_of(8)
+            || fragment.width == 0
+            || fragment
+                .container_byte_offset
+                .checked_add(fragment.container_width_bits / 8)
+                .is_none_or(|end| end > record_size)
+            || fragment
+                .destination_lsb
+                .checked_add(fragment.width)
+                .is_none_or(|end| end > fragment.container_width_bits)
+        {
+            return malformed("fragmented field has an invalid transfer container or destination");
+        }
+        let end = fragment.source_lsb.checked_add(fragment.width).ok_or(
+            CodecError::MalformedStructuralFoundation("fragment source range overflows"),
+        )?;
+        if end > source_width {
+            return malformed("fragment source range exceeds its declaration representation");
+        }
+        source_intervals.push((fragment.source_lsb, end));
+    }
+    source_intervals.sort_unstable();
+    let mut cursor = 0;
+    for (start, end) in source_intervals {
+        if start != cursor {
+            return malformed("fragment source ranges have a gap or overlap");
+        }
+        cursor = end;
+    }
+    if cursor != source_width {
+        return malformed("fragment source ranges do not tile the declaration representation");
+    }
+    Ok(())
+}
+
+fn authored_fragment_source_width(
+    module: &TerminalModule,
+    field: &StructuralFieldType,
+) -> Option<u64> {
+    if let StructuralFieldType::BoundedInteger(integer) = field {
+        use semantic_vocabulary::IntegerValue;
+        let maximum = match (integer.minimum(), integer.maximum()) {
+            (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) if minimum >= 0 => {
+                u128::try_from(maximum).ok()?
+            }
+            (IntegerValue::Unsigned(_), IntegerValue::Unsigned(maximum)) => maximum,
+            _ => return Some(u64::from(integer.integer_type().bits())),
+        };
+        return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
+    }
+    let scalar = field.scalar_type().or_else(|| {
+        let StructuralFieldType::Structural(identity) = field else {
+            return None;
+        };
+        let StructuralTypeShape::PrimitiveScalar(scalar) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == *identity)?
+            .shape
+        else {
+            return None;
+        };
+        Some(scalar)
+    })?;
+    match scalar {
+        semantic_vocabulary::ScalarType::Boolean => Some(1),
+        semantic_vocabulary::ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
+        semantic_vocabulary::ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+        ) => Some(32),
+        semantic_vocabulary::ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ) => Some(64),
+    }
+}
+
+/// Sharing a transfer container is legal; sharing destination bits is not.
+/// Whole-field placements occupy their complete known extent, whereas a
+/// fragmented field occupies only its selected bits, not the RMW envelope.
+fn validate_authored_destination_intervals(
+    mut destinations: Vec<(u128, u128)>,
+) -> Result<(), CodecError> {
+    destinations.sort_unstable();
+    if destinations.windows(2).any(|pair| pair[1].0 < pair[0].1) {
+        return malformed("authored field destination bits overlap");
     }
     Ok(())
 }
@@ -455,7 +584,17 @@ mod authored_storage_envelope_tests {
             identity: "value".into(),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
-            storage: Some(AuthoredFieldStorage::Fragmented),
+            storage: Some(AuthoredFieldStorage::Fragmented(
+                semantic_vocabulary::AuthoredBitFragments::new([
+                    semantic_vocabulary::AuthoredBitFragment {
+                        container_byte_offset: 0,
+                        container_width_bits: 8,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 1,
+                    },
+                ]),
+            )),
         };
         let case = StructuralCaseDeclaration {
             id: StructuralCaseId::new(1).expect("case identity"),
@@ -522,13 +661,13 @@ mod authored_storage_envelope_tests {
             },
             AuthoredFieldStorage::Direct { byte_offset: 0 },
         ] {
-            assert!(validate_authored_field_extent(&module, &field, storage, 1).is_err());
-            assert!(validate_authored_field_extent(&module, &field, storage, 8).is_ok());
+            assert!(validate_authored_field_extent(&module, &field, &storage, 1).is_err());
+            assert!(validate_authored_field_extent(&module, &field, &storage, 8).is_ok());
         }
         let offset = AuthoredFieldStorage::Direct {
             byte_offset: u64::MAX - 3,
         };
-        assert!(validate_authored_field_extent(&module, &field, offset, u64::MAX).is_err());
+        assert!(validate_authored_field_extent(&module, &field, &offset, u64::MAX).is_err());
     }
 
     #[test]
@@ -569,8 +708,8 @@ mod authored_storage_envelope_tests {
             byte_offset: 0,
             element_stride: 8,
         };
-        assert!(validate_authored_field_extent(&module, &field, storage, 16).is_ok());
-        assert!(validate_authored_field_extent(&module, &field, storage, 15).is_err());
+        assert!(validate_authored_field_extent(&module, &field, &storage, 16).is_ok());
+        assert!(validate_authored_field_extent(&module, &field, &storage, 15).is_err());
         for storage in [
             AuthoredFieldStorage::Repeated {
                 byte_offset: 0,
@@ -581,12 +720,12 @@ mod authored_storage_envelope_tests {
                 element_stride: 8,
             },
         ] {
-            assert!(validate_authored_field_extent(&module, &field, storage, 24).is_err());
+            assert!(validate_authored_field_extent(&module, &field, &storage, 24).is_err());
         }
         module.structural_types[1].shape = StructuralTypeShape::FixedArray {
             element,
             length: u64::MAX,
         };
-        assert!(validate_authored_field_extent(&module, &field, storage, u64::MAX).is_err());
+        assert!(validate_authored_field_extent(&module, &field, &storage, u64::MAX).is_err());
     }
 }

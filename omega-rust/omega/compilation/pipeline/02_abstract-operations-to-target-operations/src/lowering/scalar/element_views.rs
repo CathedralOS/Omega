@@ -2,7 +2,7 @@
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
-use crate::lowering::structural_layout::{direct_scalar_field_offset, runtime_projection};
+use crate::lowering::structural_layout::{direct_scalar_field_geometry, runtime_projection};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -334,7 +334,9 @@ fn scalar_leaf_offset(
         let field = fields.iter().find(|field| field.identity == *identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
             return parent_offset.checked_add(
-                direct_scalar_field_offset(parent, field.id, scalar, structural_types).ok()?,
+                direct_scalar_field_geometry(parent, field.id, scalar, structural_types)
+                    .ok()?
+                    .0,
             );
         }
     }

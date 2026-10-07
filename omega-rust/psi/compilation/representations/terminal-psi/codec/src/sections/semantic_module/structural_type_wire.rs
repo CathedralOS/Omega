@@ -49,7 +49,7 @@ pub(crate) fn encode_structural_type(
             }
             if storage.is_some() {
                 for field in fields {
-                    encode_authored_field_storage(writer, field.storage);
+                    encode_authored_field_storage(writer, field.storage.as_ref())?;
                 }
             }
         }
@@ -160,8 +160,8 @@ pub(crate) fn decode_structural_type(
 
 fn encode_authored_field_storage(
     writer: &mut Writer,
-    storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
-) {
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
+) -> Result<(), CodecError> {
     use semantic_vocabulary::AuthoredFieldStorage;
     match storage {
         None => writer.u8(0),
@@ -170,9 +170,9 @@ fn encode_authored_field_storage(
             stored_scalar,
         }) => {
             writer.u8(if stored_scalar.is_some() { 2 } else { 1 });
-            writer.u64(byte_offset);
+            writer.u64(*byte_offset);
             if let Some(scalar) = stored_scalar {
-                encode_scalar_type(writer, scalar);
+                encode_scalar_type(writer, *scalar);
             }
         }
         Some(AuthoredFieldStorage::Repeated {
@@ -180,15 +180,26 @@ fn encode_authored_field_storage(
             element_stride,
         }) => {
             writer.u8(3);
-            writer.u64(byte_offset);
-            writer.u64(element_stride);
+            writer.u64(*byte_offset);
+            writer.u64(*element_stride);
         }
         Some(AuthoredFieldStorage::Direct { byte_offset }) => {
             writer.u8(4);
-            writer.u64(byte_offset);
+            writer.u64(*byte_offset);
         }
-        Some(AuthoredFieldStorage::Fragmented) => writer.u8(5),
+        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
+            writer.u8(6);
+            writer.len("authored bit fragments", recipe.fragments().len())?;
+            for fragment in recipe.fragments() {
+                writer.u64(fragment.container_byte_offset);
+                writer.u64(fragment.container_width_bits);
+                writer.u64(fragment.destination_lsb);
+                writer.u64(fragment.source_lsb);
+                writer.u64(fragment.width);
+            }
+        }
     }
+    Ok(())
 }
 
 fn decode_authored_field_storage(
@@ -212,7 +223,27 @@ fn decode_authored_field_storage(
         4 => Some(AuthoredFieldStorage::Direct {
             byte_offset: reader.u64()?,
         }),
-        5 => Some(AuthoredFieldStorage::Fragmented),
+        6 => {
+            let count = usize::try_from(reader.u32()?).map_err(|_| CodecError::UnexpectedEnd)?;
+            if count == 0 || count > reader.remaining() / 40 {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "fragmented field requires a complete recipe",
+                ));
+            }
+            let mut fragments = Vec::with_capacity(count);
+            for _ in 0..count {
+                fragments.push(semantic_vocabulary::AuthoredBitFragment {
+                    container_byte_offset: reader.u64()?,
+                    container_width_bits: reader.u64()?,
+                    destination_lsb: reader.u64()?,
+                    source_lsb: reader.u64()?,
+                    width: reader.u64()?,
+                });
+            }
+            Some(AuthoredFieldStorage::Fragmented(
+                semantic_vocabulary::AuthoredBitFragments::new(fragments),
+            ))
+        }
         tag => return Err(CodecError::InvalidTag("AuthoredFieldStorage", tag)),
     })
 }
@@ -272,10 +303,28 @@ mod tests {
                 element_stride: 5,
             }),
             Some(semantic_vocabulary::AuthoredFieldStorage::Direct { byte_offset: 7 }),
-            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented),
+            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(
+                semantic_vocabulary::AuthoredBitFragments::new([
+                    semantic_vocabulary::AuthoredBitFragment {
+                        container_byte_offset: 7,
+                        container_width_bits: 16,
+                        destination_lsb: 4,
+                        source_lsb: 0,
+                        width: 3,
+                    },
+                    semantic_vocabulary::AuthoredBitFragment {
+                        container_byte_offset: 9,
+                        container_width_bits: 8,
+                        destination_lsb: 1,
+                        source_lsb: 3,
+                        width: 2,
+                    },
+                ]),
+            )),
         ] {
             let mut writer = Writer::default();
-            encode_authored_field_storage(&mut writer, storage);
+            encode_authored_field_storage(&mut writer, storage.as_ref())
+                .expect("encode field geometry");
             let bytes = writer.finish();
             let mut reader = Reader::new(&bytes);
             assert_eq!(
