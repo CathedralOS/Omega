@@ -80,8 +80,9 @@ pub(super) fn prepare_function_signature(
         &function.structural_parameters,
         match &function.result {
             AbstractFunctionResult::Structural(result) => {
+                // Root and child memberships retain semantic identity but do
+                // not change the carrier's return registers or home layout.
                 if result.multiplicity == StructuralMultiplicity::Linear
-                    || !result.projected_qualifications.is_empty()
                     || (!result.qualifications.is_empty()
                         && !structural_types.get(&result.structural_type).is_some_and(
                             |declaration| declaration.shape.supports_result_qualifications(),

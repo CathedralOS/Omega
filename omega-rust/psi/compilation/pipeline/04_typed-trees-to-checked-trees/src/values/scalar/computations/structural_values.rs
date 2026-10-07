@@ -326,8 +326,7 @@ impl Builder<'_, '_> {
         {
             let call_target = crate::flow::call_target_symbol(self.program, call);
             let returned = crate::flow::call_target_return_type(self.program, call_target)?;
-            if self.program.normalized_type_identity(returned)
-                != self.program.normalized_type_identity(expected)
+            if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
                 || !(validation::has_contents(
                     self.program,
                     returned,

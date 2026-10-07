@@ -416,14 +416,6 @@ pub(crate) fn nested_structural_call_return_type(
         }
         (signature.return_type, false)
     };
-    let represented_byte_owner = return_type.is_valid()
-        && ordinary
-        && validation::bounded_byte_buffer_capacity(program, return_type).is_some()
-        && validation::has_contents(
-            program,
-            return_type,
-            validation::ContentsRequirement::RepresentedOwned,
-        );
     (return_type.is_valid()
         && program.primitive_type_reference(return_type).is_none()
         && !matches!(
@@ -443,8 +435,10 @@ pub(crate) fn nested_structural_call_return_type(
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && (validation::has_contents(program, return_type, validation::ContentsRequirement::PlainOwned)
-                    || represented_byte_owner
+                // Fresh and returned values use the same owned storage
+                // classification. Qualifications remain separate checked
+                // obligations, not a byte-only exception to result discovery.
+                && (validation::has_contents(program, return_type, validation::ContentsRequirement::StructuralConstruction)
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;
                     // the caller's operand scheduling replays that custody

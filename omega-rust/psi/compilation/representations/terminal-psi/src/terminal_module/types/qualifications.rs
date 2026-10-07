@@ -93,6 +93,31 @@ pub struct StructuralPathQualification {
 }
 
 impl StructuralPathQualification {
+    /// Preserve a completed child's memberships below its new parent path.
+    /// The prefix identifies storage, not a receiving declaration's requirements;
+    /// callers supply actual memberships after selecting the operand subtree.
+    pub fn append_under(
+        whole: &[StructuralDomainId],
+        projected: &[Self],
+        prefix: &[StructuralPathSegment],
+        destination: &mut Vec<Self>,
+    ) {
+        for domain in whole {
+            destination.push(Self {
+                path: prefix.to_vec(),
+                domain: *domain,
+            });
+        }
+        for row in projected {
+            let mut path = prefix.to_vec();
+            path.extend(row.path.iter().cloned());
+            destination.push(Self {
+                path,
+                domain: row.domain,
+            });
+        }
+    }
+
     /// Select the exact subtree's memberships. A descendant's domain becomes
     /// whole-value membership only when the selected path ends at that row;
     /// disjoint siblings and ancestor domains do not qualify the selection.

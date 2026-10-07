@@ -100,28 +100,11 @@ impl TerminalExecution {
                     // The child already completed in authored order. Rebase
                     // its actual memberships, never the destination field's
                     // declared requirements, onto this new record occurrence.
-                    if matches!(declaration.field_type, StructuralFieldType::Structural(_))
-                        && let ConstructorValue::Placed(child) = &child
-                    {
-                        let prefix = StructuralPathSegment::Field(declaration.identity.clone());
-                        for domain in &child.qualifications {
-                            value.projected_qualifications.push(
-                                terminal_psi::StructuralPathQualification {
-                                    path: vec![prefix.clone()],
-                                    domain: *domain,
-                                },
-                            );
-                        }
-                        for row in &child.projected_qualifications {
-                            let mut path = vec![prefix.clone()];
-                            path.extend(row.path.iter().cloned());
-                            value.projected_qualifications.push(
-                                terminal_psi::StructuralPathQualification {
-                                    path,
-                                    domain: row.domain,
-                                },
-                            );
-                        }
+                    if matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
+                        child.append_memberships(
+                            &[StructuralPathSegment::Field(declaration.identity.clone())],
+                            &mut value.projected_qualifications,
+                        );
                     }
                     if matches!(
                         declaration.field_type.byte_sequence_carrier(),

@@ -937,20 +937,19 @@ impl Emission<'_, '_, '_> {
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<StructuralArgument, LoweringError> {
-        let kind = self
+        let node = self
             .checked
             .facts
             .values
             .structural_values
             .nodes
             .get(value)
-            .kind
             .clone();
         if let CheckedStructuralValueKind::Projection {
             source,
             path,
             type_identity,
-        } = kind
+        } = node.kind
             && matches!(
                 self.checked
                     .facts
@@ -975,7 +974,9 @@ impl Emission<'_, '_, '_> {
         let sources = std::mem::take(&mut self.sources);
         let owners = std::mem::take(&mut self.owners);
         let parent_reference = std::mem::replace(&mut self.type_reference, reference);
-        let result = self.value(value, None);
+        let result = self
+            .value(value, None)
+            .and_then(|place| self.retain_checked_memberships(place, node.qualification_decisions));
         self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
@@ -1722,26 +1723,7 @@ impl Emission<'_, '_, '_> {
         let path = self.copied_place_path(argument)?;
         // Ordinary records and bytes retain the same occurrence-relative
         // source roster. Receiving annotations never manufacture membership.
-        let source_contract = self
-            .operations
-            .iter()
-            .filter_map(|operation| operation.result.structural())
-            .find(|result| result.place == argument.place)
-            .map(|result| (&result.qualifications, &result.projected_qualifications))
-            .or_else(|| {
-                self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .map(|(_, parameter)| parameter)
-                    .chain(self.evaluation.block_structural_parameters.iter())
-                    .find(|parameter| parameter.place == argument.place)
-                    .map(|parameter| {
-                        (
-                            &parameter.qualifications,
-                            &parameter.projected_qualifications,
-                        )
-                    })
-            });
+        let source_contract = self.completed_memberships(argument.place);
         let (mut qualifications, projected_qualifications) = source_contract
             .map(|(whole, projected)| {
                 terminal_psi::StructuralPathQualification::select(whole, projected, &path)

@@ -585,7 +585,8 @@ fn validate_operation_foundation(
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
                 || actual_result.qualifications != expected_result.qualifications
-                || !actual_result.projected_qualifications.is_empty()
+                || actual_result.projected_qualifications
+                    != expected_result.projected_qualifications
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()

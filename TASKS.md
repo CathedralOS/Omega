@@ -2976,8 +2976,9 @@ deletions, which the commit lists.
     and remaining bounded stores outside bounded-integer field replacements
     and interval/finite-refined element-view writes, including generated indexed
     stores. Finish the formation audit outside statement-level concrete scalar
-    constructor first stores and occurrence-bound nominal child memberships
-    across remaining aggregate and proposition positions; unify
+    constructor first stores and captured unrestricted record/array child memberships.
+    Finish affine aggregate entries, contract-bearing scalar continuations and
+    proposition positions; unify
     abstract declaration-contract carrier resolution with the ordinary formation walk.
   - Carry source decisions for invocation-entry, scalar-graph,
     local-refinement and inferred arrival obligations, and conditional cleanup
@@ -2992,6 +2993,10 @@ deletions, which the commit lists.
   `calls/runtime_constructor_child_declared_membership_exit` and
   `domains/runtime_nested_record_membership_transport_exit` (0 in both
   engines; literal, stale-epoch and sibling membership forgeries reject),
+  `collections/runtime_array_child_membership_transport_exit` and
+  `domains/runtime_constructor_ensured_membership_exit` (0 in both engines;
+  returned children keep memberships and `collections/array_child_membership_requires_issuance`
+  rejects literal, stale, sibling and lookalike-issuer substitutions),
   `arithmetic/runtime_returned_constructor_operation_exit` and
   `structural/runtime_nested_constructor_payload_exit` (0 in both engines),
   `samples/cli/collections/heat_grid` (45), nested projected stores and

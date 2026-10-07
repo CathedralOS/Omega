@@ -538,7 +538,7 @@ pub(super) fn validate_establish_structural_array(
         return malformed("array has no structural result");
     };
     if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
-        || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() || !result.claims.is_empty()
+        || !result.qualifications.is_empty() || !result.claims.is_empty()
         || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("array result custody is noncanonical");
     }

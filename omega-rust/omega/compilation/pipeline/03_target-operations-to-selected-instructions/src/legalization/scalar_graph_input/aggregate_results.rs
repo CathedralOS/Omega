@@ -297,7 +297,6 @@ pub(super) fn header(
                             declaration.id == result.structural_type
                                 && declaration.shape.supports_result_qualifications()
                         }))
-                    || !result.projected_qualifications.is_empty()
                 {
                     return Err(LegalizationError::custody());
                 }

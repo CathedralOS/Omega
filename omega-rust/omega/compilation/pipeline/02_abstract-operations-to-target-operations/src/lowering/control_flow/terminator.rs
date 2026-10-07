@@ -562,7 +562,10 @@ pub(super) fn lower_terminator(
                 || ((bounded_owned_byte_type(result.structural_type, structural_types)
                     || !result.qualifications.is_empty())
                     && !qualified_owned_bytes)
-                || !result.projected_qualifications.is_empty()
+                || result
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| !home.projected_qualifications().contains(row))
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
             {

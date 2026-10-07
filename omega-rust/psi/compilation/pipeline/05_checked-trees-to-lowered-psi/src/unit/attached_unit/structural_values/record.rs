@@ -294,20 +294,12 @@ pub(crate) fn emit_completed(
             &source.projected_qualifications,
             &argument.path,
         );
-        for domain in whole {
-            projected_qualifications.push(terminal_psi::StructuralPathQualification {
-                path: vec![terminal_psi::StructuralPathSegment::Field(identity.clone())],
-                domain,
-            });
-        }
-        for row in projected {
-            let mut path = vec![terminal_psi::StructuralPathSegment::Field(identity.clone())];
-            path.extend(row.path);
-            projected_qualifications.push(terminal_psi::StructuralPathQualification {
-                path,
-                domain: row.domain,
-            });
-        }
+        terminal_psi::StructuralPathQualification::append_under(
+            &whole,
+            &projected,
+            &[terminal_psi::StructuralPathSegment::Field(identity.clone())],
+            &mut projected_qualifications,
+        );
     }
     projected_qualifications.sort();
     projected_qualifications.dedup();

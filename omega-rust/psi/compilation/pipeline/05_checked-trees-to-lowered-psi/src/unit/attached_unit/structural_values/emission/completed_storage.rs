@@ -1,9 +1,99 @@
 //! Preserve producer-authored custody when publishing a completed source value.
 
 use super::{
-    LoweringError, OperationBuffer, PlaceId, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, unsupported,
+    Emission, LoweringError, OperationBuffer, PlaceId, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, unsupported,
 };
+
+impl Emission<'_, '_, '_> {
+    /// Producer and ingress homes retain their actual occurrence-relative
+    /// memberships. A receiving annotation is never a source contract.
+    pub(super) fn completed_memberships(
+        &self,
+        place: PlaceId,
+    ) -> Option<(
+        &[semantic_vocabulary::StructuralDomainId],
+        &[terminal_psi::StructuralPathQualification],
+    )> {
+        self.operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == place)
+            .map(|result| {
+                (
+                    result.qualifications.as_slice(),
+                    result.projected_qualifications.as_slice(),
+                )
+            })
+            .or_else(|| {
+                self.evaluation
+                    .structural_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter)
+                    .chain(self.evaluation.block_structural_parameters.iter())
+                    .find(|parameter| parameter.place == place)
+                    .map(|parameter| {
+                        (
+                            parameter.qualifications.as_slice(),
+                            parameter.projected_qualifications.as_slice(),
+                        )
+                    })
+            })
+    }
+
+    /// Publish checked operand facts without relabeling its producer's ABI
+    /// contract or an existing home. An unrestricted capture retains additional
+    /// facts through the ordinary value-copy operation. Already qualified values
+    /// need no second copy. A membership judgment never authorizes affine copying.
+    pub(super) fn retain_checked_memberships(
+        &mut self,
+        place: PlaceId,
+        decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    ) -> Result<PlaceId, LoweringError> {
+        let memberships = self
+            .checked
+            .facts
+            .qualifications
+            .value_formations
+            .span(decisions)
+            .ok_or(LoweringError::Unsupported(
+                "operand membership decisions are stale",
+            ))?;
+        if memberships.is_empty() {
+            return Ok(place);
+        }
+        let (qualifications, _) =
+            self.completed_memberships(place)
+                .ok_or(LoweringError::Unsupported(
+                    "completed operand membership source is missing",
+                ))?;
+        let mut missing = false;
+        for decision in memberships {
+            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                self.domain_ids,
+                decision.semantic_domain,
+                self.structural_type,
+            )?;
+            missing |= !qualifications.contains(&domain);
+        }
+        if !missing {
+            return Ok(place);
+        }
+        if self.multiplicity != StructuralMultiplicity::Unrestricted {
+            return unsupported("affine operand must retain its checked membership roster");
+        }
+        self.copied_leaf_place(
+            &StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            },
+            decisions,
+            None,
+        )
+    }
+}
 
 /// Registration retains the completed storage contract, rather than creating
 /// an unqualified approximation of the value. Source replay and each emitted

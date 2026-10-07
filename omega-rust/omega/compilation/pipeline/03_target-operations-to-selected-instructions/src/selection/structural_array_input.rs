@@ -26,11 +26,11 @@ pub(super) fn elements(
         return None;
     };
     let geometry = crate::structural_inputs::structural_reference_input::shape;
+    // Completed memberships ride the result's semantic home. They add no
+    // element bytes or alignment; ownership and claim transport stay distinct.
     if row.result.is_some()
         || result.multiplicity == StructuralMultiplicity::Linear
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
         || u64::try_from(elements.len()).ok()? != length
         || geometry(result.structural_type, types)? != *shape
     {

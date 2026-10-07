@@ -1,5 +1,7 @@
 //! Structural array establishment uses the same child storage transaction as
 //! records and cases; each element is a selected owned structural value.
+//! Actual child memberships use the same relocation as records, with real
+//! FixedIndex paths. Declared result metadata never supplies missing child proof.
 use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
 use terminal_psi::OperationKind;
@@ -24,7 +26,6 @@ impl TerminalExecution {
         let element = *element;
         if u64::try_from(elements.len()).ok() != Some(*length)
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
             || self
                 .live_affine_frontier
                 .iter()
@@ -37,7 +38,7 @@ impl TerminalExecution {
             return Err(malformed());
         }
         let mut cursor = self.local_structural_identities.cursor();
-        let value = TerminalStructuralValue {
+        let mut value = TerminalStructuralValue {
             opaque_identity: self
                 .local_structural_identities
                 .allocate_staged(&mut cursor)?,
@@ -55,7 +56,6 @@ impl TerminalExecution {
             if argument.access != StructuralAccess::Owned
                 || argument.place == result.place
                 || child.structural_type() != element
-                || !child.qualifications().is_empty()
             {
                 return Err(malformed());
             }
@@ -70,9 +70,12 @@ impl TerminalExecution {
                     u64::try_from(index).map_err(|_| malformed())?,
                 )],
             };
+            child.append_memberships(&destination.path, &mut value.projected_qualifications);
             claim_operands.push((argument, destination.path.clone()));
             staged.stage(self, argument, &child, &destination, transfers_custody)?;
         }
+        value.projected_qualifications.sort();
+        value.projected_qualifications.dedup();
         let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.local_structural_identities.commit_cursor(cursor);

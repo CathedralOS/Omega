@@ -1735,22 +1735,14 @@ fn validate_operand_producers(
                     source.source_target,
                 )?;
                 if result.multiplicity == Multiplicity::Unrestricted
-                    && !crate::content_classes::plain_owned_with_numeric_constraints(
-                        checked,
+                    && !validation::has_contents(
+                        &checked.typed,
                         signature.return_type,
+                        validation::ContentsRequirement::StructuralConstruction,
                     )
-                    && !(crate::content_classes::bounded_byte_capacity(
-                        checked,
-                        signature.return_type,
-                    )
-                    .is_some()
-                        && crate::content_classes::plain_owned_with_represented_constraints(
-                            checked,
-                            signature.return_type,
-                        ))
                 {
                     return unsupported(
-                        "unrestricted structural operand has no plain owned producer",
+                        "unrestricted structural operand has no owned storage producer",
                     );
                 }
                 let (root, path, access) = super::super::parameters::source_place_path(

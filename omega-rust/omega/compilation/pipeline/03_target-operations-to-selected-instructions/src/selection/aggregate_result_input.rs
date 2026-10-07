@@ -828,11 +828,12 @@ pub(super) fn returned<'a>(
         || multiplicity != declared.multiplicity
         || ((bounded_owned_bytes || !declared.qualifications.is_empty())
             && !exact_qualified_owned_bytes)
-        || !declared.projected_qualifications.is_empty()
         || declared.multiplicity == terminal_psi::StructuralMultiplicity::Linear
     {
         return None;
     }
+    // Projected memberships already match the retained return custody. They
+    // add no bytes to this producer's exact home or to the result placement.
     let placement = source.call_plan.result.as_ref()?;
     if placement.shape != shape
         || !(direct_fragments(placement)

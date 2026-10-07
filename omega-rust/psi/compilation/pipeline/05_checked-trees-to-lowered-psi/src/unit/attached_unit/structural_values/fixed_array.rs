@@ -3,6 +3,8 @@
 //! Every child follows ordinary structural value production. The final array
 //! operation transfers completed operands atomically; evaluation or suspension
 //! before it keeps those operands under their existing temporary custody.
+//! Element memberships move with those completed values under FixedIndex paths,
+//! never from the array's receiving annotation or a record-like field identity.
 use super::super::{
     LoweringError, Operation, OperationKind, PlaceId, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
@@ -60,7 +62,7 @@ impl emission::Emission<'_, '_, '_> {
             parent_multiplicity,
             operands,
             self.operations,
-        ));
+        )?);
         self.values.truncate(source_count);
         Ok(place)
     }
@@ -96,20 +98,50 @@ pub(crate) fn emit_completed(
     multiplicity: terminal_psi::StructuralMultiplicity,
     elements: Vec<terminal_psi::StructuralArgument>,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
-) -> StructuralPlaceDeclaration {
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let mut projected_qualifications = Vec::new();
+    for (ordinal, argument) in elements.iter().enumerate() {
+        let Some(source) = operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+        else {
+            continue;
+        };
+        let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+            &source.qualifications,
+            &source.projected_qualifications,
+            &argument.path,
+        );
+        terminal_psi::StructuralPathQualification::append_under(
+            &whole,
+            &projected,
+            &[terminal_psi::StructuralPathSegment::FixedIndex(
+                u64::try_from(ordinal)
+                    .map_err(|_| LoweringError::Unsupported("array ordinal overflow"))?,
+            )],
+            &mut projected_qualifications,
+        );
+    }
+    projected_qualifications.sort();
+    projected_qualifications.dedup();
+    let mut result = structural_result_declaration(place, structural_type, multiplicity);
+    if let terminal_psi::OperationResult::Structural(result) = &mut result {
+        result.projected_qualifications = projected_qualifications;
+    }
     let operation = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: structural_result_declaration(place, structural_type, multiplicity),
+        result,
         kind: OperationKind::EstablishStructuralArray { elements },
     });
-    StructuralPlaceDeclaration {
+    Ok(StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
             producer: operation,
             structural_type,
         },
-    }
+    })
 }

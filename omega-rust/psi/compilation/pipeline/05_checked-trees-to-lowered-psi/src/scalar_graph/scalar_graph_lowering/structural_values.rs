@@ -1115,7 +1115,7 @@ pub(crate) fn emit(
                     })
                     .collect(),
                 operations,
-            );
+            )?;
             attach_result_claims(construction.place, claims, operations)?;
             return Ok(());
         }

@@ -548,7 +548,6 @@ fn structural_result_home(
         || callee_result.multiplicity != result.multiplicity
         || !result_qualifications_match(callee_result, result)
         || callee_result.projected_qualifications != result.projected_qualifications
-        || !callee_result.projected_qualifications.is_empty()
         || (!callee_result.qualifications.is_empty()
             && !types
                 .get(&result.structural_type)

@@ -1,0 +1,27 @@
+// Ordinary call arguments and returned constructors retain the same checked
+// operand membership without changing the issuer's declared result carrier.
+data Ticket [copy] { amount: i32; }
+domain Ticket::Issued established by Ticket::issue;
+machine Ticket::issue() -> Ticket ensures result in Ticket::Issued {
+    Ticket { amount: 41 }
+}
+data Envelope [copy] { ticket: Ticket in Issued; }
+data Main {}
+machine envelope() -> Envelope {
+    Envelope { ticket: Ticket::issue() }
+}
+machine observe(value: Envelope) crashes Trap {
+    valid(value.ticket);
+}
+machine valid(ticket: Ticket in Issued) crashes Trap {
+    transition ticket.amount == 41 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine Main::main(main: &mut Main) crashes Trap {
+    observe(Envelope { ticket: Ticket::issue() });
+    observe(envelope());
+}

@@ -383,7 +383,6 @@ impl TerminalExecution {
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
             )
             && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && (self.plain_aggregate_type(result.structural_type)
                 // A shared byte view is a copyable descriptor. The callee's
@@ -452,6 +451,7 @@ impl TerminalExecution {
             || result.structural_type != callee_result.structural_type
             || result.multiplicity != callee_result.multiplicity
             || result.qualifications != callee_result.qualifications
+            || result.projected_qualifications != callee_result.projected_qualifications
             || (result.multiplicity == StructuralMultiplicity::Unrestricted
                 && !exact_primitive_structural_call)
             || self.structural_values.contains_key(&result.place)

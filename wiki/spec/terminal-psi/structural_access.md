@@ -309,7 +309,9 @@ affine children transfer once, while unrestricted children remain available. An 
 parent cannot absorb an affine child.
 
 The admitted records contain relevant scalar, mutable primitive reference, or
-recursive record fields and have no claim or qualification rosters. Reference
+recursive record fields. Completed nominal children retain their actual
+memberships below the corresponding field path; the receiving field declaration
+does not establish them. Reference
 children transfer their existing permission without copying their referents;
 the complete returned-leaf source map uses canonical path order, independently
 of constructor and cleanup order. An owned child may name an authenticated finite field or fixed-index path.
@@ -357,6 +359,10 @@ array and requires no runtime initialization bitmap. Descriptor backing and
 reference origins move under `FixedIndex(ordinal)` followed by their original
 child path; copying their representation bytes grants no new backing permission.
 Element qualifications must already hold on the supplied completed values.
+Whole-child memberships and descendant rows move under the same
+`FixedIndex(ordinal)` prefix as storage. An unrestricted operand capture retains
+its exact checking-time membership decisions without changing its producer's
+call result contract; membership never grants affine copy permission.
 
 A reference stored directly in an array element retains its pointer and exact
 loan identity, just as a reference field does. Nested arrays recursively own

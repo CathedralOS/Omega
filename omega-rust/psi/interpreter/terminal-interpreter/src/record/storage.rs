@@ -69,6 +69,23 @@ impl<'execution> ConstructorValue<'execution> {
             Self::ScalarArray(_) | Self::ScalarCase(_) => &[],
         }
     }
+
+    /// Relocate the selected value's actual memberships with its storage.
+    /// Packed scalar arrays and cases carry no nominal membership roster.
+    pub(crate) fn append_memberships(
+        &self,
+        prefix: &[StructuralPathSegment],
+        destination: &mut Vec<terminal_psi::StructuralPathQualification>,
+    ) {
+        if let Self::Placed(value) = self {
+            terminal_psi::StructuralPathQualification::append_under(
+                &value.qualifications,
+                &value.projected_qualifications,
+                prefix,
+                destination,
+            );
+        }
+    }
 }
 
 #[derive(Default)]

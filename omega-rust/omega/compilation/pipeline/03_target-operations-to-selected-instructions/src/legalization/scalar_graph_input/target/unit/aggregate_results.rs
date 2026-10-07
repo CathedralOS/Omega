@@ -328,6 +328,8 @@ pub(super) fn validate(
 }
 
 /// Structural payloads retain their exact owned producer or incoming binding.
+/// Membership rows describe the selected contents; they add no storage and do
+/// not replace the independent owned access, multiplicity and claim checks.
 fn owned_field_source(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -352,9 +354,7 @@ fn owned_field_source(
             (
                 parameter.structural_type,
                 parameter.multiplicity,
-                parameter.access == terminal_psi::StructuralAccess::Owned
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty(),
+                parameter.access == terminal_psi::StructuralAccess::Owned,
             )
         });
     let result = scalar_graph_input::structural_case::source_result(function, place)
@@ -363,16 +363,14 @@ fn owned_field_source(
             (
                 result.structural_type,
                 result.multiplicity,
-                result.claims.is_empty()
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty(),
+                result.claims.is_empty(),
             )
         });
     let mut sources = parameters.chain(result);
-    let (structural_type, multiplicity, plain) =
+    let (structural_type, multiplicity, owned) =
         sources.next().ok_or(LegalizationError::custody())?;
     if sources.next().is_some()
-        || !plain
+        || !owned
         || multiplicity == terminal_psi::StructuralMultiplicity::Linear
     {
         return Err(LegalizationError::custody());
