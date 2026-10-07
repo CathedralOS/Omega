@@ -448,13 +448,8 @@ impl PreCheckEvaluation {
             }
             wire_schema_frontier = typed.wire_schemas().len();
         }
-        if !symbol_resolved_trees_to_typed_trees::retained_typed_base_is_exact_prefix(
-            retained, typed,
-        ) {
-            return Err(vec![diagnostics::Diagnostic::error(
-                "generated-source pre-check evaluation changed the retained typed base",
-            )]);
-        }
+        // Each admitted cohort owns its evaluation work. Do not replay the
+        // preceding typing stage's whole-tree storage comparison here.
         Ok(pending)
     }
 

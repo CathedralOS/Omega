@@ -26,35 +26,6 @@ pub(super) fn carrier_is_supported(
             })
 }
 
-pub(super) fn declaration_is_supported(
-    source: &SymbolResolvedTrees,
-    declaration: &symbol_resolved_trees::constant::ConstDeclaration,
-) -> bool {
-    let Some(name_span) = source.symbols.symbol_source_span(declaration.symbol) else {
-        return false;
-    };
-    declaration.symbol.is_valid()
-        && source.symbols.get(declaration.symbol).kind == SymbolKind::Const
-        && source.symbols.get(declaration.symbol).parent == source.symbols.root()
-        && !source.symbols.name(declaration.symbol).is_empty()
-        && name_span.source_id == declaration.initializer_source_span.source_id
-        && !declaration.is_public
-        && carrier_is_supported(source, &declaration.declared_type)
-        && declaration.evaluated_value.as_ref().is_none_or(|encoding| {
-            encoding
-                .encoding()
-                .and_then(|encoding| CanonicalConstValue::new("", encoding, "").decode_encoding())
-                .is_some_and(|value| {
-                    decoded_value_matches(
-                        source,
-                        &declaration.declared_type,
-                        &value,
-                        &mut Vec::new(),
-                    )
-                })
-        })
-}
-
 pub(super) fn closed_argument_is_supported(
     source: &SymbolResolvedTrees,
     expected_type: &TypeReference,

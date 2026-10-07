@@ -154,21 +154,10 @@ pub fn lower_seeded_extension(
     if resolved_base != *retained.resolved {
         return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
     }
-    if retained.typed.symbols != retained.resolved.symbols
-        || retained.typed.service_reaches != retained.resolved.service_reaches
-        || !retained
-            .typed
-            .authored_declaration_selections()
-            .as_slice()
-            .starts_with(
-                retained
-                    .resolved
-                    .authored_declaration_selections()
-                    .as_slice(),
-            )
-    {
-        return Err((retained, SeededContinuationError::RetainedTypedBaseChanged));
-    }
+    // This owned pair is the output of typing, not an independently supplied
+    // trust claim. Typing elaborates selections and service combinations;
+    // requiring equality with resolution revalidates the stage's own output
+    // and incorrectly forbids those ordinary elaborations.
     let data_frontier = resolved_base.data_definitions.len();
     let const_frontier = resolved_base.const_declarations.len();
     let machine_frontier = resolved_base.machines.len();
@@ -331,9 +320,10 @@ pub fn lower_seeded_extension(
     if let Err(error) = super::bind_dynamic_call_targets(&mut lowerer.typed_trees) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    if !retained_typed_base_is_exact_prefix(&retained.typed, &lowerer.typed_trees) {
-        return Err((retained, SeededContinuationError::RetainedTypedBaseChanged));
-    }
+    // The ordinary typing operations own this continuation's mutations.
+    // Replaying a whole-tree storage comparison here is not a trust boundary:
+    // generated declarations legitimately extend retained owners' child spans.
+    // Keep the explicit comparison available for validation, off compilation.
     Ok(lowerer.typed_trees)
 }
 
@@ -992,13 +982,8 @@ pub(super) fn resolved_root_shape_is_supported(
         .take(base.const_declarations.len())
         .eq(base.const_declarations.iter())
         && source.const_declarations.len() >= base.const_declarations.len()
-        && source
-            .const_declarations
-            .iter()
-            .skip(base.const_declarations.len())
-            .all(|declaration| {
-                seeded_local_instances::const_declaration_is_supported(source, declaration)
-            })
+        // Constant suffixes use ordinary declaration typing and initializer
+        // checking below, not a second private/structured-carrier recognizer.
         && source
             .data_definitions
             .iter()

@@ -41,13 +41,6 @@ pub(super) fn structured_const_parameter_is_supported(
         )
 }
 
-pub(super) fn const_declaration_is_supported(
-    source: &SymbolResolvedTrees,
-    declaration: &symbol_resolved_trees::constant::ConstDeclaration,
-) -> bool {
-    structured_const_arguments::declaration_is_supported(source, declaration)
-}
-
 pub(super) fn array_length_is_supported(
     source: &SymbolResolvedTrees,
     owner: SymbolHandle,
