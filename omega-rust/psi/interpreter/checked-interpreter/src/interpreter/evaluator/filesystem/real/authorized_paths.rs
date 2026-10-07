@@ -69,6 +69,7 @@ fn resolve_for_check(path: &Path) -> Option<PathBuf> {
 }
 
 #[cfg(all(test, unix))]
+#[path = "confinement_tests.rs"]
 mod confinement_tests;
 
 /// Encode a canonical path beneath a canonical grant root without retaining
