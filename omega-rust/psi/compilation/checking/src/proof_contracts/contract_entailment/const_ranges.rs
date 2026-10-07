@@ -46,21 +46,13 @@ fn binder<'program>(
     parameters: &'program [TypeParameter],
     expression: ExpressionHandle,
 ) -> Option<&'program TypeParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     parameters.iter().find(|parameter| {
-        parameter.symbol == path.symbol
+        parameter.symbol == symbol
             && matches!(parameter.kind, TypeParameterKind::Const { type_reference }
                 | TypeParameterKind::Value { type_reference }
                 if program.primitive_type_reference(type_reference)

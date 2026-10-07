@@ -28,13 +28,8 @@ pub fn has_exact_integer_domain_subject(
     }
     let subject_type = match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            if !path.symbol.is_valid()
-                || path.head_symbol != path.symbol
-                || program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    != 1
+            if crate::expression_traversal::single_segment_name_symbol(program, expression)
+                .is_none()
                 || program
                     .expression_table
                     .name_path_member_symbols(path.member_symbols)

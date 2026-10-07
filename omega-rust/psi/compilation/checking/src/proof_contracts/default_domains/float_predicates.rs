@@ -294,23 +294,15 @@ fn declared_field<'program>(
     definition: &DataDefinition,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     program.data_members(definition).iter().find_map(|member| {
         let DataMember::Field(field) = member else {
             return None;
         };
-        (field.symbol == path.symbol).then_some(field)
+        (field.symbol == symbol).then_some(field)
     })
 }

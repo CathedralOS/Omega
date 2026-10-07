@@ -230,3 +230,25 @@ pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
         },
     );
 }
+
+/// The single-segment `Name` path's resolved symbol — `None` for member
+/// chains, projections, or an unresolved path.
+pub(crate) fn single_segment_name_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    Some(path.symbol)
+}

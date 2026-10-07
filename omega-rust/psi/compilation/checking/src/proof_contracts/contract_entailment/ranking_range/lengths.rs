@@ -29,24 +29,16 @@ pub(super) fn parameter<'program>(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
     // Mutability is a storage capability, not a value change: the edge owners
     // supply a parameter-preserving evaluated prefix, so a mutable slice still
     // denotes its arrival sequence -- and its arrival length -- at the edge.
     program.state_parameters(state).iter().find(|parameter| {
-        parameter.symbol == path.symbol
+        parameter.symbol == symbol
             && !parameter.is_const
             && is_slice(program, parameter.type_reference)
     })

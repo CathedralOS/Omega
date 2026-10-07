@@ -679,14 +679,11 @@ impl ReturnReader<'_, '_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if !path.symbol.is_valid()
-                    || path.head_symbol != path.symbol
-                    || self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
+                if crate::expression_traversal::single_segment_name_symbol(
+                    self.program,
+                    expression,
+                )
+                .is_none()
                 {
                     return None;
                 }
