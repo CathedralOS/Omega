@@ -11,11 +11,11 @@ use crate::record::{
     PackagePolicyConformanceRow,
 };
 use diagnostics::Diagnostic;
-use std::borrow::Cow;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceConstArgument};
+use validation::CheckingProjection;
 
 /// Retain the complete source-qualified conformance meaning without historical
 /// report/commitment fields. This component is inert, not complete package
@@ -84,17 +84,17 @@ pub fn project_checked_conformance_policy<'a>(
     // Reclosure above checks the retained selection against the original.
     // Temporary references below need only local typed storage, not a mutable
     // copy of its proof facts, build results, or source-consumption evidence.
-    let mut instantiated = Cow::Borrowed(compilation.checking_input.typed_program());
+    let mut instantiated = CheckingProjection::new(compilation.checking_input);
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
         substitutions.push((
             parameter.symbol,
-            argument_type_reference(instantiated.to_mut(), argument, &parameter.kind, 0)?,
+            argument_type_reference(instantiated.program_mut(), argument, &parameter.kind, 0)?,
         ));
     }
     let project_type = |reference| {
         signature_type_identity(
-            instantiated.as_ref(),
+            &instantiated,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &binders,

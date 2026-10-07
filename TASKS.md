@@ -2660,7 +2660,7 @@ and the `validation` crate (`omega-rust/psi/compilation/checking`). The rulings
 in [PCC removal](#pcc-removal) and
 [Lowering simplification](#lowering-simplification) apply here. Related items
 already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
-**TYPED-FROZEN-BEFORE-CHECKING** and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
+**TYPED-FROZEN-BEFORE-CHECKING**.
 
 Each coherent repair deletes what it replaces and keeps every
 check-corpus verdict and diagnostic family unchanged unless the item says
@@ -2879,13 +2879,6 @@ of a check the same flow already performed, not the check itself.
   enables another family. Acceptance: the same fixed point is reached in at
   most as many sweeps as family interactions require, and native corpus
   `--filter optimizer/` is unchanged.
-
-- **CHECKING-FROZEN-PROGRAM-CONTEXT.** (new-scope)
-  `omega-rust/psi/compilation/checking/src/frozen_program.rs` keeps its memos
-  in a `thread_local!` `RefCell` slot keyed by the program's address, which
-  AGENTS.md rules out as an ownership escape. Replace it with an explicit
-  context value passed to its consumers. Acceptance: the thread-local is
-  gone, and the check corpus is unchanged.
 
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) `CheckedTrees` embeds the
   typed program, but stage 04 rewrites it in place first, so the embedded

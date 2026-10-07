@@ -342,7 +342,7 @@ mod value_custody;
 // The front-end pipeline the tests run, shared with the `suite` integration
 // target that includes the same file; see its module documentation.
 pub use frozen_program::{
-    CheckingContext, CheckingInput, CheckingMemos, proof_only_classification,
+    CheckingContext, CheckingInput, CheckingMemos, CheckingProjection, proof_only_classification,
 };
 pub use machine_calls::reference_result_custody;
 pub use program_scope::effects::{PreparedEffectScope, enter_prepared_effect_scope};

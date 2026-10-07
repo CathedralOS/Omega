@@ -23,6 +23,7 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for typed_trees::TypedTrees {}
     impl Sealed for super::CheckingContext<'_> {}
+    impl Sealed for super::CheckingProjection<'_> {}
 }
 
 /// Read-only source checking input. A prepared invocation owns reusable memos;
@@ -110,6 +111,52 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         Some(&self.memos)
+    }
+}
+
+/// A private elaboration that retains its source context until mutation is
+/// requested. A bare typed-tree Cow loses that association even on unchanged
+/// reads. Mutation clones only the program; frozen memos cannot describe it.
+#[derive(Debug)]
+pub struct CheckingProjection<'input> {
+    original: &'input dyn CheckingInput,
+    projected: Option<TypedTrees>,
+}
+
+impl<'input> CheckingProjection<'input> {
+    pub fn new(original: &'input dyn CheckingInput) -> Self {
+        Self {
+            original,
+            projected: None,
+        }
+    }
+
+    pub fn program_mut(&mut self) -> &mut TypedTrees {
+        self.projected
+            .get_or_insert_with(|| self.original.typed_program().clone())
+    }
+}
+
+impl Deref for CheckingProjection<'_> {
+    type Target = TypedTrees;
+
+    fn deref(&self) -> &TypedTrees {
+        self.typed_program()
+    }
+}
+
+impl CheckingInput for CheckingProjection<'_> {
+    fn typed_program(&self) -> &TypedTrees {
+        self.projected
+            .as_ref()
+            .unwrap_or_else(|| self.original.typed_program())
+    }
+
+    fn checking_memos(&self) -> Option<&CheckingMemos> {
+        match self.projected {
+            Some(_) => None,
+            None => self.original.checking_memos(),
+        }
     }
 }
 

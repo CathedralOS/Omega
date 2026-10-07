@@ -7,8 +7,8 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
 use crate::capture::semantics::types::signature_type_identity;
 use diagnostics::Diagnostic;
-use std::borrow::Cow;
 use symbols::SymbolHandle;
+use validation::CheckingProjection;
 
 fn selected_conformance_application_type_reference(
     program: &mut typed_trees::TypedTrees,
@@ -199,13 +199,13 @@ pub(crate) fn project_selected_conformance_application(
 
     // Only synthesized type nodes belong to projection. Keep facts, selected
     // applications, and source custody borrowed from the checked compilation.
-    let mut instantiated = Cow::Borrowed(compilation.checking_input.typed_program());
+    let mut instantiated = CheckingProjection::new(compilation.checking_input);
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(supplied) {
         substitutions.push((
             parameter.symbol,
             selected_conformance_application_type_reference(
-                instantiated.to_mut(),
+                instantiated.program_mut(),
                 argument,
                 contract_call_static_parameter_kind(parameter),
                 declaration_kind,
@@ -269,7 +269,7 @@ pub(crate) fn project_selected_conformance_application(
         .iter()
         .map(|argument| {
             signature_type_identity(
-                instantiated.as_ref(),
+                &instantiated,
                 compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
                 binders,

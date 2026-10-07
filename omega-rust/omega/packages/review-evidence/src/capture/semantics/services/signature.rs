@@ -10,8 +10,8 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
-use std::borrow::Cow;
 use symbols::SymbolHandle;
+use validation::CheckingProjection;
 
 pub(super) fn project_declaration(
     compilation: &PackageReviewInput<'_>,
@@ -169,7 +169,7 @@ pub(super) fn project(
     {
         return Err(rejected("service requirement repeats a lifetime binder"));
     }
-    let mut projected = Cow::Borrowed(compilation.checking_input.typed_program());
+    let mut projected = CheckingProjection::new(compilation.checking_input);
     let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
@@ -182,7 +182,7 @@ pub(super) fn project(
             .map(|name| (name.clone(), name))
             .collect::<Vec<_>>();
         crate::capture::calling::application::signature::instantiate_static_parameters(
-            projected.to_mut(),
+            projected.program_mut(),
             &mut parameters,
             &[],
             &lifetime_substitutions,
@@ -192,7 +192,7 @@ pub(super) fn project(
         )?;
     }
     let (binders, static_parameters) = project_type_parameters(
-        projected.as_ref(),
+        &projected,
         compilation,
         &parameters,
         source_parameters,

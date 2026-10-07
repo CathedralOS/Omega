@@ -10,10 +10,10 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use layout::TargetClosedPlanLaidDataLayoutIdentity;
 use provider_planning::calling_policy_plans::BoundaryCallbackLayoutEntry;
-use std::borrow::Cow;
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::PlanLaidLayout;
 use typed_trees::types::TypeReferenceNode;
+use validation::CheckingProjection;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -106,11 +106,11 @@ fn application(
     let [schema] = schemas.as_slice() else {
         return Err(rejected("callback layout has no exact schema declaration"));
     };
-    let mut projected = Cow::Borrowed(compilation.checking_input.typed_program());
+    let mut projected = CheckingProjection::new(compilation.checking_input);
     let reference = match schema.generic_instance {
         Some(reference) => reference,
         None => projected
-            .to_mut()
+            .program_mut()
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: schema.symbol,
@@ -120,7 +120,7 @@ fn application(
     Ok(PackagePolicyCallbackLayoutApplication {
         policy: nominal_identity(compilation, plan.policy_symbol)?,
         schema: signature_type_identity(
-            projected.as_ref(),
+            &projected,
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &[],
