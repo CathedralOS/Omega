@@ -22,21 +22,15 @@ pub(super) fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
-            (
-                Some(coefficient),
-                offset.checked_add(literal),
-                used_landing,
-                CheckedIntegerEndpointStep::Add(literal),
-            )
-        }
-        ScalarTerm::ExactIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } if *scalar_type == integer_type && right.as_ref() == current => {
-            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
+        } if *scalar_type == integer_type
+            && (left.as_ref() == current || right.as_ref() == current) =>
+        {
+            let operand = if left.as_ref() == current {
+                right
+            } else {
+                left
+            };
+            let (literal, used_landing) = signed_literal(operand, integer_type, landed)?;
             (
                 Some(coefficient),
                 offset.checked_add(literal),
