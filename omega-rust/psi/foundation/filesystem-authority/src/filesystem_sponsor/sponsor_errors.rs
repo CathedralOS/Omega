@@ -57,27 +57,39 @@ impl fmt::Display for FilesystemSponsorError {
                 formatter.write_str("filesystem operation crosses sponsor accounts")
             }
             Self::ParentEntryMissing(path) => {
-                write!(formatter, "parent entry does not exist: {}", path.display())
+                write!(
+                    formatter,
+                    "parent entry does not exist: {}",
+                    path.to_string_lossy().replace('\\', "/")
+                )
             }
             Self::ParentIsNotDirectory(path) => {
                 write!(
                     formatter,
                     "parent entry is not a directory: {}",
-                    path.display()
+                    path.to_string_lossy().replace('\\', "/")
                 )
             }
             Self::EntryAlreadyExists(path) => {
-                write!(formatter, "entry already exists: {}", path.display())
+                write!(
+                    formatter,
+                    "entry already exists: {}",
+                    path.to_string_lossy().replace('\\', "/")
+                )
             }
             Self::EntryIsNotRegularObject(path) => {
                 write!(
                     formatter,
                     "entry is not a regular object: {}",
-                    path.display()
+                    path.to_string_lossy().replace('\\', "/")
                 )
             }
             Self::UnsealedEntry(path) => {
-                write!(formatter, "staging entry is not sealed: {}", path.display())
+                write!(
+                    formatter,
+                    "staging entry is not sealed: {}",
+                    path.to_string_lossy().replace('\\', "/")
+                )
             }
             Self::UnsupportedStagingOperation(operation) => {
                 write!(formatter, "staging protocol does not support {operation}")
