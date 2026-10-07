@@ -11,8 +11,8 @@ use super::integer_math_normalization::{
     lift_exact_integer_order, lower_integer_math_relation,
     propositions_match_under_integer_math_normalization,
 };
-use super::{AcceptanceBuilder, AcceptedProofRule, ProofError};
-use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
+use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, mathematical_order, scalar_order};
+use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarType};
 use terminal_psi::{ProofNode, ProofRule};
 
 pub(super) fn check_integer_subtract_order(
@@ -231,22 +231,6 @@ pub(crate) fn endpoint_substitution(
     endpoint: usize,
     conclusion: &Proposition,
 ) -> Result<(), ProofError> {
-    fn scalar_order(proposition: &Proposition) -> Option<(bool, &ScalarTerm, &ScalarTerm)> {
-        match proposition {
-            Proposition::LessThan(left, right) => Some((true, left, right)),
-            Proposition::LessOrEqual(left, right) => Some((false, left, right)),
-            _ => None,
-        }
-    }
-    fn mathematical_order(
-        proposition: &Proposition,
-    ) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
-        match proposition {
-            Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
-            Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
-            _ => None,
-        }
-    }
     fn check_endpoints<T: PartialEq>(
         relation: (bool, &T, &T),
         equality: (&T, &T),

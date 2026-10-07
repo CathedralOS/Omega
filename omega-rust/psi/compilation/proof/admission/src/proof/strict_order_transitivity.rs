@@ -5,9 +5,9 @@
 //! cited children are checked by the ordinary kernel traversal before this
 //! rule combines their relations; search cannot supply an inferred axiom.
 
-use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
-use super::ProofError;
+use super::{ProofError, mathematical_order, scalar_order};
 
 pub(crate) fn check(
     left_to_middle: &Proposition,
@@ -60,23 +60,7 @@ fn endpoints<Term: Eq>(
         .ok_or(ProofError::IntegerOrderConclusionMismatch)
 }
 
-fn scalar_order(proposition: &Proposition) -> Option<(bool, &ScalarTerm, &ScalarTerm)> {
-    match proposition {
-        Proposition::LessThan(left, right) => Some((true, left, right)),
-        Proposition::LessOrEqual(left, right) => Some((false, left, right)),
-        _ => None,
-    }
-}
 
-fn mathematical_order(
-    proposition: &Proposition,
-) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
-    match proposition {
-        Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
-        Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
-        _ => None,
-    }
-}
 
 #[cfg(test)]
 mod tests;

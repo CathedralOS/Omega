@@ -18,7 +18,9 @@
 use std::collections::BTreeSet;
 pub use terminal_psi::{ProofNode, ProofRule};
 
-use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
+use semantic_vocabulary::{
+    IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId,
+};
 
 use crate::mathematical_core::{
     BoundedDenotationError, Budget, run_on_verification_stack,
@@ -1784,5 +1786,30 @@ pub(crate) fn semantic_axiom_proof(conclusion: Proposition, index: usize) -> Pro
     ProofNode {
         conclusion,
         rule: ProofRule::SemanticAxiom { index },
+    }
+}
+
+/// The scalar `LessThan`/`LessOrEqual` relation spelled as
+/// `(strict, left, right)`, or `None` when the proposition is no
+/// scalar order — shared by the integer-order rule modules.
+pub(crate) fn scalar_order(
+    proposition: &Proposition,
+) -> Option<(bool, &ScalarTerm, &ScalarTerm)> {
+    match proposition {
+        Proposition::LessThan(left, right) => Some((true, left, right)),
+        Proposition::LessOrEqual(left, right) => Some((false, left, right)),
+        _ => None,
+    }
+}
+
+/// The mathematical-integer `IntegerMathLessThan`/`IntegerMathLessOrEqual`
+/// relation spelled the same way.
+pub(crate) fn mathematical_order(
+    proposition: &Proposition,
+) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
+    match proposition {
+        Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
+        Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
+        _ => None,
     }
 }
