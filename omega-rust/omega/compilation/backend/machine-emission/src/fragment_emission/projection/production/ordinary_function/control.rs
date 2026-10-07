@@ -65,18 +65,7 @@ pub(super) fn provenance(
             instruction: jump,
             successor,
         } if jump.id == instruction.id => FunctionFragmentControlProvenance::Jump {
-            successor: FunctionFragmentSuccessorProvenance {
-                role: successor.role,
-                psi_edge: successor.psi_edge,
-                block: successor.block,
-                source_target: successor.source_target,
-                bindings: successor
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: successor.fuel.clone(),
-            },
+            successor: successor_provenance(successor),
         },
         SelectedTerminator::ConditionalBranch {
             instruction: branch,
@@ -84,30 +73,8 @@ pub(super) fn provenance(
             when_zero,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
-            when_taken: FunctionFragmentSuccessorProvenance {
-                role: when_nonzero.role,
-                psi_edge: when_nonzero.psi_edge,
-                block: when_nonzero.block,
-                source_target: when_nonzero.source_target,
-                bindings: when_nonzero
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_nonzero.fuel.clone(),
-            },
-            when_fallthrough: FunctionFragmentSuccessorProvenance {
-                role: when_zero.role,
-                psi_edge: when_zero.psi_edge,
-                block: when_zero.block,
-                source_target: when_zero.source_target,
-                bindings: when_zero
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_zero.fuel.clone(),
-            },
+            when_taken: successor_provenance(when_nonzero),
+            when_fallthrough: successor_provenance(when_zero),
         },
         SelectedTerminator::ConditionalBranchU64LessThan {
             instruction: branch,
@@ -115,30 +82,8 @@ pub(super) fn provenance(
             when_not_less,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
-            when_taken: FunctionFragmentSuccessorProvenance {
-                role: when_less.role,
-                psi_edge: when_less.psi_edge,
-                block: when_less.block,
-                source_target: when_less.source_target,
-                bindings: when_less
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_less.fuel.clone(),
-            },
-            when_fallthrough: FunctionFragmentSuccessorProvenance {
-                role: when_not_less.role,
-                psi_edge: when_not_less.psi_edge,
-                block: when_not_less.block,
-                source_target: when_not_less.source_target,
-                bindings: when_not_less
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_not_less.fuel.clone(),
-            },
+            when_taken: successor_provenance(when_less),
+            when_fallthrough: successor_provenance(when_not_less),
         },
         SelectedTerminator::ConditionalBranchI64LessThan {
             instruction: branch,
@@ -146,30 +91,8 @@ pub(super) fn provenance(
             when_not_less,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
-            when_taken: FunctionFragmentSuccessorProvenance {
-                role: when_less.role,
-                psi_edge: when_less.psi_edge,
-                block: when_less.block,
-                source_target: when_less.source_target,
-                bindings: when_less
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_less.fuel.clone(),
-            },
-            when_fallthrough: FunctionFragmentSuccessorProvenance {
-                role: when_not_less.role,
-                psi_edge: when_not_less.psi_edge,
-                block: when_not_less.block,
-                source_target: when_not_less.source_target,
-                bindings: when_not_less
-                    .bindings
-                    .iter()
-                    .map(|binding| binding.semantic)
-                    .collect(),
-                fuel: when_not_less.fuel.clone(),
-            },
+            when_taken: successor_provenance(when_less),
+            when_fallthrough: successor_provenance(when_not_less),
         },
         SelectedTerminator::HostedExitProcess {
             instruction: exited,
@@ -185,4 +108,21 @@ pub(super) fn provenance(
         },
         _ => FunctionFragmentControlProvenance::None,
     })
+}
+
+fn successor_provenance(
+    successor: &selected_instructions::SelectedSuccessor,
+) -> FunctionFragmentSuccessorProvenance {
+    FunctionFragmentSuccessorProvenance {
+        role: successor.role,
+        psi_edge: successor.psi_edge,
+        block: successor.block,
+        source_target: successor.source_target,
+        bindings: successor
+            .bindings
+            .iter()
+            .map(|binding| binding.semantic)
+            .collect(),
+        fuel: successor.fuel.clone(),
+    }
 }
