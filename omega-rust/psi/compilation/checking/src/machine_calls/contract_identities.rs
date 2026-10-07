@@ -1,25 +1,29 @@
 //! Canonical template and application commitments. Contract clauses use the
 //! shared declared-contract projection; type leaves are normalized by symbol
 //! before length framing. Diagnostic spelling never supplies binder identity.
-use super::{Diagnostic, Sha256, SymbolHandle, TypeParameterKind};
-use crate::monomorphization::conformance_symbol_identity;
-use crate::monomorphization::normalized_machine_identity;
-use sha2::Digest;
+//! Preparation and checking share this readonly owner; instance construction
+//! and substitution stay in the pipeline stage that mutates typed trees.
+
+use crate::contract_structure;
+use diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
+use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
 
 /// The universal template contract shared by every concrete application.
 /// Capture it from the retained authored declaration, not a selected clone.
 /// This encoding is binder-positional:
 /// renaming a type, machine, or value parameter does not change the identity.
-pub(super) fn canonical_template_contract_bytes(
-    program: &dyn ::validation::CheckingInput,
+pub fn canonical_template_contract_bytes(
+    program: &dyn crate::CheckingInput,
     machine_index: usize,
     reach_inference: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
     let binders = type_parameter_binders(parameters, &[]);
-    let content_conservation = validation::content_conservation_plans(program);
+    let content_conservation = crate::content_conservation_plans(program);
     let mut bytes = Vec::new();
     bytes.push(u8::from(machine.structural_type_equations_pending));
     bytes.extend(machine.name.as_str().as_bytes());
@@ -184,7 +188,7 @@ pub(super) fn canonical_template_contract_bytes(
         .first()
         .map(|state| formal_parameter_binders(program.state_parameters(state), &binders))
         .unwrap_or_else(|| binders.clone());
-    let contracts = crate::facts::contract_structure::declared_contracts(
+    let contracts = contract_structure::declared_contracts(
         program,
         program.machine_contracts(machine),
         &contract_binders,
@@ -192,13 +196,13 @@ pub(super) fn canonical_template_contract_bytes(
         true,
     );
     bytes.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
-    let termination = crate::facts::contract_structure::declared_termination(
+    let termination = contract_structure::declared_termination(
         program,
         &machine.termination_plan.interface,
         &contract_binders,
     );
     bytes.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());
-    bytes.extend(validation::static_machine_template_reach_contract_bytes(
+    bytes.extend(crate::static_machine_template_reach_contract_bytes(
         program,
         reach_inference,
         machine,
@@ -214,7 +218,8 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
     })
 }
 
-pub(super) fn machine_template_commitment(
+/// Hash canonical template bytes under the published template domain separator.
+pub fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
 ) -> typed_trees::typed_trees::MachineTemplateCommitment {
     let mut strong = Sha256::new();
@@ -228,7 +233,7 @@ pub(super) fn machine_template_commitment(
 /// compilation caches use this same identity; callers cannot substitute the
 /// identity of one concrete instance for the universal template grant.
 pub fn generic_machine_template_report_fingerprint(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<u64> {
     let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
@@ -239,19 +244,19 @@ pub fn generic_machine_template_report_fingerprint(
 /// `None` when the machine carries no template, `Err` flattened to `None`
 /// when the reachability computation cannot encode one.
 fn canonical_template_bytes_for_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<Vec<u8>> {
     let machine_index = generic_machine_index(program, machine_symbol)?;
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()
 }
 
 /// Index of `machine_symbol` when the machine declares type parameters —
 /// a parameterless machine carries no template to commit.
 fn generic_machine_index(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<usize> {
     let machine_index = program
@@ -267,15 +272,16 @@ fn generic_machine_index(
 /// Domain-separated strong commitment to the exact canonical universal
 /// template captured before monomorphization consumes its binders.
 pub fn generic_machine_template_commitment(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
     let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
     Some(machine_template_commitment(&bytes))
 }
 
-pub(super) fn accepted_template_commitment(
-    program: &dyn ::validation::CheckingInput,
+/// Read the admission claim retained on the authored template.
+pub fn accepted_template_commitment(
+    program: &dyn crate::CheckingInput,
     machine_index: usize,
 ) -> Option<String> {
     let machine = &program.machines()[machine_index];
@@ -289,11 +295,11 @@ pub(super) fn accepted_template_commitment(
 /// selected contracts from the plans and fold them, with the identities
 /// specialization recorded, into the commitment Terminal Psi and package
 /// review carry.
-pub(crate) fn prepare_specialization_contract_identities(
-    program: &dyn ::validation::CheckingInput,
+pub fn prepare_specialization_contract_identities(
+    program: &dyn crate::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
 ) -> Result<checked_trees::CheckedSpecializationIdentities, Vec<Diagnostic>> {
-    let operational = validation::infer_operational_may(program);
+    let operational = crate::infer_operational_may(program);
     let identities: Result<Vec<_>, _> = program
         .machine_specializations
         .iter()
@@ -312,12 +318,13 @@ pub(crate) fn prepare_specialization_contract_identities(
 /// the accepted-template custody and the closed conformance applications it
 /// recorded; this reads them as given.
 fn machine_specialization_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
 ) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Diagnostic> {
-    let instance = crate::lookup::machine_by_symbol(program, specialization.instance)
+    let instance = program
+        .machine_by_symbol(specialization.instance)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its concrete instance"))?;
     let instance_identity = normalized_machine_identity(program, instance).ok_or_else(|| {
         Diagnostic::error("generic specialization instance has no normalized callable identity")
@@ -380,7 +387,7 @@ fn machine_specialization_identity(
     for application in &specialization.conformance_applications {
         bytes.extend(application.commitment.as_bytes());
     }
-    let operator_realization_bytes = validation::canonical_closed_operator_realization_bytes(
+    let operator_realization_bytes = crate::canonical_closed_operator_realization_bytes(
         program,
         specialization.instance,
         &specialization.operator_realizations,
@@ -388,7 +395,7 @@ fn machine_specialization_identity(
     .map_err(Diagnostic::error)?;
     encode_identity_bytes(&operator_realization_bytes, &mut bytes);
     let static_call_bindings =
-        validation::static_machine_call_binding_bytes(program, operational, specialization)?;
+        crate::static_machine_call_binding_bytes(program, operational, specialization)?;
     encode_identity_bytes(&static_call_bindings, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
@@ -409,26 +416,23 @@ fn machine_specialization_identity(
     })
 }
 
-pub(super) fn encode_identity_bytes(value: &[u8], bytes: &mut Vec<u8>) {
+fn encode_identity_bytes(value: &[u8], bytes: &mut Vec<u8>) {
     bytes.extend((value.len() as u64).to_le_bytes());
     bytes.extend(value);
 }
 
-pub(super) fn encode_identity_text(value: &str, bytes: &mut Vec<u8>) {
+fn encode_identity_text(value: &str, bytes: &mut Vec<u8>) {
     encode_identity_bytes(value.as_bytes(), bytes);
 }
 
-pub(super) fn encode_identity_texts(values: &[String], bytes: &mut Vec<u8>) {
+fn encode_identity_texts(values: &[String], bytes: &mut Vec<u8>) {
     bytes.extend((values.len() as u64).to_le_bytes());
     for value in values {
         encode_identity_text(value, bytes);
     }
 }
 
-pub(super) fn encode_data_properties(
-    properties: typed_trees::data::DataProperties,
-    output: &mut Vec<u8>,
-) {
+fn encode_data_properties(properties: typed_trees::data::DataProperties, output: &mut Vec<u8>) {
     output.push(match properties.multiplicity {
         language_semantics::Multiplicity::Unrestricted => 1,
         language_semantics::Multiplicity::Affine => 2,
@@ -485,11 +489,11 @@ fn formal_parameter_binders(
     binders
 }
 
-pub(super) fn encode_state_signature(
-    program: &dyn ::validation::CheckingInput,
+fn encode_state_signature(
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     binders: &[(SymbolHandle, String)],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
 ) {
     let generic_binders =
@@ -523,7 +527,7 @@ pub(super) fn encode_state_signature(
     output.push(u8::from(signature.service_reach_is_installation_bound));
     output.push(u8::from(signature.suspends));
     output.push(u8::from(signature.blocks));
-    let contracts = crate::facts::contract_structure::declared_contracts(
+    let contracts = contract_structure::declared_contracts(
         program,
         program.state_signature_contracts(signature),
         &contract_binders,
@@ -531,7 +535,7 @@ pub(super) fn encode_state_signature(
         true,
     );
     output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
-    let termination = crate::facts::contract_structure::declared_termination(
+    let termination = contract_structure::declared_termination(
         program,
         &language_semantics::TerminationInterface::Published(
             signature.termination_guarantee.clone(),
@@ -541,8 +545,9 @@ pub(super) fn encode_state_signature(
     output.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());
 }
 
-pub(crate) fn canonical_state_signature_bytes(
-    program: &dyn ::validation::CheckingInput,
+/// Encode a retained signature with its enclosing trait's positional binders.
+pub fn canonical_state_signature_bytes(
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<u8> {
     let binders = program
@@ -556,7 +561,7 @@ pub(crate) fn canonical_state_signature_bytes(
         })
         .map(|definition| type_parameter_binders(program.trait_type_parameters(definition), &[]))
         .unwrap_or_default();
-    let content_conservation = validation::content_conservation_plans(program);
+    let content_conservation = crate::content_conservation_plans(program);
     let mut bytes = Vec::new();
     encode_state_signature(
         program,
@@ -568,11 +573,11 @@ pub(crate) fn canonical_state_signature_bytes(
     bytes
 }
 
-pub(super) fn encode_state_shape(
-    program: &dyn ::validation::CheckingInput,
+fn encode_state_shape(
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
 ) {
     let parameters = program.state_parameters(state);
@@ -590,7 +595,7 @@ pub(super) fn encode_state_shape(
             .as_str(),
         output,
     );
-    let contracts = crate::facts::contract_structure::declared_contracts(
+    let contracts = contract_structure::declared_contracts(
         program,
         program.state_contracts(state),
         &contract_binders,
@@ -600,8 +605,8 @@ pub(super) fn encode_state_shape(
     output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
 }
 
-pub(super) fn encode_parameter(
-    program: &dyn ::validation::CheckingInput,
+fn encode_parameter(
+    program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
     binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
@@ -623,7 +628,8 @@ pub(super) fn encode_parameter(
     );
 }
 
-pub(super) fn specialization_selection_report_fingerprint(
+/// Fold selected argument reports in the published template and argument order.
+pub fn specialization_selection_report_fingerprint(
     template: &str,
     type_arguments: &[String],
     const_arguments: &[String],
@@ -645,4 +651,30 @@ pub(super) fn specialization_selection_report_fingerprint(
         }
     }
     hash
+}
+
+fn conformance_symbol_identity(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
+    let path = program.symbols.display_path(symbol, "::");
+    let Some(package) = program.symbols.symbol_package_identity(symbol) else {
+        return format!("unmanaged::{path}");
+    };
+    let digest = package.digest();
+    let mut owner = String::with_capacity(digest.len() * 2);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in digest {
+        owner.push(char::from(HEX[usize::from(byte >> 4)]));
+        owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    format!("package:{owner}::{path}")
+}
+
+/// Join the declaration's package identity and path to its callable identity.
+/// Return absence when the retained callable cannot be normalized.
+pub fn normalized_machine_identity(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Option<String> {
+    let declaration = conformance_symbol_identity(program, machine.symbol);
+    let overload = program.machine_callable_identity_text(machine)?;
+    Some(format!("{declaration}|{overload}"))
 }

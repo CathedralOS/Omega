@@ -2152,6 +2152,7 @@ dependencies = [
  "terminal-psi",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
@@ -2228,6 +2229,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "semantic-vocabulary",
+ "sha2",
  "source",
  "symbols",
  "typed-trees",

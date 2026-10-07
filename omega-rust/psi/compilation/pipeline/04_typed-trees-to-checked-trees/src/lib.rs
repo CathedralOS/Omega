@@ -104,6 +104,3 @@ pub use product_pruning::{
 /// consumes these; the compiler does not run an additional validation pass.
 pub use ::validation::{AsmAuthorityAdmission, data_requires_establishment};
 pub use conformance::conformance_applications::close_conformance_application;
-pub use monomorphization::{
-    generic_machine_template_commitment, generic_machine_template_report_fingerprint,
-};

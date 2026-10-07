@@ -8,12 +8,12 @@ use crate::monomorphization::body_rewriting::{
     reject_runtime_bound_static_occurrences, remap_machine_argument_symbols, rewrite_cloned_calls,
     statement_span_handles, substitute_cloned_type_parameters,
 };
-use crate::monomorphization::identities::specialization_selection_report_fingerprint;
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
     closed_operator_realizations_for_machine, collect_statement_expression_trees, const_arguments,
     const_values, remapped_symbol, resolve_specialized_receiver_calls, specialized_attached_data,
 };
+use validation::contract_identities::specialization_selection_report_fingerprint;
 
 fn bound_type_displays(
     bindings: &[Option<TypeReferenceHandle>],

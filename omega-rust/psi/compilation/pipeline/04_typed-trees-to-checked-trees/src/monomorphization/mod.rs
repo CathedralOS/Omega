@@ -23,12 +23,8 @@
 
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
-use crate::monomorphization::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
-use sha2::Sha256;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
@@ -37,6 +33,10 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use validation::contract_identities::{
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
+    normalized_machine_identity,
+};
 
 mod attached_methods;
 pub(crate) use attached_methods::validate_selected_attached_method_bounds;
@@ -46,13 +46,6 @@ pub(crate) use selection::collect_expression_tree;
 mod body_rewriting;
 pub(crate) use body_rewriting::{
     collect_evidence_requirement_closure, collect_statement_expression_trees, insert_subject_name,
-};
-pub(crate) mod identities;
-pub(crate) use identities::{
-    canonical_state_signature_bytes, prepare_specialization_contract_identities,
-};
-pub use identities::{
-    generic_machine_template_commitment, generic_machine_template_report_fingerprint,
 };
 mod body_cloning;
 mod const_arguments;
@@ -648,33 +641,6 @@ fn candidate_conformance_fingerprint_arguments(candidate: &Candidate) -> Vec<Str
                 .display_name()
         })
         .collect()
-}
-
-fn conformance_symbol_identity(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> String {
-    let path = program.symbols.display_path(symbol, "::");
-    let Some(package) = program.symbols.symbol_package_identity(symbol) else {
-        return format!("unmanaged::{path}");
-    };
-    let digest = package.digest();
-    let mut owner = String::with_capacity(digest.len() * 2);
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in digest {
-        owner.push(char::from(HEX[usize::from(byte >> 4)]));
-        owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    format!("package:{owner}::{path}")
-}
-
-fn normalized_machine_identity(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> Option<String> {
-    let declaration = conformance_symbol_identity(program, machine.symbol);
-    let overload = program.machine_callable_identity_text(machine)?;
-    Some(format!("{declaration}|{overload}"))
 }
 
 /// Const substitution changes an indexed-domain instance from binder identity

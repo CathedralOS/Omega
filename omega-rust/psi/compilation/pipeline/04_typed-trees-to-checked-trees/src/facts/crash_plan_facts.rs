@@ -1,10 +1,10 @@
 //! Crash contract capsules, published crash plans, buckets and sites.
 
-use crate::facts::contract_structure::{
-    callable_binders, declared_callable, declared_fact, declared_termination, generic_binders,
-    signature_generic_binders,
-};
 use crate::facts::crash_calls;
+use validation::contract_structure::{
+    callable_binders, declared_callable, declared_fact, declared_termination, generic_binders,
+    is_true_crash_route, signature_generic_binders,
+};
 
 pub(crate) fn build_crash_contract_capsules(
     program: &dyn ::validation::CheckingInput,
@@ -635,20 +635,6 @@ fn build_checked_crash_sites(
         }
     }
     sites
-}
-
-pub(crate) fn is_true_crash_route(
-    program: &dyn ::validation::CheckingInput,
-    fact: &typed_trees::domain::ProofFact,
-) -> bool {
-    matches!(
-        fact,
-        typed_trees::domain::ProofFact::Expression(expression)
-            if matches!(
-                program.expression_table.expression(*expression),
-                typed_trees::expression::ExpressionNode::Boolean(true)
-            )
-    )
 }
 
 /// Canonical identity of one body-derived path predicate in the namespace of

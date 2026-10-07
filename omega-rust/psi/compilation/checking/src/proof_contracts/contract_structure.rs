@@ -2,6 +2,8 @@
 //! and type/expression normalization already own semantic naming; this owner
 //! only supplies positional binders and the declared crash-clause algebra.
 //! It does not interpret diagnostic text or assign a parallel byte grammar.
+//! Preparation and checked-fact construction borrow the same queries; neither
+//! pipeline mutation nor proof search is a dependency of this projection.
 
 use checked_trees::{
     DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
@@ -11,7 +13,8 @@ use symbols::SymbolHandle;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::type_identity::{TypeIdentityRequest, normalized_expression_identity};
 
-pub(crate) fn generic_binders(
+/// Bind generic declarations by their authored position and exact symbol.
+pub fn generic_binders(
     parameters: &[typed_trees::data::TypeParameter],
 ) -> Vec<(SymbolHandle, String)> {
     parameters
@@ -21,7 +24,8 @@ pub(crate) fn generic_binders(
         .collect()
 }
 
-pub(crate) fn callable_binders(
+/// Extend generic binders with a separate positional value-parameter namespace.
+pub fn callable_binders(
     generics: &[(SymbolHandle, String)],
     parameters: &[StateParameter],
 ) -> Vec<(SymbolHandle, String)> {
@@ -38,8 +42,8 @@ pub(crate) fn callable_binders(
 /// Requirement signatures can live in a trait or a nested machine-parameter
 /// telescope. Bind the retained enclosing scopes, not words found in a type.
 /// Each scope's parameter arena order is its authored telescope order.
-pub(crate) fn signature_generic_binders(
-    program: &dyn validation::CheckingInput,
+pub fn signature_generic_binders(
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<(SymbolHandle, String)> {
     let mut scopes = Vec::new();
@@ -74,13 +78,14 @@ pub(crate) fn signature_generic_binders(
     binders
 }
 
-pub(crate) fn declared_callable(
-    program: &dyn validation::CheckingInput,
+/// Project a callable's declared types and clauses using positional binders.
+pub fn declared_callable(
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     result: typed_trees::types::TypeReferenceHandle,
     contracts: &[SignatureContract],
     generics: &[(SymbolHandle, String)],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::ContentConservationSourcePlan],
     include_crashes: bool,
 ) -> DeclaredCallableContract {
     let binders = callable_binders(generics, parameters);
@@ -111,11 +116,12 @@ pub(crate) fn declared_callable(
     }
 }
 
-pub(crate) fn declared_contracts(
-    program: &dyn validation::CheckingInput,
+/// Project and sort declared clauses, merging same-cause crash alternatives.
+pub fn declared_contracts(
+    program: &dyn crate::CheckingInput,
     contracts: &[SignatureContract],
     binders: &[(SymbolHandle, String)],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::ContentConservationSourcePlan],
     include_crashes: bool,
 ) -> Vec<DeclaredContractClause> {
     let mut clauses = Vec::new();
@@ -148,11 +154,7 @@ pub(crate) fn declared_contracts(
                         crashes.len() - 1
                     });
                 let bucket = &mut crashes[position];
-                if facts.is_empty()
-                    || facts
-                        .iter()
-                        .any(|fact| super::crash_plan_facts::is_true_crash_route(program, fact))
-                {
+                if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
                     bucket.1 = true;
                 } else {
                     bucket.2.extend(
@@ -186,11 +188,12 @@ pub(crate) fn declared_contracts(
     clauses
 }
 
-pub(crate) fn declared_fact(
-    program: &dyn validation::CheckingInput,
+/// Project one fact without using its diagnostic spelling as binder identity.
+pub fn declared_fact(
+    program: &dyn crate::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
     binders: &[(SymbolHandle, String)],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[crate::ContentConservationSourcePlan],
 ) -> DeclaredContractFact {
     use typed_trees::domain::ProofFact;
     match fact {
@@ -266,7 +269,7 @@ pub(crate) fn declared_fact(
 }
 
 fn symbol_identity(
-    program: &dyn validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     binders: &[(SymbolHandle, String)],
 ) -> String {
@@ -276,8 +279,9 @@ fn symbol_identity(
     program.symbols.display_path(symbol, "::")
 }
 
-pub(crate) fn declared_termination(
-    program: &dyn validation::CheckingInput,
+/// Project published progress premises with canonical sorting and deduplication.
+pub fn declared_termination(
+    program: &dyn crate::CheckingInput,
     termination: &language_semantics::TerminationInterface,
     binders: &[(SymbolHandle, String)],
 ) -> DeclaredTermination {
@@ -310,6 +314,21 @@ pub(crate) fn declared_termination(
             DeclaredTermination::Terminates(premises)
         }
     }
+}
+
+/// Recognize the literal truth route in the declared crash-clause algebra.
+pub fn is_true_crash_route(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofFact,
+) -> bool {
+    matches!(
+        fact,
+        typed_trees::domain::ProofFact::Expression(expression)
+            if matches!(
+                program.expression_table.expression(*expression),
+                typed_trees::expression::ExpressionNode::Boolean(true)
+            )
+    )
 }
 
 #[cfg(test)]

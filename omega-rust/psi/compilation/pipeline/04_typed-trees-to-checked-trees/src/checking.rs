@@ -288,7 +288,7 @@ fn check_program(
     // Nothing below consumes the specialization commitments. Publish them
     // with the other checked facts, never by rewriting the typed roster.
     let specialization_identities =
-        crate::monomorphization::prepare_specialization_contract_identities(
+        validation::contract_identities::prepare_specialization_contract_identities(
             &program,
             &facts.contract_plans,
         )?;

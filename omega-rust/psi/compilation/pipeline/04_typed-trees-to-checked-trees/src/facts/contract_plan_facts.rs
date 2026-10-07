@@ -1,11 +1,11 @@
 //! Contract plans, resource envelope coverage, mutation facts and closed
 //! scalar value contract plans.
 
-use crate::facts::contract_structure::{
-    callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
-};
 use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
 use crate::facts::{crash_calls, operator_crashes};
+use validation::contract_structure::{
+    callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
+};
 
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on

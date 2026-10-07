@@ -8,8 +8,8 @@ use crate::facts::crash_calls::summary_predicates::{
     CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
     normalize_summary_buckets,
 };
-use crate::facts::crash_plan_facts::is_true_crash_route;
 use symbols::SymbolHandle;
+use validation::contract_structure::is_true_crash_route;
 
 pub(crate) fn infer_private_body_summaries(
     program: &dyn ::validation::CheckingInput,

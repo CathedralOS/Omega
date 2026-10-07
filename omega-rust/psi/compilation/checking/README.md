@@ -13,6 +13,14 @@ machine/state validation, and result publication run there in order.
 updates; [contract queries](src/program_validation/contract_queries.rs) owns
 entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the API.
 
+Public contract projections belong to
+[`contract_structure`](src/proof_contracts/contract_structure.rs); canonical
+template, signature and specialization identities belong to
+[`contract_identities`](src/machine_calls/contract_identities.rs). Preparation,
+checking and trust admission borrow these queries through validation directly.
+The identity queries preserve positional binders and the published hash grammar;
+specialization and rebinding remain with the transforming stage.
+
 Shared program queries have explicit owners beside that coordinator.
 [program_scope.rs](src/program_scope.rs) owns scoped memo lifetimes; its children
 serve declaration indexes, value properties, call targets and effect plans.

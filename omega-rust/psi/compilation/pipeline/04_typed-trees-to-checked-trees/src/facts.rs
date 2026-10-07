@@ -4,12 +4,12 @@
 //! blocking, suspension and invocation facts, `dynamic_conformance.rs`
 //! dynamic conformance facts, `contract_plan_facts.rs` contract plans and
 //! mutation facts, `crash_plan_facts.rs` crash capsules, buckets and sites,
-//! `contract_structure.rs` normalized public declaration structure,
 //! `requirement_call_specializations.rs` the specializations generic calls
 //! derived at their static machine arguments, and `qualification_facts.rs`
 //! qualification and service reach facts.
 //! `resolved_types.rs` publishes final executable place/result and carrier
 //! decisions after the typed arenas stop changing in `checking.rs`.
+//! Validation's `contract_structure` queries supply public declaration structure.
 
 pub(crate) mod boolean_predicates;
 pub(crate) mod capabilities;
@@ -17,7 +17,6 @@ mod carry;
 pub(crate) mod contextual_cleanup;
 pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
-pub(crate) mod contract_structure;
 mod crash_calls;
 mod crash_entry_values;
 mod expression_children;

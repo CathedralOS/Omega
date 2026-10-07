@@ -3,17 +3,18 @@ use super::{
     TypeReferenceHandle, TypedTrees,
 };
 use crate::monomorphization::body_cloning::{clone_specialized_machine, copy_type_reference};
-use crate::monomorphization::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-};
 use crate::monomorphization::selection::{
     approved_type_bounds, validate_candidate_conformance_bounds,
 };
 use crate::monomorphization::{
     Candidate, SpecializationKey, candidate, collect_expression_tree,
-    materialize_static_argument_types, normalized_machine_identity, saved_calls,
+    materialize_static_argument_types, saved_calls,
 };
 use typed_trees::operator::ClosedOperatorApplicationArgument;
+use validation::contract_identities::{
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
+    normalized_machine_identity,
+};
 
 /// One exact authored conformance edge. This is internal elaboration data,
 /// never a provider choice supplied by Omega or the compiler coordinator.

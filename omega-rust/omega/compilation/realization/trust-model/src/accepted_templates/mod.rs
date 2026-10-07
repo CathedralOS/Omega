@@ -44,12 +44,12 @@ impl AcceptedTemplateClassifications {
                 })
                 .map(|machine| {
                     let report_fingerprint =
-                        typed_trees_to_checked_trees::generic_machine_template_report_fingerprint(
+                        validation::contract_identities::generic_machine_template_report_fingerprint(
                             typed,
                             machine.symbol,
                         );
                     let commitment =
-                        typed_trees_to_checked_trees::generic_machine_template_commitment(
+                        validation::contract_identities::generic_machine_template_commitment(
                             typed,
                             machine.symbol,
                         );

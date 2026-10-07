@@ -9,6 +9,9 @@
 //! `proof_contracts.rs`, `value_custody.rs` and `declarations.rs` each open
 //! one folder of validators and the queries they share.
 
+pub use machine_calls::contract_identities;
+pub use proof_contracts::contract_structure;
+
 pub use declarations::standard_declarations::{
     standard_calling_traits, standard_calling_vocabularies,
 };

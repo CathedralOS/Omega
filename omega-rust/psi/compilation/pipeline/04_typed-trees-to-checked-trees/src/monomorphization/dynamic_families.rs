@@ -20,16 +20,16 @@
 use super::body_cloning::clone_specialized_machine;
 use super::candidate;
 use super::const_arguments;
-use super::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-};
-use super::normalized_machine_identity;
 use super::selection::{approved_type_bounds, validate_candidate_conformance_bounds};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::contract_identities::{
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
+    normalized_machine_identity,
+};
 
 /// Generate every missing tuple specialization demanded by the program's
 /// dynamic conformance selections and by each authored boundary conformance

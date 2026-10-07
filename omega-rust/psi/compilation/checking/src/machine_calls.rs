@@ -6,6 +6,7 @@ pub(crate) mod boundary_calls;
 pub(crate) mod call_cycles;
 pub(crate) mod callable_overloads;
 pub(crate) mod calls;
+pub mod contract_identities;
 pub(crate) mod denotational_calls;
 pub(crate) mod effect_inference;
 pub(crate) mod effects;
