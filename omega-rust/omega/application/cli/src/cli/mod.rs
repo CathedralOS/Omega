@@ -5,4 +5,3 @@ pub(crate) mod compilation;
 pub(crate) mod execution;
 pub(crate) mod inspection;
 pub(crate) mod packages;
-pub(crate) mod samples;

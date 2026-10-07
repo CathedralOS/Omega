@@ -68,7 +68,6 @@ fn dispatch(invocation: Invocation) {
         } => packages::run(command, options, accept_all),
         Invocation::AuditSource(request) => packages::source::run(request),
         Invocation::AuditPackages(request) => packages::audit::run(request),
-        Invocation::RefreshSamples(root) => cli::samples::refresh(&root),
         Invocation::Help(usage) => println!("{usage}"),
         Invocation::Version => println!(
             "omega {} ({}; {})",

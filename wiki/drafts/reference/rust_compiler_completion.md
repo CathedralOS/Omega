@@ -39,7 +39,7 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 | `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
 | `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `python tools/corpus_gate.py --native`, which builds every pass and run fixture and executes the run tier and `*_exit` fixtures, on every required host in the platform table below. |
 | `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `python tools/corpus_gate.py --filter fail/`, which also belongs to `RC-SOURCE-SEMANTICS`. |
-| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx run -p omega -- refresh-samples` on every required host. It builds every sample natively for the host; it does not yet run the exit/output oracles. |
+| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `python tools/sample_native_gate.py` on every required host. |
 
 `RC-REPOSITORY` is:
 

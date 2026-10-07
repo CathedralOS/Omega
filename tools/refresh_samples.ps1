@@ -1,6 +1,6 @@
-# Rebuild the Rust development CLI, then compile every sample in place, in parallel,
-# via the cross-platform `omega refresh-samples` subcommand. Result: every
-# samples/<domain>/<name>/build/omega-program.exe is current.
+# Rebuild the Rust development CLI, then run every applicable sample's native
+# oracle through the repository-owned sample gate. Sample coverage does not
+# belong to the shipped `omega` command surface.
 $mbxCommand = Get-Command mbx -ErrorAction SilentlyContinue
 if (-not $mbxCommand) {
     Write-Error "mbx 1.7.0 or newer is required; direct Cargo fallback is forbidden"
@@ -20,5 +20,5 @@ $ok = $LASTEXITCODE -eq 0
 Pop-Location
 if (-not $ok) { exit 1 }
 Set-Location $root
-& (Join-Path $root "target\debug\omega.exe") refresh-samples samples
+python tools/sample_native_gate.py --cli (Join-Path $root "target\debug\omega.exe")
 exit $LASTEXITCODE

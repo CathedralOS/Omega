@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Sample check gate — what every `samples/` program does on THIS host.
 
-`omega refresh-samples` builds every sample natively, which is the release
-gate and costs a native build each. This is the cheap counterpart: it runs
-`omega --check` over each sample in parallel, into a scratch build directory
-so the working tree is untouched, and reports the first diagnostic per
-sample grouped by cause.
+`tools/sample_native_gate.py` builds and runs every applicable sample against
+its native oracle. This is the cheap counterpart: it runs `omega --check` over
+each sample in parallel, into a scratch build directory so the working tree is
+untouched, and reports the first diagnostic per sample grouped by cause.
 
 A sample is the product's own customer, so a cluster here names a capability
 the language owes rather than a fixture to repair. The clusters are printed

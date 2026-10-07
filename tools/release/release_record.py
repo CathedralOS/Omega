@@ -139,7 +139,7 @@ GATES = {
                       "native product; every documented deterministic "
                       "exit/output oracle passes.",
         "commands": [
-            "mbx run -p omega -- refresh-samples",
+            "python tools/sample_native_gate.py",
         ],
         "per_host": True,
     },
@@ -176,7 +176,7 @@ CARGO_TEST_RESULT = re.compile(
     r"test result: \w+\. \d+ passed; \d+ failed; (\d+) ignored")
 CARGO_TEST_FILTERED = re.compile(r"(\d+) filtered out")
 CORPUS_FIXTURES = re.compile(r"(\d+) fixtures \(")
-SAMPLES_BUILT = re.compile(r"\d+ of (\d+) samples built")
+SAMPLES_EXECUTED = re.compile(r"sample_native_gate: \d+/(\d+) samples meet")
 # Inherited environment variables that narrow what a gate command selects.
 # A run made under any of them evidences a subset, so its gates stay open.
 FILTER_ENVIRONMENT = (
@@ -463,8 +463,8 @@ def executed_units(argv, output):
     if any(argument.endswith("corpus_gate.py") for argument in arguments):
         counts = CORPUS_FIXTURES.findall(output)
         return int(counts[-1]) if counts else 0
-    if "refresh-samples" in arguments:
-        counts = SAMPLES_BUILT.findall(output)
+    if any(argument.endswith("sample_native_gate.py") for argument in arguments):
+        counts = SAMPLES_EXECUTED.findall(output)
         return int(counts[-1]) if counts else 0
     return None
 

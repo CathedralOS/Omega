@@ -89,7 +89,6 @@ omega audit packages [--project <dir>] [--target <name>]... [--details] [--offli
 omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
 omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
 omega <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
-omega refresh-samples [samples-dir]
 ```
 
 `--dangerously-accept-all` accepts every pending review decision without

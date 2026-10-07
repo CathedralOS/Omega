@@ -16,7 +16,6 @@ use package_compilation::BuildSourceCaptureObligation;
 use package_manager::operations::PackageInspectionOptions;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
-use std::path::PathBuf;
 
 /// Exit status for an invocation the CLI cannot parse or whose argument values
 /// it cannot accept, before any compiler or package work begins. It is BSD
@@ -36,7 +35,6 @@ pub(crate) enum Invocation {
     },
     AuditSource(SourceArguments),
     AuditPackages(PackageInspectionOptions),
-    RefreshSamples(PathBuf),
     Help(&'static str),
     Version,
 }
@@ -68,12 +66,6 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
             }
             Ok(Invocation::Version)
         }
-        Some("refresh-samples") => Ok(Invocation::RefreshSamples(
-            arguments
-                .next()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("samples")),
-        )),
         _ => compile::parse_arguments(first.into_iter().chain(arguments))
             .map(Invocation::Compile)
             .map_err(|error| format!("{error}\n{}", compile::usage())),

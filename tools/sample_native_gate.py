@@ -6,11 +6,10 @@ half of SAMPLE-CORPUS at best: a sample can check and still fail native
 realization, and it can realize and still print the wrong thing. This gate
 answers the other half.
 
-`omega refresh-samples` cannot do it. It never accepts trust on a sample's
-behalf, and samples carry no committed lock, so on a fresh checkout it stops
-at `package acceptance is missing` for essentially every sample and never
-reaches lowering. Completing that review is a per-checkout step; this script
-performs it, then builds, runs, and compares.
+Sample coverage is repository tooling, not a shipped CLI command. Samples carry
+no committed lock, so on a fresh checkout compilation stops at `package
+acceptance is missing` before lowering. This gate completes the per-checkout
+review, then builds, runs, and compares.
 
 The oracle is the sample's own header, which the corpus already documents:
 

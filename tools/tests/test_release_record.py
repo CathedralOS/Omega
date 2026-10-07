@@ -54,8 +54,8 @@ def passing_output(command):
                 "0 measured; 0 filtered out; finished in 0.10s\n")
     if "corpus_gate.py" in command:
         return "corpus_gate: clean — 10 fixtures ({'checked': 10})\n"
-    if "refresh-samples" in command:
-        return "3 of 3 samples built across 4 threads\n"
+    if "sample_native_gate.py" in command:
+        return "sample_native_gate: 3/3 samples meet their documented oracle on macos_arm64\n"
     return ""
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Rebuild the Rust development CLI, then compile every sample in place, in parallel,
-# via the cross-platform `omega refresh-samples` subcommand. Result: every
-# samples/<domain>/<name>/build/omega-program(.exe) is current.
+# Rebuild the Rust development CLI, then run every applicable sample's native
+# oracle through the repository-owned sample gate. Sample coverage does not
+# belong to the shipped `omega` command surface.
 set -euo pipefail
 
 version=$(mbx --version 2>/dev/null) || {
@@ -34,4 +34,4 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 exe="$root/target/debug/omega"
 [ -x "$exe" ] || exe="$root/target/debug/omega.exe"
 cd "$root"
-exec "$exe" refresh-samples samples
+exec python3 tools/sample_native_gate.py --cli "$exe"

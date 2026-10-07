@@ -389,8 +389,9 @@ differently from its golden. Those block landing.
 ## Sample check gate
 
 `tools/sample_gate.py` is the samples' cheap counterpart to the corpus gate.
-`omega refresh-samples` builds every sample natively, which is the release
-gate; this one runs `omega --check` over each `samples/**` project carrying a
+`tools/sample_native_gate.py` builds and runs applicable samples against their
+native oracles, which is the release gate; this one runs `omega --check` over
+each `samples/**` project carrying a
 `build.omg` (except `apps/squalr`), in parallel, into a scratch build
 directory, and groups the first diagnostic per sample by cause.
 
