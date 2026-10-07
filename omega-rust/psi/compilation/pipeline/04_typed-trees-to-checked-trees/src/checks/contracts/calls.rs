@@ -480,6 +480,28 @@ fn value_call_return_domain_grants(
 ///
 /// Whatever the premise, the jump's own earlier operands must leave the
 /// membership's callee-formal reads unwritten (`guard_operands`).
+
+/// The invocation's call site plus its target signature parameters.
+fn call_site_target_parameters<'p>(
+    program: &'p typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+) -> Option<(
+    crate::semantic::calls::CallSite<'p>,
+    &'p [typed_trees::signature::StateParameter],
+)> {
+    let call_site = crate::semantic::calls::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    )?;
+    let target_parameters =
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)?;
+    Some((call_site, target_parameters))
+}
+
 fn proven_predicates_grant_domain(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -503,17 +525,8 @@ fn proven_predicates_grant_domain(
     let Some(labels) = predicate_only_domain_labels(program, facts, fact) else {
         return false;
     };
-    let Some(call_site) = crate::semantic::calls::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    ) else {
-        return false;
-    };
-    let Some(target_parameters) =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    let Some((call_site, target_parameters)) =
+        call_site_target_parameters(program, state_flow, call_flow)
     else {
         return false;
     };
@@ -1031,17 +1044,8 @@ fn incoming_guard_proves_requires(
     else {
         return false;
     };
-    let Some(call_site) = crate::semantic::calls::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    ) else {
-        return false;
-    };
-    let Some(target_parameters) =
-        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    let Some((call_site, target_parameters)) =
+        call_site_target_parameters(program, state_flow, call_flow)
     else {
         return false;
     };
