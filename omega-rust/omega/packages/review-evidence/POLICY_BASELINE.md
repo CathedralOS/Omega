@@ -70,7 +70,16 @@ establish result provenance.
 Evaluated bindings retain their exact producer and physical locator or syscall
 meaning without evaluator accounting. Plain and evaluated syscalls remain
 distinct. Table bindings retain the exact attached data declaration. Grants
-belong to their complete normalized plan, and atomic family coordinates refer
+and provider selection remain scoped to the activation target. Callable and
+external-supply rows separately retain target-independent or authored-target-member
+context through exact family-member handles, even when selection clears a
+machine's target marker. Every inactive private external leaf stays disclosed;
+its normalized binding must name its authored profile, not the activation's
+profile. Supply and callable contexts must agree. Unknown authored tags remain
+inert-valid for pure bodies, but physical external bindings need a catalogued
+profile. Context participates in acceptance keys and readable meanings; older
+schemas cannot recover this distinction and require fresh review.
+Grants belong to their complete normalized plan, and atomic family coordinates refer
 to the canonical plan index rather than a compiler report or receipt digest.
 Generic family declaration coverage does not invent an actual application or
 standalone D29 realization claim. Bounded recovery checks these associations

@@ -13,10 +13,22 @@ impl PackageLock {
     /// Recover project records without filesystem access, source acquisition,
     /// compiler execution, or conversion of history into fresh authorization.
     pub fn recover_text(text: &str, limits: PackageLockRecoveryLimits) -> Result<Self, Error> {
-        Self::recover_version(text, limits, HEADER)
+        let lock = Self::recover_version(text, limits, HEADER)?;
+        if lock
+            .targets
+            .iter()
+            .flat_map(|target| &target.occurrences)
+            .any(|occurrence| {
+                occurrence.acceptance.schema_version
+                    != package_evidence::record::PACKAGE_POLICY_ROW_VERSION
+            })
+        {
+            return Err(Error::UnsupportedVersion);
+        }
+        Ok(lock)
     }
 
-    /// Retain version 3 source pins, target sections and consent for a fresh
+    /// Retain version 3 source pins and schema-4 consent for a fresh
     /// explicit review. Missing compilation inputs stay absent: this route does
     /// not upgrade historical consent into ordinary compilation authority.
     pub fn recover_review_baseline(

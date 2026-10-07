@@ -101,12 +101,17 @@ impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyExternalExecutableSupply {
     pub(crate) callable: PackageReviewNominalIdentity,
+    pub(crate) target_context: crate::record::PackagePolicyTargetContext,
     pub(crate) signature: PackagePolicyExternalCallableSignature,
     pub(crate) requirement: PackagePolicyExternalRequirement,
     pub(crate) binding: PackagePolicyExternalBinding,
 }
 
 impl PackagePolicyExternalExecutableSupply {
+    pub const fn target_context(&self) -> &crate::record::PackagePolicyTargetContext {
+        &self.target_context
+    }
+
     pub const fn callable(&self) -> &PackageReviewNominalIdentity {
         &self.callable
     }

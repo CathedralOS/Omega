@@ -7,6 +7,8 @@
 //! using these inputs. Changed candidates require a new review.
 //! Explicit review also recovers version 3 history without compilation inputs;
 //! that history cannot be published as current acceptance without a fresh review.
+//! The preceding consent schema retains its opaque rows for comparison only;
+//! it cannot supply current compilation inputs or receiver permissions.
 
 mod acceptance;
 mod compilation;

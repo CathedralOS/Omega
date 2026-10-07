@@ -49,6 +49,7 @@ pub(in crate::encoding::recovery) fn policy(
 ) -> Result<PackagePolicyExternalExecutableSupply, Error> {
     Ok(PackagePolicyExternalExecutableSupply {
         callable: nominal(reader)?,
+        target_context: super::identity::target_context(reader)?,
         signature: external_signature(reader)?,
         requirement: requirement(reader)?,
         binding: binding(reader)?,
@@ -204,6 +205,7 @@ mod codec_tests {
             };
             let supply = PackagePolicyExternalExecutableSupply {
                 callable: identity.clone(),
+                target_context: crate::record::PackagePolicyTargetContext::TargetIndependent,
                 signature: signature.clone(),
                 requirement: PackagePolicyExternalRequirement::TopLevelRequirement {
                     identity: identity.clone(),

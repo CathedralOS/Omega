@@ -1,0 +1,6 @@
+use authored_target_supplies;
+
+data Main {}
+machine Main::main() -> i32 {
+    authored_target_supplies::marker()
+}

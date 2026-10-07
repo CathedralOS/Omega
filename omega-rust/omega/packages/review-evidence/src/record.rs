@@ -35,6 +35,7 @@ pub use policy_rows::{
     PackagePolicyRowUsage,
 };
 mod signatures;
+mod target_context;
 pub(in crate::record) use public_policy::validation;
 pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
@@ -42,6 +43,7 @@ pub use public_policy::{
     PackagePolicyOperatorShape, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
 };
+pub use target_context::PackagePolicyTargetContext;
 
 pub use authority::{
     PackageReviewBooleanExpression, PackageReviewCrashCause, PackageReviewCrashInterface,

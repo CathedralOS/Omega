@@ -50,6 +50,9 @@ pub(in crate::encoding::encode) fn validated_value(
     encoder.field("callable", |encoder| {
         encode_nominal(encoder, &supply.callable)
     })?;
+    encoder.field("target_context", |encoder| {
+        super::identity::encode_target_context(encoder, &supply.target_context)
+    })?;
     encoder.field("signature", |encoder| {
         signatures::signature(encoder, &supply.signature)
     })?;

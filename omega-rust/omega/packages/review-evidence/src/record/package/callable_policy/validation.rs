@@ -30,6 +30,7 @@ impl PackagePolicyCallables {
             return Err("callable policy contains multiple selected builds");
         }
         for callable in &self.callables {
+            callable.target_context.validate_canonical_structure()?;
             nominal(&callable.identity)?;
             if callable.identity.owner != PackageReviewNominalOwner::Package(self.package) {
                 return Err("callable policy contains a foreign-owned callable");

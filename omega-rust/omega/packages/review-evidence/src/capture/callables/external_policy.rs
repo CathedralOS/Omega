@@ -50,6 +50,7 @@ pub fn project_checked_external_supply_policy<'a>(
     }
     let row = PackagePolicyExternalExecutableSupply {
         callable: policy_callable_identity(compilation, machine.symbol)?,
+        target_context: super::target_context::project(compilation, machine)?,
         signature,
         requirement,
         binding: PackagePolicyExternalBinding::from(&binding),

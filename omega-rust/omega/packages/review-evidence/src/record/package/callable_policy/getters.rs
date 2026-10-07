@@ -19,6 +19,10 @@ use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::PackageReviewTypeIdentity;
 
 impl PackagePolicyCallable {
+    pub const fn target_context(&self) -> &crate::record::PackagePolicyTargetContext {
+        &self.target_context
+    }
+
     pub const fn role(&self) -> PackagePolicyCallableRole {
         self.role
     }

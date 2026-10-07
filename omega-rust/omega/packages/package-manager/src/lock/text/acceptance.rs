@@ -11,7 +11,7 @@ use target::TargetProfile;
 
 pub(in crate::lock) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
     let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
-    writer.row("acceptance_schema", PACKAGE_POLICY_ROW_VERSION)?;
+    writer.row("acceptance_schema", policy.schema_version)?;
     writer.row("rows", policy.rows.len())?;
     for row in &policy.rows {
         writer.row("row", row.kind.as_str())?;
@@ -34,7 +34,12 @@ pub(in crate::lock) fn read(
     maximum_owned: usize,
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
     let mut reader = Reader::new(text);
-    if reader.count("acceptance_schema", usize::MAX)? != usize::from(PACKAGE_POLICY_ROW_VERSION) {
+    let schema_version = reader.count("acceptance_schema", usize::MAX)?;
+    // Schema 4 has the same opaque row framing, but predates authored target
+    // context. Retain it only as historical consent for an explicit review;
+    // never relabel its meanings or infer absent context. Ordinary recovery
+    // and compilation reject this historical schema at their own boundary.
+    if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) && schema_version != 4 {
         return Err(Error::UnsupportedVersion);
     }
     let count = reader.count("rows", maximum_rows)?;
@@ -92,6 +97,7 @@ pub(in crate::lock) fn read(
     reader.finish()?;
     Ok((
         PackagePolicyAcceptance {
+            schema_version: schema_version as u16,
             package,
             target,
             rows,

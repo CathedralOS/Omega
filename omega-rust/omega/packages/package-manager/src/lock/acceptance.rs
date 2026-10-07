@@ -6,8 +6,8 @@
 use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
 use package_evidence::record::{
-    PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
-    PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
+    PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind,
+    PackagePolicyRowLimits, PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
@@ -49,10 +49,14 @@ impl PackagePolicyOccurrence {
         self.context
     }
 
-    /// Absent only in a version 3 historical review baseline. Fresh review must
+    /// Absent for historical lock or consent schemas. Fresh review must
     /// supply these inputs before compilation or publication can use the record.
     pub const fn compilation(&self) -> Option<&super::AcceptedPackageCompilation> {
-        self.compilation.as_ref()
+        if self.acceptance.schema_version == PACKAGE_POLICY_ROW_VERSION {
+            self.compilation.as_ref()
+        } else {
+            None
+        }
     }
 
     pub(super) fn validate(&self) -> Result<(), PackageLockError> {
@@ -68,6 +72,7 @@ impl PackagePolicyOccurrence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyAcceptance {
+    pub(super) schema_version: u16,
     pub(super) package: PackageKeyIdentity,
     pub(super) target: TargetProfile,
     pub(super) rows: Vec<PackageAcceptanceRow>,
@@ -93,6 +98,7 @@ impl PackagePolicyAcceptance {
         rows.sort_unstable_by_key(|row| (row.kind, row.key));
         Ok((
             Self {
+                schema_version: PACKAGE_POLICY_ROW_VERSION,
                 package: policy.package(),
                 target: policy.target(),
                 rows,
@@ -122,7 +128,10 @@ impl PackagePolicyAcceptance {
         let mismatch = || PackageLockError::TerminalPermissionsMismatch {
             package: self.package,
         };
-        if permissions.package() != self.package || permissions.target() != self.target {
+        if self.schema_version != PACKAGE_POLICY_ROW_VERSION
+            || permissions.package() != self.package
+            || permissions.target() != self.target
+        {
             return Err(mismatch());
         }
         let (rows, _) = permissions

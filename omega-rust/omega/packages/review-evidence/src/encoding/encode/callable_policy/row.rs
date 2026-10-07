@@ -34,6 +34,12 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("identity", |encoder| {
         encode_nominal(encoder, &callable.identity)
     })?;
+    encoder.field("target_context", |encoder| {
+        crate::encoding::encode::values::identity::encode_target_context(
+            encoder,
+            &callable.target_context,
+        )
+    })?;
     encoder.field("supply", |encoder| encode_supply(encoder, callable.supply))?;
     encoder.field("spelling", |encoder| {
         encoder.option(callable.spelling.as_ref(), |encoder, spelling| {

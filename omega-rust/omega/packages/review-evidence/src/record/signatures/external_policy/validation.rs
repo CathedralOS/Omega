@@ -13,6 +13,7 @@ use crate::record::{
 
 impl PackagePolicyExternalExecutableSupply {
     pub(crate) fn validate_canonical_structure(&self) -> Result {
+        self.target_context.validate_canonical_structure()?;
         nominal(&self.callable)?;
         signature(&self.signature)?;
         match &self.requirement {

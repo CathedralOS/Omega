@@ -50,6 +50,7 @@ pub enum PackagePolicyCallableRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCallable {
+    pub(crate) target_context: crate::record::PackagePolicyTargetContext,
     pub(crate) role: PackagePolicyCallableRole,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) supply: PackageReviewCallableSupply,

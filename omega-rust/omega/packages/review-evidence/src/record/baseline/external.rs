@@ -31,6 +31,9 @@ impl PackagePolicyBaseline {
             {
                 return Err("external policy has no public or private external callable surface");
             }
+            if callable.target_context() != supply.target_context() {
+                return Err("external policy target context differs from its retained callable");
+            }
             let signature = supply.signature();
             if signature.lifetime_parameter_count() != callable.lifetime_parameter_count
                 || signature.static_parameters() != callable.type_parameters

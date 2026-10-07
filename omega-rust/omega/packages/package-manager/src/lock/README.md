@@ -153,7 +153,12 @@ identity and semantic bindings stay absent: a historical baseline cannot be
 serialized as version 4 or used for ordinary compilation. Publication requires
 freshly reviewed compilation inputs for every retained target. Other old versions
 reject; recovery never invents missing consent or compilation inputs. The
-compact acceptance child schema is version 3, matching the policy row schema.
+compact acceptance child schema is version 5, matching the policy row schema.
+Explicit review also recovers the preceding schema 4's opaque historical rows,
+pins and decisions without inventing authored target context. Ordinary lock
+recovery rejects that child schema; it supplies no compilation inputs or current
+terminal permissions. Fresh checking and decisions replace its consent with
+schema 5 before publication. Unknown schemas still reject.
 
 ## Decision history
 

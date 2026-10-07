@@ -80,7 +80,13 @@ the compilation they read; only recovery of stored bytes validates structure.
 external executable supplies, retaining
 the complete callable signature, requirement, binding, target, and producer
 identity while omitting evaluator accounting and reconstruction receipts. Its
-bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 4.
+bounded `OMEGA-EXTERNAL-SUPPLY-POLICY` component encoding is version 7.
+Callable and external rows retain authored target context independently of the
+selected activation. Exact family-member handles retain that context across
+selection's marker changes. Inactive private leaves remain disclosed with
+bindings normalized for their own target; disclosure cannot select them as
+providers. Uncatalogued pure-body tags remain inert data. The complete baseline
+checks matching callable/supply context and exact normalized binding target.
 Capture needs the original checked signatures: the legacy review shape cannot
 recover an absent result, complete nested progress routes, or actual conformance
 lifetime arguments after those distinctions have been projected away.
@@ -193,7 +199,7 @@ requires exact canonical re-encoding. Neither operation recovers proof or crash
 derivation tables, grants authority, or certifies an assumption.
 
 `project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
-checked root package and target. Its version-4 `OMEGA-PACKAGE-POLICY` envelope
+checked root package and target. Its version-12 `OMEGA-PACKAGE-POLICY` envelope
 contains all seven public declaration families, the normalized components above,
 every package-owned external supply (including unused private leaves), dangerous
 authority and ceiling slack, semantic dependencies, and D29 application links.
@@ -207,8 +213,8 @@ execution commitments.
 Public and nested policy signatures distinguish no result from a declared empty
 data result, retain typed crash guards and complete progress establishment routes,
 and preserve lexical static/lifetime scopes. Those signature-bearing component
-schemas, including `OMEGA-CALLING-POLICY`, are version 4; callable policy is
-version 5 for its additional reach dependency. Structural predicate paths retain
+schemas have independent versions declared in `src/encoding/mod.rs`; callable
+policy is version 11 and includes authored target context. Structural predicate paths retain
 fixed indexes numerically, distinct from fields and cases. Old policy versions require
 fresh comparison rather than an inferred upgrade from lossy records.
 

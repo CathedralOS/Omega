@@ -129,6 +129,7 @@ pub fn project_checked_callable_policy<'a>(
             .is_valid()
             .then_some(surface.return_type);
         callables.push(PackagePolicyCallable {
+            target_context: super::target_context::project(compilation, machine)?,
             role,
             identity: surface.identity,
             supply: surface.supply,

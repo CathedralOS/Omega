@@ -57,3 +57,23 @@ pub(crate) fn encode_supply(
     })?;
     Ok(())
 }
+
+/// Authored scope is inert disclosure, independent of selected-provider authority.
+pub(in crate::encoding::encode) fn encode_target_context(
+    encoder: &mut Encoder,
+    context: &crate::record::PackagePolicyTargetContext,
+) -> Result<(), PackageReviewEncodingError> {
+    context
+        .validate_canonical_structure()
+        .map_err(PackageReviewEncodingError::new)?;
+    match context {
+        crate::record::PackagePolicyTargetContext::TargetIndependent => {
+            encoder.tag("target_independent", 0);
+        }
+        crate::record::PackagePolicyTargetContext::TargetMember { target } => {
+            encoder.tag("target_member", 1);
+            encoder.field("target", |encoder| encoder.string(target))?;
+        }
+    }
+    Ok(())
+}
