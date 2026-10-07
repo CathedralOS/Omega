@@ -375,38 +375,27 @@ fn assign_contract_call_symbols(
                 child_type_references,
                 cast.value,
             );
-            let mut target_type = child_type_references.get(cast.target_type).clone();
-            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
-                symbols,
-                child_type_references,
-                machine.type_parameters,
-                machine.symbol,
-                &mut target_type,
-            );
-            crate::symbols::type_references::assign_type_value_expression_symbols(
+            crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &mut target_type,
+                cast.target_type,
             );
-            *child_type_references.get_mut(cast.target_type) = target_type;
-            for offset in 0..cast.semantic_domain_arguments.count() {
-                let start = cast.semantic_domain_arguments.start();
-                let handle =
-                    arena::Handle::from_parts(start.arena_index() + offset, start.generation());
-                let mut argument = child_type_references.get(handle).clone();
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
-                    symbols,
-                    child_type_references,
-                    machine.type_parameters,
-                    machine.symbol,
-                    &mut argument,
-                );
-                *child_type_references.get_mut(handle) = argument;
-            }
+            crate::symbols::type_references::each_type_reference_handle(
+                cast.semantic_domain_arguments,
+                |handle| {
+                    crate::symbols::type_references::reassign_type_reference_symbols(
+                        symbols,
+                        child_type_references,
+                        machine.type_parameters,
+                        machine.symbol,
+                        handle,
+                    );
+                },
+            );
         }
         ExpressionNode::Call(call) => {
             assign_contract_call_symbols(
@@ -554,24 +543,15 @@ fn assign_contract_call_symbols(
             unary.operand,
         ),
         ExpressionNode::ZeroValue(type_reference) => {
-            let mut target_type = child_type_references.get(type_reference).clone();
-            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
-                symbols,
-                child_type_references,
-                machine.type_parameters,
-                machine.symbol,
-                &mut target_type,
-            );
-            crate::symbols::type_references::assign_type_value_expression_symbols(
+            crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &mut target_type,
+                type_reference,
             );
-            *child_type_references.get_mut(type_reference) = target_type;
         }
         ExpressionNode::Name(path) => {
             // A bare `result` is the contract owner's reserved result binder

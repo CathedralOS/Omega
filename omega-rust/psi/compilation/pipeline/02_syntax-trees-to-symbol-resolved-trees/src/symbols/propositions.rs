@@ -128,29 +128,25 @@ pub(super) fn assign_expression_symbols(
         }
         ExpressionNode::Cast(cast) => {
             recurse!(cast.value);
-            let mut target_type = child_type_references.get(cast.target_type).clone();
-            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+            crate::symbols::type_references::reassign_type_reference_symbols(
                 symbols,
                 child_type_references,
                 local_type_parameters,
                 SymbolHandle::invalid(),
-                &mut target_type,
+                cast.target_type,
             );
-            *child_type_references.get_mut(cast.target_type) = target_type;
-            for offset in 0..cast.semantic_domain_arguments.count() {
-                let start = cast.semantic_domain_arguments.start();
-                let handle =
-                    arena::Handle::from_parts(start.arena_index() + offset, start.generation());
-                let mut argument = child_type_references.get(handle).clone();
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
-                    symbols,
-                    child_type_references,
-                    local_type_parameters,
-                    SymbolHandle::invalid(),
-                    &mut argument,
-                );
-                *child_type_references.get_mut(handle) = argument;
-            }
+            crate::symbols::type_references::each_type_reference_handle(
+                cast.semantic_domain_arguments,
+                |handle| {
+                    crate::symbols::type_references::reassign_type_reference_symbols(
+                        symbols,
+                        child_type_references,
+                        local_type_parameters,
+                        SymbolHandle::invalid(),
+                        handle,
+                    );
+                },
+            );
         }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
@@ -261,15 +257,13 @@ pub(super) fn assign_expression_symbols(
         }
         ExpressionNode::Unary(unary) => recurse!(unary.operand),
         ExpressionNode::ZeroValue(type_reference) => {
-            let mut target_type = child_type_references.get(type_reference).clone();
-            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+            crate::symbols::type_references::reassign_type_reference_symbols(
                 symbols,
                 child_type_references,
                 local_type_parameters,
                 SymbolHandle::invalid(),
-                &mut target_type,
+                type_reference,
             );
-            *child_type_references.get_mut(type_reference) = target_type;
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)

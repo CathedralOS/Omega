@@ -281,3 +281,69 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
         | TypeReference::Unit => {}
     }
 }
+
+/// The handles a `HandleSpan<TypeReference>` covers in a child arena — the
+/// manual `from_parts` walk reassign sites repeat.
+pub(in crate::symbols) fn each_type_reference_handle(
+    span: arena::HandleSpan<TypeReference>,
+    mut visit: impl FnMut(Handle<TypeReference>),
+) {
+    for offset in 0..span.count() {
+        let start = span.start();
+        visit(Handle::from_parts(
+            start.arena_index() + offset,
+            start.generation(),
+        ));
+    }
+}
+
+/// Re-assign symbols and value expressions on a cloned child type reference,
+/// then write it back — the tail every Cast/argument reassign site repeats.
+pub(in crate::symbols) fn reassign_type_reference_symbols_and_values(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    expressions: &mut ExpressionTable,
+    child_types: &mut Arena<TypeReference>,
+    handle: Handle<TypeReference>,
+) {
+    let mut type_reference = child_types.get(handle).clone();
+    crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+        symbols,
+        child_types,
+        machine.type_parameters,
+        machine.symbol,
+        &mut type_reference,
+    );
+    assign_type_value_expression_symbols(
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expressions,
+        child_types,
+        &mut type_reference,
+    );
+    *child_types.get_mut(handle) = type_reference;
+}
+
+/// Re-assign symbols on a cloned child type reference, then write it back —
+/// the tail every symbol-only reassign site repeats.
+pub(in crate::symbols) fn reassign_type_reference_symbols(
+    symbols: &SymbolTable,
+    child_types: &mut Arena<TypeReference>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    self_type_symbol: SymbolHandle,
+    handle: Handle<TypeReference>,
+) {
+    let mut type_reference = child_types.get(handle).clone();
+    crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+        symbols,
+        child_types,
+        local_type_parameters,
+        self_type_symbol,
+        &mut type_reference,
+    );
+    *child_types.get_mut(handle) = type_reference;
+}
