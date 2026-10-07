@@ -10,10 +10,35 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    BoundaryMachineResult, BoundaryStructuralResultDeclaration, Operation, OperationKind,
+    BoundaryMachineResult, ClaimTransfer, StructuralArgument, StructuralParameterDeclaration, BoundaryStructuralResultDeclaration, Operation, OperationKind,
     OperationResult, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
 };
+
+/// The shared ordinary-call tail: structural operands present against the
+/// callee's formals and every claim transfer lands on a structural argument.
+fn validate_call_tail(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    structural_arguments: &[StructuralArgument],
+    structural_parameters: &[StructuralParameterDeclaration],
+    claim_transfers: &[ClaimTransfer],
+) -> Result<(), CodecError> {
+    validate_structural_arguments(
+        module,
+        machine,
+        structural_arguments,
+        structural_parameters,
+        StructuralArgumentPresentation::Ordinary,
+    )?;
+    validate_claim_indices(
+        machine,
+        structural_arguments,
+        claim_transfers
+            .iter()
+            .map(|transfer| (transfer.claim, transfer.argument_index)),
+    )
+}
 
 pub(super) fn validate_call_unit(
     module: &TerminalModule,
@@ -44,21 +69,13 @@ pub(super) fn validate_call_unit(
     {
         return malformed("unit call has the wrong callee result or structural arity");
     }
-    validate_structural_arguments(
+    validate_call_tail(
         module,
         machine,
         structural_arguments,
         &callee.structural_parameters,
-        StructuralArgumentPresentation::Ordinary,
-    )?;
-    validate_claim_indices(
-        machine,
-        structural_arguments,
-        claim_transfers
-            .iter()
-            .map(|transfer| (transfer.claim, transfer.argument_index)),
-    )?;
-    Ok(())
+        claim_transfers,
+    )
 }
 
 /// A selector call names one interface slot. Its result and operand arity
@@ -159,21 +176,13 @@ pub(super) fn validate_call_structural_scalar(
             "structural scalar call has the wrong callee signature or structural arity",
         );
     }
-    validate_structural_arguments(
+    validate_call_tail(
         module,
         machine,
         structural_arguments,
         &callee.structural_parameters,
-        StructuralArgumentPresentation::Ordinary,
-    )?;
-    validate_claim_indices(
-        machine,
-        structural_arguments,
-        claim_transfers
-            .iter()
-            .map(|transfer| (transfer.claim, transfer.argument_index)),
-    )?;
-    Ok(())
+        claim_transfers,
+    )
 }
 
 pub(super) fn validate_call_structural(
@@ -349,21 +358,13 @@ pub(super) fn validate_call_structural(
     }) {
         return malformed("structural callee return disagrees with the caller's result claims");
     }
-    validate_structural_arguments(
+    validate_call_tail(
         module,
         machine,
         structural_arguments,
         &callee.structural_parameters,
-        StructuralArgumentPresentation::Ordinary,
-    )?;
-    validate_claim_indices(
-        machine,
-        structural_arguments,
-        claim_transfers
-            .iter()
-            .map(|transfer| (transfer.claim, transfer.argument_index)),
-    )?;
-    Ok(())
+        claim_transfers,
+    )
 }
 
 /// Authenticate the terminal invocation's representation, not its runtime
