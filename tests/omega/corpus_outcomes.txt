@@ -2478,6 +2478,7 @@ pass/collections/named_transition_completion checked 1468ms check-target:macos_a
 pass/collections/nested_empty_record_array_borrow_exit checked 497ms check-target:macos_arm64 @3e847a410959+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
+pass/collections/policy_array_enum_element_dispatch_exit checked 1247ms check-target:macos_arm64
 pass/collections/policy_array_literal_store_exit checked 1541ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/record_array_field_access_exit checked 1074ms check-target:macos_arm64 @3b6b4258b4af+wt
 pass/collections/record_array_literal_field_store_exit checked 1646ms check-target:macos_arm64 @2d8ed253669f

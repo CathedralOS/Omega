@@ -476,6 +476,7 @@ pass/collections/named_transition_completion built 1491ms exit:181 @48008365d839
 pass/collections/nested_empty_record_array_borrow_exit built 4855ms exit:0 @9beb2be72f2d+wt
 pass/collections/nested_runtime_indexed_successor_argument_exit built 1531ms exit:70 @48008365d839
 pass/collections/owned_array_scalar_comparisons checked 198ms
+pass/collections/policy_array_enum_element_dispatch_exit built 1358ms exit:0
 pass/collections/policy_array_literal_store_exit built 1164ms exit:52 @48008365d839
 pass/collections/record_array_field_access_exit built 1182ms exit:0 stdout:match @3b6b4258b4af+wt
 pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @48008365d839

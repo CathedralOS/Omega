@@ -1368,7 +1368,11 @@ pub(crate) fn type_roots(
                 {
                     continue;
                 }
-                let identity = checked.normalized_type_identity(*referee).into_string();
+                // The plan registry's identity rule looks through a
+                // qualification: a loan of an element of `[E; N] in Trapping`
+                // lends plain `E` storage.
+                let identity =
+                    validation::structural_type_identity(&checked.typed, *referee, &[], &[]);
                 if !types.contains(&identity) {
                     types.push(identity);
                 }
