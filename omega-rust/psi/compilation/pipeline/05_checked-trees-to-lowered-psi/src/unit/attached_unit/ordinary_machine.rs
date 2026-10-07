@@ -522,6 +522,10 @@ pub(super) fn emit(
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator,
         });
+        // Prefix construction appends continuation blocks after the blocks
+        // that jump to them; the module's canonical order is by BlockId on
+        // this path exactly as on the normal-return path below.
+        evaluation.blocks.sort_by_key(|block| block.id);
         next_value = next_value_identity;
         (None, None)
     } else {

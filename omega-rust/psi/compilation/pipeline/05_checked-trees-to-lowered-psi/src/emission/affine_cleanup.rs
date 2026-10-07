@@ -271,7 +271,9 @@ fn complete_carriers(
             {
                 Vec::new()
             }
-            Terminator::Crash { .. } => Vec::new(),
+            // An abandoning exit has no successor and runs no parameter
+            // cleanup: a crash, or an external completion such as process exit.
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Vec::new(),
             _ => {
                 return unsupported(
                     "scalar graph whole parameter cleanup requires scalar or Unit exits and ordinary edges",

@@ -294,7 +294,10 @@ impl StateGraphEmission<'_, '_> {
                     )
                 });
             }
-            Terminator::Crash { .. } => {}
+            // A crash or an external completion abandons the activation; it
+            // runs no return cleanup, so the predecessor's discards need no
+            // reconciliation here.
+            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
         arm_evaluation.remap_transported_call_operands(operations);
