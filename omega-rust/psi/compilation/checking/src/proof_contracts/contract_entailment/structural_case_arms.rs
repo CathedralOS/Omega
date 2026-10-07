@@ -187,6 +187,38 @@ fn guard_expressions_equal(
     }
 }
 
+/// Stage a citation call's argument terms — each judged under its expected
+/// declared type — for establishment after the arm's own walk.
+fn stage_citation_argument_terms(
+    program: &TypedTrees,
+    judge: &StructuralJudge<'_>,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    environment: &[(String, StructuralTerm)],
+    target: &CitationTarget,
+    argument_handles: &[ExpressionHandle],
+    pending_citations: &mut Vec<PendingStructuralCitation>,
+) -> Option<()> {
+    let expected = citation_argument_types(program, target);
+    let argument_terms = argument_handles
+        .iter()
+        .enumerate()
+        .map(|(position, argument)| {
+            judge.callee_term_in_scope(
+                expected
+                    .as_ref()
+                    .and_then(|types| types.get(position))
+                    .map(|expected| (machine, state, *expected)),
+                *argument,
+                environment,
+                0,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    pending_citations.push((target.clone(), argument_terms));
+    Some(())
+}
+
 type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
 /// Recognize a proof machine as a tree of structural case states. Each named
@@ -351,46 +383,32 @@ fn recognize_structural_state_leaves(
                         && let Some((target, argument_handles)) =
                             citation_call_in_statement(program, statement)
                     {
-                        let expected = citation_argument_types(program, &target);
-                        let argument_terms = argument_handles
-                            .iter()
-                            .enumerate()
-                            .map(|(position, argument)| {
-                                judge.callee_term_in_scope(
-                                    expected
-                                        .as_ref()
-                                        .and_then(|types| types.get(position))
-                                        .map(|expected| (machine, state, *expected)),
-                                    *argument,
-                                    &environment,
-                                    0,
-                                )
-                            })
-                            .collect::<Option<Vec<_>>>()?;
-                        pending_citations.push((target.clone(), argument_terms));
+                        stage_citation_argument_terms(
+                            program,
+                            judge,
+                            machine,
+                            state,
+                            &environment,
+                            &target,
+                            &argument_handles,
+                            &mut pending_citations,
+                        )?;
                     }
                     environment.push((local.name.as_str().to_owned(), term));
                 }
                 StatementNode::Call(_) if !saw_transition && collect_citations => {
                     let (target, argument_handles) =
                         citation_call_in_statement(program, statement)?;
-                    let expected = citation_argument_types(program, &target);
-                    let argument_terms = argument_handles
-                        .iter()
-                        .enumerate()
-                        .map(|(position, argument)| {
-                            judge.callee_term_in_scope(
-                                expected
-                                    .as_ref()
-                                    .and_then(|types| types.get(position))
-                                    .map(|expected| (machine, state, *expected)),
-                                *argument,
-                                &environment,
-                                0,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    pending_citations.push((target.clone(), argument_terms));
+                    stage_citation_argument_terms(
+                        program,
+                        judge,
+                        machine,
+                        state,
+                        &environment,
+                        &target,
+                        &argument_handles,
+                        &mut pending_citations,
+                    )?;
                 }
                 StatementNode::Call(call)
                     if !saw_transition
