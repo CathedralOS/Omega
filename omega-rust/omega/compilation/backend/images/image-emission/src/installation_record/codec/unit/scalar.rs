@@ -3,13 +3,16 @@
 
 use machine_code::{
     UnitAffineScalarRecordEstablishmentRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord,
+    UnitScalarParameterLocationRecord,
 };
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 
-use crate::installation_record::codec::value_placement::{decode_shape, encode_shape};
+use crate::installation_record::codec::value_placement::{
+    decode_shape, encode_shape, register_tag,
+};
 use crate::installation_record::{
     InstallationError, Reader, push_u16, push_u32, push_u64, push_u128,
 };
@@ -47,6 +50,29 @@ pub(crate) fn decode_integer_type(
     }
     IntegerType::new(sign, bits)
         .map_err(|_| InstallationError::UnsupportedInstalledFixedIntegerType)
+}
+
+pub(crate) fn encode_unit_scalar_parameter_location(
+    bytes: &mut Vec<u8>,
+    location: UnitScalarParameterLocationRecord,
+) -> Result<(), InstallationError> {
+    match location {
+        UnitScalarParameterLocationRecord::Register(register) => {
+            bytes.push(0);
+            bytes.push(register_tag(register)?);
+            bytes.extend_from_slice(&[0; 2]);
+            push_u32(bytes, 0);
+        }
+        UnitScalarParameterLocationRecord::IncomingStack { byte_offset } => {
+            bytes.extend_from_slice(&[1, 0, 0, 0]);
+            push_u32(bytes, byte_offset);
+        }
+        UnitScalarParameterLocationRecord::FrameSpill { byte_offset } => {
+            bytes.extend_from_slice(&[2, 0, 0, 0]);
+            push_u32(bytes, byte_offset);
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn encode_scalar_type(

@@ -16,9 +16,10 @@ use crate::installation_record::codec::{
     unit::scalar::{
         decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
         encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
+        encode_unit_scalar_parameter_location,
     },
+    value_placement::decode_register,
     value_placement::{decode_direct_placement, encode_direct_placement},
-    value_placement::{decode_register, register_tag},
     wire::decode_boolean,
 };
 use crate::installation_record::{
@@ -155,22 +156,7 @@ pub(crate) fn encode_argument_source(
             push_u32(bytes, parameter_index);
             push_u64(bytes, source_value.get());
             encode_scalar_type(bytes, scalar_type)?;
-            match location {
-                machine_code::UnitScalarParameterLocationRecord::Register(register) => {
-                    bytes.push(0);
-                    bytes.push(register_tag(register)?);
-                    bytes.extend_from_slice(&[0; 2]);
-                    push_u32(bytes, 0);
-                }
-                machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset } => {
-                    bytes.extend_from_slice(&[1, 0, 0, 0]);
-                    push_u32(bytes, byte_offset);
-                }
-                machine_code::UnitScalarParameterLocationRecord::FrameSpill { byte_offset } => {
-                    bytes.extend_from_slice(&[2, 0, 0, 0]);
-                    push_u32(bytes, byte_offset);
-                }
-            }
+            encode_unit_scalar_parameter_location(bytes, location)?;
         }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,

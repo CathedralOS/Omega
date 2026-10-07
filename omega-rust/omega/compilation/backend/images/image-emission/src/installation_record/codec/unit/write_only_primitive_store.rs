@@ -16,11 +16,10 @@ use crate::installation_record::codec::{
     unit::scalar::{
         decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
         encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
+        encode_unit_scalar_parameter_location,
     },
     unit::structural_scalar_field_store::{decode_destination, encode_destination},
-    value_placement::{
-        decode_direct_placement, decode_register, encode_direct_placement, register_tag,
-    },
+    value_placement::{decode_direct_placement, decode_register, encode_direct_placement},
 };
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u32, push_u64};
 
@@ -132,22 +131,7 @@ fn encode_source(
             push_u32(bytes, parameter_index);
             push_u64(bytes, source_value.get());
             encode_scalar_type(bytes, scalar_type)?;
-            match location {
-                UnitScalarParameterLocationRecord::Register(register) => {
-                    bytes.push(0);
-                    bytes.push(register_tag(register)?);
-                    bytes.extend_from_slice(&[0; 2]);
-                    push_u32(bytes, 0);
-                }
-                UnitScalarParameterLocationRecord::IncomingStack { byte_offset } => {
-                    bytes.extend_from_slice(&[1, 0, 0, 0]);
-                    push_u32(bytes, byte_offset);
-                }
-                UnitScalarParameterLocationRecord::FrameSpill { byte_offset } => {
-                    bytes.extend_from_slice(&[2, 0, 0, 0]);
-                    push_u32(bytes, byte_offset);
-                }
-            }
+            encode_unit_scalar_parameter_location(bytes, location)?;
         }
         UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
             defining_operation,
