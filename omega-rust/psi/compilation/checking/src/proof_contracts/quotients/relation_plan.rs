@@ -514,6 +514,43 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
+/// The shared gate for a direct-lift derivation: it runs only absent an
+/// explicit transport, and only once every prerequisite evidence slot is
+/// populated. `derive` receives the four populated prerequisites.
+#[allow(clippy::type_complexity)]
+fn transport_gated_derivation<T>(
+    has_explicit_transport: bool,
+    runtime: Option<&DirectLiftRuntimeCorrespondence>,
+    public: Option<&RepresentativePreconditionPartition>,
+    representative_partition: Option<&RepresentativePreconditionPartition>,
+    verified_theorem: Option<&VerifiedTheoremSchema>,
+    derive: impl FnOnce(
+        &DirectLiftRuntimeCorrespondence,
+        &RepresentativePreconditionPartition,
+        &RepresentativePreconditionPartition,
+        &VerifiedTheoremSchema,
+    ) -> Result<T, RelationPlanError>,
+) -> Result<Option<T>, RelationPlanError> {
+    Ok(
+        match (
+            has_explicit_transport,
+            runtime,
+            public,
+            representative_partition,
+            verified_theorem,
+        ) {
+            (
+                false,
+                Some(runtime),
+                Some(public),
+                Some(representative_partition),
+                Some(verified_theorem),
+            ) => Some(derive(runtime, public, representative_partition, verified_theorem)?),
+            _ => None,
+        },
+    )
+}
+
     let has_runtime_correspondence =
         direct_lift_correspondence.is_some() || define_correspondence.is_some();
     let representative_precondition = has_runtime_correspondence
@@ -559,58 +596,46 @@ pub(super) fn derive_direct_terminal_plan(
         }
         _ => None,
     };
-    let direct_lift_precondition_implication = match (
+    let direct_lift_precondition_implication = transport_gated_derivation(
         has_explicit_transport,
         direct_lift_correspondence.as_ref(),
         public_precondition.as_ref(),
         representative_precondition.as_ref(),
         theorem_schema_verification.as_ref().ok(),
-    ) {
-        (
-            false,
-            Some(runtime),
-            Some(public),
-            Some(representative_partition),
-            Some(verified_theorem),
-        ) => Some(derive_direct_lift_precondition_implication(
-            program,
-            machine,
-            state,
-            &representative,
-            public,
-            representative_partition,
-            runtime,
-            &expected_theorem_schema,
-            verified_theorem,
-        )?),
-        _ => None,
-    };
-    let fixed_representative_call_preconditions = match (
+        |runtime, public, representative_partition, verified_theorem| {
+            derive_direct_lift_precondition_implication(
+                program,
+                machine,
+                state,
+                &representative,
+                public,
+                representative_partition,
+                runtime,
+                &expected_theorem_schema,
+                verified_theorem,
+            )
+        },
+    )?;
+    let fixed_representative_call_preconditions = transport_gated_derivation(
         has_explicit_transport,
         direct_lift_correspondence.as_ref(),
         public_precondition.as_ref(),
         representative_precondition.as_ref(),
         theorem_schema_verification.as_ref().ok(),
-    ) {
-        (
-            false,
-            Some(runtime),
-            Some(public),
-            Some(representative_partition),
-            Some(verified_theorem),
-        ) => Some(derive_fixed_representative_call_preconditions(
-            program,
-            machine,
-            state,
-            &representative,
-            public,
-            representative_partition,
-            runtime,
-            &expected_theorem_schema,
-            verified_theorem,
-        )?),
-        _ => None,
-    };
+        |runtime, public, representative_partition, verified_theorem| {
+            derive_fixed_representative_call_preconditions(
+                program,
+                machine,
+                state,
+                &representative,
+                public,
+                representative_partition,
+                runtime,
+                &expected_theorem_schema,
+                verified_theorem,
+            )
+        },
+    )?;
     let transport_schema_verification = match (
         has_explicit_transport,
         direct_lift_correspondence.as_ref(),
