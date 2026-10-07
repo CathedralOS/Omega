@@ -555,7 +555,7 @@ fn hash_claim_source(digest: &mut Sha256, source: &CompletionClaimSource) {
     }
 }
 
-fn hash_internal_scalar_argument_source(
+pub(super) fn hash_internal_scalar_argument_source(
     digest: &mut Sha256,
     source: &machine_code::InternalUnitScalarArgumentSourceRecord,
 ) {

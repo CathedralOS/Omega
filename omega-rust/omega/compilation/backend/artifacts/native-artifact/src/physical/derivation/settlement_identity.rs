@@ -4,9 +4,9 @@
 use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::hashing::{
-    canonical_usize, hash_boundary_settlement_record, hash_bytes, hash_port_effect_record,
-    hash_structural_argument, hash_structural_parameter_declaration, hash_structural_path,
-    hash_sum_layout, hash_target,
+    canonical_usize, hash_boundary_settlement_record, hash_bytes,
+    hash_internal_scalar_argument_source, hash_port_effect_record, hash_structural_argument,
+    hash_structural_parameter_declaration, hash_structural_path, hash_sum_layout, hash_target,
 };
 use crate::{
     CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
@@ -80,96 +80,10 @@ fn hash_builtin_scalar_argument(
         }
         CompilerBuiltinScalarArgument::RuntimeScalar(scalar_argument) => {
             digest.update(scalar_argument.parameter_index.to_le_bytes());
-            hash_runtime_scalar_source(digest, &scalar_argument.source);
+            hash_internal_scalar_argument_source(digest, &scalar_argument.source);
         }
     }
     Ok(())
-}
-
-fn hash_runtime_scalar_source(
-    digest: &mut Sha256,
-    source: &machine_code::InternalUnitScalarArgumentSourceRecord,
-) {
-    match source {
-        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
-            source_value,
-            instruction,
-            ..
-        } => {
-            digest.update([6]);
-            digest.update(source_value.get().to_le_bytes());
-            digest.update(instruction.0.to_le_bytes());
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
-            source_value,
-            instruction,
-            ..
-        } => {
-            digest.update([5]);
-            digest.update(source_value.get().to_le_bytes());
-            digest.update(instruction.0.to_le_bytes());
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
-            source_value,
-            instruction,
-            scratch_byte_offset,
-            ..
-        } => {
-            digest.update([4]);
-            digest.update(source_value.get().to_le_bytes());
-            digest.update(instruction.0.to_le_bytes());
-            digest.update(scratch_byte_offset.to_le_bytes());
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
-            parameter_index,
-            source_value,
-            ..
-        } => {
-            digest.update([0]);
-            digest.update(parameter_index.to_le_bytes());
-            digest.update(source_value.get().to_le_bytes());
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-            defining_operation,
-            source_value,
-            value,
-            ..
-        } => {
-            digest.update([1]);
-            digest.update(defining_operation.get().to_le_bytes());
-            digest.update(source_value.get().to_le_bytes());
-            match value {
-                semantic_vocabulary::IntegerValue::Signed(value) => {
-                    digest.update(value.to_le_bytes())
-                }
-                semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                    digest.update(value.to_le_bytes())
-                }
-            }
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
-            defining_operation,
-            source_value,
-            value,
-            definition_ordinal,
-        } => {
-            digest.update([3]);
-            digest.update(defining_operation.get().to_le_bytes());
-            digest.update(source_value.get().to_le_bytes());
-            digest.update([u8::from(*value)]);
-            digest.update(
-                u64::try_from(*definition_ordinal)
-                    .expect("validated definition ordinal is u64-representable")
-                    .to_le_bytes(),
-            );
-        }
-        machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
-            digest.update([2]);
-            digest.update(home.defining_operation.get().to_le_bytes());
-            digest.update(home.source_value.get().to_le_bytes());
-            digest.update(home.byte_offset.to_le_bytes());
-        }
-    }
 }
 
 fn hash_builtin_structural_result(
