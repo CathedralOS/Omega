@@ -2,6 +2,7 @@
 //! bindings, and exact emitted spans and relocation fields. Fragment publication
 //! rejoins its retained call custody before those checks continue.
 
+mod covered_intervals;
 mod floating_control;
 mod fragment_custody;
 
@@ -17,13 +18,9 @@ use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::physical::derivation::evidence::physical_child_identity;
-use crate::physical::derivation::evidence::ranges_overlap;
-use crate::physical::derivation::evidence::span;
 use crate::physical::derivation::foreign_calls::fragment_custody::fragment_normalized_foreign_rejoin;
-use crate::physical::derivation::hashing::sha256;
 use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
 use crate::physical::fragment_publication::FragmentPublicationBinding;
-use crate::physical::native_byte_span;
 use crate::physical::normalized_foreign_call_import_field;
 use crate::physical::normalized_foreign_call_relocation;
 use crate::physical::normalized_foreign_callback_relocation;
@@ -625,24 +622,14 @@ pub(crate) fn derive_normalized_foreign_child(
                 && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
         })
         .collect::<Vec<_>>();
-    let [attribution] = matching_attributions.as_slice() else {
-        return Err("normalized foreign D41 child does not rejoin one emitted operation interval");
-    };
-    let code_offset = attribution.attribution.code_offset;
-    let byte_count = attribution.attribution.byte_count;
-    let object_offset = attribution.text_offset;
-    if byte_count == 0
-        || function
-            .text_offset
-            .checked_add(code_offset)
-            .filter(|offset| *offset == object_offset)
-            .is_none()
-    {
-        return Err("normalized foreign D41 child has a detached emitted operation interval");
-    }
-    let object_end = object_offset
-        .checked_add(byte_count)
-        .ok_or("normalized foreign D41 object end overflow")?;
+    let intervals =
+        covered_intervals::CoveredInvocationIntervals::derive(function, &matching_attributions)?;
+    intervals.require_invocation(
+        fragment_rejoin.map(|rejoin| rejoin.call_span),
+        target.architecture,
+        foreign,
+        object.text_bytes(),
+    )?;
     let expected_kind = match target.architecture {
         Architecture::X86_64 => RelocationKind::X86_64Relative32,
         Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
@@ -657,12 +644,7 @@ pub(crate) fn derive_normalized_foreign_child(
         }
         if object.relocations().records().any(|(_, relocation)| {
             relocation.section == SectionKind::Text
-                && ranges_overlap(
-                    object_offset,
-                    object_end,
-                    relocation.offset,
-                    relocation.offset.saturating_add(relocation.byte_width),
-                )
+                && intervals.overlaps_object_span(relocation.offset, relocation.byte_width)
         }) {
             return Err("kernel entry contains an unexpected relocation");
         }
@@ -706,12 +688,9 @@ pub(crate) fn derive_normalized_foreign_child(
                 .iter()
                 .filter(|candidate| {
                     usize::try_from(candidate.resolution.field_section_offset).is_ok_and(|offset| {
-                        ranges_overlap(
-                            object_offset,
-                            object_end,
+                        intervals.overlaps_object_span(
                             offset,
-                            offset
-                                .saturating_add(usize::from(candidate.resolution.field_byte_width)),
+                            usize::from(candidate.resolution.field_byte_width),
                         )
                     })
                 })
@@ -722,21 +701,18 @@ pub(crate) fn derive_normalized_foreign_child(
                 );
             };
             if !std::ptr::eq(*sole_field, field_record)
-                || field_offset < object_offset
-                || field_offset
-                    .checked_add(field_byte_width)
-                    .is_none_or(|end| end > object_end)
+                || !intervals.contains_object_span(field_offset, field_byte_width)
             {
                 return Err(
                     "normalized foreign selected import field lies outside its invocation interval",
                 );
             }
-            let field_start = field_offset
-                .checked_sub(object_offset)
-                .expect("import field verified inside the operation interval");
+            let field_end = field_offset
+                .checked_add(field_byte_width)
+                .ok_or("normalized foreign import field end overflow")?;
             if field.callback_materializations.is_empty() {
                 (
-                    vec![(field_start, field_start + field_byte_width)],
+                    vec![(field_offset, field_end)],
                     PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(
                         normalized_foreign_call_import_field(
                             locator.identity_digest().as_bytes(),
@@ -863,7 +839,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 // private-function fields the final image binds — each 4-byte field
                 // inside the operation interval is mutable alongside the import
                 // field.
-                let mut mutable_intervals = vec![(field_start, field_start + field_byte_width)];
+                let mut mutable_intervals = vec![(field_offset, field_end)];
                 for callback in &field.callback_materializations {
                     let patch_section_offsets: [u64; 2] = match callback.encoding {
                         machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
@@ -886,17 +862,17 @@ pub(crate) fn derive_normalized_foreign_child(
                         let patch_start = usize::try_from(patch_section_offset).map_err(
                         |_| "normalized foreign D41 callback field offset does not fit this target",
                     )?;
-                        if patch_start < object_offset
-                            || patch_start
-                                .checked_add(4)
-                                .is_none_or(|end| end > object_end)
-                        {
+                        if !intervals.contains_object_span(patch_start, 4) {
                             return Err(
                                 "normalized foreign callback relocation crosses its invocation interval",
                             );
                         }
-                        mutable_intervals
-                            .push((patch_start - object_offset, patch_start - object_offset + 4));
+                        mutable_intervals.push((
+                            patch_start,
+                            patch_start
+                                .checked_add(4)
+                                .ok_or("callback relocation end overflow")?,
+                        ));
                     }
                 }
                 (
@@ -934,12 +910,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .map(|(_, relocation)| relocation)
                 .filter(|relocation| {
                     relocation.section == SectionKind::Text
-                        && ranges_overlap(
-                            object_offset,
-                            object_end,
-                            relocation.offset,
-                            relocation.offset.saturating_add(relocation.byte_width),
-                        )
+                        && intervals.overlaps_object_span(relocation.offset, relocation.byte_width)
                 })
                 .collect::<Vec<_>>();
             let expected_origin = foreign_relocation_origin(function.symbol, invocation_site);
@@ -968,11 +939,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         callback.target.callback_function,
                     )
                     .ok_or("normalized foreign D41 callback lost its private object symbol")?;
-                    let callback_end = callback
-                        .code_offset
-                        .checked_add(callback.byte_count)
-                        .ok_or("normalized foreign D41 callback materialization span overflow")?;
-                    if callback.code_offset < object_offset || callback_end > object_end {
+                    if !intervals.contains_object_span(callback.code_offset, callback.byte_count) {
                         return Err(
                             "normalized foreign D41 callback materialization left its operation interval",
                         );
@@ -1041,11 +1008,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .sum::<usize>();
             if overlapping_relocations.len() != expected_relocation_count
                 || overlapping_relocations.iter().any(|relocation| {
-                    relocation.offset < object_offset
-                        || relocation
-                            .offset
-                            .checked_add(relocation.byte_width)
-                            .is_none_or(|end| end > object_end)
+                    !intervals.contains_object_span(relocation.offset, relocation.byte_width)
                 })
             {
                 return Err(
@@ -1055,18 +1018,13 @@ pub(crate) fn derive_normalized_foreign_child(
             let mutable_intervals = overlapping_relocations
                 .iter()
                 .map(|relocation| {
-                    let start = relocation
+                    let end = relocation
                         .offset
-                        .checked_sub(object_offset)
-                        .ok_or("normalized foreign D41 relocation precedes its operation span")?;
-                    let end = start
                         .checked_add(relocation.byte_width)
-                        .ok_or("normalized foreign D41 relocation span overflow")?;
-                    (end <= byte_count)
-                        .then_some((start, end))
-                        .ok_or("normalized foreign D41 relocation exceeds its operation span")
+                        .ok_or("normalized foreign relocation end overflow")?;
+                    Ok((relocation.offset, end))
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>, &'static str>>()?;
             (
                 mutable_intervals,
                 PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
@@ -1087,28 +1045,12 @@ pub(crate) fn derive_normalized_foreign_child(
         }
     };
 
-    let machine_span = native_byte_span(code_offset, byte_count);
-    let object_span = native_byte_span(object_offset, byte_count);
-    let final_image_span = object_span;
-    let machine_bytes = span(function.bytes(object), machine_span)?;
-    let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
-    if machine_bytes != object_bytes {
-        return Err("normalized foreign D41 child changed before object custody");
-    }
-    if object_bytes
-        .iter()
-        .zip(final_image_bytes)
-        .enumerate()
-        .any(|(index, (before, after))| {
-            before != after
-                && !mutable_intervals
-                    .iter()
-                    .any(|(start, end)| index >= *start && index < *end)
-        })
-    {
-        return Err("normalized foreign D41 bytes changed outside its exact relocation set");
-    }
+    let byte_digests = intervals.replay_bytes(
+        function.bytes(object),
+        object.text_bytes(),
+        &image.final_text_bytes,
+        &mutable_intervals,
+    )?;
 
     let realization = foreign.binding.clone();
     let role = BoundaryTraitSettlementRole::AdmittedProvider {
@@ -1137,17 +1079,17 @@ pub(crate) fn derive_normalized_foreign_child(
         }
         .into(),
     );
-    let machine_bytes_digest = sha256(machine_bytes);
-    let object_bytes_digest = sha256(object_bytes);
-    let final_image_bytes_digest = sha256(final_image_bytes);
+    let machine_bytes_digest = byte_digests.machine;
+    let object_bytes_digest = byte_digests.object;
+    let final_image_bytes_digest = byte_digests.final_image;
     let physical_occurrence = NativePhysicalOccurrence::Boundary(occurrence.identity());
     let identity = physical_child_identity(
         &parent,
         projection,
         physical_occurrence,
-        machine_span,
-        object_span,
-        final_image_span,
+        &intervals.machine,
+        &intervals.object,
+        &intervals.final_image,
         machine_bytes_digest,
         object_bytes_digest,
         final_image_bytes_digest,
@@ -1158,9 +1100,9 @@ pub(crate) fn derive_normalized_foreign_child(
             parent,
             projection,
             occurrence: physical_occurrence,
-            machine_span,
-            object_span,
-            final_image_span,
+            machine_spans: intervals.machine,
+            object_spans: intervals.object,
+            final_image_spans: intervals.final_image,
             machine_bytes_digest,
             object_bytes_digest,
             final_image_bytes_digest,

@@ -390,9 +390,9 @@ pub(crate) fn derive_physical_evidence(
             &parent,
             projection.identity(),
             physical_occurrence,
-            span.machine,
-            span.object,
-            span.final_image,
+            &[span.machine],
+            &[span.object],
+            &[span.final_image],
             span.machine_bytes_digest,
             span.object_bytes_digest,
             span.final_image_bytes_digest,
@@ -403,9 +403,9 @@ pub(crate) fn derive_physical_evidence(
                 parent,
                 projection: projection.identity(),
                 occurrence: physical_occurrence,
-                machine_span: span.machine,
-                object_span: span.object,
-                final_image_span: span.final_image,
+                machine_spans: vec![span.machine],
+                object_spans: vec![span.object],
+                final_image_spans: vec![span.final_image],
                 machine_bytes_digest: span.machine_bytes_digest,
                 object_bytes_digest: span.object_bytes_digest,
                 final_image_bytes_digest: span.final_image_bytes_digest,
@@ -434,6 +434,9 @@ fn validate_exact_physical_children(
     projection: &NativeOptimizationProjection,
     children: &[NativePhysicalChild],
 ) -> Result<(), &'static str> {
+    for child in children {
+        validate_physical_child_spans(child)?;
+    }
     validate_exact_physical_child_coordinates(
         projection,
         children.iter().map(|child| PhysicalChildCoordinate {
@@ -637,24 +640,27 @@ pub(crate) fn physical_child_identity(
     parent: &PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
     occurrence: NativePhysicalOccurrence,
-    machine_span: NativeByteSpan,
-    object_span: NativeByteSpan,
-    final_image_span: NativeByteSpan,
+    machine_spans: &[NativeByteSpan],
+    object_spans: &[NativeByteSpan],
+    final_image_spans: &[NativeByteSpan],
     machine_bytes_digest: [u8; 32],
     object_bytes_digest: [u8; 32],
     final_image_bytes_digest: [u8; 32],
     relocation: &PhysicalRelocationDisposition,
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-physical-child.sha256.v2\0");
+    digest.update(b"omega.native-physical-child.sha256.v3\0");
     digest.update([parent.role_tag()]);
     digest.update(parent.identity());
     digest.update(projection.bytes());
     digest.update([occurrence.role_tag()]);
     digest.update(occurrence.identity());
-    for span in [machine_span, object_span, final_image_span] {
-        digest.update(canonical_usize(span.offset()));
-        digest.update(canonical_usize(span.byte_count()));
+    for spans in [machine_spans, object_spans, final_image_spans] {
+        digest.update(canonical_usize(spans.len()));
+        for span in spans {
+            digest.update(canonical_usize(span.offset()));
+            digest.update(canonical_usize(span.byte_count()));
+        }
     }
     digest.update(machine_bytes_digest);
     digest.update(object_bytes_digest);
@@ -765,4 +771,47 @@ pub(crate) fn ranges_overlap(
     right_end: usize,
 ) -> bool {
     left_start < right_end && right_start < left_end
+}
+
+/// Each child retains a canonical covered union in each coordinate domain.
+/// Its intervals have equal lengths across custody boundaries; no hull is
+/// permitted to claim compiler-only bytes between authored intervals.
+fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'static str> {
+    let domains = [
+        child.machine_spans(),
+        child.object_spans(),
+        child.final_image_spans(),
+    ];
+    if domains[0].is_empty() || domains.iter().any(|spans| spans.len() != domains[0].len()) {
+        return Err("native physical child has inconsistent covered span inventories");
+    }
+    for spans in domains {
+        let mut previous_end = None;
+        for span in spans {
+            let end = span
+                .offset()
+                .checked_add(span.byte_count())
+                .ok_or("native physical child span end overflow")?;
+            if span.byte_count() == 0
+                || previous_end.is_some_and(|previous| previous >= span.offset())
+            {
+                return Err(
+                    "native physical child spans are empty, unordered, overlapping or nonmaximal",
+                );
+            }
+            previous_end = Some(end);
+        }
+    }
+    if domains[0]
+        .iter()
+        .zip(domains[1])
+        .zip(domains[2])
+        .any(|((machine, object), image)| {
+            machine.byte_count() != object.byte_count()
+                || machine.byte_count() != image.byte_count()
+        })
+    {
+        return Err("native physical child span lengths differ across custody domains");
+    }
+    Ok(())
 }

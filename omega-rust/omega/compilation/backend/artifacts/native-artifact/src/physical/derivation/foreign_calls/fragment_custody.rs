@@ -24,6 +24,7 @@ pub(super) struct FragmentForeignCallRejoin<'a> {
         &'a object_file::RelocationFreeObjectNormalizedImport,
     )>,
     pub(super) record: &'a selected_instructions::SelectedNormalizedForeignCall,
+    pub(super) call_span: &'a machine_code::PlacedInstructionSpan,
 }
 
 /// Independently replays the custody projection's join: the unique unresolved
@@ -89,6 +90,23 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     {
         return Err("normalized foreign completion lost its containment trap");
     }
+    let mut fragments = publication
+        .text_section()
+        .functions
+        .iter()
+        .filter(|fragment| fragment.machine == occurrence.machine());
+    let (Some(fragment), None) = (fragments.next(), fragments.next()) else {
+        return Err("normalized foreign call lacks one placed caller");
+    };
+    let mut spans = fragment
+        .blocks
+        .iter()
+        .filter(|placed| placed.block == block.id)
+        .flat_map(|placed| &placed.instructions)
+        .filter(|span| span.instruction == instruction.id);
+    let (Some(call_span), None) = (spans.next(), spans.next()) else {
+        return Err("normalized foreign call lacks one placed instruction span");
+    };
     let mut fields = plan
         .unresolved_normalized_foreign_calls
         .iter()
@@ -99,7 +117,10 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     let import = match (record.call.binding.import(), fields.next(), fields.next()) {
         (Some(_), Some(field), None) => {
             let resolution = &field.resolution;
-            if resolution.boundary != occurrence.boundary()
+            if resolution.call_function_offset != call_span.function_offset
+                || resolution.call_section_offset != call_span.section_offset
+                || resolution.call_byte_count != call_span.byte_count
+                || resolution.boundary != occurrence.boundary()
                 || resolution.instruction != instruction.id
                 || resolution.block != block.id
                 || usize::try_from(resolution.ordinal) != Ok(ordinal)
@@ -217,7 +238,11 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     {
         return Err("normalized foreign D41 roster row drifted from its projected custody");
     }
-    Ok(FragmentForeignCallRejoin { import, record })
+    Ok(FragmentForeignCallRejoin {
+        import,
+        record,
+        call_span,
+    })
 }
 
 /// Rejoins one roster row's scalar-argument lane against its projected

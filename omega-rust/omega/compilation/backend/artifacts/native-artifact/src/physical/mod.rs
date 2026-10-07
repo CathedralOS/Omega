@@ -661,14 +661,17 @@ impl NativePhysicalOccurrence {
     }
 }
 
+/// One occurrence's exact ordered covered union. Allocation may insert
+/// compiler-only instructions between its ABI transport and result capture;
+/// those gaps are excluded rather than absorbed into a semantic span hull.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePhysicalChild {
     parent: PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
     occurrence: NativePhysicalOccurrence,
-    machine_span: NativeByteSpan,
-    object_span: NativeByteSpan,
-    final_image_span: NativeByteSpan,
+    machine_spans: Vec<NativeByteSpan>,
+    object_spans: Vec<NativeByteSpan>,
+    final_image_spans: Vec<NativeByteSpan>,
     machine_bytes_digest: [u8; 32],
     object_bytes_digest: [u8; 32],
     final_image_bytes_digest: [u8; 32],
@@ -689,16 +692,17 @@ impl NativePhysicalChild {
         self.occurrence
     }
 
-    pub const fn machine_span(&self) -> NativeByteSpan {
-        self.machine_span
+    /// Ordered exact covered intervals; compiler-only gaps are not source work.
+    pub fn machine_spans(&self) -> &[NativeByteSpan] {
+        &self.machine_spans
     }
 
-    pub const fn object_span(&self) -> NativeByteSpan {
-        self.object_span
+    pub fn object_spans(&self) -> &[NativeByteSpan] {
+        &self.object_spans
     }
 
-    pub const fn final_image_span(&self) -> NativeByteSpan {
-        self.final_image_span
+    pub fn final_image_spans(&self) -> &[NativeByteSpan] {
+        &self.final_image_spans
     }
 
     pub const fn relocation(&self) -> &PhysicalRelocationDisposition {
@@ -714,9 +718,9 @@ impl NativePhysicalChild {
             parent: self.parent,
             projection: self.projection,
             occurrence: self.occurrence,
-            machine_span: self.machine_span,
-            object_span: self.object_span,
-            final_image_span: self.final_image_span,
+            machine_spans: self.machine_spans,
+            object_spans: self.object_spans,
+            final_image_spans: self.final_image_spans,
             machine_bytes_digest: self.machine_bytes_digest,
             object_bytes_digest: self.object_bytes_digest,
             final_image_bytes_digest: self.final_image_bytes_digest,
@@ -795,9 +799,9 @@ pub struct NativePhysicalChildParts {
     pub parent: PhysicalChildParent,
     pub projection: NativeOptimizationProjectionIdentity,
     pub occurrence: NativePhysicalOccurrence,
-    pub machine_span: NativeByteSpan,
-    pub object_span: NativeByteSpan,
-    pub final_image_span: NativeByteSpan,
+    pub machine_spans: Vec<NativeByteSpan>,
+    pub object_spans: Vec<NativeByteSpan>,
+    pub final_image_spans: Vec<NativeByteSpan>,
     pub machine_bytes_digest: [u8; 32],
     pub object_bytes_digest: [u8; 32],
     pub final_image_bytes_digest: [u8; 32],
@@ -982,9 +986,9 @@ impl From<NativePhysicalChildParts> for NativePhysicalChild {
             parent: parts.parent,
             projection: parts.projection,
             occurrence: parts.occurrence,
-            machine_span: parts.machine_span,
-            object_span: parts.object_span,
-            final_image_span: parts.final_image_span,
+            machine_spans: parts.machine_spans,
+            object_spans: parts.object_spans,
+            final_image_spans: parts.final_image_spans,
             machine_bytes_digest: parts.machine_bytes_digest,
             object_bytes_digest: parts.object_bytes_digest,
             final_image_bytes_digest: parts.final_image_bytes_digest,
