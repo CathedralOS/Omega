@@ -1,4 +1,4 @@
-use crate::proof::assumption_proof;
+use crate::proof::{assumption_proof, semantic_axiom_proof};
 use crate::{ProofNode, ProofRule, check_certificate, lift_fixed_integer_relation};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
@@ -31,10 +31,7 @@ fn fixture(
         conclusion: order(1, 3, true),
         rule: ProofRule::IntegerStrictOrderTransitivity {
             left_to_middle: Box::new(assumption_proof(premises[0].clone(), 0)),
-            middle_to_right: Box::new(ProofNode {
-                conclusion: premises[1].clone(),
-                rule: ProofRule::SemanticAxiom { index: 0 },
-            }),
+            middle_to_right: Box::new(semantic_axiom_proof(premises[1].clone(), 0)),
         },
     };
     (context, premises, proof)

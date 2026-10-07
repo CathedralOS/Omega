@@ -518,7 +518,7 @@ mod order_substitution_tests;
 
 #[cfg(test)]
 mod tests {
-    use crate::proof::assumption_proof;
+    use crate::proof::{assumption_proof, semantic_axiom_proof};
     use semantic_vocabulary::{IntegerMathTerm, IntegerValue, ScalarTerm};
 
     use super::{
@@ -557,14 +557,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: Proposition::LessOrEqual(destination, ceiling),
             rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: axioms[0].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
-                equalities: vec![ProofNode {
-                    conclusion: axioms[1].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                }],
+                premise: Box::new(semantic_axiom_proof(axioms[0].clone(), 0)),
+                equalities: vec![semantic_axiom_proof(axioms[1].clone(), 1)],
             },
         };
         (context, axioms, proof)
@@ -789,10 +783,10 @@ mod tests {
         let weakened = ProofNode {
             conclusion: negative_one_bound,
             rule: ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(ProofNode {
-                    conclusion: negative_two_bound.clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
+                left_less_or_equal_middle: Box::new(semantic_axiom_proof(
+                    negative_two_bound.clone(),
+                    0,
+                )),
                 middle_less_or_equal_right: Box::new(ProofNode {
                     conclusion: Proposition::LessOrEqual(literal(-2), literal(-1)),
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
@@ -955,10 +949,7 @@ mod tests {
                     conclusion: positive_literal,
                     rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
                 }),
-                equality: Box::new(ProofNode {
-                    conclusion: positive_equality.clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
+                equality: Box::new(semantic_axiom_proof(positive_equality.clone(), 0)),
                 endpoint: 1,
             },
         };
@@ -1526,14 +1517,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: axioms[0].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: axioms[1].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                }),
+                left_equals_middle: Box::new(semantic_axiom_proof(axioms[0].clone(), 0)),
+                middle_equals_right: Box::new(semantic_axiom_proof(axioms[1].clone(), 1)),
             },
         };
         let context = PropositionContext::from_value_types([
@@ -1602,14 +1587,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: axioms[0].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: axioms[1].clone(),
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                }),
+                left_equals_middle: Box::new(semantic_axiom_proof(axioms[0].clone(), 0)),
+                middle_equals_right: Box::new(semantic_axiom_proof(axioms[1].clone(), 1)),
             },
         };
         let context = PropositionContext::from_value_types_and_places(
@@ -1796,5 +1775,14 @@ pub(crate) fn assumption_proof(conclusion: Proposition, index: usize) -> ProofNo
     ProofNode {
         conclusion,
         rule: ProofRule::Assumption { index },
+    }
+}
+
+/// Build a leaf semantic-axiom `ProofNode` for tests.
+#[cfg(test)]
+pub(crate) fn semantic_axiom_proof(conclusion: Proposition, index: usize) -> ProofNode {
+    ProofNode {
+        conclusion,
+        rule: ProofRule::SemanticAxiom { index },
     }
 }

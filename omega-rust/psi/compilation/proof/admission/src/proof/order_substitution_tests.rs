@@ -3,6 +3,7 @@ use super::{
     lift_fixed_integer_relation,
 };
 use crate::PrimitiveJudgment;
+use crate::proof::semantic_axiom_proof;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType};
 
 fn fixture(
@@ -56,10 +57,7 @@ fn fixture(
             conclusion,
             rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(proof),
-                equality: Box::new(ProofNode {
-                    conclusion: equality,
-                    rule: ProofRule::SemanticAxiom { index: endpoint },
-                }),
+                equality: Box::new(semantic_axiom_proof(equality, endpoint)),
                 endpoint,
             },
         };

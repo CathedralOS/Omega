@@ -2942,7 +2942,7 @@ impl<'a> Elaboration<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::proof::assumption_proof;
+    use crate::proof::{assumption_proof, semantic_axiom_proof};
     use std::collections::BTreeSet;
 
     use semantic_vocabulary::{
@@ -3747,10 +3747,7 @@ mod tests {
                     conclusion: p.clone(),
                     rule: ProofRule::ImplicationElimination {
                         implication: Box::new(assumption_proof(implication, 0)),
-                        premise: Box::new(ProofNode {
-                            conclusion: p.clone(),
-                            rule: ProofRule::SemanticAxiom { index: 0 },
-                        }),
+                        premise: Box::new(semantic_axiom_proof(p.clone(), 0)),
                     },
                 }),
             },
@@ -4009,14 +4006,8 @@ mod tests {
             let proof = ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::EqualityTransitivity {
-                    left_equals_middle: Box::new(ProofNode {
-                        conclusion: first.clone(),
-                        rule: ProofRule::SemanticAxiom { index: 0 },
-                    }),
-                    middle_equals_right: Box::new(ProofNode {
-                        conclusion: second.clone(),
-                        rule: ProofRule::SemanticAxiom { index: 1 },
-                    }),
+                    left_equals_middle: Box::new(semantic_axiom_proof(first.clone(), 0)),
+                    middle_equals_right: Box::new(semantic_axiom_proof(second.clone(), 1)),
                 },
             };
             let denoted = verify_bounded_certificate(
@@ -4106,14 +4097,8 @@ mod tests {
         let transitivity = |first: Proposition, second: Proposition, goal: Proposition| ProofNode {
             conclusion: goal,
             rule: ProofRule::EqualityTransitivity {
-                left_equals_middle: Box::new(ProofNode {
-                    conclusion: first,
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
-                middle_equals_right: Box::new(ProofNode {
-                    conclusion: second,
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                }),
+                left_equals_middle: Box::new(semantic_axiom_proof(first, 0)),
+                middle_equals_right: Box::new(semantic_axiom_proof(second, 1)),
             },
         };
 
@@ -4177,14 +4162,8 @@ mod tests {
         let proof = ProofNode {
             conclusion: premise.clone(),
             rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: premise.clone(),
-                    rule: ProofRule::SemanticAxiom { index: 0 },
-                }),
-                equalities: vec![ProofNode {
-                    conclusion: equation.clone(),
-                    rule: ProofRule::SemanticAxiom { index: 1 },
-                }],
+                premise: Box::new(semantic_axiom_proof(premise.clone(), 0)),
+                equalities: vec![semantic_axiom_proof(equation.clone(), 1)],
             },
         };
         let denoted = verify_bounded_certificate(

@@ -1,4 +1,5 @@
 use super::{IntegerValue, Proposition, ScalarTerm, adjacent};
+use crate::proof::semantic_axiom_proof;
 use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId};
 
@@ -34,10 +35,7 @@ fn a_strict_bound_moves_one_literal_endpoint_inward() {
             let proof = ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::IntegerOrderDiscreteness {
-                    relation: Box::new(ProofNode {
-                        conclusion: premise.clone(),
-                        rule: ProofRule::SemanticAxiom { index: 0 },
-                    }),
+                    relation: Box::new(semantic_axiom_proof(premise.clone(), 0)),
                 },
             };
             check_certificate(&context, &goal, &[], std::slice::from_ref(&premise), &proof)

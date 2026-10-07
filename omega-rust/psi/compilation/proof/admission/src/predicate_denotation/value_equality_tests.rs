@@ -7,7 +7,7 @@ use super::{
     CheckedPredicateDenotations, PredicateDenotationError,
     check_predicate_denotations_with_value_equalities,
 };
-use crate::proof::assumption_proof;
+use crate::proof::{assumption_proof, semantic_axiom_proof};
 use crate::{PrimitiveJudgment, ProofNode, ProofRule};
 
 fn integer_type() -> IntegerType {
@@ -471,10 +471,7 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         conclusion: expected.clone(),
         rule: ProofRule::ValueEqualityTransport {
             premise: Box::new(assumption_proof(original.clone(), 0)),
-            equalities: vec![ProofNode {
-                conclusion: equation.clone(),
-                rule: ProofRule::SemanticAxiom { index: 0 },
-            }],
+            equalities: vec![semantic_axiom_proof(equation.clone(), 0)],
         },
     };
     crate::accept_certificate(
