@@ -243,6 +243,16 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual(crates["unreachable"],
                          {"name": "unreachable", "on_route": False})
 
+    def plan_first_session(self, manifest_path, route):
+        """command_plan under a fixed route; returns the first emitted session."""
+        with mock.patch.object(self.module, "route_crates", return_value=route), \
+                mock.patch.object(self.module, "emit") as emitted:
+            self.assertEqual(self.module.command_plan(
+                mock.Mock(manifest=str(manifest_path),
+                          skip_host_gates=True, skip_route_check=False),
+                self.repository), 0)
+            return emitted.call_args.args[0]["sessions"][0]
+
     def test_plan_scopes_off_route_rejection_to_compiler_crates(self):
         (self.repository / "tests" / "native-differential" / "Cargo.toml").parent.mkdir(
             parents=True)
@@ -263,13 +273,7 @@ class SwarmTests(unittest.TestCase):
             "tests/native-differential": {"name": "one", "on_route": False},
             "omega-rust/one": {"name": "one-compiler", "on_route": False},
         }
-        with mock.patch.object(self.module, "route_crates", return_value=route), \
-                mock.patch.object(self.module, "emit") as emitted:
-            self.assertEqual(self.module.command_plan(
-                mock.Mock(manifest=str(manifest_path),
-                          skip_host_gates=True, skip_route_check=False),
-                self.repository), 0)
-            planned = emitted.call_args.args[0]["sessions"][0]
+        planned = self.plan_first_session(manifest_path, route)
         freshness = {line["path"]: line for line in planned["freshness"]}
         self.assertFalse(freshness[
             "tests/native-differential/tests/scalar_case_results.rs"
@@ -291,13 +295,7 @@ class SwarmTests(unittest.TestCase):
 
         record["sessions"][0]["probe_only"] = True
         manifest_path.write_text(json.dumps(record), encoding="utf-8")
-        with mock.patch.object(self.module, "route_crates", return_value=route), \
-                mock.patch.object(self.module, "emit") as emitted:
-            self.assertEqual(self.module.command_plan(
-                mock.Mock(manifest=str(manifest_path),
-                          skip_host_gates=True, skip_route_check=False),
-                self.repository), 0)
-            planned = emitted.call_args.args[0]["sessions"][0]
+        planned = self.plan_first_session(manifest_path, route)
         freshness = {line["path"]: line for line in planned["freshness"]}
         self.assertFalse(freshness["omega-rust/one/src/lib.rs"]["on_route"])
         self.assertEqual(freshness["omega-rust/one/src/lib.rs"]["crate_name"],
