@@ -20,6 +20,26 @@ pub(crate) mod signature_free_requirements;
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 
+/// The kinds a top-level source name may resolve to — the lookup list
+/// selection checks share when they accept any visible declaration.
+pub(crate) const ANY_DECLARATION_LOOKUP_KINDS: &[symbols::SymbolKind] = &[
+        symbols::SymbolKind::Module,
+        symbols::SymbolKind::BuiltinType,
+        symbols::SymbolKind::BuiltinFunction,
+        symbols::SymbolKind::Data,
+        symbols::SymbolKind::Domain,
+        symbols::SymbolKind::Machine,
+        symbols::SymbolKind::Operator,
+        symbols::SymbolKind::Measure,
+        symbols::SymbolKind::Proposition,
+        symbols::SymbolKind::MathematicalDefinition,
+        symbols::SymbolKind::Trait,
+        symbols::SymbolKind::Conformance,
+        symbols::SymbolKind::Const,
+        symbols::SymbolKind::ConformanceParameter,
+        symbols::SymbolKind::WireSchema,
+    ];
+
 /// Move every top-level operator into its exact domain's operator family.
 /// Runs before symbol assignment.
 pub(crate) fn select_operator_homes(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {

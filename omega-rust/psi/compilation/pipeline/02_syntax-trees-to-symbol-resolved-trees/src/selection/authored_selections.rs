@@ -21,7 +21,7 @@ use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
-use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
+use symbols::{SymbolHandle, SymbolLookup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CandidateTarget {
@@ -983,23 +983,7 @@ fn expression_candidates(
                         .symbols
                         .lookup_top_level_by_name_and_kinds_from_source_matching(
                             call.target.as_str(),
-                            &[
-                                SymbolKind::Module,
-                                SymbolKind::BuiltinType,
-                                SymbolKind::BuiltinFunction,
-                                SymbolKind::Data,
-                                SymbolKind::Domain,
-                                SymbolKind::Machine,
-                                SymbolKind::Operator,
-                                SymbolKind::Measure,
-                                SymbolKind::Proposition,
-                                SymbolKind::MathematicalDefinition,
-                                SymbolKind::Trait,
-                                SymbolKind::Conformance,
-                                SymbolKind::Const,
-                                SymbolKind::ConformanceParameter,
-                                SymbolKind::WireSchema,
-                            ],
+                            super::ANY_DECLARATION_LOOKUP_KINDS,
                             call.target.source_span(),
                             |_| true,
                         ),
