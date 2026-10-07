@@ -180,7 +180,9 @@ struct CandidateAccesses {
 
 /// Resolve the slot every emitted store and reload names. Proposal and
 /// independent replay call this one routine on their own derived inputs so
-/// the resolution stays identical on both sides.
+/// the resolution stays identical on both sides. Without `reuse_slots` (the
+/// pass budget declined the search) no declared slot is a candidate, so every
+/// window resolves to the victim's private slot.
 pub(super) fn assign(
     function: &SelectedFunction,
     victim: VirtualRegisterId,
@@ -188,6 +190,7 @@ pub(super) fn assign(
     uses: &[BlockUsePositions],
     shared_reload: &[bool],
     span_closes: &[std::collections::BTreeSet<usize>],
+    reuse_slots: bool,
 ) -> Assignment {
     let private = LocalStorageSlotId::Spill { register: victim };
     let block_count = function.blocks.len();
@@ -428,7 +431,8 @@ pub(super) fn assign(
             .local_storage_slots
             .iter()
             .filter(|slot| {
-                slot.byte_size == 8
+                reuse_slots
+                    && slot.byte_size == 8
                     && slot.alignment == 8
                     && matches!(slot.id, LocalStorageSlotId::Spill { register } if register != victim)
             })

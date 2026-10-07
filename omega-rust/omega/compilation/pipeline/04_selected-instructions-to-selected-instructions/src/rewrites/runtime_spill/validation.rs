@@ -1229,7 +1229,10 @@ fn reconstruct<'source>(
     } else {
         Some(bits_transport(environment, victim, carrier_class)?)
     };
-    // The reuse check scans this function once per declared local slot.
+    // The slot-reuse search scans this function once per declared local
+    // slot. Reuse only shrinks the frame, so a search that alone would carry
+    // the pass over budget is declined rather than charged: every window then
+    // keeps the victim's private slot.
     let slot_scan = function
         .blocks
         .iter()
@@ -1278,7 +1281,6 @@ fn reconstruct<'source>(
                 sum.checked_add(block.instructions.len())?.checked_add(1)
             })?)
         })
-        .and_then(|total| total.checked_add(slot_scan))
         // The structural-argument check groups the memory accesses once, then
         // each pending binding walks its own access group. The establishment
         // pairing above scans them twice more — once for the `AddressLocal`
@@ -1293,11 +1295,16 @@ fn reconstruct<'source>(
             )
         })
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
+    let charged =
+        |steps: usize| u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow);
+    if charged(steps)? > budget.validation_steps() {
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }
+    let reuse_slots = steps
+        .checked_add(slot_scan)
+        .map(charged)
+        .transpose()?
+        .is_some_and(|total| total <= budget.validation_steps());
     require_dominated_uses(function, block_index, &use_blocks)?;
     let first_instruction = function
         .blocks
@@ -1609,6 +1616,7 @@ fn reconstruct<'source>(
         &use_positions,
         &shared_reload,
         &span_closes,
+        reuse_slots,
     );
     Ok(Reconstructed {
         function,
