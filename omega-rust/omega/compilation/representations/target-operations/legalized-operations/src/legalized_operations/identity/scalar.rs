@@ -51,10 +51,7 @@ pub(super) fn encode_bindings(bytes: &mut Vec<u8>, bindings: &[ValueBinding]) {
     }
 }
 
-pub(super) fn encode_scalar_type(
-    bytes: &mut Vec<u8>,
-    scalar_type: semantic_vocabulary::ScalarType,
-) {
+pub fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary::ScalarType) {
     match scalar_type {
         semantic_vocabulary::ScalarType::Boolean => bytes.push(0),
         semantic_vocabulary::ScalarType::Integer(integer) => {

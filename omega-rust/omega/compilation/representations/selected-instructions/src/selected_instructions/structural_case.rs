@@ -1,6 +1,6 @@
 //! Exact case custody and the physical transport of edge-produced payloads.
 use super::{LocalStorageSlotId, VirtualRegisterId};
-use legalized_operations::LegalizedStructuralCasePayload;
+use legalized_operations::{LegalizedStructuralCasePayload, encode_scalar_type};
 use optimization_unit::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 
@@ -124,30 +124,6 @@ impl SelectedStructuralCaseEdge {
         bytes.extend_from_slice(&(self.cleanup_actions.len() as u64).to_le_bytes());
         for action in &self.cleanup_actions {
             super::effects::program::identity::encode_cleanup(bytes, action);
-        }
-    }
-}
-fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary::ScalarType) {
-    match scalar_type {
-        semantic_vocabulary::ScalarType::Boolean => bytes.push(0),
-        semantic_vocabulary::ScalarType::Integer(integer) => {
-            bytes.push(1);
-            bytes.push(match integer.carrier() {
-                semantic_vocabulary::IntegerCarrier::Fixed => 0,
-                semantic_vocabulary::IntegerCarrier::Address => 1,
-            });
-            bytes.push(match integer.sign() {
-                semantic_vocabulary::IntegerSign::Signed => 0,
-                semantic_vocabulary::IntegerSign::Unsigned => 1,
-            });
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
-        }
-        semantic_vocabulary::ScalarType::IeeeFloat(format) => {
-            bytes.push(2);
-            bytes.push(match format {
-                semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
-                semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
-            });
         }
     }
 }

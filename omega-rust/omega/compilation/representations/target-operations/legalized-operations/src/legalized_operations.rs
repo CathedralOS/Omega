@@ -59,7 +59,8 @@ pub use control_flow::{
 pub mod identity;
 mod validation;
 pub use identity::{
-    encode_hosted_read_byte_identity, encode_register, legalized_operation_plan_identity,
+    encode_hosted_read_byte_identity, encode_register, encode_scalar_type,
+    legalized_operation_plan_identity,
 };
 pub use validation::LegalizedScalarCallShapeError;
 
