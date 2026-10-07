@@ -73,7 +73,23 @@ pub(crate) fn transport(
     {
         return None;
     }
-    let Some(root) = root_type(source, argument.place, argument.access) else {
+    // A whole bounded owner loan lends its completed owner's address whatever
+    // byte predicates that owner carries, as legalization's owner-source replay
+    // admits; the checked abstract unit, not selection, owns predicate admission.
+    let owner_home = || {
+        let (_, result) = crate::selection::aggregate_result_input::home(source, argument.place)?;
+        (argument.path.is_empty()
+            && abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
+                parameter,
+                &signature.structural_types,
+            )
+            && result.structural_type == parameter.structural_type
+            && result.claims.is_empty()
+            && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && result.projected_qualifications.is_empty())
+        .then_some(result.structural_type)
+    };
+    let Some(root) = root_type(source, argument.place, argument.access).or_else(owner_home) else {
         return None;
     };
     let Some((referent, byte_offset)) =

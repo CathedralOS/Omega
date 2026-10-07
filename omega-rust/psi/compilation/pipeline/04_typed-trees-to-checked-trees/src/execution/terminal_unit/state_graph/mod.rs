@@ -2165,6 +2165,12 @@ fn successor_bindings(
                             });
                         }
                     } else if let Some((local, result)) = local_subject() {
+                        // A mutable loan keeps the local's exact constrained
+                        // type: a bounded byte owner's represented predicates
+                        // (`[u8; N] in Utf8`) travel with it, and the
+                        // successor's declared qualifications must imply them
+                        // (argument presentation below). Checking proves each
+                        // store through the loan preserves the domain.
                         let mutable_local_loan = expected_access
                             == CheckedStructuralAccess::SharedBorrow
                             || ((local.is_mutable || !local.initial_value.is_valid())
@@ -2174,7 +2180,7 @@ fn successor_bindings(
                                 )
                                 && validation::has_contents(
                                     program,
-                                    local.type_reference, validation::ContentsRequirement::NumericOwned)
+                                    local.type_reference, validation::ContentsRequirement::RepresentedOwned)
                                 && !super::types::type_graph_requires_nominal_drop(
                                     program,
                                     local.type_reference,

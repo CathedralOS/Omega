@@ -619,7 +619,14 @@ fn normalized_source(
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        if projected_type(&resolved)? != expected {
+        // A fixed byte view arriving from its array's backing names that same
+        // storage (`borrowed_referent_matches`); differing carrier IDs do not
+        // imply different storage.
+        if !terminal_semantics::borrowed_referent_matches(
+            declarations.iter(),
+            projected_type(&resolved)?,
+            expected,
+        ) {
             return None;
         }
         roots.push(normalized_direct_source(

@@ -429,6 +429,8 @@ pass/capabilities/win64_large_aggregate_result_import_compile built 5916ms @4ffe
 pass/capabilities/win64_pointer_length_vs_descriptor_compile built 2970ms @53d5dde47ae5
 pass/capabilities/windows_provides_import_exit built 689ms @48008365d839
 pass/collections/array_local_control checked 213ms
+pass/collections/borrowed_byte_array_state_reads_exit built 1289ms exit:70 @ad48a872752b+wt
+pass/collections/borrowed_byte_array_state_writes_exit built 1368ms exit:70 @ad48a872752b+wt
 pass/collections/case_array_computed_index_match_exit built 1008ms exit:20 @48008365d839
 pass/collections/case_array_literal_callee_store_exit built 617ms exit:7 @48008365d839
 pass/collections/case_array_literal_field_store_exit built 796ms exit:42 @48008365d839
@@ -1449,6 +1451,7 @@ pass/text/nested_owned_byte_record_literal_exit built 1189ms exit:70 @ae42075f1d
 pass/text/owned_arrival_view_descriptor_forwarded_exit built 1176ms exit:70 @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit built 1201ms exit:70 @5826c9701ec3+wt
 pass/text/owned_record_byte_field_read_exit built 1454ms exit:70 @c3ad5f6e051f+wt
+pass/text/qualified_byte_owner_state_loan_cycle_exit built 1463ms exit:70 stdout:match @ad48a872752b+wt
 pass/text/runtime_alias_string_write built 688ms @fb2178def922
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1278ms exit:70
 pass/text/runtime_bounded_carrier_concat_exit built 1302ms exit:70

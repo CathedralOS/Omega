@@ -460,7 +460,15 @@ pub(super) fn lower(
             .any(|parameter| parameter.place == *destination)
             || live.block_views.contains(destination)
             || live.views.contains_key(destination)
-            || live.structural_homes.contains_key(destination))
+            || live.structural_homes.contains_key(destination)
+            // A mutable bounded owner loan arrives as its owner's address,
+            // the same storage a byte observation through it reads.
+            || super::observations::bounded_owner_storage(
+                function,
+                structural_types,
+                live,
+                *destination,
+            ))
         || super::references::check_root_access(live, *destination)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

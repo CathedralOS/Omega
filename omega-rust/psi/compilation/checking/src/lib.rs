@@ -202,6 +202,7 @@ pub use proof_contracts::quotients::{
     admit_checked_quotient_requests, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
+pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
@@ -210,9 +211,6 @@ pub use value_custody::expression_types::{
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
-};
-pub use value_custody::expression_types::{
-    bounded_byte_buffer_capacity, loaned_bounded_byte_buffer_capacity,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;

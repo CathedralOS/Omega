@@ -1,0 +1,1 @@
+state `both` receives `bytes` as both mutable and read-only

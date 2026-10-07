@@ -1,0 +1,16 @@
+// A fixed byte array cannot be lent to one state as both a shared view and
+// an exclusive one: the exclusive writer would change what the reader sees.
+use omega_language_std::console;
+
+machine main() reaches Console {
+    let mut bytes: [u8; 5] = "HELLO";
+    transition { _ -> both(&bytes, &mut bytes) }
+    state both(text: &[u8; 5], output: &mut [u8; 5]) {
+        output[0] = 74;
+        transition text[0] == 74 {
+            true -> finish(70)
+            _ -> finish(71)
+        }
+    }
+    state finish(code: i32) { Console::exit_process(code); }
+}

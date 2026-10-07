@@ -876,14 +876,12 @@ defines the complete product bar.
     natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
     Result custody and nested-field initialization stay with
     **STATE-LOCAL-VALUE-FRONTIER**.
-  - `text/caesar_cipher` and `simulation/game_of_life_glider` lend a mutable
-    `Utf8`-qualified fixed-array local to a later state. Stage 04's local
-    loan transfer (`execution/terminal_unit/state_graph/mod.rs`) admits only
-    numeric constraints; admitting represented byte predicates instead
-    reaches the Terminal verifier's `InvalidStructuralSuccessorArgument`,
-    because stores through the loan owe `valid_utf8` over content the
-    receiving state does not see. **STATIC-MACHINE-MIGRATION** records the
-    glider shape.
+  - `simulation/game_of_life_glider`: the mutable `Utf8` fixed-array state
+    loan lowers (`pass/text/qualified_byte_owner_state_loan_cycle_exit`), and
+    a verbatim corpus copy now stops at stage 04 for the scalar-result
+    machine `Main::render`, whose states take `line: &mut [u8; 24] in Utf8`
+    ("state signature: parameter signature: structural parameter type",
+    state 1). **STATIC-MACHINE-MIGRATION** records the glider shape.
   - `simulation/game_of_life`: remeasure after deletion of the former private
     `proof_search_integer_certificate_work` pass.
 

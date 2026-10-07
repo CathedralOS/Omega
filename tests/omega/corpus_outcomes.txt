@@ -222,6 +222,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
+fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 447ms expected @ad48a872752b+wt
+	state `both` receives `bytes` as both mutable and read-only
 fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected @d1ebe54629b8
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
@@ -1708,6 +1710,8 @@ fail/text/element_guard_other_index_unbounded rejected 250ms expected @954364ed0
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
+fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected @ad48a872752b+wt
+	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
 fail/traits/dyn_finite_family_non_member rejected 213ms expected @2d8ed253669f
@@ -2195,6 +2199,8 @@ pass/capabilities/win64_large_aggregate_result_import_compile checked 1189ms che
 pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 2847ms check-target:macos_arm64 @53d5dde47ae5
 pass/capabilities/windows_provides_import_exit checked 2179ms check-target:windows_x86_64 @8778c440081
 pass/collections/array_local_control checked 316ms @2d8ed253669f
+pass/collections/borrowed_byte_array_state_reads_exit checked 1202ms check-target:macos_arm64 @ad48a872752b+wt
+pass/collections/borrowed_byte_array_state_writes_exit checked 1206ms check-target:macos_arm64 @ad48a872752b+wt
 pass/collections/case_array_computed_index_match_exit checked 2057ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/case_array_literal_callee_store_exit checked 1316ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/collections/case_array_literal_field_store_exit checked 1498ms check-target:macos_arm64 @2d8ed253669f
@@ -3233,6 +3239,7 @@ pass/text/nested_owned_byte_record_literal_exit checked 1087ms check-target:maco
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1094ms check-target:macos_arm64 @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms check-target:macos_arm64 @5826c9701ec3+wt
 pass/text/owned_record_byte_field_read_exit checked 1401ms check-target:macos_arm64 @c3ad5f6e051f+wt
+pass/text/qualified_byte_owner_state_loan_cycle_exit checked 1212ms check-target:macos_arm64 @ad48a872752b+wt
 pass/text/runtime_alias_string_write checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_concat_exit checked 1496ms check-target:macos_arm64 @2d8ed253669f

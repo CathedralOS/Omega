@@ -964,14 +964,14 @@ pub(super) fn fixed_index_element_type(
 ) -> Option<TypeReferenceHandle> {
     loop {
         match program.type_reference_table.type_reference(reference) {
-            // A domain-qualified fixed byte array is a bounded owner: its live
-            // length, not its capacity, bounds every byte read, so a literal
-            // index selects no static element (wiki/spec/language/domains.md,
+            // A byte carrier (a borrowed `&[u8]` or `&[u8; N]`, or a
+            // domain-qualified bounded owner) declares no element row: its
+            // extent is observed through the carrier, so a literal index
+            // selects no static element (wiki/spec/language/domains.md,
             // "Byte containers and encoding domains"). The read stays a
-            // runtime-indexed byte read against the observed length.
+            // byte read against the observed length.
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
-                if validation::loaned_bounded_byte_buffer_capacity(program, reference)
-                    .is_some() =>
+                if validation::byte_sequence_carrier(program, reference, &[]).is_some() =>
             {
                 return None;
             }
@@ -1003,8 +1003,7 @@ pub(super) fn runtime_index_element_type(
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
-                if validation::loaned_bounded_byte_buffer_capacity(program, reference)
-                    .is_some() =>
+                if validation::byte_sequence_carrier(program, reference, &[]).is_some() =>
             {
                 return None;
             }
@@ -1098,15 +1097,6 @@ pub(super) fn lower_structural_parameter_field(
         // continues into a record field (`maps[1].value`) instead resolves its
         // scalar leaf through primitive_type_reference below.
         validation::unrestricted_builtin_primitive(program, type_reference)?;
-        // A bounded byte field (`[u8; N] in Utf8`) has a live length, so even
-        // a literal index is a bounds-checked byte read, not a projection.
-        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
-            && let Some((_, _, collection_type)) =
-                structural_parameter_place(program, parameters, indexed.collection)
-            && validation::bounded_byte_buffer_capacity(program, collection_type).is_some()
-        {
-            return None;
-        }
     }
     let primitive_type = program.primitive_type_reference(type_reference)?;
     if primitive_type == PrimitiveType::Bool {
