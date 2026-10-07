@@ -25,6 +25,8 @@ macro_rules! normalized_extent_identity {
     };
 }
 
+pub(crate) use normalized_extent_identity;
+
 normalized_extent_identity!(AddressSpaceId, "address-space");
 normalized_extent_identity!(ExtentProvenanceId, "extent-provenance");
 normalized_extent_identity!(MappingEraId, "mapping-era");
