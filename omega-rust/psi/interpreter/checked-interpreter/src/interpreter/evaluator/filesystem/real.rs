@@ -1,8 +1,11 @@
-//! REAL-filesystem provider for the interpreter (build.omg rungs 1+2,
-//! TASKS_FS open-work #3): `build.omg` runs INTERPRETED with a real
-//! `Filesystem` capability so it can copy assets itself. Strictly OPT-IN
-//! (`FilesystemAccess::RealUnscoped` / `RealScoped`); the default hermetic
-//! virtual fs -- the differential oracle -- is untouched.
+//! Filesystem execution over granted host roots and retained Build inputs.
+//!
+//! `RealUnscoped` and `RealScoped` select the physical host protocol.
+//! `CapturedScoped` also binds immutable logical Source/input roots: those
+//! dispatch through `captured`, have no host spelling or fallback, and expose
+//! only their captured vocabulary, not fabricated native metadata or handles.
+//! Its physical output root uses the same private append-and-seal sponsor.
+//! The virtual filesystem remains a separate differential interpreter provider.
 //!
 //! SCOPING (rung 2): under `RealScoped`, every path-taking op is authorized
 //! against [`crate::FsGrants`] BEFORE the OS is touched -- reads must land
@@ -21,12 +24,10 @@
 //!
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
-//! the provider works wherever the compiler runs. Both providers exhaustively
-//! match the same closed operation set. FULL OP PARITY as of 2026-07-10m: every
-//! op the virtual fs serves, the real provider serves too (unix-gated where
-//! std requires it: symlink/permissions/chown; ENOTSUP on other hosts) --
-//! so a build program tested hermetically cannot hit a refusal surprise in
-//! real mode on the same host family.
+//! the provider works wherever the compiler runs. Physical and virtual
+//! providers match the same operation set, with host-specific operations
+//! returning ENOTSUP where unavailable. Captured roots deliberately offer a
+//! smaller, target-neutral protocol; native parity is not their contract.
 //!
 //! Every operation dispatches from `try_real_filesystem_call` to its
 //! `real_*` method in `descriptor_calls`, `path_calls` or `directory_calls`.

@@ -220,7 +220,10 @@ fn capture_file(
             path.display()
         ))
     })?;
-    if bytes.len() != capacity || !same_file_observation(&before, &after) {
+    if bytes.len() != capacity
+        || !same_file_observation(&before, &after)
+        || !has_single_link(&after)
+    {
         return Err(diagnostics(format!(
             "build staged-output file `{}` changed during content capture",
             path.display()
