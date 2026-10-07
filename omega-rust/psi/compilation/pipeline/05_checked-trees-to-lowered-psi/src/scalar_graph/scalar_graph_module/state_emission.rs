@@ -18,6 +18,7 @@ use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDec
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::proofs::crash_routes::lowered_direct_scalar_term;
+use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator;
 
@@ -118,40 +119,14 @@ impl GraphEmission<'_> {
                     &self.scalar_qualifications.sets,
                     &mut self.scalar_qualifications.coercions,
                 )?;
-                self.next_edge_identity =
-                    self.next_edge_identity
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar qualification edge identity overflow",
-                        ))?;
-                let Terminator::Jump {
-                    erased_arguments: scalar_actuals,
-                    erased_proof_arguments: proof_actuals,
-                    ..
-                } = &mut terminator
-                else {
-                    return unsupported("qualification emission lost its successor edge");
-                };
-                *scalar_actuals = erased_arguments
-                    .iter()
-                    .map(|argument| {
-                        crate::proofs::crash_routes::lowered_direct_scalar_term(
-                            argument,
-                            &current_values,
-                            &self.state_erased_formals[index],
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                *proof_actuals = erased_proof_arguments
-                    .iter()
-                    .map(|argument| {
-                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
-                            argument,
-                            &current_values,
-                            &self.state_erased_formals[index],
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let erased_formals = self.state_erased_formals[index].clone();
+                self.patch_qualification_actuals(
+                    &mut terminator,
+                    erased_arguments,
+                    erased_proof_arguments,
+                    &current_values,
+                    &erased_formals,
+                )?;
                 terminator
             }
             LoweredScalarBranchTerminator::Jump {
@@ -981,6 +956,54 @@ impl GraphEmission<'_> {
             operations: self.all_operations[operation_start..].to_vec(),
             terminator,
         });
+        Ok(())
+    }
+
+    /// After `qualifications::emit` produces the successor edge, bump the edge
+    /// identity and patch the terminator's erased actual slots: emission
+    /// leaves them empty and the branch's rosters fill them here.
+    pub(super) fn patch_qualification_actuals(
+        &mut self,
+        terminator: &mut Terminator,
+        erased_arguments: &[LoweredDirectExpression],
+        erased_proof_arguments: &[LoweredProofTerm],
+        values: &[ValueDeclaration],
+        erased_formals: &[ValueDeclaration],
+    ) -> Result<(), LoweringError> {
+        self.next_edge_identity =
+            self.next_edge_identity
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar qualification edge identity overflow",
+                ))?;
+        let Terminator::Jump {
+            erased_arguments: scalar_actuals,
+            erased_proof_arguments: proof_actuals,
+            ..
+        } = terminator
+        else {
+            return unsupported("qualification emission lost its successor edge");
+        };
+        *scalar_actuals = erased_arguments
+            .iter()
+            .map(|argument| {
+                crate::proofs::crash_routes::lowered_direct_scalar_term(
+                    argument,
+                    values,
+                    erased_formals,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        *proof_actuals = erased_proof_arguments
+            .iter()
+            .map(|argument| {
+                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    argument,
+                    values,
+                    erased_formals,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 }

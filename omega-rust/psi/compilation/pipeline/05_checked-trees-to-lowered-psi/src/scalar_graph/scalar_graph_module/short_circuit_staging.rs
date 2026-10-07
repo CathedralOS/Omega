@@ -367,40 +367,13 @@ impl GraphEmission<'_> {
                     &self.scalar_qualifications.sets,
                     &mut self.scalar_qualifications.coercions,
                 )?;
-                self.next_edge_identity =
-                    self.next_edge_identity
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar qualification edge identity overflow",
-                        ))?;
-                let Terminator::Jump {
-                    erased_arguments: scalar_actuals,
-                    erased_proof_arguments: proof_actuals,
-                    ..
-                } = &mut terminator
-                else {
-                    return unsupported("qualification emission lost its successor edge");
-                };
-                *scalar_actuals = erased_arguments
-                    .iter()
-                    .map(|argument| {
-                        crate::proofs::crash_routes::lowered_direct_scalar_term(
-                            argument,
-                            &stage_parameters,
-                            erased_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                *proof_actuals = erased_proof_arguments
-                    .iter()
-                    .map(|argument| {
-                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
-                            argument,
-                            &stage_parameters,
-                            erased_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                self.patch_qualification_actuals(
+                    &mut terminator,
+                    &erased_arguments,
+                    &erased_proof_arguments,
+                    &stage_parameters,
+                    erased_formals,
+                )?;
                 terminator
             }
             LoweredScalarBranchTerminator::Return { expression } => {
