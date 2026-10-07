@@ -172,6 +172,42 @@ pub fn provider_trait_requirement_matches(
             })
 }
 
+/// The one row of a named provider's map that a plan row installs, joined by
+/// the requirement's exact callable identity. `None` when the plan is not a
+/// named provider's, or when zero or several rows (or an unretained
+/// realization) answer the identity.
+pub(crate) fn named_provider_row<'a>(
+    context: ProviderPlanningContext<'a>,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+) -> Option<&'a typed_trees::trait_definition::ConformanceRow> {
+    let typed = context.typed;
+    let definition = named_provider(context, plan)?;
+    let ConformanceImplementation::Closed { rows } = &definition.implementation else {
+        return None;
+    };
+    let mut matching = rows.iter().filter(|entry| {
+        let Some(owner) = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.symbol == entry.declaring_trait)
+        else {
+            return false;
+        };
+        let Some(requirement) = typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .find(|requirement| requirement.symbol == entry.requirement)
+        else {
+            return false;
+        };
+        typed.trait_requirement_callable_identity_text(owner, requirement)
+            == row.requirement_identity
+    });
+    let entry = matching.next()?;
+    (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)
+}
+
 /// Rejoin a provider row to its declaration, including an exact specialization
 /// of the map's realization. Physical machine ownership is not map ownership.
 pub fn provider_row_matches(
@@ -184,34 +220,10 @@ pub fn provider_row_matches(
     if !context.contains(machine.symbol) {
         return false;
     }
-    if let Some(definition) = named_provider(context, plan) {
-        let ConformanceImplementation::Closed { rows } = &definition.implementation else {
+    if named_provider(context, plan).is_some() {
+        let Some(entry) = named_provider_row(context, plan, row) else {
             return false;
         };
-        let mut matching = rows.iter().filter(|entry| {
-            let Some(owner) = typed
-                .traits()
-                .iter()
-                .find(|owner| owner.symbol == entry.declaring_trait)
-            else {
-                return false;
-            };
-            let Some(requirement) = typed
-                .trait_machine_signatures(owner)
-                .iter()
-                .find(|requirement| requirement.symbol == entry.requirement)
-            else {
-                return false;
-            };
-            typed.trait_requirement_callable_identity_text(owner, requirement)
-                == row.requirement_identity
-        });
-        let Some(entry) = matching.next() else {
-            return false;
-        };
-        if matching.next().is_some() || !context.contains(entry.realization_machine) {
-            return false;
-        }
         let Some(realization) = typed
             .machines()
             .iter()

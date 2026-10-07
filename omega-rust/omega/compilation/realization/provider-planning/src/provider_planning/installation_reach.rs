@@ -112,6 +112,14 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 continue;
             }
 
+            // A named implementation's plan installs the machine its own row
+            // names. An exact requirement edge's plan is provided by the data
+            // owning the machine that carries that edge.
+            let named_realization =
+                crate::provider_identity::named_provider_row(provider_context, plan, row)
+                    .map(|entry| entry.realization_machine);
+            let is_named_provider =
+                crate::provider_identity::named_provider(provider_context, plan).is_some();
             let realization_machines = checked
                 .typed
                 .machines()
@@ -120,26 +128,27 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                     crate::service_schema::is_product_declaration(&checked.typed, machine.symbol)
                 })
                 .filter(|machine| {
+                    if is_named_provider {
+                        return named_realization == Some(machine.symbol);
+                    }
                     checked
                         .typed
                         .attached_data_path(machine)
                         .unwrap_or_default()
                         == plan.provider_type
-                })
-                .filter(|machine| {
-                    checked
-                        .typed
-                        .machine_trait_conformances(machine)
-                        .iter()
-                        .any(|conformance| {
-                            conformance.requirement.is_some() && {
-                                exact_satisfied_requirement_identity(
-                                    &checked.typed,
-                                    conformance.symbol,
-                                    conformance.requirement_symbol,
-                                ) == row.requirement_identity
-                            }
-                        })
+                        && checked
+                            .typed
+                            .machine_trait_conformances(machine)
+                            .iter()
+                            .any(|conformance| {
+                                conformance.requirement.is_some() && {
+                                    exact_satisfied_requirement_identity(
+                                        &checked.typed,
+                                        conformance.symbol,
+                                        conformance.requirement_symbol,
+                                    ) == row.requirement_identity
+                                }
+                            })
                 })
                 .collect::<Vec<_>>();
             let [realization] = realization_machines.as_slice() else {
