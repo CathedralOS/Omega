@@ -285,33 +285,11 @@ pub(super) fn membership_layout(
         terminal_psi::StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
         _ => return None,
     };
-    let common = common
-        .iter()
-        .filter(|field| !field.relevance.is_erased())
-        .map(|field| {
-            crate::structural_inputs::structural_reference_input::field_shape(
-                &field.field_type,
-                &signature.structural_types,
-                &mut Vec::new(),
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let common = live_field_shapes(common.iter(), &signature.structural_types)?;
     // Erased payload members hold no storage, so they shape no payload slot.
     let payloads = cases
         .iter()
-        .map(|case| {
-            case.fields
-                .iter()
-                .filter(|field| !field.relevance.is_erased())
-                .map(|field| {
-                    crate::structural_inputs::structural_reference_input::field_shape(
-                        &field.field_type,
-                        &signature.structural_types,
-                        &mut Vec::new(),
-                    )
-                })
-                .collect::<Option<Vec<_>>>()
-        })
+        .map(|case| live_field_shapes(case.fields.iter(), &signature.structural_types))
         .collect::<Option<Vec<_>>>()?;
     let layout = calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()?;
     if layout.tag_byte_offset != 0
@@ -914,16 +892,7 @@ pub(super) fn fields(
         .iter()
         .filter(|field| !field.relevance.is_erased())
         .collect::<Vec<_>>();
-    let common_shapes = common
-        .iter()
-        .map(|field| {
-            crate::structural_inputs::structural_reference_input::field_shape(
-                &field.field_type,
-                &signature.structural_types,
-                &mut Vec::new(),
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let common_shapes = live_field_shapes(common.iter().copied(), &signature.structural_types)?;
     let ordinal = cases.iter().position(|case| case.id == *result_case)?;
     if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
         return None;
@@ -932,19 +901,7 @@ pub(super) fn fields(
     // skip them, matching legalization's `sum_type_layout`.
     let payloads = cases
         .iter()
-        .map(|case| {
-            case.fields
-                .iter()
-                .filter(|field| !field.relevance.is_erased())
-                .map(|field| {
-                    crate::structural_inputs::structural_reference_input::field_shape(
-                        &field.field_type,
-                        &signature.structural_types,
-                        &mut Vec::new(),
-                    )
-                })
-                .collect::<Option<Vec<_>>>()
-        })
+        .map(|case| live_field_shapes(case.fields.iter(), &signature.structural_types))
         .collect::<Option<Vec<_>>>()?;
     let payload = cases[ordinal]
         .fields
@@ -1302,4 +1259,21 @@ pub(super) fn owned_store_destination(
     expected: &terminal_psi::StructuralOperationResult,
 ) -> bool {
     operation_result(source, expected.place) == Some((producer, expected))
+}
+
+/// The non-erased fields' declared value shapes, in roster order.
+fn live_field_shapes<'field>(
+    fields: impl Iterator<Item = &'field terminal_psi::StructuralFieldDeclaration>,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<Vec<calling_conventions::ValueShape>> {
+    fields
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| {
+            crate::structural_inputs::structural_reference_input::field_shape(
+                &field.field_type,
+                declarations,
+                &mut Vec::new(),
+            )
+        })
+        .collect()
 }
