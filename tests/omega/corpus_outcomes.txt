@@ -1153,9 +1153,9 @@ fail/float/same_carrier_cast_cannot_mint_finite rejected 1195ms expected @4f5905
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669f
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
-fail/float/total_order_wrong_carrier rejected 454ms expected @6d9868469d56+wt
-	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `T`, got `f32`
-	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `T`, got `f32`
+fail/float/total_order_wrong_carrier rejected 412ms expected @d83ae44b78cd
+	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `f64`, got `f32`
+	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `f64`, got `f32`
 fail/generics/attached_machine_undeclared_data_extent_rejected rejected 300ms expected @ada91cf0bd16+wt
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `N`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
@@ -1577,7 +1577,8 @@ fail/recast/interior_slice_runtime_offset_non_tiling rejected 174ms expected @a3
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
 fail/recast/recast_borrow_polarity_escalation rejected 161ms expected @a3bac00e54bb+wt
 	machine `Bits::escalate` state `escalate`: recast borrow polarity must agree -- use `&x as &T` for a shared view or `&mut x as &mut T` for a writable view
-fail/recast/recast_conflicting_backing_loan rejected 248ms expected @c08960bee2b1+wt
+fail/recast/recast_conflicting_backing_loan rejected 410ms expected @d83ae44b78cd
+	state `mix` receives `bits.x` as both mutable and read-only
 	state `mix` receives `bits.x` as both mutable and read-only
 fail/recast/recast_mut_bool_as_unconstrained_byte rejected 145ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
@@ -1698,8 +1699,7 @@ fail/targets/target_machine_missing_rejected rejected 15ms expected @2d8ed253669
 	machine `Helper::pick` has no implementation for the selected target -- target-scoped implementations exist for: demo_target, demo_target2 (add this target's `<target> machine Helper::pick(..)` in that target package)
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @2d8ed253669f
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
-fail/tasks/task_runtime_provider_contract_narrowing rejected 273ms expected @5aed35f3503f+wt
-	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` narrows `Target` by omitting `blocks;`
+fail/tasks/task_runtime_provider_contract_narrowing rejected 332ms expected @d83ae44b78cd
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` narrows `Target` by omitting `blocks;`
 fail/tasks/task_runtime_selected_provider_missing rejected 734ms expected @2d8ed253669f
 	TaskRuntime boundary slot has no retained selected provider plan
@@ -1759,8 +1759,8 @@ fail/termination/rank_range_record_stepped_copy_stale rejected 656ms expected @2
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 fail/termination/rank_range_subject_intervening_write rejected 225ms expected @c08960bee2b1+wt
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
-fail/termination/requirement_witness_rejected rejected 3ms expected @474542aa7f86
-	tests/omega/fail/termination/requirement_witness_rejected/main.omg:8:62: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
+fail/termination/requirement_witness_rejected rejected 1ms expected @d83ae44b78cd
+	tests/omega/fail/termination/requirement_witness_rejected/main.omg:8:59: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
 fail/termination/retired_block_form rejected 0ms expected @2d8ed253669f
 	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
 fail/termination/retired_standalone_decreases rejected 0ms expected @2d8ed253669f
@@ -2616,8 +2616,7 @@ pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be
 pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 1600ms check-target:macos_arm64 @f53544b209b2+wt
-pass/drops/runtime_borrowed_nominal_replacement_exit rejected 1959ms check-target:macos_arm64 @04d0fbe9d97c
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775810)))
+pass/drops/runtime_borrowed_nominal_replacement_exit checked 2842ms check-target:macos_arm64 @d83ae44b78cd
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 1683ms check-target:macos_arm64 @ac7aca8a5050+wt
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 1636ms check-target:macos_arm64 @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target:macos_arm64 @47ad8bb72cea
@@ -2627,8 +2626,7 @@ pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms che
 pass/drops/runtime_empty_array_owner_cleanup_exit checked 1703ms check-target:macos_arm64 @1cc178f9ab8f
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 2091ms check-target:macos_arm64 @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 2027ms check-target:macos_arm64 @65e8a0783b05
-pass/drops/runtime_generic_reserved_construction_exit rejected 1990ms check-target:macos_arm64 @04d0fbe9d97c
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedStorageRepairMismatch { operation: OperationId(4), place: PlaceId(2) }))
+pass/drops/runtime_generic_reserved_construction_exit checked 2825ms check-target:macos_arm64 @d83ae44b78cd
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 1537ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit checked 2404ms check-target:macos_arm64 @9beb2be72f2d+wt
@@ -2646,8 +2644,7 @@ pass/drops/runtime_nominal_temporary_helper_closure_exit checked 1565ms check-ta
 pass/drops/runtime_owned_nominal_replacement_exit checked 1940ms check-target:macos_arm64 @04d0fbe9d97c
 pass/drops/runtime_owned_record_replacement_exit checked 1944ms check-target:macos_arm64 @04d0fbe9d97c
 pass/drops/runtime_owned_replacement_composition_exit checked 1958ms check-target:macos_arm64 @04d0fbe9d97c
-pass/drops/runtime_owned_replacement_reestablishment_exit rejected 1919ms check-target:macos_arm64 @04d0fbe9d97c
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(10) }))
+pass/drops/runtime_owned_replacement_reestablishment_exit checked 2826ms check-target:macos_arm64 @d83ae44b78cd
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit checked 2513ms check-target:macos_arm64 @e0e325f7052d+wt
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2301ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit checked 2218ms check-target:macos_arm64 @9beb2be72f2d+wt
@@ -2748,21 +2745,21 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 15645ms check-target:macos_a
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 22102ms check-target:macos_arm64 @693920652f41
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 343582ms check-target:windows_x86_64 @a32d1a54af2
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 9115ms check-target:windows_x86_64 @d83ae44b78cd
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_normal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_normal(named(name(f32)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(FloatClass))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(FloatClass))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_finite(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_finite(named(name(f64)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 377335ms check-target:linux_x86_64 @dfb032403d4
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 9392ms check-target:linux_x86_64 @d83ae44b78cd
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_normal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_normal(named(name(f32)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(FloatClass))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(FloatClass))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_finite(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_finite(named(name(f64)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
@@ -2965,26 +2962,26 @@ pass/optimizer/constant_branch_selection_compile checked 1749ms check-target:mac
 pass/optimizer/copied_call_operand_selection_exit checked 1691ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/dead_compare_selection_compile checked 1250ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/equivalent_compare_selection_compile checked 1278ms check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/join_invariant_copy_transport_selected checked 5955ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:4ded9d8c05d48f46 rolled-back-semantic:e4f89c29e3282a1d module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/join_invariant_dead_scalar_transport_selected checked 5955ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:4ded9d8c05d48f46 rolled-back-semantic:aec22f0c4847cb0f module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/join_invariant_copy_transport_selected checked 8325ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:ecb5b1dba9c53e56 rolled-back-semantic:f7b17964e732359a module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/join_invariant_dead_scalar_transport_selected checked 8278ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:ecb5b1dba9c53e56 rolled-back-semantic:0e964a0d2f52b4a4 module:differs check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/join_invariant_transport_control checked 3561ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/ordinary_copy_membership_selected checked 3131ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/redundant_compare_selection_compile checked 2367ms check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_composed_partial_control checked 5853ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:3944d609a7b30c1b rolled-back-semantic:3944d609a7b30c1b module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_composed_partial_selected checked 5802ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:c9c5c99bea81888d rolled-back-semantic:3944d609a7b30c1b module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_control_flow_cleanup_control checked 5705ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:af227c059f1bdb16 rolled-back-semantic:af227c059f1bdb16 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_control_flow_cleanup_selected checked 5678ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:5da47d6d44a47d72 rolled-back-semantic:af227c059f1bdb16 module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_copy_propagation_control checked 5694ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:f17356d9fc15dbe0 rolled-back-semantic:f17356d9fc15dbe0 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_copy_propagation_selected checked 5680ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:39108fa50f6e2319 rolled-back-semantic:f17356d9fc15dbe0 module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 8041ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:703fc729c25ad3b5 rolled-back-semantic:703fc729c25ad3b5 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 7859ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:daf008da715027bb rolled-back-semantic:703fc729c25ad3b5 module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_global_value_numbering_control checked 8472ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2c8f93e74f5dbfb5 rolled-back-semantic:2c8f93e74f5dbfb5 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_global_value_numbering_selected checked 8981ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:cf1b3896a3d73d42 rolled-back-semantic:2c8f93e74f5dbfb5 module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_proof_check_elision_control checked 8891ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:3973f766a6cc4f88 rolled-back-semantic:3973f766a6cc4f88 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_proof_check_elision_selected checked 8812ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:3973f766a6cc4f88 rolled-back-semantic:3973f766a6cc4f88 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 8838ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2fe10f7013052db2 rolled-back-semantic:2fe10f7013052db2 module:same check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 8927ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:69704a35db9b7073 rolled-back-semantic:2fe10f7013052db2 module:differs check-target:macos_arm64 @693920652f41
-pass/optimizer/rollback_to_no_selection_empty_entry checked 8620ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:437d35ca0161b4eb rolled-back-semantic:437d35ca0161b4eb module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_composed_partial_control checked 8242ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:a203a092b04bbd67 rolled-back-semantic:a203a092b04bbd67 module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_composed_partial_selected checked 8262ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:1c8a661aa7e1fab8 rolled-back-semantic:a203a092b04bbd67 module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_control_flow_cleanup_control checked 8141ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:da23cbb10d53213a rolled-back-semantic:da23cbb10d53213a module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_control_flow_cleanup_selected checked 8449ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:5637d6a6d2806eec rolled-back-semantic:da23cbb10d53213a module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_copy_propagation_control checked 8128ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:4da7c6dc29769717 rolled-back-semantic:4da7c6dc29769717 module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_copy_propagation_selected checked 8225ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:1579f6f5fab33926 rolled-back-semantic:4da7c6dc29769717 module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 8675ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:d6528a16bc937f13 rolled-back-semantic:d6528a16bc937f13 module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 8624ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:4cd1dafc13b0aa31 rolled-back-semantic:d6528a16bc937f13 module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_global_value_numbering_control checked 8506ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:10f738bd285d34b1 rolled-back-semantic:10f738bd285d34b1 module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_global_value_numbering_selected checked 8506ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:7f31271d4afc9fab rolled-back-semantic:10f738bd285d34b1 module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_proof_check_elision_control checked 8451ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:1cf5a0b318aca08b rolled-back-semantic:1cf5a0b318aca08b module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_proof_check_elision_selected checked 7974ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:1cf5a0b318aca08b rolled-back-semantic:1cf5a0b318aca08b module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 7895ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:874d31b737e1dcee rolled-back-semantic:874d31b737e1dcee module:same check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 7285ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:cae728aa7b656d0f rolled-back-semantic:874d31b737e1dcee module:differs check-target:macos_arm64 @d83ae44b78cd
+pass/optimizer/rollback_to_no_selection_empty_entry checked 7147ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:0786f0aa6f452e31 rolled-back-semantic:0786f0aa6f452e31 module:same check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/stored_load_forwarding_selection_exit checked 1159ms check-target:macos_arm64 @7be03351b68c+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
 pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms check-target:linux_x86_64 @82ec69a91ce
@@ -2994,8 +2991,8 @@ pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm64 @e4c5f1527652+wt
-pass/ownership/linear_transparent_record_frontier rejected 1843ms check-target:macos_arm64 @b69e30357ca8+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))
+pass/ownership/linear_transparent_record_frontier rejected 2167ms check-target:macos_arm64 @d83ae44b78cd
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("claim action does not match a declared structural claim path")))
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
@@ -3376,8 +3373,8 @@ pass/text/runtime_later_arm_guard_reads_exit checked 1807ms check-target:macos_a
 pass/text/runtime_local_struct_string_field_concat_exit incomplete 860ms check-target:macos_arm64 @47d3b5bbd8c+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)
 pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms check-target:macos_arm64 @11b293f8af86+wt
-pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3696ms check-target:macos_arm64 @c773c4ad3c3
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
+pass/text/runtime_mutable_string_parameter_concat_write_line rejected 1912ms check-target:macos_arm64 @d83ae44b78cd
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/text/runtime_number_to_decimal_exit checked 2326ms check-target:macos_arm64 @d6b32df9b098
 pass/text/runtime_owned_string_byte_view_exit checked 1422ms check-target:macos_arm64 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit checked 671ms check-target:macos_arm64 @7f80f93fd214+wt
