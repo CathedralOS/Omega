@@ -31,17 +31,18 @@ pub(crate) enum ProofFactOwner<'program> {
 fn unknown_membership_domain_diagnostic(
     program: &TypedTrees,
     owner: ProofFactOwner<'_>,
-    membership: &typed_trees::domain::ProofMembershipFact,
+    domain: arena::HandleSpan<Identifier>,
+    domain_symbol: symbols::SymbolHandle,
 ) -> Option<Diagnostic> {
-    if membership.domain_symbol.is_valid()
-        || is_implicit_case_domain(program, membership.domain)
-        || carry_permission(program, membership.domain).is_some()
+    if domain_symbol.is_valid()
+        || is_implicit_case_domain(program, domain)
+        || carry_permission(program, domain).is_some()
     {
         return None;
     }
     Some(Diagnostic::error(format!(
         "{owner} references unknown domain `{}`",
-        domain_path_label(program, membership.domain)
+        domain_path_label(program, domain)
     )))
 }
 
@@ -289,7 +290,12 @@ pub(crate) fn validate_domain_fact_payloads(
 
     for membership in fact_plan.domain_memberships_for_symbol(domain.symbol) {
         if let Some(diagnostic) =
-            unknown_membership_domain_diagnostic(program, owner, membership)
+            unknown_membership_domain_diagnostic(
+                program,
+                owner,
+                membership.domain,
+                membership.domain_symbol,
+            )
         {
             diagnostics.push(diagnostic);
         }
@@ -328,7 +334,12 @@ pub(crate) fn validate_proof_facts(
             }
             ProofFact::Membership(membership) => {
                 if let Some(diagnostic) =
-                    unknown_membership_domain_diagnostic(program, owner, membership)
+                    unknown_membership_domain_diagnostic(
+                program,
+                owner,
+                membership.domain,
+                membership.domain_symbol,
+            )
                 {
                     diagnostics.push(diagnostic);
                 }
