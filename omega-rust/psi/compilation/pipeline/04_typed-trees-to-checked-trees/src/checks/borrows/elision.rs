@@ -18,7 +18,7 @@ use crate::borrow::view_link::{
 mod templates;
 
 pub(super) fn check_view_return_elision(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut deferred = Vec::new();
@@ -91,7 +91,7 @@ pub(super) fn check_view_return_elision(
 }
 
 fn check_bodyless_signature(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

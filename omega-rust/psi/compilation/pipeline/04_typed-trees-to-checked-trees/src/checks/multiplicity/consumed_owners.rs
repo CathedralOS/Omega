@@ -80,7 +80,7 @@ impl ConsumedOwners {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn record_move(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
@@ -118,7 +118,7 @@ impl ConsumedOwners {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_use(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement: &StatementNode,
@@ -155,7 +155,7 @@ impl ConsumedOwners {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_store(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
@@ -248,7 +248,7 @@ fn is_operational(statement: &StatementNode) -> bool {
 /// machine exactly as move events do, and a bare attached-field root joins
 /// its receiver storage.
 fn storage_place(
-    _program: &typed_trees::TypedTrees,
+    _program: &dyn ::validation::CheckingInput,
     _machine: &typed_trees::machine::Machine,
     _state: &typed_trees::state::State,
     place: &CanonicalPlace,
@@ -266,7 +266,7 @@ fn storage_place(
 /// parameter, and every prefix through the
 /// place itself has a non-reference type.
 fn owned_custody_chain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

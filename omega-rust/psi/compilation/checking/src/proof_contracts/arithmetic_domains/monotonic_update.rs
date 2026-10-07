@@ -1,7 +1,7 @@
 //! Normal-completion bounds for builtin positive-literal counter updates.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypedTrees, declared_place_type_raw,
+    PrimitiveType, State, declared_place_type_raw,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use numerics::integer_policy::{IntegerPolicyPrimitive, IntegerResultLaw, integer_policy_bridge};
@@ -16,7 +16,7 @@ use numerics::integer_policy::{IntegerPolicyPrimitive, IntegerResultLaw, integer
 /// Unknown endpoints stay unknown; in particular, the i64 interval owner does
 /// not supply a finite maximum for the full u64 carrier.
 pub fn builtin_monotonic_integer_update_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

@@ -8,11 +8,10 @@
 use super::intrinsic_calls::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
 pub(crate) fn is_build_declaration_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
@@ -29,7 +28,7 @@ pub(crate) fn is_build_declaration_selection(
 /// Provider slots admit boundary requirements and operator families; service
 /// exclusions admit only a boundary trait, never its implementation.
 pub(crate) fn resolve_build_declaration_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     argument_index: usize,
     occurrence: source::SourceSpan,
@@ -61,7 +60,7 @@ pub(crate) fn resolve_build_declaration_operand(
 }
 
 pub(crate) fn provider_selection_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
@@ -84,7 +83,7 @@ pub(crate) fn provider_selection_expressions(
 }
 
 pub(crate) fn is_build_provider_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -94,7 +93,7 @@ pub(crate) fn is_build_provider_selection(
 }
 
 pub(crate) fn is_provider_selection_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     BuildOperation::from_call_target(call.target.as_str())
@@ -112,7 +111,7 @@ pub(crate) fn is_provider_selection_call(
 /// Namespace identity selects the operation; its first value operand carries
 /// the activation. Never infer that operand from a receiver or a local name.
 pub(super) fn has_explicit_build_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.target_symbol.is_valid()
@@ -127,7 +126,10 @@ pub(super) fn has_explicit_build_argument(
         && call.evidence_arguments.is_empty()
 }
 
-fn exact_mutable_build_argument(program: &TypedTrees, receiver: ExpressionHandle) -> bool {
+fn exact_mutable_build_argument(
+    program: &dyn ::validation::CheckingInput,
+    receiver: ExpressionHandle,
+) -> bool {
     if !receiver.is_valid() {
         return false;
     }
@@ -147,7 +149,7 @@ fn exact_mutable_build_argument(program: &TypedTrees, receiver: ExpressionHandle
 /// Resolve an already classified product operand, never an ordinary static use.
 /// The collector of an executed selection independently rejoins the same path.
 pub(crate) fn resolve_product_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: &StaticMachineArgument,
     occurrence: source::SourceSpan,
     subject: bool,

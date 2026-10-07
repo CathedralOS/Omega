@@ -4,7 +4,7 @@ use symbols::SymbolHandle;
 
 /// Facts carried by one state signature's contracts.
 fn signature_fact_total(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> usize {
     program
@@ -14,7 +14,7 @@ fn signature_fact_total(
         .sum()
 }
 
-pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees) -> usize {
+pub(crate) fn estimated_contract_fact_capacity(program: &dyn ::validation::CheckingInput) -> usize {
     program
         .machines()
         .iter()
@@ -80,7 +80,7 @@ pub(crate) fn estimated_contract_fact_capacity(program: &typed_trees::TypedTrees
 }
 
 pub(crate) fn append_inherited_trait_contract_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     inherited_scopes: &mut arena::Arena<checked_trees::InheritedContractScope>,
@@ -108,7 +108,7 @@ pub(crate) fn append_inherited_trait_contract_facts(
 }
 
 fn append_trait_contract_facts_for_machine(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     effective_arguments: &[typed_trees::types::TypeReferenceHandle],
@@ -234,7 +234,7 @@ fn append_trait_contract_facts_for_machine(
 }
 
 fn estimated_inherited_trait_contract_fact_capacity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> usize {
     let mut visited_traits = Vec::new();
@@ -254,7 +254,7 @@ fn estimated_inherited_trait_contract_fact_capacity(
 }
 
 fn estimated_trait_contract_fact_capacity_for_machine(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     visited_traits: &mut Vec<SymbolHandle>,
@@ -299,7 +299,7 @@ fn estimated_trait_contract_fact_capacity_for_machine(
 }
 
 fn trait_requirement_state_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     trait_symbol: SymbolHandle,
     requirement: &typed_trees::signature::StateSignature,
@@ -322,7 +322,7 @@ fn trait_requirement_state_symbols(
 }
 
 fn machine_selects_exact_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     trait_symbol: SymbolHandle,
     requirement: &typed_trees::signature::StateSignature,
@@ -340,7 +340,7 @@ fn machine_selects_exact_requirement(
 }
 
 fn trait_conformance_candidate_machines<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
 ) -> Vec<&'program typed_trees::machine::Machine> {
     let Some(attached_data) = machine.attached_data.as_ref() else {
@@ -357,7 +357,7 @@ fn trait_conformance_candidate_machines<'program>(
 }
 
 fn trait_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
     if !symbol.is_valid() {

@@ -3,15 +3,12 @@
 
 use diagnostics::Diagnostic;
 use language_core::OperatorSpelling;
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::integer_landing::{has_anonymous_operator_meaning, has_builtin_anonymous_operands};
 
 pub(crate) fn validate_anonymous_remainders(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Range bounds and proof facts are not necessarily machine-body expressions.
@@ -37,7 +34,7 @@ pub(crate) fn validate_anonymous_remainders(
 }
 
 pub(super) fn is_anonymous_numeric_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     enum Step {

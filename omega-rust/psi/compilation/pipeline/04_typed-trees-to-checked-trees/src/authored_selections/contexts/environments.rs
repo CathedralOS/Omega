@@ -7,7 +7,6 @@ use super::{Binding, InferredType, OwnerEnvironmentIndex, TypeEnvironment};
 use checked_trees::{CheckFacts, ContractProofFactOwner};
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
@@ -15,7 +14,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// The environment one statement position establishes: the machine's own
 /// environment extended by the `LocalData` bindings preceding the statement.
 pub(super) fn executable_site_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[typed_trees::statement::StatementNode],
@@ -43,7 +42,7 @@ pub(super) fn executable_site_environment(
 }
 
 pub(super) fn contract_owner_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: ContractProofFactOwner,
 ) -> Option<TypeEnvironment> {
     match owner {
@@ -90,7 +89,7 @@ pub(super) fn contract_owner_environment(
 }
 
 pub(super) fn machine_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
 ) -> TypeEnvironment {
@@ -109,7 +108,7 @@ pub(super) fn machine_environment(
 }
 
 pub(super) fn signature_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<TypeEnvironment> {
@@ -157,7 +156,7 @@ pub(super) fn environment_from_parameters(
 }
 
 pub(super) fn exact_owner_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     owner_index: Option<&OwnerEnvironmentIndex>,
@@ -199,7 +198,7 @@ pub(super) fn exact_owner_environments(
 }
 
 pub(super) fn collect_measure_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -228,7 +227,7 @@ pub(super) fn collect_measure_environments(
 }
 
 pub(super) fn collect_proposition_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -265,7 +264,7 @@ pub(super) fn collect_proposition_environments(
 }
 
 pub(super) fn collect_ranking_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) {
@@ -295,7 +294,7 @@ pub(super) fn collect_ranking_environments(
 }
 
 pub(super) fn collect_parameter_constraint_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) -> Option<()> {
@@ -364,7 +363,7 @@ pub(super) fn collect_parameter_constraint_environments(
 }
 
 pub(super) fn collect_telescope_constraint_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
@@ -386,7 +385,7 @@ pub(super) fn collect_telescope_constraint_environments(
 }
 
 pub(super) fn collect_executable_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
 ) -> Option<()> {

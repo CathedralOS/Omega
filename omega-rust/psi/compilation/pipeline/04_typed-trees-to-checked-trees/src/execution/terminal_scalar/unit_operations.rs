@@ -6,9 +6,9 @@
 //! lowering; omitting the store would publish an incomplete statement prefix.
 
 use checked_trees::{CheckFacts, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
-use typed_trees::{TypedTrees, statement::StatementNode};
+use typed_trees::statement::StatementNode;
 
-pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn finalize(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
     // Borrow the established graph catalog during call construction. It remains
     // available to shared call admission; publish all completed rows afterward.
     let operations = facts
@@ -171,7 +171,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
 // those semantic operations with the ordinary Unit body owner, before graph
 // selection becomes authoritative. The receiver independently checks custody.
 fn eligible(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {

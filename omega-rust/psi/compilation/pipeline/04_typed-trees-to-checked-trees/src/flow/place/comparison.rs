@@ -46,7 +46,7 @@ pub(crate) fn static_place_segment_pair_equal(
 /// `buffer[a..b]` spelled inside a `requires` clause selects the same window the
 /// body's re-spelled `buffer[a..b]` selects, even though the arena nodes differ.
 pub(crate) fn canonical_place_segments_equal(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
@@ -86,7 +86,7 @@ use checked_trees::expression::ExpressionHandle;
 
 #[allow(dead_code)]
 pub(crate) fn canonical_place_overlaps_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
@@ -104,7 +104,7 @@ pub(crate) fn canonical_place_overlaps_segments(
 /// storage. The one place-equality operation fact lookups share — a fact read
 /// must only match a place provably identical to its subject.
 pub(crate) fn canonical_places_agree(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &super::CanonicalPlace,
     right: &super::CanonicalPlace,
 ) -> bool {
@@ -118,7 +118,7 @@ pub(crate) fn canonical_places_agree(
 }
 
 pub(crate) fn canonical_place_segments_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
@@ -136,7 +136,7 @@ pub(crate) fn canonical_place_segments_may_overlap(
 }
 
 pub(crate) fn canonical_place_joined_segments_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     prefix: &[facts::PlaceSegment],
     suffix: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
@@ -155,7 +155,7 @@ pub(crate) fn canonical_place_joined_segments_may_overlap(
 }
 
 fn canonical_place_segment_pair_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
@@ -220,7 +220,7 @@ fn fixed_ranges_overlap(
 }
 
 fn expression_static_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     program
@@ -244,7 +244,7 @@ fn expression_static_index(
 /// fact's dependency path — which the joined-segment matcher handles independently of
 /// this index comparison.
 fn index_expressions_may_overlap(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {

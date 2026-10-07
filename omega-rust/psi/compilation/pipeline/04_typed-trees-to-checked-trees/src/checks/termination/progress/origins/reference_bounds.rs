@@ -5,12 +5,12 @@ use super::FlowStateFact;
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::{TypedTrees, machine::Machine};
 
 pub(super) fn places_may_overlap(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &CanonicalPlace,
     right: &CanonicalPlace,
 ) -> bool {
@@ -25,7 +25,7 @@ pub(super) fn places_may_overlap(
 /// only when the body's own write scan leaves the demanded projection
 /// untouched (`callee_leaves_demanded_path_unwritten`).
 pub(super) fn frozen_input_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> bool {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -70,7 +70,7 @@ pub(super) const REFERENCE_BOUNDARY_HOPS: usize = 16;
 /// ordinary rules; a resolved place may still cross another boundary, which
 /// the next frontier's rebase — or the leaf scan's own relocation — resolves.
 pub(super) fn reference_boundary_before_statement<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -123,7 +123,7 @@ where
 /// reports an untracked touch that fails the walk.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn statement_writes_miss_slot(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     index: usize,
@@ -147,7 +147,7 @@ pub(super) fn statement_writes_miss_slot(
 }
 
 pub(super) fn exclusive_reference_root_place<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -303,7 +303,7 @@ where
 /// leaf-store discipline `leaf_value_candidate` applies to assignment
 /// operands.
 pub(super) fn reference_bound_operand_place<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -334,7 +334,7 @@ where
 /// segment list, so the joined walk sees the operand's own place extended by
 /// the projection instead of a suffix appended afterward.
 pub(super) fn reference_bound_operand_place_segments<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -495,7 +495,7 @@ where
 /// produces the in-scope root while the name's own written identity disagrees
 /// with it; a shared binding may not lend that adopted identity a referent.
 pub(super) fn shared_bound_operand_root_symbols_agree(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
     root: PlaceRoot,
 ) -> bool {

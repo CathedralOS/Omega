@@ -3,10 +3,12 @@
 
 use super::instance_collection::IndexedInstance;
 use facts::ProgramPoint;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn carrier_label(program: &TypedTrees, target_type: TypeReferenceHandle) -> String {
+pub(super) fn carrier_label(
+    program: &dyn ::validation::CheckingInput,
+    target_type: TypeReferenceHandle,
+) -> String {
     program.display_type_reference(target_type)
 }
 
@@ -21,7 +23,7 @@ pub(super) fn family_label(instance_label: &str) -> &str {
 
 /// Whether the declared family carries no predicate body. An unresolved symbol
 pub(super) fn compatibility_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     actual: &IndexedInstance,
     expected: &IndexedInstance,
     point: ProgramPoint,
@@ -36,7 +38,7 @@ pub(super) fn compatibility_name(
 }
 
 pub(super) fn domain_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     name: &str,
     arguments: &[TypeReferenceHandle],
 ) -> String {
@@ -52,7 +54,7 @@ pub(super) fn domain_label(
 }
 
 pub(super) fn qualification_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> String {
     let name = program
@@ -71,7 +73,10 @@ pub(super) fn qualification_label(
     )
 }
 
-pub(super) fn index_argument_label(program: &TypedTrees, argument: TypeReferenceHandle) -> String {
+pub(super) fn index_argument_label(
+    program: &dyn ::validation::CheckingInput,
+    argument: TypeReferenceHandle,
+) -> String {
     match program.type_reference_table.type_reference(argument) {
         TypeReferenceNode::Named { name, .. } => {
             language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
@@ -84,7 +89,10 @@ pub(super) fn index_argument_label(program: &TypedTrees, argument: TypeReference
     }
 }
 
-pub(super) fn point_label(program: &TypedTrees, point: ProgramPoint) -> String {
+pub(super) fn point_label(
+    program: &dyn ::validation::CheckingInput,
+    point: ProgramPoint,
+) -> String {
     let symbol = |symbol| {
         let path = program.symbols.display_path(symbol, "::");
         if path.is_empty() {

@@ -3,7 +3,6 @@ use super::value_fields::{
 };
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 use typed_trees::wire::{WireField, WireMember, WireSchema};
 
@@ -38,7 +37,7 @@ use typed_trees::wire::{WireField, WireMember, WireSchema};
 /// value/out/written checks; instruction selection re-resolves every place
 /// and an unresolved one surfaces as an emission-planning blocker.
 pub(super) fn validate_wire_encode_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     schema: &WireSchema,
     call: &typed_trees::statement::TableCall,
     current_machine: &typed_trees::machine::Machine,
@@ -159,7 +158,9 @@ pub(super) fn validate_wire_encode_call(
             // is runtime-sized and a doubly-nested body would need a second staging
             // region, so both reject (one honest level first).
             let Some(nested_worst) = program.wire_nested_field_worst_case(child) else {
-                diagnostics.push(nested_schema_must_be_scalar_diagnostic(schema, field, child));
+                diagnostics.push(nested_schema_must_be_scalar_diagnostic(
+                    schema, field, child,
+                ));
                 schema_rejects = true;
                 continue;
             };
@@ -221,7 +222,6 @@ pub(super) fn validate_wire_encode_call(
         diagnostics,
         |_, _, _, _, _, _| {},
     );
-
 
     // Out argument: `&mut [u8; N]` with N covering the worst case.
     if let Some(out_type) =

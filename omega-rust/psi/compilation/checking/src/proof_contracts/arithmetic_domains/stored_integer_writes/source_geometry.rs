@@ -5,7 +5,7 @@
 use super::*;
 
 pub fn stored_integer_source_may_require_fit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
@@ -19,7 +19,7 @@ pub fn stored_integer_source_may_require_fit(
 }
 
 pub(super) fn coordinate_requires_fit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Result<bool, ()> {
@@ -34,7 +34,7 @@ pub(super) fn coordinate_requires_fit(
     descendants_require_fit(program, reference, &mut Vec::new())
 }
 
-fn field_requires_fit(program: &TypedTrees, field: SymbolHandle) -> Result<bool, ()> {
+fn field_requires_fit(program: &dyn crate::CheckingInput, field: SymbolHandle) -> Result<bool, ()> {
     for plan in &program.plan_laid_layouts {
         if let Some(index) = plan
             .field_symbols
@@ -54,7 +54,7 @@ fn field_requires_fit(program: &TypedTrees, field: SymbolHandle) -> Result<bool,
 }
 
 fn descendants_require_fit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> Result<bool, ()> {

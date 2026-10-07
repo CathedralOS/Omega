@@ -11,10 +11,9 @@ use super::super::super::SymbolHandle;
 use super::super::{RankingRangeState, StrictArithmeticBindingValue, comparison_proven};
 use super::{
     BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeCallMember, State, TypedTrees, collect_guard, entry_comparisons,
-    exact_integer_parameter, field_coordinates, fields, integer_bindings, lengths, meanings,
-    parameter_comparisons, projections, saved_arguments, scalar_entry, telescoped_bindings,
-    validate_mapping,
+    RankingRangeCallMember, State, collect_guard, entry_comparisons, exact_integer_parameter,
+    field_coordinates, fields, integer_bindings, lengths, meanings, parameter_comparisons,
+    projections, saved_arguments, scalar_entry, telescoped_bindings, validate_mapping,
 };
 pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
@@ -69,7 +68,7 @@ impl<'program> LengthDependency<'program> {
     /// with two candidate leaves, cannot name this coordinate.
     fn carries(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         formal: &typed_trees::signature::StateParameter,
     ) -> bool {
         match self {
@@ -89,7 +88,7 @@ impl<'program> LengthDependency<'program> {
     /// formal the telescope says holds the role.
     fn site_value(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         site: RankingRangeState<'_>,
         length_bindings: &[(SymbolHandle, String)],
         formal: &typed_trees::signature::StateParameter,
@@ -120,7 +119,7 @@ impl<'program> LengthDependency<'program> {
     /// names there.
     fn actual_value(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         site: &State,
         engine: &mut Engine<'_>,
@@ -176,7 +175,7 @@ struct SlotEvidence {
 /// occurrence, including parallel calls. Entry/range meaning and each edge's
 /// arithmetic obligations remain separate judgments.
 pub(crate) fn mixed_call_endpoints_are_pinned(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     members: &[RankingRangeCallMember<'_>],
     edges: &[RankingRangeCallEdge<'_>],
 ) -> bool {
@@ -366,7 +365,7 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
 /// actuals bind to those same coordinates first, so `bounds.cap` in a guard
 /// names the atom the endpoint reads.
 fn argument_sources<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     members: &[RankingRangeCallMember<'program>],
     edge: &RankingRangeCallEdge<'program>,
     projections: &[fields::FieldCoordinate<'program>],
@@ -640,7 +639,7 @@ fn carried_equals_each(
 }
 
 fn direct_input(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
@@ -671,7 +670,7 @@ fn direct_input(
 /// on a computed or fixed-array receiver -- has no named input and keeps the
 /// endpoint undiscovered rather than guessing a carrier.
 fn endpoint_inputs<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &'program State,
     expression: ExpressionHandle,

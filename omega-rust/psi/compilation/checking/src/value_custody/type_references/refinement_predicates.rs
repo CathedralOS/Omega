@@ -4,13 +4,12 @@
 //! their separate qualification owners.
 
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
-use typed_trees::TypedTrees;
 use typed_trees::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub fn scalar_type_refinement_predicates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     subject: CheckedScalarExpression,
 ) -> Option<Vec<CheckedBooleanExpression>> {
@@ -23,7 +22,7 @@ pub fn scalar_type_refinement_predicates(
 /// still owe every predicate. In particular, finite floats and scalar ranges
 /// share the same decoder that normal-return guarantee emission consumes.
 pub fn scalar_result_contract_is_represented(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     let Some(primitive_type) = program.primitive_type_reference(reference) else {
@@ -46,7 +45,7 @@ struct ScalarTypeRefinements {
 }
 
 fn scalar_type_refinements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     subject: CheckedScalarExpression,
 ) -> Option<ScalarTypeRefinements> {

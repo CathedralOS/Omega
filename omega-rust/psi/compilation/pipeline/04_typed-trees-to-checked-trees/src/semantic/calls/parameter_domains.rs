@@ -7,10 +7,10 @@
 use super::{CallSite, call_site_argument_expressions};
 use facts::FactPayload;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn call_parameter_domains(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     target_machine: SymbolHandle,

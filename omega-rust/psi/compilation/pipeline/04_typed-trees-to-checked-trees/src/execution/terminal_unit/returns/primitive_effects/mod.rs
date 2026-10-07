@@ -4,7 +4,7 @@ use super::{
     BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
     CheckedStructuralScalarReturnPlans, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, MachineSupplyMode, Multiplicity, StatementNode,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::returns::structural_scalar_returns::build_structural_scalar_return_machine;
 use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 /// Discover call-free primitive-reference bodies before their Unit callers. Nominal
 /// cleanup has no catalog here and remains in the later return-plan phase.
 pub(crate) fn build_checked_primitive_store_scalar_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -34,7 +34,7 @@ pub(crate) fn build_checked_primitive_store_scalar_return_plans(
 }
 
 pub(in crate::execution::terminal_unit) fn build_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -82,7 +82,7 @@ pub(super) fn is_primitive_reference_plan(plan: &CheckedStructuralScalarReturnMa
 }
 
 pub(in crate::execution::terminal_unit) fn has_plain_primitive_borrows(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
     let mut has_borrow = false;
@@ -122,7 +122,7 @@ pub(in crate::execution::terminal_unit) fn has_plain_primitive_borrows(
 }
 
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

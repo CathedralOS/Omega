@@ -12,7 +12,7 @@ use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 
 pub(crate) fn call_receiver_is_mutable(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
 ) -> bool {
@@ -33,7 +33,7 @@ pub(crate) fn call_receiver_is_mutable(
 }
 
 pub(crate) fn call_receiver_mutated_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
@@ -61,7 +61,7 @@ pub(crate) fn call_receiver_mutated_place(
 /// replayed site carrying the same recorded coordinate reaches the same
 /// place; see `receiver_place_for_call_site`.
 pub(crate) fn canonical_receiver_place_for_call_site(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
@@ -78,7 +78,7 @@ pub(crate) fn canonical_receiver_place_for_call_site(
 }
 
 fn receiver_place_for_call_site(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
@@ -138,7 +138,7 @@ fn receiver_place_for_call_site(
 /// The declaration qualifier supplies no storage: retain the actual root and
 /// projection, including when a different record is supplied to the successor.
 pub(in crate::flow) fn local_jump_data_argument(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
 ) -> Option<typed_trees::expression::ExpressionHandle> {

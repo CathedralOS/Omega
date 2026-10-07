@@ -7,11 +7,10 @@
 
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 
 pub(super) fn expression_is_effectful_for_transparent_result(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {
@@ -80,14 +79,17 @@ pub(super) fn expression_is_effectful_for_transparent_result(
 }
 
 pub(super) fn call_is_transparent_mutable_slice_view(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> bool {
     call.target.as_str() == CollectionViewOperation::MutableSlice.authored_spelling()
         && call_is_effect_free_slice_view(program, call)
 }
 
-fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpression) -> bool {
+fn call_is_effect_free_slice_view(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
     matches!(
         CollectionViewOperation::from_authored_spelling(call.target.as_str()),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
@@ -100,7 +102,7 @@ fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpressi
 }
 
 pub(super) fn frame_place_root_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {

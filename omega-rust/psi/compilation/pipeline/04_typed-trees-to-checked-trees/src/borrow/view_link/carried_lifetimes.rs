@@ -3,7 +3,7 @@
 //! Fixed arrays share one element-type traversal; only actual reference leaves
 //! are expanded into per-element paths. View-free storage therefore costs work
 //! proportional to its type structure, not its physical element count.
-use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
+use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode};
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::view_link::data_definition;
 
@@ -29,7 +29,7 @@ struct TemplateFrontier<'a> {
 /// A declaration may describe a type parameter without knowing its carried
 /// references. This is not a complete frontier and never supplies a loan.
 pub(crate) fn declaration_lifetime_frontier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     parameters: &[SymbolHandle],
 ) -> DeclarationLifetimeFrontier {
@@ -58,7 +58,7 @@ pub(crate) fn declaration_lifetime_frontier(
 }
 
 pub(super) fn carried_lifetimes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
@@ -82,7 +82,7 @@ pub(super) fn carried_lifetimes(
 
 /// Every substitution maps to a valid, registered type reference.
 fn substitutions_are_registered(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     !substitutions.iter().any(|(_, reference)| {
@@ -94,7 +94,7 @@ fn substitutions_are_registered(
 }
 
 pub(crate) fn substituted_result_is_view_free(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -121,7 +121,7 @@ pub(crate) fn substituted_result_is_view_free(
 /// caller-side loan relation `resolve_substituted_view_return_source`
 /// carries. An unresolved structure is never a complete frontier.
 pub(crate) fn substituted_result_frontier_is_complete(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -146,7 +146,7 @@ pub(crate) fn substituted_result_frontier_is_complete(
 /// resolved through the call's own closed bindings. `None` means the
 /// instantiated frontier cannot be enumerated completely.
 pub(super) fn substituted_carried_lifetimes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<Vec<CarriedLifetime>> {
@@ -170,7 +170,7 @@ pub(super) fn substituted_carried_lifetimes(
 /// no projected frontier is published. Explicit lifetimes or substitutions
 /// require the ordinary complete contract and cannot use this fallback.
 pub(super) fn whole_elided_result_accesses(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::ReferenceAccess>> {
     let mut output = Vec::new();
@@ -189,7 +189,7 @@ pub(super) fn whole_elided_result_accesses(
 }
 
 fn collect_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     lifetimes: &[(String, String)],
     types: &[(SymbolHandle, TypeReferenceHandle)],
@@ -405,7 +405,7 @@ fn collect_type(
 }
 
 fn collect_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     lifetimes: &[(String, String)],
     types: &[(SymbolHandle, TypeReferenceHandle)],

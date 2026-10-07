@@ -4,7 +4,6 @@
 
 use super::super::{
     CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
-    TypedTrees,
 };
 use super::ComputationVisit;
 use crate::execution::terminal_unit::control::structural_operands;
@@ -16,7 +15,7 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 /// the same exact element, field, subject and pattern occurrence custody.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_constructor_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -121,7 +120,7 @@ pub(super) fn collect_constructor_calls(
 /// share an occurrence ledger so neither can claim a call the other executes.
 /// Every remaining occurrence at that statement must belong to those roots.
 pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -296,7 +295,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
 /// producer. Exact selection occurrence custody distinguishes parser copies
 /// from independently authored calls with identical targets and arguments.
 pub(super) fn scheduled_dispatch_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -386,7 +385,7 @@ pub(super) fn scheduled_dispatch_subject(
 }
 
 pub(super) fn collect_argument_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -487,7 +486,7 @@ pub(super) fn collect_argument_calls(
 /// naming the same authored range are not additional executions.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_range_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -535,7 +534,7 @@ pub(super) fn collect_range_calls(
 /// call accounting follows those operands, not parallel fact coordinates.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_structural_argument_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: SymbolHandle,
     statement: usize,
@@ -595,7 +594,7 @@ pub(super) fn collect_structural_argument_calls(
 /// The calls owned by one computation root in this machine — `None` when the
 /// root belongs to another machine or the walk cannot consume them.
 pub(super) fn collect_owned_root_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -621,7 +620,7 @@ pub(super) fn collect_owned_root_calls(
 }
 
 pub(super) fn collect(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: SymbolHandle,
     statement: usize,

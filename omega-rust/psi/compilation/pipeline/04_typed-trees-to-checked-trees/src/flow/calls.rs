@@ -28,7 +28,7 @@ use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_call_flow_fact<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
@@ -184,7 +184,7 @@ pub(super) fn build_call_flow_fact<'plans>(
 /// intentionally not copied, so qualification weakening cannot launder carry.
 /// Conditional aggregates and every n-ary shape wait for P1c path mappings.
 fn memoized_call_target_return_type<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -195,7 +195,7 @@ fn memoized_call_target_return_type<'plans>(
 }
 
 pub(super) fn memoized_call_target_parameters<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Option<&'plans [typed_trees::signature::StateParameter]> {
@@ -206,7 +206,7 @@ pub(super) fn memoized_call_target_parameters<'plans>(
 }
 
 pub(super) fn memoized_find_call_site<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -228,7 +228,7 @@ pub(super) fn memoized_find_call_site<'plans>(
 }
 
 fn append_one_to_one_call_carry_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
@@ -388,7 +388,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
 /// stay proven through the borrowed source place and are deliberately absent
 /// here so a later source write still invalidates them.
 fn append_call_result_field_domain_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
@@ -484,7 +484,7 @@ fn append_call_result_field_domain_facts<'plans>(
 /// caller storage only while its captured contents survive. A mutable-formal
 /// guarantee describes the live output and remains publishable after writes.
 fn append_call_parameter_domain_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
@@ -610,7 +610,7 @@ fn append_call_parameter_domain_facts<'plans>(
 /// to an empty match. A call this cannot name keeps its authored leaf and
 /// fails closed at whichever consumer reads it.
 pub(crate) fn call_target_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> SymbolHandle {
     typed_trees::operator::selected_boundary_operator(program, call)
@@ -618,7 +618,7 @@ pub(crate) fn call_target_symbol(
 }
 
 pub(crate) fn call_target_return_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     if let Some(state) = crate::semantic::calls::find_state(program, target_state_symbol) {
@@ -657,7 +657,7 @@ pub(crate) fn call_target_return_type(
 /// atom lookup keeps this a read over seeded symbols — a package cannot supply
 /// a substitute signature for an unnameable intrinsic.
 fn asm_intrinsic_result_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let atom = match program.symbols.builtin_function_for_symbol(target)? {
@@ -694,7 +694,7 @@ fn asm_intrinsic_result_type(
 /// bodyless requirement. State and signature symbols are globally unique, so
 /// each source contributes at most once.
 fn collect_callable_contracts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Vec<&typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
@@ -723,7 +723,7 @@ fn collect_callable_contracts(
 /// map lookup each for the state and signature locations rather than the
 /// whole machines x states x trait-signatures walk.
 fn collect_callable_contracts_indexed<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Vec<&'plans typed_trees::signature::SignatureContract> {
@@ -749,7 +749,7 @@ fn collect_callable_contracts_indexed<'plans>(
 /// in D` in ensures rather than on the carrier type; that is still an exact
 /// result promise, not issuer authorization or an argument qualification.
 pub(crate) fn call_result_qualification_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
@@ -769,7 +769,7 @@ pub(crate) fn call_result_qualification_identities(
 /// scans. Used inside `call_result_identities`, so each target pays the
 /// indexed lookup at most once per build.
 fn call_result_qualification_identities_indexed<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Vec<(
@@ -799,7 +799,7 @@ fn call_result_qualification_identities_indexed<'plans>(
 /// peeled carrier is a reference yield none, so every caller can skip the
 /// row build without consulting the (return_type-keyed) domain rows.
 fn result_type_carries_identity_rows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut carrier = return_type;
@@ -818,7 +818,7 @@ fn result_type_carries_identity_rows(
 /// type-level constraint domains. Independent of the callable's contracts,
 /// so callers may memoize them per return type.
 fn result_type_domain_rows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
@@ -836,7 +836,7 @@ fn result_type_domain_rows(
 }
 
 fn result_identity_rows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
@@ -854,7 +854,7 @@ fn result_identity_rows(
 }
 
 fn append_ensures_result_rows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
     domains: &mut Vec<(
@@ -906,7 +906,7 @@ fn append_ensures_result_rows(
 /// position and whether the claim came from the parameter's declared type
 /// rather than an authored `ensures`.
 pub(crate) fn call_parameter_qualification_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Vec<(
     usize,
@@ -925,7 +925,7 @@ pub(crate) fn call_parameter_qualification_identities(
 /// lookups and symbol indexes, memoized per target inside
 /// `call_parameter_identities`.
 fn call_parameter_qualification_identities_indexed<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Vec<(
@@ -942,7 +942,7 @@ fn call_parameter_qualification_identities_indexed<'plans>(
 }
 
 fn parameter_identity_rows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     contracts: &[&typed_trees::signature::SignatureContract],
 ) -> Vec<(
@@ -1012,7 +1012,7 @@ fn parameter_identity_rows(
 /// none when the subject is the reserved `result`, a projection, or no exact
 /// parameter of the callable.
 pub(crate) fn ensured_parameter_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     value: typed_trees::expression::ExpressionHandle,
 ) -> Option<usize> {

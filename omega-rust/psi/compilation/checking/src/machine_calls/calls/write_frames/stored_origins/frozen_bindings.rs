@@ -9,12 +9,11 @@ use crate::machine_calls::calls::write_frames::{
     FrameInference, FrameSourcePlace, TopLevelSymbols, coarse_place_path, split_place_root,
 };
 use facts::PlaceSegment;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::TableAssignment;
 
 pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement: &typed_trees::statement::StatementNode,
@@ -40,7 +39,7 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
@@ -91,7 +90,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -109,7 +108,7 @@ pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_b
 /// that storage it may actually replace. Traverse call operands in that call's
 /// context, never flatten nested calls into their enclosing call's ceiling.
 fn expression_exposes_with_writes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -213,7 +212,7 @@ fn expression_exposes_with_writes(
 /// cannot supply a replacement's new origin. Alias substitution happens before
 /// comparing paths, and a coarse collection path retains its whole ceiling.
 fn writes_may_replace_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
     writes: Option<&[String]>,
@@ -283,7 +282,7 @@ fn writes_may_replace_binding(
 /// full ceiling. These paths conservatively include both slot and referent
 /// writes, so they can prove disjointness but never a replacement's new origin.
 fn call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &typed_trees::machine::Machine,
     target: symbols::SymbolHandle,
     receiver: Option<&FramePlaceOrigin>,
@@ -323,12 +322,15 @@ fn call_written_paths(
     Some(paths)
 }
 
-fn receiver_target_is_unresolved(program: &TypedTrees, target: symbols::SymbolHandle) -> bool {
+fn receiver_target_is_unresolved(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> bool {
     crate::machine_calls::calls::write_frames::machine_state_by_symbol(program, target).is_none()
 }
 
 fn statement_receiver_has_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
@@ -348,7 +350,7 @@ fn statement_receiver_has_identity(
 }
 
 fn statement_receiver_exposes_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
     stored: &[StoredLocalOrigins],
@@ -405,7 +407,7 @@ fn statement_receiver_exposes_binding(
 }
 
 fn receiver_contains_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     local: &StoredLocalOrigins,
     receiver_fields: &[&str],
 ) -> bool {
@@ -443,7 +445,7 @@ fn receiver_contains_binding(
 /// An implicit method receiver at a reference leaf borrows the referent, not
 /// the slot. Explicit exclusive borrows can expose the slot itself as well.
 pub(super) fn target_replaces_reference_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
@@ -472,7 +474,7 @@ pub(super) fn target_replaces_reference_binding(
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn assignment_replaces_case_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     assignment: &TableAssignment,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
@@ -485,7 +487,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_replaces_case_bi
 /// may instead replace referent contents; the ordinary assignment classifier
 /// distinguishes those from reference-valued slot replacement.
 pub(in crate::machine_calls::calls::write_frames) fn assignment_replaces_reference_ancestor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     assignment: &TableAssignment,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
@@ -494,7 +496,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_replaces_referen
 }
 
 pub(super) fn target_replaces_case_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
@@ -528,7 +530,7 @@ pub(super) fn target_replaces_case_binding(
 /// Alias origins were frozen when their bindings were established. Consult
 /// those origins for interference, without replaying an initializer by name.
 pub(in crate::machine_calls::calls::write_frames) fn binding_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     aliases: &[(String, FramePlaceOrigin)],
 ) -> Option<FrameSourcePlace> {

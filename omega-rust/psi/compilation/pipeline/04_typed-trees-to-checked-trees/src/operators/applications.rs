@@ -5,7 +5,6 @@ use checked_trees::{
     CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand, CheckedValueOrigin,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::operator::ClosedOperatorApplicationArgument;
 use typed_trees::statement::StatementNode;
@@ -14,7 +13,7 @@ use typed_trees::types::TypeReferenceHandle;
 use super::{expression_type_reference_for_origin, indexed_operand_types};
 
 pub(crate) fn bind_boundary_operator_application_demands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     validated: &[validation::ValidatedBoundaryOperatorApplication],
     operators: &mut CheckedOperatorFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -258,7 +257,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
 }
 
 fn checked_spelled_boundary_application(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     operator_use: &CheckedOperatorUseFact,
@@ -301,7 +300,7 @@ fn checked_spelled_boundary_application(
 /// match-equality comparisons carry no authored operator token of their
 /// own, so they stay out of this cohort for now.
 fn spelled_symbolic_boundary_application(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     operator_use: &CheckedOperatorUseFact,
     operand_types: &[Option<TypeReferenceHandle>],
@@ -383,7 +382,7 @@ fn checked_boundary_application_from_bindings(
 }
 
 fn rejoin_validated_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     validated: &[validation::ValidatedBoundaryOperatorApplicationArgument],
@@ -501,7 +500,7 @@ fn rejoin_validated_arguments(
 }
 
 fn rejoin_validated_symbolic_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     validated: &[validation::ValidatedBoundaryOperatorApplicationArgument],
     operand_types: &[Option<TypeReferenceHandle>],
@@ -610,7 +609,7 @@ fn rejoin_validated_symbolic_arguments(
 }
 
 fn named_expression_operand_types(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     origin: CheckedValueOrigin,
 ) -> Vec<Option<TypeReferenceHandle>> {
@@ -636,7 +635,7 @@ fn named_expression_operand_types(
 }
 
 fn spelled_operand_types(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
 ) -> Vec<Option<TypeReferenceHandle>> {
     if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {

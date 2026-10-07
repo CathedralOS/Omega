@@ -7,7 +7,6 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::BuiltinFunction;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -19,7 +18,7 @@ mod boundary_return;
 /// Result operations own the outer call while their operands use the shared
 /// scalar evaluator. Each caller family retains its existing source topology.
 pub fn result_initializer_call_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
@@ -44,7 +43,7 @@ pub fn result_initializer_call_is_supported(
 /// graph. Result operations and reference-result custody keep their own admission;
 /// other destinations retain the fence until they have ordered evaluation.
 pub(crate) fn report_nested_call_in_local_initializer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state_name: &str,
     value: ExpressionHandle,
@@ -75,7 +74,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// in `reference_result_custody` and the checked call builder, which fail
 /// closed on anything this shape check lets through.
 fn reference_result_nested_operand_call_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
@@ -310,7 +309,7 @@ fn reference_result_nested_operand_call_is_supported(
 /// Scalar and owned structural results use the authored statement sequence.
 /// Structural ownership and cleanup are checked by that sequence's producer.
 pub fn unit_result_initializer_call_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
@@ -399,7 +398,7 @@ pub fn unit_result_initializer_call_is_supported(
 }
 
 fn boundary_structural_initializer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     local: &typed_trees::statement::TableLocalData,
 ) -> bool {
@@ -422,7 +421,7 @@ fn boundary_structural_initializer(
 }
 
 fn ordinary_structural_initializer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
     result_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -453,7 +452,7 @@ fn ordinary_structural_initializer(
 /// Reference destinations reject here; boundary results retain their existing
 /// target admission and separate custody validation.
 fn ordinary_structural_result_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_multiplicity(reference) {
@@ -472,7 +471,7 @@ fn ordinary_structural_result_type(
 }
 
 fn initializer_target_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
     result_type: typed_trees::types::TypeReferenceHandle,
@@ -551,7 +550,7 @@ fn initializer_target_is_supported(
 }
 
 fn unit_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -574,7 +573,7 @@ fn unit_type(
 /// of predicting it from the source signature here. Other destinations retain
 /// their existing fence until they use the same computation path.
 pub(crate) fn report_nested_call_in_local_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     state_name: &str,
@@ -649,7 +648,7 @@ pub(crate) fn report_nested_call_in_local_assignment(
 /// it cannot sequence. Returns the callee's declared result primitive, which
 /// each destination family then matches against its own stored type.
 fn unit_store_call_result_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     assignment: &TableAssignment,
 ) -> Option<typed_trees::types::PrimitiveType> {
@@ -671,7 +670,7 @@ fn unit_store_call_result_primitive(
 /// ordinary checked-body call whose declared result
 /// primitive is exactly the destination's stored primitive.
 fn unit_scalar_store_assignment_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -735,7 +734,7 @@ fn unit_scalar_store_assignment_is_supported(
 /// Ordinary assignment/call checks still enforce access, types, and effects;
 /// unavailable computations or storage must reject during product construction.
 fn unit_member_scalar_store_assignment_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -769,7 +768,7 @@ fn unit_member_scalar_store_assignment_is_supported(
 /// Bodyless boundary/external calls remain result operations, so broadening this
 /// query must not change `result_initializer_call_is_supported`'s ownership test.
 fn ordinary_scalar_call_result_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     if !program.expression_table.expression_is_valid(value) {
@@ -799,7 +798,7 @@ fn ordinary_scalar_call_result_primitive(
 /// nested-result fence: type, effect and custody checks still run, and missing
 /// operand plans fail product construction rather than supplying a value.
 fn scalar_initializer_has_operand_evaluation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
@@ -833,7 +832,7 @@ fn scalar_initializer_has_operand_evaluation(
 /// own ordered materialization path. This check only handles the remaining local
 /// and assignment destinations, not every bound nested call.
 pub(crate) fn report_nested_call_in_bound_value_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state_name: &str,
     value: ExpressionHandle,
@@ -871,9 +870,12 @@ pub(crate) fn report_nested_call_in_bound_value_call(
 /// nested non-builtin call is also one. Such a tree composes as one statement
 /// result operation over ordered nested application operands; a checked-body
 /// or structural call anywhere inside still needs the fence.
-pub fn nested_boundary_applications_compose(program: &TypedTrees, value: ExpressionHandle) -> bool {
+pub fn nested_boundary_applications_compose(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+) -> bool {
     fn scalar_parameters(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         parameters: &[typed_trees::signature::StateParameter],
     ) -> bool {
         parameters.iter().all(|parameter| {
@@ -885,7 +887,7 @@ pub fn nested_boundary_applications_compose(program: &TypedTrees, value: Express
         })
     }
     fn scalar_boundary_application(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         // A nongeneric legacy named operator (`F64::from_i32`): its qualifier
@@ -916,7 +918,7 @@ pub fn nested_boundary_applications_compose(program: &TypedTrees, value: Express
                 .is_some()
             && scalar_parameters(program, program.state_parameters(entry))
     }
-    fn composes(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    fn composes(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
         if !expression.is_valid() {
             return true;
         }
@@ -952,7 +954,10 @@ pub fn nested_boundary_applications_compose(program: &TypedTrees, value: Express
 /// Selected scalar intrinsics compose as operands; authored lookalikes retain
 /// ordinary call-result realization. Collection views have no callable symbol,
 /// so their vocabulary applies only when no authored declaration was selected.
-fn call_is_composing_builtin(program: &TypedTrees, call: &TableCallExpression) -> bool {
+fn call_is_composing_builtin(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
     program
         .symbols
         .builtin_function_for_symbol(call.target_symbol)
@@ -966,7 +971,7 @@ fn call_is_composing_builtin(program: &TypedTrees, call: &TableCallExpression) -
 /// (`min`/`max`/`sqrt`) and the view builtins (`as_slice`/`as_mut_slice`/
 /// `as_view`/`bytes`) compose in arguments and are exempt.
 fn first_non_builtin_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Identifier> {
     if !expression.is_valid() {
@@ -1004,7 +1009,7 @@ fn first_non_builtin_call(
 /// undeclared-return value machines (`transition r > 0 { true -> self.f(r-1)
 /// false -> 0 }`, the termination-canary surface) stay callable.
 pub(super) fn report_void_value_callee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     current_machine: &Machine,
     current_state: &State,

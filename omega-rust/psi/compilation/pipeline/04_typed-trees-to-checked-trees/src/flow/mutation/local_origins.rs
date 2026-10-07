@@ -25,7 +25,7 @@ mod coordinates;
 pub(crate) use coordinates::{origin_place, sole_local_referent_origin};
 
 pub(crate) fn close_storage_places_over_aliases_with_resolver(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -100,7 +100,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
 }
 
 pub(super) fn assignment_storage_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -196,7 +196,7 @@ pub(super) fn assignment_storage_places(
 }
 
 fn place_requires_local_write_origin(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
@@ -222,7 +222,7 @@ fn place_requires_local_write_origin(
 /// Equality evidence needs one complete origin, not the conservative union
 /// used to retire facts after a possible write.
 pub(crate) fn rebase_exact_local_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
@@ -278,7 +278,7 @@ pub(crate) fn rebase_exact_local_place(
 }
 
 pub(super) fn rebase_local_write_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
@@ -344,7 +344,7 @@ pub(super) fn rebase_local_write_places(
 /// finitely many candidate origins (flow/reference_places); a write through
 /// it lands on every candidate's corresponding place.
 fn reference_result_candidate_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     root: SymbolHandle,
@@ -370,7 +370,7 @@ fn reference_result_candidate_places(
 }
 
 pub(crate) fn place_from_origin_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     path: &str,

@@ -261,7 +261,9 @@ pub(crate) fn contract_member_path_root(
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::PlaceRoot> {
-    if let Some((owner, _)) = validation::reserved_result_owner(&compilation.typed, expression) {
+    if let Some((owner, _)) =
+        validation::reserved_result_owner(compilation.checking_input, expression)
+    {
         // The result has no parameter symbol. Rejoin the exact authored
         // postcondition owner before matching its retained semantic place rows.
         // A public trait requirement owns its `result` through the signature

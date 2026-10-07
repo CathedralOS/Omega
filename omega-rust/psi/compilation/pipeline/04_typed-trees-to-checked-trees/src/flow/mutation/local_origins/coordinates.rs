@@ -9,7 +9,7 @@ use crate::flow::place_segment_has_unresolved_identity;
 /// an unresolved runtime index truncates the place, and only an exact result
 /// may feed value transport such as returned-reference evidence re-anchoring.
 pub(crate) fn origin_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     origin: &validation::LocalWriteOrigin,
@@ -25,7 +25,7 @@ pub(crate) fn origin_place(
 }
 
 fn structural_origin(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     source: &validation::LocalWriteSource,

@@ -3,7 +3,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(super) fn place_is_used_after_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     target: &crate::semantic::calls::CallSite<'_>,
@@ -32,7 +32,7 @@ pub(super) fn place_is_used_after_call(
 }
 
 struct EvaluationTraversal<'program, 'target> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     target: &'target crate::semantic::calls::CallSite<'program>,

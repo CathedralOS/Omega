@@ -9,8 +9,7 @@ use super::fields::{
 };
 use super::identity_views::unwrap_constraint_shells;
 use super::{
-    Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
-    exact_integer_parameter,
+    Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, exact_integer_parameter,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
@@ -30,7 +29,7 @@ impl CoordinateKind {
     /// produced length requires an exact named record.
     fn step_owner<'program>(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         field: &'program DataField,
     ) -> Option<SymbolHandle> {
         match self {
@@ -53,7 +52,7 @@ impl CoordinateKind {
     /// unsigned integer; the produced length ignores it.
     fn leaf_admits<'program>(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         field: &'program DataField,
         natural_leaf: bool,
     ) -> bool {
@@ -121,7 +120,7 @@ impl<'program> Coordinate<'program> {
     /// to preserve its path; mutability is a storage capability, not
     /// evidence the value moved.
     pub(super) fn for_parameter(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         parameter: &'program StateParameter,
         chain: &[SymbolHandle],
         kind: CoordinateKind,
@@ -161,7 +160,7 @@ impl<'program> Coordinate<'program> {
     /// coordinate unchanged.
     pub(super) fn arrive_unless_at_entry(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         entry_parameters: &[SymbolHandle],
         at_entry: bool,
@@ -184,7 +183,7 @@ impl<'program> Coordinate<'program> {
     /// the coordinate unchanged.
     pub(super) fn at_entry_arrival(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         entry_parameters: Option<&[SymbolHandle]>,
     ) -> Option<Self> {
@@ -206,7 +205,7 @@ impl<'program> Coordinate<'program> {
     /// state's parameters, which then answers `for_carrier`.
     pub(super) fn at_arrival(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         arrival: RankingRangeState<'_>,
         entry_symbol: SymbolHandle,
     ) -> Option<Self> {
@@ -236,7 +235,7 @@ impl<'program> Coordinate<'program> {
     /// carriage meant.
     pub(super) fn for_carrier(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         carrier: &'program StateParameter,
     ) -> Option<Self> {
         let chain = self.chain();
@@ -269,7 +268,7 @@ impl<'program> Coordinate<'program> {
     /// the role at a nested path; see [`nested_arrival_chain`].
     fn arrival_chain(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         parameter: &'program StateParameter,
     ) -> Option<Vec<SymbolHandle>> {
         nested_arrival_chain(program, parameter, self.root, &self.steps, &self.chain())
@@ -288,7 +287,7 @@ impl<'program> Coordinate<'program> {
     /// coordinate.
     pub(super) fn through_carrier(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
     ) -> Option<Self> {
@@ -302,7 +301,7 @@ impl<'program> Coordinate<'program> {
     /// a different carriage, not this coordinate.
     pub(super) fn through_carrier_at(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
         expected: SymbolHandle,

@@ -14,7 +14,6 @@ use numerics::{
     literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
 };
 use typed_trees::{
-    TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     types::PrimitiveType,
 };
@@ -27,7 +26,7 @@ pub(super) use destinations::append_destination_literals;
 /// destination. The caller owns operator-selection evidence. No named value,
 /// cast, call, prior landing, or target-semantic observation is evaluated here.
 pub fn land_anonymous_integer_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
@@ -39,7 +38,7 @@ pub fn land_anonymous_integer_expression(
 /// Land one selected anonymous subtree and retain its first fractional
 /// intermediate warning. Callers publish the warning only after full admission.
 pub fn land_anonymous_integer_expression_with_warning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     builtin: impl FnMut(ExpressionHandle) -> bool,
@@ -57,7 +56,7 @@ pub fn land_anonymous_integer_expression_with_warning(
 /// result edges. Each edge must belong to that exact dispatch; the caller owns
 /// subject evaluation, ordered selection, coverage, and all-arm static checking.
 pub fn land_anonymous_integer_expression_with_selected_match_arms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
@@ -76,7 +75,7 @@ pub fn land_anonymous_integer_expression_with_selected_match_arms(
 /// callers retain that evidence separately. Non-comparisons, prior landings,
 /// invalid trees and anonymous division by zero return None.
 pub fn evaluate_anonymous_numeric_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<bool> {
@@ -91,7 +90,7 @@ pub fn evaluate_anonymous_numeric_comparison(
 /// Compare anonymous operands through exact result edges selected by the
 /// caller. These edges convey no operator or declaration-selection authority.
 pub fn evaluate_anonymous_numeric_comparison_with_selected_match_arms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
@@ -134,7 +133,7 @@ pub fn evaluate_anonymous_numeric_comparison_with_selected_match_arms(
 /// Compare exact anonymous values without inventing a numeric destination.
 /// The caller must establish builtin meaning for each arithmetic node.
 pub(crate) fn evaluate_anonymous_numeric_equality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
@@ -149,7 +148,7 @@ pub(crate) fn evaluate_anonymous_numeric_equality(
 /// selected result edges and builtin authority obey the ordinary rational
 /// evaluator's checks. Fractional landing diagnostics remain destination-owned.
 pub fn evaluate_anonymous_numeric_expression_with_selected_match_arms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
@@ -166,7 +165,7 @@ pub fn evaluate_anonymous_numeric_expression_with_selected_match_arms(
 /// Consumers must independently establish builtin arithmetic selection, and
 /// ordinary source checking still owns all-arm typing and coverage.
 pub fn select_anonymous_numeric_match_arm(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     dispatch: &typed_trees::expression::TableMatchExpression,
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<ExpressionHandle> {
@@ -190,7 +189,7 @@ pub fn select_anonymous_numeric_match_arm(
 }
 
 fn integer_landing_warning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     evaluated: &AnonymousNumericValue,
     integer: &BigInt,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
@@ -255,7 +254,7 @@ pub fn land_integer_value(value: &BigInt, destination: PrimitiveType) -> Option<
 pub(crate) use typed_trees::closed_numeric::AnonymousNumericValue;
 
 pub(crate) fn anonymous_numeric_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
@@ -265,9 +264,12 @@ pub(crate) fn anonymous_numeric_value(
 /// Absence of a discovered type is not evidence of anonymity. Result joins
 /// inherit a destination only when every leaf is an actual anonymous number;
 /// named values, typed operations and suffixed floats remain conversions.
-pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub fn has_anonymous_numeric_results(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         active: &mut Vec<ExpressionHandle>,
     ) -> bool {
@@ -295,7 +297,7 @@ pub fn has_anonymous_numeric_results(program: &TypedTrees, expression: Expressio
 /// Float landing keeps its existing integer-spelling path separate from
 /// decimal arithmetic, whose ExactFloat evaluator preserves signed-zero rules.
 pub(super) fn anonymous_integer_literal_tree_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
@@ -303,7 +305,7 @@ pub(super) fn anonymous_integer_literal_tree_value(
 }
 
 fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,

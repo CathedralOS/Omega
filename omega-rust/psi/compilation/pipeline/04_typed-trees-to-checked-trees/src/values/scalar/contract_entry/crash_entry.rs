@@ -7,7 +7,6 @@ use checked_trees::{
     CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use symbols::{BuiltinTypeAtom, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
@@ -15,7 +14,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn lower_machine_entry_crash_contract_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     expression: ExpressionHandle,
@@ -49,7 +48,7 @@ type EntrySubjectResolver<'program> = dyn Fn(ExpressionHandle) -> Option<(u32, V
 /// Read the same predicate algebra while the caller supplies authenticated
 /// invocation-entry subjects for observations made in a body state.
 pub(crate) fn lower_entry_predicate_with_subjects(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -75,7 +74,7 @@ pub(crate) fn lower_entry_predicate_with_subjects(
 /// to authenticated invocation-entry subjects. This does not replay stored
 /// initializer expressions or establish arithmetic safety by itself.
 pub(crate) fn lower_entry_scalar_with_subjects(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -163,7 +162,7 @@ pub(crate) fn lower_entry_scalar_with_subjects(
 }
 
 struct Reader<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     operators: &'program CheckedOperatorFacts,
     machine: Option<&'program Machine>,
     owner: symbols::SymbolHandle,
@@ -175,7 +174,7 @@ struct Reader<'program> {
 /// Bodyless requirements have an exact signature namespace, not a synthetic
 /// machine body. Structural guards remain outside this scalar contract slice.
 pub(crate) fn lower_signature_crash_contract_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     signature: &typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
@@ -217,7 +216,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
 /// route identity-only (the machine-rooted field reader does not apply), so
 /// both leave the route without a form rather than guess one.
 pub(crate) fn lower_operator_crash_contract_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     operator: &typed_trees::operator::OperatorDefinition,
     expression: ExpressionHandle,

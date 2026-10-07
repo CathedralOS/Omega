@@ -3,7 +3,6 @@
 //! never acquires a manufactured machine or an executable body.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
@@ -22,7 +21,10 @@ pub(in crate::checks) enum Callable<'program> {
 }
 
 impl<'program> Callable<'program> {
-    pub(super) fn resolve(program: &'program TypedTrees, target: SymbolHandle) -> Option<Self> {
+    pub(super) fn resolve(
+        program: &'program dyn ::validation::CheckingInput,
+        target: SymbolHandle,
+    ) -> Option<Self> {
         if !target.is_valid() {
             return None;
         }
@@ -66,7 +68,7 @@ impl<'program> Callable<'program> {
 
     pub(in crate::checks) fn parameters(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
     ) -> &'program [StateParameter] {
         match self {
             Self::Machine { state, .. } => program.state_parameters(state),
@@ -83,7 +85,7 @@ impl<'program> Callable<'program> {
 
     pub(in crate::checks) fn contracts(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
     ) -> impl Iterator<Item = &'program SignatureContract> {
         let (first, second): (&[SignatureContract], &[SignatureContract]) = match self {
             Self::Machine { machine, state } => (
@@ -107,7 +109,7 @@ impl<'program> Callable<'program> {
 
     pub(in crate::checks) fn scalar_reference(
         self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         if let Some(result) = validation::reserved_result_place(program, expression) {
@@ -130,7 +132,7 @@ impl<'program> Callable<'program> {
 
     pub(in crate::checks) fn builtin_meaning(
         self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
         match self {
@@ -153,7 +155,7 @@ impl<'program> Callable<'program> {
 
     pub(super) fn decomposed_builtin_meaning(
         self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
         match self {

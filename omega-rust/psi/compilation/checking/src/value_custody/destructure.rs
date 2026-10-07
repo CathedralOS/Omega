@@ -10,7 +10,6 @@
 //! waive), and an unknown field refuses naming it (typo fence).
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 const MARKER_PREFIX: &str = "__destructure#";
 /// Arm-position twin (`..`-free destructure arms): `#`/`=` cannot appear in
@@ -21,7 +20,7 @@ const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
 const TRANSITION_SUBJECT_PREFIX: &str = "__transition_subject#";
 
 pub(crate) fn validate_destructure_exhaustiveness(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let proof_only = crate::proof_only_classification(program);
@@ -136,7 +135,7 @@ pub(crate) fn validate_destructure_exhaustiveness(
 /// field of the record (empty variant) or of the named case's payload. `..` in
 /// the arm opts out of missing-field validation via a trailing `#~rest`.
 fn validate_arm_pattern_marker(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     local: &typed_trees::statement::TableLocalData,
@@ -292,7 +291,7 @@ fn validate_arm_pattern_marker(
 }
 
 fn is_captured_transition_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let typed_trees::expression::ExpressionNode::Name(path) =

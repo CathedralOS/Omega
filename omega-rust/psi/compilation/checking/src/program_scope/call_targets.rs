@@ -10,7 +10,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// license builders rebuild it per judged machine. Inside a scope it is
 /// built once per build; the caller keeps the clone for both license passes.
 pub(crate) fn memoized_conformance_slot_carriers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>> {
     enum SlotState {
         NoScope,
@@ -61,7 +61,7 @@ pub(crate) fn memoized_conformance_slot_carriers(
 /// state to prove the target symbol is unique, which dominated its callers
 /// before verdicts were shared inside the scope.
 pub(crate) fn memoized_call_argument_destinations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
     argument_count: usize,
     compute: impl FnOnce() -> Option<Vec<TypeReferenceHandle>>,
@@ -119,7 +119,7 @@ pub(crate) fn memoized_call_argument_destinations(
 /// The single machine state `symbol` selects, when exactly one state carries
 /// it.
 pub(crate) fn unique_state_by_symbol<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'p typed_trees::state::State> {
     let matches = program
@@ -138,7 +138,7 @@ pub(crate) fn unique_state_by_symbol<'p>(
 /// name-path members owned outright for the signature selectors that compare
 /// them against authored path spellings.
 pub(crate) fn call_receiver_member_names(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
 ) -> Vec<String> {
     program

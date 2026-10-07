@@ -1,6 +1,5 @@
 //! Expression stand-downs and the facts that mention proof-only data.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -45,7 +44,7 @@ pub(crate) fn record_all_expression_stand_downs(
 /// above: such conjuncts are outside every judging tier today, and standing
 /// down would silently certify them (math roster N3 owns the real tier).
 pub(crate) fn fact_mentions_proof_only_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     expression: ExpressionHandle,
@@ -151,7 +150,7 @@ pub(crate) fn fact_mentions_proof_only_data(
 /// cast, member, borrow, indexed, range, array literal — shared by the
 /// contract-mention searches; non-composite nodes return `None`.
 fn find_in_composite_children<T>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     node: &ExpressionNode,
     recurse: impl Fn(ExpressionHandle) -> Option<T>,
 ) -> Option<T> {
@@ -181,7 +180,7 @@ fn find_in_composite_children<T>(
 /// meaning comes from authored home representation, not from integer
 /// arithmetic.
 pub(crate) fn fact_mentions_zero_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     use typed_trees::types::TypeReferenceNode;

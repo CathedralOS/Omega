@@ -5,7 +5,6 @@
 //! the judge can compare soundly; every other expression remains opaque or
 //! unsupported.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
 use super::{StructuralTerm, is_arm_pattern_marker};
@@ -47,7 +46,7 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
 /// Normalize nullary applications of trivial constant machines to the closed
 /// constructor value returned by that machine.
 pub(super) fn unfold_constant_applications(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     term: StructuralTerm,
 ) -> StructuralTerm {
     match term {
@@ -112,7 +111,7 @@ pub(super) fn unfold_constant_applications(
 /// The constructor value a trivial constant machine returns, when its shape
 /// is exactly one state with one unguarded transition to a closed constructor.
 fn constant_machine_constructor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<StructuralTerm> {
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -201,7 +200,7 @@ pub(super) fn structural_call_machine_name(
 /// Record and case literals retain complete sorted fields, including established
 /// runtime defaults; unsupported expressions stay opaque or fail closed.
 pub(super) fn structural_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
     structural_term_in_scope(program, None, expression)
@@ -210,7 +209,7 @@ pub(super) fn structural_term(
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
 /// name-free binary operands (see `binary_term_in_scope`).
 pub(super) fn structural_term_in_scope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     scope: Option<(
         &typed_trees::machine::Machine,
         &typed_trees::state::State,
@@ -395,7 +394,7 @@ pub(super) fn structural_term_in_scope(
 /// parameter, or borrow. A namespace receiver contributes no runtime
 /// argument, so the call termifies exactly like a receiverless application.
 pub(super) fn static_call_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     call.receiver.is_valid()
@@ -416,7 +415,7 @@ pub(super) fn static_call_receiver(
 }
 
 fn call_projection_field_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
     field_name: &str,
 ) -> Option<symbols::SymbolHandle> {
@@ -431,7 +430,7 @@ fn call_projection_field_symbol(
 
 /// Rejoin the exact selected entry. Names never recover an absent selection.
 pub(super) fn selected_application_machine(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     if !target.is_valid() {

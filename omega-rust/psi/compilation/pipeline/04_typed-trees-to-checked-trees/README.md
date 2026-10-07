@@ -20,6 +20,14 @@ Selection type queries follow the symbol's current declaration owner before
 inspecting its fields, parameters or locals. Generated-from links are provenance,
 not a fallback to a template's type.
 
+At the frozen boundary, `CheckingContext` borrows the prepared program and owns
+its shared query memos. Read-only checking and proof consumers carry that input;
+bare typed programs during construction do not discover invocation state.
+Specialization commitments are computed at their original diagnostic boundary,
+but only published after the immutable context ends. No intervening check reads
+those metadata fields, and the specialization roster cannot change meanwhile.
+This keeps program mutation outside memoized checking without reordering errors.
+
 Source obligations are specified by [state contracts](../../../../../wiki/spec/language/state_contracts.md)
 and [numeric values](../../../../../wiki/spec/language/numeric_values.md). Source
 recognition below is implementation coverage, not an additional language rule.

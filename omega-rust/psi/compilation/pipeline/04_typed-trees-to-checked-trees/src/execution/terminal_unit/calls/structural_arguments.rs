@@ -20,11 +20,11 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    StatementNode, SymbolHandle, TypedTrees, strips_erased_parameter,
+    StatementNode, SymbolHandle, strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
     call: &checked_trees::FlowCallFact,
@@ -552,7 +552,7 @@ fn reborrow_restored_call_alias_target(
 /// every target parameter must be a shared reference, and the certified
 /// whole-parent mutation must be the immediately following statement.
 fn reborrow_restored_shared_cohort_observation_alias_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     caller_state: &typed_trees::state::State,
@@ -698,7 +698,7 @@ fn borrow_access_spelling(
 }
 
 pub(crate) fn exact_structural_argument_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -763,7 +763,7 @@ pub(crate) fn exact_structural_argument_access(
 }
 
 pub(crate) fn exact_structural_borrow_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

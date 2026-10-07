@@ -1,6 +1,5 @@
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementHandle, StatementNode, TableLocalData};
@@ -15,7 +14,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// than one declaration has no bound identity.
 #[derive(Clone)]
 pub struct ImmutableBoundLookup<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     /// Shared through clones: a cloned lookup reads the same maps, built at
     /// most once across the whole clone family, and once per frozen program
     /// across every lookup its checks construct.
@@ -46,7 +45,7 @@ struct ParameterPosition {
 }
 
 impl BoundMaps {
-    fn build(program: &TypedTrees) -> Self {
+    fn build(program: &dyn crate::CheckingInput) -> Self {
         let mut maps = BoundMaps {
             locals_by_symbol: HashMap::default(),
             locals_by_name: HashMap::default(),
@@ -113,7 +112,7 @@ impl BoundMaps {
 impl<'program> ImmutableBoundLookup<'program> {
     /// Cheap: the whole-program index builds on first query, so a caller that
     /// exits before needing bound evidence never pays for it.
-    pub fn new(program: &'program TypedTrees) -> Self {
+    pub fn new(program: &'program dyn crate::CheckingInput) -> Self {
         ImmutableBoundLookup {
             program,
             maps: std::rc::Rc::new(std::cell::OnceCell::new()),
@@ -131,7 +130,7 @@ impl<'program> ImmutableBoundLookup<'program> {
     }
 
     fn local_at(&self, handle: StatementHandle) -> &'program TableLocalData {
-        let program: &'program TypedTrees = self.program;
+        let program: &'program dyn crate::CheckingInput = self.program;
         match program.statement_table.statement(handle) {
             StatementNode::LocalData(local) => local,
             _ => unreachable!("the bound index records local-data statements only"),
@@ -139,7 +138,7 @@ impl<'program> ImmutableBoundLookup<'program> {
     }
 
     fn parameter_at(&self, position: ParameterPosition) -> &'program StateParameter {
-        let program: &'program TypedTrees = self.program;
+        let program: &'program dyn crate::CheckingInput = self.program;
         let machine = &program.machines()[position.machine as usize];
         let state = &program.machine_states(machine)[position.state as usize];
         &program.state_parameters(state)[position.parameter as usize]
@@ -212,7 +211,7 @@ enum NormalizedBound {
 /// local name without a retained symbol is accepted only when it names one
 /// unique immutable local in the complete typed program.
 pub fn normalize_immutable_integer_bound_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
@@ -228,7 +227,7 @@ pub fn normalize_immutable_integer_bound_expression(
 /// equivalence to a separately evaluated computation.
 /// Static-index callers continue to use the expression/usize normalizers.
 pub fn immutable_integer_bound_value_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -239,7 +238,7 @@ pub fn immutable_integer_bound_value_symbol(
 }
 
 pub fn immutable_integer_bound_symbol_offset(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundOffset> {
@@ -286,7 +285,7 @@ pub fn immutable_integer_bound_symbol_offset(
 /// repeated symbol all stay unknown rather than approximating a coefficient
 /// or term the vocabulary cannot express.
 pub fn immutable_integer_bound_sum(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundSum> {
@@ -315,14 +314,14 @@ struct BoundSumTerms {
 /// The type reference's primitive when it is an exact-domain integer
 /// primitive, else `None`.
 fn exact_integer_type_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     crate::program_scope::type_shape::exact_integer_primitive(program, type_reference, false)
 }
 
 fn collect_bound_terms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
     terms: &mut BoundSumTerms,
@@ -386,12 +385,11 @@ fn collect_bound_terms(
 /// local, a non-bound initializer, or a bare parameter name contributes the
 /// leaf's own symbol instead.
 fn bound_leaf_initializer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
     else {
         return None;
     };
@@ -418,7 +416,7 @@ fn bound_leaf_initializer(
 /// primitive, followed through finite immutable local copies. Mutable,
 /// ambiguous, qualified, and non-integer leaves have no bound identity.
 fn bound_leaf_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     base: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -468,7 +466,7 @@ fn bound_leaf_symbol(
 /// while version evidence pins the storage to the same occurrence the claim
 /// established. Immutable bindings continue through the immutable readers.
 pub fn mutable_integer_bound_storage_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -476,8 +474,7 @@ pub fn mutable_integer_bound_storage_symbol(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    let (symbol, is_mutable, type_reference) =
-        single_segment_receiver(lookup, path, members)?;
+    let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !is_mutable || !symbol.is_valid() {
         return None;
     }
@@ -499,7 +496,7 @@ pub fn mutable_integer_bound_storage_symbol(
 /// which stated evidence can only claim under the version-pin evidence the
 /// storage vocabulary already requires.
 fn projected_integer_bound_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
@@ -513,8 +510,7 @@ fn projected_integer_bound_field<'program>(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    let (symbol, is_mutable, type_reference) =
-        single_segment_receiver(lookup, path, members)?;
+    let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !symbol.is_valid() {
         return None;
     }
@@ -575,7 +571,7 @@ fn projected_integer_bound_field<'program>(
 }
 
 pub fn projected_integer_bound_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, SymbolHandle, bool)> {
@@ -599,7 +595,7 @@ pub fn projected_integer_bound_root(
 /// case projections, and deeper-than-one member collections stay outside
 /// the bound vocabulary.
 pub fn indexed_integer_bound_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
@@ -671,7 +667,7 @@ pub fn indexed_integer_bound_root(
 /// own reference, for consumers comparing a member subject's carrier against a
 /// declared domain or contract type.
 pub fn projected_integer_bound_subject_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -683,7 +679,7 @@ pub fn projected_integer_bound_subject_type(
 /// exact host index. Symbolic parameter leaves and every unsupported alias
 /// shape remain unknown.
 pub fn normalize_immutable_integer_bound_to_usize(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
@@ -695,7 +691,7 @@ pub fn normalize_immutable_integer_bound_to_usize(
 }
 
 fn normalize_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
     seen_aliases: &mut Vec<SymbolHandle>,
@@ -739,7 +735,7 @@ fn normalize_bound(
 }
 
 fn normalize_local(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     local: &TableLocalData,
     seen_aliases: &mut Vec<SymbolHandle>,

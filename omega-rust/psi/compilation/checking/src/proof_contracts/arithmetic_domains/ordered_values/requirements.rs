@@ -1,7 +1,6 @@
 //! Final totality obligation for scalar calls used as requirement terms.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
@@ -17,7 +16,7 @@ use typed_trees::signature::SignatureContractKind;
 /// Broader call forms remain outside the ordered-value eligibility rung and
 /// retain their existing formation and fact-call validation owners.
 pub fn validate_ordered_requirement_call_totality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     termination: &checked_trees::TerminationFacts,

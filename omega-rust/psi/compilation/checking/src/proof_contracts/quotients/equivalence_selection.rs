@@ -4,14 +4,13 @@ use crate::proof_contracts::quotients::CORE_EQUIVALENCE_SOURCE;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_equivalence_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     quotient: &typed_trees::data::QuotientDefinition,
     relation: &typed_trees::proposition::PropositionDefinition,
@@ -234,7 +233,7 @@ pub(crate) fn validate_equivalence_selection(
 }
 
 fn row_has_exact_equivalence_premises(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     relation: &typed_trees::proposition::PropositionDefinition,
     requirement: &str,
@@ -265,7 +264,7 @@ fn row_has_exact_equivalence_premises(
 }
 
 pub(crate) fn fact_is_exact_relation_pair(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
     relation: &typed_trees::proposition::PropositionDefinition,
     left: &typed_trees::signature::StateParameter,
@@ -339,7 +338,7 @@ pub(crate) fn fact_is_exact_relation_pair(
 }
 
 pub(crate) fn exact_relation_application_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
     relation_symbol: SymbolHandle,
     left_symbol: SymbolHandle,
@@ -398,7 +397,7 @@ pub(crate) fn exact_relation_application_matches(
 }
 
 fn exact_generic_argument_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<SymbolHandle>> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -420,7 +419,7 @@ fn exact_generic_argument_symbols(
 }
 
 fn expression_is_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -431,7 +430,7 @@ fn expression_is_symbol(
 }
 
 fn is_sealed_core_equivalence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> bool {
@@ -480,7 +479,7 @@ fn is_sealed_core_equivalence(
 }
 
 fn type_reference_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -502,7 +501,7 @@ fn type_reference_symbol(
 /// assumption closure" rather than an inspection of the directly named entry.
 /// Helper types and statements remain outside this machine-call closure.
 pub(super) fn checked_proof_dependency<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     visited: &mut HashSet<u32>,
 ) -> Result<(), &'program str> {
@@ -532,7 +531,7 @@ pub(super) fn checked_proof_dependency<'program>(
 }
 
 pub(crate) fn base_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     if !type_reference.is_valid() {
@@ -550,7 +549,7 @@ pub(crate) fn base_data_symbol(
 /// The quotient declaration a type names, or `None` when the type's base
 /// declaration is not a quotient.
 pub(crate) fn quotient_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let symbol = base_data_symbol(program, type_reference)?;

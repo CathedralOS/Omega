@@ -35,7 +35,7 @@ use crate::labels::{
 };
 
 pub(super) fn check_call_requires(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -246,7 +246,7 @@ pub(super) fn check_call_requires(
 /// as the concat/param discharge does. (Correctly EXCLUDES `valid_utf8` — a
 /// subslice can cut a multi-byte scalar — and `non_empty` — `base[a..a]` is empty.)
 fn subslice_grants_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     entry_contexts: &[facts::FactContextHandle],
     payload: FactPayload,
@@ -332,7 +332,7 @@ fn subslice_grants_domain(
 /// different domain). Restricted to a non-mutable, non-self parameter: a
 /// `&mut`-borrowed parameter's bytes CAN change, so its domain is not invariant.
 fn parameter_domain_grants(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     payload: FactPayload,
@@ -413,7 +413,7 @@ fn expression_rooted_domain_parts(
 }
 
 fn string_literal_grants_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     payload: FactPayload,
     place: FactPlace,
@@ -440,7 +440,7 @@ fn string_literal_grants_domain(
 /// `value_call_return_domain_implies`). The subject must be the call expression
 /// itself (an expression-rooted place with no field/index segments).
 fn value_call_return_domain_grants(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     payload: FactPayload,
     place: FactPlace,
@@ -504,7 +504,7 @@ fn value_call_return_domain_grants(
 
 /// The invocation's call site plus its target signature parameters.
 fn call_site_target_parameters<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
 ) -> Option<(
@@ -524,7 +524,7 @@ fn call_site_target_parameters<'p>(
 }
 
 fn proven_predicates_grant_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -772,7 +772,7 @@ fn proven_predicates_grant_domain(
 /// domain-sensitive operator precondition). The caller has not established the
 /// fact in the entry context, so name exactly what must hold before the call.
 fn explain_missing_boolean_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     let fact = program.expression_table.display_name(expression);
@@ -786,7 +786,7 @@ fn explain_missing_boolean_fact(
 }
 
 fn explain_domain_requirement_failure(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -860,7 +860,7 @@ fn explain_domain_requirement_failure(
 /// the jump's own earlier operands must leave the requirement's reads
 /// unwritten (`guard_operands`).
 fn incoming_guard_proves_requires(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,

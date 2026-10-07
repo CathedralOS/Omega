@@ -7,10 +7,10 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, statement::StatementNode, types::TypeReferenceNode};
+use typed_trees::{statement::StatementNode, types::TypeReferenceNode};
 
 pub(in crate::execution) fn collect(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expressions: &CheckedScalarExpressionPlans,
@@ -103,7 +103,7 @@ pub(in crate::execution) fn collect(
 }
 
 fn local_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expressions: &CheckedScalarExpressionPlans,

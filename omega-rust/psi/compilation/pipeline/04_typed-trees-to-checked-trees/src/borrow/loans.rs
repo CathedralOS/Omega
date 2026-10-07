@@ -99,7 +99,7 @@ struct RebasedBorrowPlace {
 /// its static-source exemption cannot disagree with local aggregate loan
 /// attribution about which nested fields actually borrow.
 pub(crate) fn borrow_initializer_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
@@ -125,7 +125,7 @@ pub(crate) struct ReturnedLoan {
 /// judge the value's leaves against each other. A bare reference result is a
 /// single leaf and yields nothing here.
 pub(crate) fn returned_value_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
     borrow: &checked_trees::BorrowFacts,
@@ -190,7 +190,7 @@ pub(crate) fn returned_value_loans(
 }
 
 pub(super) fn statement_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -255,7 +255,7 @@ pub(super) fn statement_borrow_loans(
 /// These rows retain conflicts within the source state; they do not establish
 /// outlives authority for transporting local storage into a successor.
 fn assignment_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,

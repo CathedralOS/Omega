@@ -4,9 +4,9 @@
 //! Grants belong to immediate child occurrences, not merely shared handles;
 //! result joins forward destinations without owning dispatch inputs.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, PrimitiveType, TypedTrees,
-    anonymous_numeric_value, has_anonymous_operator_meaning, integer_landing_warning,
-    land_anonymous_integer_expression, land_integer_value,
+    BinaryOperator, ExpressionHandle, ExpressionNode, PrimitiveType, anonymous_numeric_value,
+    has_anonymous_operator_meaning, integer_landing_warning, land_anonymous_integer_expression,
+    land_integer_value,
 };
 use crate::expression_traversal::children;
 use diagnostics::Diagnostic;
@@ -19,7 +19,9 @@ use result_values::{admit_assignment_value, admit_result_values};
 /// Query only after successful validation: warnings do not participate in the
 /// admission diagnostic count. The fractional source occurrence survives even
 /// when the final value is integral.
-pub(crate) fn anonymous_integer_landing_warnings(program: &TypedTrees) -> Vec<Diagnostic> {
+pub(crate) fn anonymous_integer_landing_warnings(
+    program: &dyn crate::CheckingInput,
+) -> Vec<Diagnostic> {
     let mut warnings = Vec::new();
     let mut warned = Vec::new();
     collect_destination_trees(program, |destination, expression| {
@@ -93,7 +95,7 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &TypedTrees) -> Vec<Di
 }
 
 fn append_landing_warning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     primitive: PrimitiveType,
     expression: ExpressionHandle,
     warned: &mut Vec<ExpressionHandle>,
@@ -104,7 +106,7 @@ fn append_landing_warning(
 
 /// A missing machine carrier denotes the unbounded proof Int landing.
 fn append_integer_landing_warning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     primitive: Option<PrimitiveType>,
     expression: ExpressionHandle,
     warned: &mut Vec<ExpressionHandle>,
@@ -135,7 +137,7 @@ fn append_integer_landing_warning(
 }
 
 pub(in crate::value_custody::literals) fn append_destination_literals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     blessed: &mut Vec<ExpressionHandle>,
 ) {
     let admitted = |destination, expression| {
@@ -210,7 +212,7 @@ pub(in crate::value_custody::literals) fn append_destination_literals(
 /// payload at a matching consumer does not re-land it or make a typed operation
 /// anonymous; independent lowering still checks the retained width and sign.
 fn retained_integer_fits(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> bool {
@@ -239,7 +241,7 @@ struct DestinationTrees {
 }
 
 fn collect_destination_trees(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut admitted: impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
 ) -> DestinationTrees {
     let mut trees = DestinationTrees::default();
@@ -512,7 +514,7 @@ fn collect_destination_trees(
 /// accepts it; arguments without a destination (or a rejected one) fall back
 /// to `other_roots`.
 fn admit_call_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     arguments: &[ExpressionHandle],
     destinations: Option<Vec<TypeReferenceHandle>>,
     admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
@@ -532,7 +534,7 @@ fn admit_call_arguments(
 }
 
 fn call_argument_destinations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
     argument_count: usize,
 ) -> Option<Vec<TypeReferenceHandle>> {
@@ -545,7 +547,7 @@ fn call_argument_destinations(
 }
 
 fn call_argument_destinations_uncached(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
     argument_count: usize,
 ) -> Option<Vec<TypeReferenceHandle>> {
@@ -581,7 +583,7 @@ fn call_argument_destinations_uncached(
     )
 }
 
-fn has_large_leaf(program: &TypedTrees, root: ExpressionHandle) -> bool {
+fn has_large_leaf(program: &dyn crate::CheckingInput, root: ExpressionHandle) -> bool {
     let mut pending = vec![root];
     let mut seen = Vec::new();
     while let Some(expression) = pending.pop() {
@@ -608,7 +610,7 @@ fn has_large_leaf(program: &TypedTrees, root: ExpressionHandle) -> bool {
 /// constructors select independent destinations, so neither owning nor excluding
 /// an enclosing result may change their separately checked argument/field grants.
 fn append_tree(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     collected: &mut Vec<ExpressionHandle>,
 ) {

@@ -27,7 +27,6 @@
 //! one parameter containing several unnamed sources.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -74,7 +73,10 @@ pub(crate) enum ViewReturnAmbiguity {
 }
 
 /// Resolve the source of a state's returned view from its signature alone.
-pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) -> ViewReturnSource {
+pub(crate) fn resolve_view_return_source(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+) -> ViewReturnSource {
     resolve_signature_view_return_source(
         program,
         program.state_parameters(state),
@@ -127,7 +129,7 @@ fn lifetime_return_source(
 }
 
 pub(crate) fn resolve_signature_view_return_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
 ) -> ViewReturnSource {
@@ -178,7 +180,7 @@ pub(crate) fn resolve_signature_view_return_source(
 /// query. A relation that cannot close stays ambiguous rather than reading
 /// as an empty frontier.
 pub(crate) fn resolve_substituted_view_return_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -220,7 +222,7 @@ pub(crate) fn resolve_substituted_view_return_source(
 }
 
 fn substituted_is_reference_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -241,7 +243,7 @@ fn substituted_is_reference_type(
 }
 
 fn substituted_returns_borrow(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -256,7 +258,7 @@ fn substituted_returns_borrow(
 }
 
 fn substituted_reference_lifetime<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<&'p str> {
@@ -281,7 +283,10 @@ fn substituted_reference_lifetime<'p>(
 /// The explicit lifetime name on a reference type, seeing through a
 /// `Constrained` wrapper (e.g. `&'buf string[a..=b]`). `None` for an elided
 /// reference or a non-reference type.
-fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
+fn reference_lifetime(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { lifetime, .. } => {
             lifetime.as_ref().map(|name| name.as_str())
@@ -300,7 +305,7 @@ pub(crate) use carried_lifetimes::{
 use carried_lifetimes::{carried_lifetimes, substituted_carried_lifetimes};
 
 fn structural_view_return_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -400,7 +405,7 @@ fn structural_view_return_source(
 }
 
 fn whole_elided_result_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
 ) -> Option<ViewReturnSource> {
@@ -438,7 +443,10 @@ fn whole_elided_result_source(
 
 /// Whether a type reference is a view (a reference, possibly under a
 /// `Constrained` wrapper).
-pub(crate) fn is_reference_type(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+pub(crate) fn is_reference_type(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. } => true,
         TypeReferenceNode::Constrained { base_type, .. } => is_reference_type(program, *base_type),
@@ -450,7 +458,10 @@ pub(crate) fn is_reference_type(program: &TypedTrees, type_reference: TypeRefere
 /// bare reference, OR a borrow-carrying `data` value (a `data` type with a
 /// reference-typed field — `data Msg<'buf> { body: &'buf string }`). Both make a
 /// machine's result outlive-bounded by one of its inputs (decision 15 stage 2).
-pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+pub(crate) fn returns_borrow(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
 }
 
@@ -463,7 +474,7 @@ pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReference
 /// unresolved fixed-array length or a recursive by-value data cycle), so callers
 /// must fail closed unless the whole source place already has static provenance.
 pub(crate) fn borrow_carrying_owner_paths(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
     let mut output = Vec::new();
@@ -479,7 +490,7 @@ pub(crate) fn borrow_carrying_owner_paths(
 }
 
 fn collect_borrow_carrying_owner_paths(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
@@ -585,7 +596,7 @@ fn collect_borrow_carrying_owner_paths(
 }
 
 fn collect_data_borrow_carrying_owner_paths(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
@@ -642,7 +653,7 @@ fn collect_data_borrow_carrying_owner_paths(
 /// fixed arrays, constraints, and concrete generic arguments. Recursive data
 /// definitions terminate through a symbol stack.
 pub(crate) fn is_borrow_carrying_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), false)
@@ -654,14 +665,14 @@ pub(crate) fn is_borrow_carrying_data(
 /// inspect field by field, so its returned loan polarity comes from the
 /// declared aggregate shape instead.
 pub(crate) fn is_mutably_borrow_carrying_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), true)
 }
 
 fn type_structurally_carries_borrow(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visiting: &mut Vec<SymbolHandle>,
@@ -743,7 +754,7 @@ fn type_structurally_carries_borrow(
 }
 
 fn data_definition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     // The shared symbol index answers valid symbols with the scan's first
@@ -758,7 +769,7 @@ fn data_definition(
 }
 
 fn data_definition_carries_borrow(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visiting: &mut Vec<SymbolHandle>,

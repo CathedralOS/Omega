@@ -11,7 +11,6 @@
 
 use super::place_queries::data_definition_for_expression;
 use crate::proof_contracts::collection_predicates::{fact_argument_field, predicate_application};
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -29,7 +28,7 @@ enum RequiredArgument<'program> {
 /// `requirement`, a collection-predicate application over the callee's
 /// formals `parameters`, under the positional `actuals`.
 pub fn standing_facts_prove_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     caller_state: &State,
     callee: symbols::SymbolHandle,
@@ -115,7 +114,7 @@ pub fn standing_facts_prove_requirement(
 }
 
 fn formal_position(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     argument: ExpressionHandle,
 ) -> Option<usize> {

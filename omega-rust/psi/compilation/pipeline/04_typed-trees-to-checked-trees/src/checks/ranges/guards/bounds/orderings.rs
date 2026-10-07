@@ -7,7 +7,7 @@ use super::super::super::facts::RangeFacts;
 /// verbatim — a strict ordering lets the bound-chaining consumers accept an
 /// upper bound one element higher (`index < j <= len` proves `index < len`).
 pub(in crate::checks::ranges::guards) fn seed_at_most_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     lower: ExpressionHandle,
     upper: ExpressionHandle,
@@ -48,7 +48,7 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_fact(
 /// lower-bound half of a SIGNED index obligation (`0 <= i < len`). The common
 /// source is a `self.i >= 0` loop guard.
 pub(in crate::checks::ranges::guards) fn seed_non_negative_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     subject: ExpressionHandle,
     bound: ExpressionHandle,

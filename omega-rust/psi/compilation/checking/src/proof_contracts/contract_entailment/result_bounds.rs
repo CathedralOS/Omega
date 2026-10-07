@@ -17,14 +17,13 @@ use crate::value_custody::places::{
 };
 use facts::IntegerRange;
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRange> {
+pub(super) fn infer(program: &dyn crate::CheckingInput, machine: &Machine) -> Option<IntegerRange> {
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !super::entailment_covers_all_exits(program, machine)
     {
@@ -182,7 +181,7 @@ fn join(combined: &mut Option<IntegerRange>, bounds: IntegerRange) {
 }
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     goal: ExpressionHandle,
     bounds: &IntegerRange,
@@ -225,7 +224,7 @@ pub(super) fn proves(
 }
 
 fn result_goal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     depth: usize,
@@ -258,7 +257,7 @@ fn result_goal(
 }
 
 struct ReturnReader<'program, 'frames> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     frames: &'frames crate::CallFrameResolver<'program>,
@@ -679,11 +678,8 @@ impl ReturnReader<'_, '_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if crate::expression_traversal::single_segment_name_symbol(
-                    self.program,
-                    expression,
-                )
-                .is_none()
+                if crate::expression_traversal::single_segment_name_symbol(self.program, expression)
+                    .is_none()
                 {
                     return None;
                 }
@@ -784,7 +780,10 @@ impl ReturnReader<'_, '_> {
     }
 }
 
-fn integer_carrier(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+fn integer_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {

@@ -4,7 +4,6 @@
 //! contract; handles and private coordinates never enter review identity.
 
 use checked_trees::{CheckFacts, CheckedSemanticDependencies};
-use typed_trees::TypedTrees;
 
 use crate::{authored_selections, checks, facts, flow, operators, values};
 
@@ -12,7 +11,7 @@ use crate::{authored_selections, checks, facts, flow, operators, values};
 /// evaluation. `true` means the typed expression cannot select an authored
 /// operator declaration; final checking still validates builtin semantics.
 pub fn typed_operator_has_no_authored_selection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     authored_selections::typed_operator_has_no_authored_selection(program, expression)
@@ -21,7 +20,7 @@ pub fn typed_operator_has_no_authored_selection(
 /// Whether an unresolved typed call selects the toolchain Build provider
 /// operation. Runtime separately requires the activation's original Build cell.
 pub fn typed_build_provider_selection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     authored_selections::is_build_provider_selection(program, expression)
@@ -31,7 +30,7 @@ pub fn typed_build_provider_selection(
 /// nested expressions. This establishes declaration membership, not execution
 /// or Build authority; callers must independently validate those obligations.
 pub fn typed_provider_selection_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     authored_selections::provider_selection_expressions(program, machine)
@@ -40,7 +39,7 @@ pub fn typed_provider_selection_expressions(
 /// Whether an exact Build operation designates product-declaration operands.
 /// Ordinary same-spelled machines never acquire this authority.
 pub fn typed_build_declaration_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     authored_selections::is_build_declaration_selection(program, expression)
@@ -48,7 +47,7 @@ pub fn typed_build_declaration_selection(
 
 /// Classify the exact compiler Build operation, not an ordinary same-named call.
 pub fn typed_build_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<language_semantics::declaration_selection::BuildOperation> {
     let typed_trees::expression::ExpressionNode::Call(call) =
@@ -66,7 +65,7 @@ pub fn typed_build_operation(
 
 /// Exact product declaration authorized by a checked Build call's operand.
 pub fn typed_build_declaration_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     argument_index: usize,
     occurrence: source::SourceSpan,
@@ -81,7 +80,7 @@ pub fn typed_build_declaration_operand(
 
 /// Resolve a provider subject or implementation in the product namespace.
 pub fn typed_product_provider_selection_operand(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: &typed_trees::expression::StaticMachineArgument,
     occurrence: source::SourceSpan,
     subject: bool,
@@ -94,7 +93,7 @@ pub fn typed_product_provider_selection_operand(
 /// exactly as checked binding derives it. Build-time authority confines that
 /// declaration's package instead of every same-spelled member in the program.
 pub fn late_bound_member_declaration_from_exact_owner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     authored_selections::exact_owner_member_declaration(program, expression)
@@ -105,7 +104,7 @@ pub fn late_bound_member_declaration_from_exact_owner(
 /// every possible authored meaning is already within the package's admitted
 /// source graph; ordinary checked lowering still chooses the exact meaning.
 pub fn typed_operator_authored_selection_candidates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<symbols::SymbolHandle> {
     authored_selections::typed_operator_authored_selection_candidates(program, expression)
@@ -116,7 +115,7 @@ pub fn typed_operator_authored_selection_candidates(
 /// or whole-program validation. Consumers must reject unresolved selections;
 /// ordinary checked lowering independently reconstructs these facts later.
 pub fn derive_pre_flow_operator_selections(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::CheckedOperatorFacts {
     // Operator selection reads each value row's expression and origin only.
     let values = values::build_value_origin_rows(program);
@@ -126,7 +125,7 @@ pub fn derive_pre_flow_operator_selections(
 /// Reuse the current checked value traversal without claiming proof validity.
 /// Exact expression origins also identify cast-owned constant type positions.
 pub fn derive_pre_flow_value_origins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::CheckedValueFacts {
     let proof_plan = ::proof::obligations::build_proof_plan(program);
     values::build_value_facts(program, &proof_plan)
@@ -138,7 +137,7 @@ pub fn derive_pre_flow_value_origins(
 /// This is the compiler-internal package-review entry point. It does not trust
 /// or consult the semantic-dependency table already retained in `facts`.
 pub fn derive_checked_semantic_dependencies(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedSemanticDependencies {
     flow::derive_checked_semantic_dependencies(program, facts)
@@ -149,7 +148,7 @@ pub fn derive_checked_semantic_dependencies(
 /// entry point retains exact typed proof-fact joins without creating a public
 /// IR format.
 pub fn derive_checked_operator_crash_contracts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<checked_trees::CheckedOperatorCrashContract> {
     operators::derive_checked_operator_crash_contracts(program)
 }
@@ -158,7 +157,7 @@ pub fn derive_checked_operator_crash_contracts(
 /// Scalar lowering metadata and private sites are deliberately outside this
 /// read-only package-policy join; canonical predicate equality is unchanged.
 pub fn derive_authored_machine_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<checked_trees::CrashRouteBucket> {
     facts::derive_authored_machine_crash_buckets(program, machine)
@@ -167,7 +166,7 @@ pub fn derive_authored_machine_crash_buckets(
 /// Exact authored crash identity for a retained structural signature, using
 /// the same canonical owner as its checked contract capsule.
 pub fn derive_authored_signature_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<checked_trees::CrashRouteBucket> {
     facts::derive_authored_signature_crash_buckets(program, signature)
@@ -177,7 +176,7 @@ pub fn derive_authored_signature_crash_buckets(
 /// `None` means no complete summary, not a crash-free machine. This read-only
 /// query exposes no private guard, site, call, or proof coordinates.
 pub fn infer_checked_machine_crash_causes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
 ) -> Option<Vec<checked_trees::CrashCause>> {
@@ -188,7 +187,7 @@ pub fn infer_checked_machine_crash_causes(
 /// Missing machine keys mean unknown, not complete empty summaries. Each row
 /// retains only its exact machine key and conservative canonical cause set.
 pub fn infer_checked_crash_causes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)> {
     facts::infer_checked_crash_causes(program, facts)
@@ -199,7 +198,7 @@ pub fn infer_checked_crash_causes(
 /// review uses this compiler-internal seam to reject a retained intrinsic fact
 /// that no longer agrees with its receiver and call shape.
 pub fn derive_checked_collection_view_intrinsic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
@@ -211,7 +210,7 @@ pub fn derive_checked_collection_view_intrinsic(
 /// this compiler-internal seam for proof-owned attached and path-qualified
 /// calls whose typed node intentionally carries no direct target symbol.
 pub fn derive_checked_nominal_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
@@ -237,7 +236,7 @@ pub fn derive_checked_contract_expression_evidence_parameters(
 /// typed call arguments. Package review uses this after checking to reject a
 /// coordinated typed-tree edit paired with stale checked evidence custody.
 pub fn derive_checked_contract_expression_evidence_instantiation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     target_state_symbol: symbols::SymbolHandle,
@@ -259,7 +258,7 @@ pub fn derive_checked_contract_expression_evidence_instantiation(
 /// for those admission sites while keeping the proof implementation single-
 /// sourced with the facts produced by [`crate::lower_typed_trees`].
 pub fn infer_machine_termination_summary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
 ) -> Option<language_semantics::TerminationGuarantee> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;

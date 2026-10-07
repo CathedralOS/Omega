@@ -3,7 +3,7 @@
 use super::{OPERATIONAL_PLAN_SLOT, SERVICE_REACH_PLAN_SLOT, program_key};
 use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
 
-pub fn memoized_operational_plan(program: &typed_trees::TypedTrees) -> OperationalPlan {
+pub fn memoized_operational_plan(program: &dyn crate::CheckingInput) -> OperationalPlan {
     let key = program_key(program);
     if let Some(plan) = OPERATIONAL_PLAN_SLOT.with(|cell| {
         cell.borrow()
@@ -28,7 +28,7 @@ pub fn memoized_operational_plan(program: &typed_trees::TypedTrees) -> Operation
 }
 
 pub fn memoized_service_reach_plan(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
     let key = program_key(program);
@@ -65,7 +65,7 @@ pub struct PreparedEffectScope {
 }
 
 pub fn enter_prepared_effect_scope(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
     service_reaches: &ServiceReachInferencePlan,
 ) -> PreparedEffectScope {

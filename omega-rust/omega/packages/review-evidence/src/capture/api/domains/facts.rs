@@ -84,7 +84,7 @@ pub(crate) fn project_definition_contract_fact(
         )),
         ProofFact::Membership(membership) => {
             crate::capture::contracts::memberships::require_declaration_membership(
-                &compilation.typed,
+                compilation.checking_input,
                 membership,
             )?;
             let domain = compilation

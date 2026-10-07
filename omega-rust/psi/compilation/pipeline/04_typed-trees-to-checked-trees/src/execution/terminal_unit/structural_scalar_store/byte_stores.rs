@@ -6,7 +6,7 @@
 //! every other store.
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode,
-    Multiplicity, TypeReferenceNode, TypedTrees,
+    Multiplicity, TypeReferenceNode,
 };
 use super::destination::{Destination, Root};
 use super::value::{self, AssignmentSource};
@@ -22,7 +22,7 @@ use crate::execution::terminal_unit::types::{
 /// borrowing its backing does not turn it into an unqualified byte view.
 /// An owned root retains its exact mutable local establishment.
 pub(super) fn view_write(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -103,7 +103,7 @@ pub(super) fn view_write(
 
 /// A whole borrowed owner retains its caller's capacity and qualifications.
 pub(super) fn whole_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     destination: &Destination<'_>,
@@ -174,7 +174,7 @@ pub(super) fn whole_store(
 /// domain on the field must be a plain predicate domain; a whole-literal
 /// store must also satisfy it from the literal's own bytes.
 pub(super) fn field_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -329,7 +329,7 @@ pub(super) fn field_store(
 /// plan. A whole place observes its current live extent,
 /// rather than padding the value to its carrier capacity.
 pub(in crate::execution::terminal_unit) fn byte_value_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     state: &typed_trees::state::State,
     statement_index: u32,
@@ -540,7 +540,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
 /// [u8]` to the same `BorrowedView`, so the access distinction is read here
 /// while the Reference node still exists.
 pub(super) fn field_view_is_mutable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -560,7 +560,7 @@ pub(super) fn field_view_is_mutable(
 /// destination root — shared by the whole-carrier and field-element lanes.
 #[allow(clippy::too_many_arguments)]
 fn indexed_byte_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

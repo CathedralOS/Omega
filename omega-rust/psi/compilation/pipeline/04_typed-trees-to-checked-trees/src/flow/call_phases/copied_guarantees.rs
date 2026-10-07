@@ -11,10 +11,10 @@ use checked_trees::{
 };
 use facts::{FactPayload, FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, domain::ProofFact, expression::ExpressionHandle};
+use typed_trees::{domain::ProofFact, expression::ExpressionHandle};
 
 pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
     parameters: &'program [typed_trees::signature::StateParameter],
@@ -75,7 +75,7 @@ fn writes_after_capture(
 
 #[allow(clippy::too_many_arguments)]
 fn retain_capture(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     control: &FlowControlFacts,
     capture: &FlowOperandFact,
     invocation: &FlowOperandFact,
@@ -130,7 +130,7 @@ fn retain_capture(
 
 impl<'program, 'writes> ArgumentSources<'program, 'writes> {
     pub(in crate::flow) fn new(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: SymbolHandle,
         state: SymbolHandle,
         call: &BorrowCallFact,
@@ -295,7 +295,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
 }
 
 pub(super) fn retain_guarantees(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,

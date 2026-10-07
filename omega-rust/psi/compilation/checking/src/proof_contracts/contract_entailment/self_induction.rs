@@ -6,7 +6,6 @@ use crate::proof_contracts::contract_entailment::refuted_requires::collect_insta
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralTerm,
 };
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -16,7 +15,7 @@ use typed_trees::signature::SignatureContractKind;
 /// recursion validator separately licenses descent; this helper only governs
 /// the conditional contract attached to that already-licensed application.
 pub(crate) fn intake_available_self_induction_hypotheses(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameter_names: &[String],
     value: &StructuralTerm,

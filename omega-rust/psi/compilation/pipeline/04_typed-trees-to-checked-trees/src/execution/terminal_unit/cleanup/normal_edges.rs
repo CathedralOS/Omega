@@ -9,10 +9,10 @@ use checked_trees::{
 };
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
-use typed_trees::{TypedTrees, statement::StatementNode};
+use typed_trees::statement::StatementNode;
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
@@ -109,7 +109,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
 }
 
 fn owner_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     plan: &CheckedComposedUnitControlStatePlan,
     root: PlaceRoot,

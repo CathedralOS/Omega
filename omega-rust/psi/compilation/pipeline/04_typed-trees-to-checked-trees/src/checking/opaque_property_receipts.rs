@@ -5,11 +5,10 @@
 //! input preparation only matches its source instances, before specialization.
 //! It neither selects a representation nor replaces property validation.
 
-use typed_trees::TypedTrees;
 use validation::{OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind};
 
 pub(super) fn for_source_instances(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receipts: &[OpaqueDataPropertyReceipt],
 ) -> Vec<OpaqueDataPropertyReceipt> {
     // Preserve every supplied row, including duplicates and stale handles,

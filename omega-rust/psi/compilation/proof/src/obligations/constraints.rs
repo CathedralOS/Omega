@@ -17,7 +17,6 @@ use crate::obligations::ranges::{
 use crate::obligations::{IntegerRange, ProofConstraint};
 use crate::typed_expressions::{call_expression_return_type, expression_type_reference};
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -25,7 +24,7 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -244,7 +243,7 @@ fn converted_float_constraints(
 }
 
 pub(crate) fn collect_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> ConstraintBuffer {
     match program.type_reference_table.type_reference(type_reference) {
@@ -292,7 +291,7 @@ pub(crate) fn collect_constraints(
 }
 
 fn collect_constraints_in_state(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: &Machine,
     _state: &State,
     type_reference: TypeReferenceHandle,
@@ -485,7 +484,7 @@ pub(crate) fn derived_binary_constraints(
 }
 
 fn derived_builtin_call_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
@@ -513,7 +512,7 @@ fn derived_builtin_call_constraints(
 /// operators are excluded by the caller-visible restriction to arithmetic
 /// operations, since they return `bool` and no numeric closure applies.
 fn derived_float_operator_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
@@ -554,7 +553,7 @@ fn derived_float_operator_constraints(
 }
 
 fn derived_extrema_call_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::expression::TableCallExpression,

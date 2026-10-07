@@ -123,9 +123,11 @@ pub(crate) fn project_selected_conformance_application(
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
-    let closed =
-        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, selected)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = typed_trees_to_checked_trees::close_conformance_application(
+        compilation.checking_input,
+        selected,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let declarations = compilation
         .conformances()
         .iter()
@@ -197,7 +199,7 @@ pub(crate) fn project_selected_conformance_application(
 
     // Only synthesized type nodes belong to projection. Keep facts, selected
     // applications, and source custody borrowed from the checked compilation.
-    let mut instantiated = Cow::Borrowed(&compilation.typed);
+    let mut instantiated = Cow::Borrowed(compilation.checking_input.typed_program());
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(supplied) {
         substitutions.push((
@@ -267,7 +269,7 @@ pub(crate) fn project_selected_conformance_application(
         .iter()
         .map(|argument| {
             signature_type_identity(
-                &instantiated,
+                instantiated.as_ref(),
                 compilation.custody.sources().exact_toolchain_sources(),
                 *argument,
                 binders,

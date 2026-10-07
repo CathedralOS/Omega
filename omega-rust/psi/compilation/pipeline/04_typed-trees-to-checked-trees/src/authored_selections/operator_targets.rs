@@ -16,11 +16,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
 };
 use symbols::{BuiltinFunction, SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 fn intrinsic_operator_operand_is_primitive(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     node: &ExpressionNode,
     origin: checked_trees::CheckedValueOrigin,
 ) -> bool {
@@ -50,7 +49,7 @@ pub(crate) struct GenericOperatorValueOrigins {
 }
 
 impl GenericOperatorValueOrigins {
-    pub(crate) fn index(program: &TypedTrees, facts: &CheckFacts) -> Self {
+    pub(crate) fn index(program: &dyn ::validation::CheckingInput, facts: &CheckFacts) -> Self {
         let mut by_expression: HashMap<_, Vec<checked_trees::CheckedValueOrigin>> =
             HashMap::default();
         for (_, value) in facts.values.values.iter() {
@@ -75,7 +74,7 @@ impl GenericOperatorValueOrigins {
 }
 
 pub(crate) fn checked_generic_operator_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     value_origins: &GenericOperatorValueOrigins,
     expression: typed_trees::expression::ExpressionHandle,
@@ -154,7 +153,7 @@ pub(crate) fn checked_generic_operator_target(
 }
 
 fn checked_operator_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -280,7 +279,7 @@ fn checked_operator_target(
 }
 
 pub(crate) fn checked_operator_target_for_occurrence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -320,7 +319,7 @@ fn checked_operator_expression_is_intrinsic_primitive(
 /// that call to exactly the same row. The operator occurrence then settles as
 /// the builtin operator: the implementation's authored row supplies its meaning.
 pub(crate) fn checked_structural_equality_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -381,7 +380,7 @@ pub(crate) fn checked_structural_equality_call(
 /// typed operands select one exact declared operator; partial or ambiguous
 /// reconstruction remains unresolved and therefore rejects package custody.
 fn resolve_authored_operator_without_use_fact<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
@@ -440,7 +439,7 @@ fn resolve_authored_operator_without_use_fact<'program>(
 /// as a wildcard, so `(nan32 == nan32) == false` kept a declared `Float::equal`
 /// as a candidate and could not be recognized as the builtin it is.
 pub(crate) fn authored_operand_descriptor(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> typed_trees::operator::OperandType {
     use typed_trees::operator::OperandType;
@@ -462,7 +461,7 @@ pub(crate) fn authored_operand_descriptor(
 /// settle it whichever one is selected, and no candidate at all leaves the
 /// builtin operation.
 fn authored_operand_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
@@ -472,7 +471,7 @@ fn authored_operand_carrier(
     /// The carrier a descriptor names, reducing a retained reference through
     /// its shells.
     fn operand_carrier(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         operand: OperandType,
     ) -> Option<typed_trees::types::PrimitiveType> {
         match operand {
@@ -533,7 +532,7 @@ fn authored_operand_carrier(
 }
 
 pub(crate) fn authored_operand_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     if !expression.is_valid() {
@@ -582,7 +581,7 @@ pub(crate) fn authored_operand_type(
 }
 
 fn operator_contract_value_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -646,7 +645,7 @@ fn operator_contract_value_type(
 }
 
 fn operator_has_no_authored_spelling_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
 ) -> bool {
@@ -685,7 +684,7 @@ fn operator_has_no_authored_spelling_candidate(
 /// operator declaration. Ordinary checked lowering remains responsible for
 /// rejecting a semantically invalid builtin use.
 pub(crate) fn typed_operator_has_no_authored_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let node = program.expression_table.expression(expression);
@@ -699,7 +698,7 @@ pub(crate) fn typed_operator_has_no_authored_selection(
 }
 
 pub(crate) fn typed_operator_authored_selection_candidates(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     typed_operator_authored_selection_candidate_operators(program, expression)
@@ -711,7 +710,7 @@ pub(crate) fn typed_operator_authored_selection_candidates(
 /// [`typed_operator_authored_selection_candidates`] with the declarations
 /// themselves, for a caller that needs what a selected candidate would return.
 fn typed_operator_authored_selection_candidate_operators<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
     candidate_operators(program, expression, &[])
@@ -722,7 +721,7 @@ fn typed_operator_authored_selection_candidate_operators<'program>(
 /// again would walk each operand once per enclosing operation, which turns a
 /// nested arithmetic expression's carrier into an exponential walk.
 fn candidate_operators<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     binary_operands: &[typed_trees::operator::OperandType],
 ) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
@@ -777,7 +776,7 @@ fn candidate_operators<'program>(
 }
 
 pub(crate) fn type_reference_for_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let declaration = program.symbols.get(symbol);

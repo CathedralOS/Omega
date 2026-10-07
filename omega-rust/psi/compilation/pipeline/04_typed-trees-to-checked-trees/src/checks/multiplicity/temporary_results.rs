@@ -30,7 +30,7 @@ pub(super) use shared_borrows::{
 };
 
 pub(super) fn append_whole_affine_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -104,7 +104,7 @@ pub(super) fn append_whole_affine_transfer(
 /// An unrestricted construction is copied, not moved, and needs no transfer;
 /// linear constructions keep their claim rules.
 pub(super) fn append_constructed_argument_transfers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -186,7 +186,7 @@ pub(super) fn append_constructed_argument_transfers(
 }
 
 pub(super) fn check_unselected_claims(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],

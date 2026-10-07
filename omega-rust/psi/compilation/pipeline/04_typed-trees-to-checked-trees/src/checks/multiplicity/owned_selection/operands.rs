@@ -14,7 +14,7 @@ use typed_trees::statement::StatementNode;
 /// and its arguments cannot smuggle an owned leaf the receipt does not name.
 /// An unresolvable target conservatively counts as a transfer.
 pub(super) fn call_moves_no_ownership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.receiver.is_valid()
@@ -33,7 +33,7 @@ pub(super) fn call_moves_no_ownership(
 /// no custody itself; borrows, atomics, custody-moving calls, and named owned
 /// operands all keep their explicit rejections.
 pub(super) fn hidden_ownership_operands(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     operands: &[ExpressionHandle],
@@ -71,7 +71,7 @@ pub(super) fn hidden_ownership_operands(
 /// unrestricted-operand rule; calls, borrows and atomic subjects still reject
 /// separately, and operands of genuine authored equality are unchanged.
 pub(super) fn case_tag_operands(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     operands: &[ExpressionHandle],
@@ -99,7 +99,7 @@ pub(super) fn case_tag_operands(
 }
 
 pub(super) fn names_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -107,7 +107,7 @@ pub(super) fn names_symbol(
 }
 
 pub(super) fn expression_names(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -117,7 +117,7 @@ pub(super) fn expression_names(
 }
 
 pub(super) fn statement_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     program
@@ -133,7 +133,7 @@ pub(super) fn statement_expressions(
 }
 
 pub(super) fn expression_nodes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     let mut pending = vec![root];
@@ -185,7 +185,7 @@ pub(super) fn expression_nodes(
 /// Count the reachable complete arm paths through nested selections: every
 /// non-`match` arm value is one edge the linear frontier must agree on.
 pub(super) fn terminal_arm_values(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> usize {
     match program.expression_table.expression(expression) {
@@ -201,7 +201,7 @@ pub(super) fn terminal_arm_values(
 /// authored arms. Only literal equality and complete Boolean/wildcard coverage
 /// remove ownership alternatives here; no predicate theorem is invented.
 pub(in crate::checks) fn reachable_arms(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     arms: HandleSpan<TableMatchArm>,
 ) -> Vec<(Handle<TableMatchArm>, &TableMatchArm)> {
     let mut selected = Vec::new();

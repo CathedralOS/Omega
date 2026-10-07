@@ -2,7 +2,6 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowExitFact};
 use typed_trees::{
-    TypedTrees,
     expression::ExpressionHandle,
     machine::Machine,
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
@@ -11,7 +10,7 @@ use typed_trees::{
 /// Rejoin a returned invocation to its exact retained call occurrence, whether
 /// the return spells a value call or names an external tail target.
 pub(super) fn exit_return_call<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     exit: &FlowExitFact,
 ) -> Option<&'facts FlowCallFact> {
@@ -70,7 +69,7 @@ pub(super) fn exit_return_call<'facts>(
 }
 
 pub(super) fn exit_return_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exit: &FlowExitFact,
 ) -> ExpressionHandle {
     let Some(state) = crate::semantic::calls::find_state_in_machine(
@@ -107,7 +106,7 @@ pub(super) fn exit_return_expression(
 }
 
 pub(super) fn is_result_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {

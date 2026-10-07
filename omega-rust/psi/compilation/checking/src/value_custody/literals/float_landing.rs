@@ -217,11 +217,9 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                                 pairs.push((*value, state.return_type));
                                 continue;
                             }
-                            let Some(named_arguments) = super::named_transition_arguments(
-                                program,
-                                machine,
-                                target_node,
-                            ) else {
+                            let Some(named_arguments) =
+                                super::named_transition_arguments(program, machine, target_node)
+                            else {
                                 continue;
                             };
                             for (parameter, argument) in named_arguments {
@@ -282,7 +280,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
 }
 
 fn collect_result_contract_float_pairs(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
@@ -321,7 +319,7 @@ fn collect_result_contract_float_pairs(
 /// and contracts. This only records destinations: landing below rounds complete
 /// anonymous trees once and never changes an already-landed value.
 fn collect_comparison_pairs(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     result_type: &impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     pairs: &mut Vec<FloatLandingPair>,
@@ -455,7 +453,7 @@ fn land_float_tree(
 }
 
 fn anonymous_exact_float_tree(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<numerics::bignum::ExactFloat> {
     use typed_trees::expression::BinaryOperator;

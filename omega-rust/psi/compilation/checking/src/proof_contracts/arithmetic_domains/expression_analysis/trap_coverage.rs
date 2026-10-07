@@ -33,7 +33,7 @@ use super::ExpressionWalk;
 use crate::proof_contracts::arithmetic_domains::guard_narrowing::narrow_environment_by_condition;
 use crate::proof_contracts::arithmetic_domains::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, SignatureContractKind, State,
-    TypedTrees, ValueEnvironment,
+    ValueEnvironment,
 };
 use typed_trees::signature::CrashCause;
 
@@ -46,7 +46,7 @@ enum TrapCeiling {
     Guarded(Vec<ExpressionHandle>),
 }
 
-fn trap_ceiling(program: &TypedTrees, machine: &Machine) -> TrapCeiling {
+fn trap_ceiling(program: &dyn crate::CheckingInput, machine: &Machine) -> TrapCeiling {
     if !program.machine_publishes_crash_ceiling(machine) {
         return TrapCeiling::Permitted;
     }
@@ -84,7 +84,7 @@ fn trap_ceiling(program: &TypedTrees, machine: &Machine) -> TrapCeiling {
 /// parameter of the entry state, so its current value is the invocation-entry
 /// value the published route describes.
 fn reads_only_stable_entry_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     entry: &State,
     route: ExpressionHandle,
 ) -> bool {

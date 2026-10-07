@@ -45,7 +45,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
         ))]);
     };
     let Some((target_machine, target_state)) =
-        exact_contract_target(&compilation.typed, target_state_symbol)
+        exact_contract_target(compilation.checking_input, target_state_symbol)
     else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` evidence-bearing call has no exact target owner",
@@ -94,7 +94,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 .get(binding.parameter);
             let current_instantiation = typed_trees_to_checked_trees::
                 derive_checked_contract_expression_evidence_instantiation(
-                    &compilation.typed,
+                    compilation.checking_input,
                     &compilation.facts,
                     expression,
                     target_state,
@@ -126,7 +126,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
 }
 
 fn exact_contract_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if let Some(machine) = program.machines().iter().find(|machine| {

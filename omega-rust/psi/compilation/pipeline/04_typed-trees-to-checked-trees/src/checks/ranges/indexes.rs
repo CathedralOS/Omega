@@ -42,7 +42,7 @@ impl IndexVerdicts {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn check_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &State,
     call_frames: Option<&::validation::CallFrameResolver<'program>>,

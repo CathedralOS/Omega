@@ -7,7 +7,6 @@
 
 use std::fmt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     QuotientOperationKind, QuotientOperationRequest, QuotientTheoremRole, StaticMachineArgument,
     TableCallExpression,
@@ -412,7 +411,7 @@ impl fmt::Display for RelationPlanError {
 /// program: ordinary validation passes the program itself (its typed
 /// summaries), the checked-route admission passes the checked facts.
 pub(super) fn derive_direct_terminal_plan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
     machine: &Machine,
     state: &State,
@@ -727,7 +726,7 @@ pub(super) fn derive_direct_terminal_plan(
 }
 
 fn require_checked_proof_closure(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     error: RelationPlanError,
 ) -> Result<(), RelationPlanError> {
@@ -747,7 +746,7 @@ fn require_checked_proof_closure(
 }
 
 fn derive_relation_and_representative(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -835,7 +834,7 @@ fn derive_relation_and_representative(
 /// relation/runtime/partition judgments that succeeded before the implication
 /// failure and grants no correspondence or execution authority.
 pub(super) fn render_failed_builtin_implication(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -988,7 +987,7 @@ enum ExactRelationLookup {
 }
 
 fn exact_quotient_relation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     quotient_type: TypeReferenceHandle,
 ) -> ExactRelationLookup {
     let Some(quotient) =
@@ -1025,7 +1024,7 @@ fn exact_quotient_relation(
 }
 
 impl DirectTerminalRelationPlan {
-    pub(super) fn render_ra(&self, program: &TypedTrees) -> String {
+    pub(super) fn render_ra(&self, program: &dyn crate::CheckingInput) -> String {
         let positions = self
             .input_relations
             .iter()
@@ -1046,14 +1045,17 @@ impl DirectTerminalRelationPlan {
         format!("RA=[{}]", positions.join(", "))
     }
 
-    pub(super) fn render_rr(&self, program: &TypedTrees) -> String {
+    pub(super) fn render_rr(&self, program: &dyn crate::CheckingInput) -> String {
         format!(
             "RR={}",
             relation_name(program, self.result_relation.relation_symbol)
         )
     }
 
-    pub(super) fn render_representative_telescope(&self, program: &TypedTrees) -> String {
+    pub(super) fn render_representative_telescope(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> String {
         let parameters = self
             .representative
             .parameters
@@ -1074,7 +1076,10 @@ impl DirectTerminalRelationPlan {
         )
     }
 
-    pub(super) fn render_representative_termination(&self, program: &TypedTrees) -> Option<String> {
+    pub(super) fn render_representative_termination(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<String> {
         self.representative_termination.map(|termination| {
             format!(
                 "unconditional termination of {}",
@@ -1087,7 +1092,7 @@ impl DirectTerminalRelationPlan {
         })
     }
 
-    pub(super) fn render_selected_theorem(&self, program: &TypedTrees) -> String {
+    pub(super) fn render_selected_theorem(&self, program: &dyn crate::CheckingInput) -> String {
         let selected_theorem = &self.theorem_evidence[0].selected_application;
         let parameters = self.theorem_evidence[0]
             .selected_application
@@ -1109,7 +1114,10 @@ impl DirectTerminalRelationPlan {
         )
     }
 
-    pub(super) fn render_selected_transport(&self, program: &TypedTrees) -> Option<String> {
+    pub(super) fn render_selected_transport(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<String> {
         let selected = self.theorem_evidence.get(1)?;
         let parameters = selected
             .selected_application
@@ -1294,7 +1302,10 @@ impl DirectTerminalRelationPlan {
             })
     }
 
-    pub(super) fn render_correspondence_certificate(&self, program: &TypedTrees) -> Option<String> {
+    pub(super) fn render_correspondence_certificate(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<String> {
         self.correspondence_certificate.as_ref().map(|certificate| {
             let kind = match &certificate.evidence {
                 correspondence_certificate::QuotientCorrespondenceEvidence::DirectLift {
@@ -1323,7 +1334,7 @@ impl DirectTerminalRelationPlan {
 /// when it is not the machine's entry state. Diagnostics name source
 /// subjects, not arena slots.
 fn machine_state_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> String {
@@ -1347,7 +1358,7 @@ fn machine_state_label(
     }
 }
 
-fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
+fn relation_name(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
     program
         .propositions()
         .iter()

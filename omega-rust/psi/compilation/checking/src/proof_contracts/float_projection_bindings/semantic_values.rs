@@ -15,7 +15,6 @@ use numerics::float_semantics_catalog::{
     FLOAT_FORMAT_CORE_SOURCE, FloatSemanticOperand, FloatSemanticResult, FloatSemanticValueKind,
 };
 use semantic_vocabulary::IeeeFloatFormat;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::resolve_named_expression_call;
 
@@ -28,7 +27,7 @@ struct ClosedFloatMeaning {
 /// Decide a closed meaning equality, preserving its selected equality
 /// operation and exact carrier. Open terms do not gain symbolic float laws.
 pub(crate) fn closed_float_meaning_equality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -67,7 +66,7 @@ pub(crate) fn closed_float_meaning_equality(
 }
 
 fn closed_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     remaining_work: &mut usize,
 ) -> Option<ClosedFloatMeaning> {
@@ -176,7 +175,7 @@ fn closed_projection_source(
 /// evaluated encoding leaf-by-leaf, so `BINARY32`/`BINARY64` stay
 /// distinguishable even though they share one record type.
 pub fn exact_toolchain_float_format_const(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<IeeeFloatFormat> {
     const FORMAT_CONST_IDENTITY: [(IeeeFloatFormat, &str); 2] = [
@@ -267,7 +266,7 @@ pub fn exact_toolchain_float_format_const(
 /// custody is the caller's symbol decision; the encoded `type_name` strings
 /// are encoded claims, not resolved type authority.
 fn struct_literal_matches_decoded_const(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     expected: &language_semantics::const_value::DecodedCanonicalConstValue,
 ) -> bool {

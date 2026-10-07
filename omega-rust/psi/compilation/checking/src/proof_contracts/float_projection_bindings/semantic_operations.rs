@@ -15,7 +15,6 @@ use numerics::float_semantics_catalog::{
     FLOAT_FORMAT_CORE_SOURCE, FLOAT_SEMANTICS_NAMESPACE, FloatSemanticContractIdentity,
     FloatSemanticOperation, FloatSemanticValueKind, IntegerCarrier,
 };
-use typed_trees::TypedTrees;
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
@@ -25,7 +24,7 @@ use typed_trees::types::PrimitiveType;
 /// eight integer carriers. A retained target still constrains candidates, and
 /// neither a same-named user declaration nor a different signature is eligible.
 pub(crate) fn exact_toolchain_float_semantic_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     operand_kinds: &[FloatSemanticValueKind],
 ) -> Option<&'static FloatSemanticOperation> {
@@ -48,7 +47,7 @@ pub(crate) fn exact_toolchain_float_semantic_application(
 }
 
 pub(crate) fn symbol_is_declared_in_sealed_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     relative_source: &str,
 ) -> bool {
@@ -69,7 +68,7 @@ pub(crate) fn symbol_is_declared_in_sealed_source(
 /// Whether `operator` is a toolchain-path declaration sealed in the
 /// float-projection core source (`toolchain::<namespace>::<name>`).
 pub(crate) fn is_sealed_toolchain_float_operator(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> bool {
     let [namespace, name] = program.operator_path_members(operator.name) else {
@@ -88,7 +87,7 @@ pub(crate) fn is_sealed_toolchain_float_operator(
 }
 
 fn has_exact_toolchain_float_semantics_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     name: &str,
 ) -> bool {
@@ -104,7 +103,7 @@ fn has_exact_toolchain_float_semantics_owner(
 /// Whether the type reference names the toolchain-owned data `name` declared
 /// in the sealed `relative_source`, by exact hermetic identity and custody.
 fn is_exact_toolchain_float_data_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     name: &str,
     relative_source: &str,
@@ -132,7 +131,7 @@ fn is_exact_toolchain_float_data_type(
 /// Classify one typed position of a sealed semantic declaration by exact
 /// toolchain identity (never by spelling).
 fn typed_value_kind(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<FloatSemanticValueKind> {
     if let Some(primitive) = program.primitive_type_reference(type_reference) {
@@ -179,7 +178,7 @@ fn typed_value_kind(
 /// ownership, the public ordinary tokenless shape, and the exact toolchain
 /// identity of every parameter and result type all bind as one closed row.
 pub fn exact_toolchain_float_semantic_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<(
     &'static FloatSemanticOperation,
@@ -220,7 +219,7 @@ pub fn exact_toolchain_float_semantic_contract(
 }
 
 pub(crate) fn validate_float_semantic_operation_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for operator in program.operators() {

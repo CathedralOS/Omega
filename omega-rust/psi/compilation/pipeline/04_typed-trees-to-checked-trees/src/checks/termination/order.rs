@@ -132,7 +132,7 @@ impl RankingOrder {
     /// parameters, and the view is inferred when omitted because it is the
     /// only builtin two-subject ranking.
     fn resolve(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         subjects: &[ExpressionHandle],
         order: &[&str],
@@ -213,7 +213,7 @@ impl RankingOrder {
     /// checked type. Every termination judgment reads the recorded view
     /// through this one site.
     pub(super) fn resolve_witness(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         root_state: &typed_trees::state::State,
         witness: &language_semantics::RankingWitness,
         subjects: &[ExpressionHandle],
@@ -228,7 +228,7 @@ impl RankingOrder {
     }
 
     fn from_path(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         decreases: ExpressionHandle,
         order: &[&str],
@@ -347,7 +347,7 @@ impl RankingOrder {
 /// implicitly — only true builtins infer — but matching measures are carried
 /// along as suggestions for the diagnostic.
 fn infer_default_order(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> OrderResolution {
@@ -376,7 +376,7 @@ fn infer_default_order(
 /// reason the value's type has no default order, and any declared measures the
 /// user could select explicitly.
 fn describe_ambiguity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> AmbiguousDefault {
@@ -403,7 +403,7 @@ fn describe_ambiguity(
 /// Render the decreasing value as source-like text for diagnostics. Falls back
 /// to the generic word `value` for shapes the renderer does not understand.
 pub(super) fn decreasing_value_text(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> String {
     typed_trees::ranking::witness_expression_text(program, expression)
@@ -420,7 +420,10 @@ fn is_signed_integer_type(name: &str) -> bool {
 /// has the value's type; a lexicographic measure applies when its owner (the
 /// first path segment) is the value's type. These are diagnostic suggestions
 /// only — plain `terminates by value` never selects a declared measure implicitly.
-fn declared_measures_for_type(program: &typed_trees::TypedTrees, type_name: &str) -> Vec<String> {
+fn declared_measures_for_type(
+    program: &dyn ::validation::CheckingInput,
+    type_name: &str,
+) -> Vec<String> {
     program
         .measures()
         .iter()
@@ -458,7 +461,7 @@ enum DecreasingValueKind {
 }
 
 fn decreasing_value_kind(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
@@ -497,7 +500,7 @@ fn is_nat_like_type(name: &str) -> bool {
 }
 
 fn state_parameter_of_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateParameter> {
@@ -515,7 +518,7 @@ fn state_parameter_of_expression<'program>(
 }
 
 fn lexicographic_component_fields(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<Vec<typed_trees::name::Identifier>> {
     let body = program.expression_table.expression_handles(measure.body);
@@ -541,7 +544,7 @@ fn lexicographic_component_fields(
 }
 
 fn expression_type_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<String> {
@@ -592,7 +595,7 @@ fn expression_type_name(
 }
 
 fn state_parameter_type_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     symbol: symbols::SymbolHandle,
     fallback_name: Option<&str>,
@@ -620,7 +623,7 @@ fn state_parameter_type_name(
 /// bodyless lookalike outside the sealed source, so this consult closes the
 /// bodied and boundary spellings of the same path.
 fn catalog_declaration_is_authentic(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     view: RankingViewId,
 ) -> bool {
     let Some(row) = view.catalog_declaration() else {

@@ -21,7 +21,6 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -66,7 +65,7 @@ impl CitationFacts {
 /// Every `ProofFact::Expression` body inside `callee`'s contracts of `kind` —
 /// Requires and Ensures facts read through the same vocabulary.
 fn contract_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &typed_trees::machine::Machine,
     kind: typed_trees::signature::SignatureContractKind,
 ) -> Vec<ExpressionHandle> {
@@ -83,7 +82,7 @@ fn contract_expressions(
 }
 
 fn citation_call_bindings<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &'program typed_trees::state::State,
     target_symbol: SymbolHandle,
@@ -125,7 +124,10 @@ fn citation_call_bindings<'program>(
     Some((callee, call_term, map))
 }
 
-fn selected_citation_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<&Machine> {
+fn selected_citation_machine(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&Machine> {
     if !symbol.is_valid() {
         return None;
     }
@@ -143,7 +145,7 @@ fn selected_citation_machine(program: &TypedTrees, symbol: SymbolHandle) -> Opti
 /// declaring expectations an anonymous argument tree already landed against
 /// when the call was checked, so scope walks can recover them positionally.
 pub(super) fn citation_argument_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: &CitationTarget,
 ) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
     let callee = selected_citation_machine(program, target.symbol)?;
@@ -161,7 +163,7 @@ pub(super) fn citation_argument_types(
 /// callee resolves to a free PROOF MACHINE other than the enclosing one
 /// (self-calls are recursion, owned by the descent checks and the IH).
 pub(crate) fn is_citation_statement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     call: &typed_trees::statement::TableCall,
@@ -190,7 +192,7 @@ pub(crate) fn is_citation_statement(
 /// A requires-bearing lemma contributes facts only after its premises are
 /// established at this statement, independently of its own conclusions.
 pub(crate) fn collect_citation_equations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
@@ -277,7 +279,7 @@ pub(crate) fn collect_citation_equations(
 /// variables, either orientation) and renders the exact citation statement
 /// to write. DIAGNOSTIC ONLY -- nothing here feeds the judge.
 pub(crate) fn suggest_missing_citation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     fact: ExpressionHandle,
@@ -354,7 +356,7 @@ pub(crate) fn suggest_missing_citation(
 }
 
 fn suggest_conjunct_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lemma: &Machine,
     parameters: &[String],
     lemma_fact: ExpressionHandle,
@@ -433,7 +435,7 @@ fn suggest_conjunct_match(
 /// statement calls own theirs in the statement table, expression calls in
 /// the expression table.
 pub(crate) fn citation_call_in_statement<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     statement: &'program StatementNode,
 ) -> Option<(CitationTarget, Vec<ExpressionHandle>)> {
     match statement {
@@ -487,7 +489,7 @@ pub(crate) fn citation_call_in_statement<'program>(
 /// outside that shape aborts a strict walk (false); the loose walk skips
 /// it.
 fn for_each_substituted_contract_fact(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &dyn Fn(typed_trees::signature::SignatureContractKind) -> Vec<ExpressionHandle>,
     kind: typed_trees::signature::SignatureContractKind,
     map: &[(String, StructuralTerm)],
@@ -499,9 +501,7 @@ fn for_each_substituted_contract_fact(
             if super::structural_terms::is_case_observation(program, fact) {
                 return None;
             }
-            let ExpressionNode::Binary(binary) =
-                program.expression_table.expression(fact)
-            else {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
                 return None;
             };
             if binary.operator != BinaryOperator::Equal {
@@ -536,7 +536,7 @@ fn for_each_substituted_contract_fact(
 /// its ensures intake with `result` mapped to the call term, and a `let`
 /// binder aliases the call term.
 pub(crate) fn intake_citation_for_edge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &mut StructuralJudge<'_>,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -566,7 +566,8 @@ pub(crate) fn intake_citation_for_edge(
         &map,
         true,
         |left, right| {
-            let verdict = judge.judge_equation(judge.resolve(left.clone()), judge.resolve(right), 0);
+            let verdict =
+                judge.judge_equation(judge.resolve(left.clone()), judge.resolve(right), 0);
             if std::env::var_os("OMEGA_EDGE_TRACE").is_some() {
                 eprintln!(
                     "EDGE citation {} requires resolved {:?} verdict {}",
@@ -609,7 +610,7 @@ pub(crate) fn intake_citation_for_edge(
 
 /// A bare statement-call citation (no binder).
 pub(crate) fn intake_statement_citation_for_edge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &mut StructuralJudge<'_>,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -680,7 +681,7 @@ pub(crate) fn intake_statement_citation_for_edge(
 
 /// The machine's requires facts as expressions (empty when none).
 pub(crate) fn machine_requires_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<ExpressionHandle> {
     program
@@ -701,7 +702,7 @@ pub(crate) fn machine_requires_facts(
 }
 
 pub(crate) fn instantiate_citation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     target: &CitationTarget,
@@ -841,7 +842,7 @@ pub(crate) fn instantiate_citation(
 /// equality conjuncts and exact case predicates are supported. Unsupported
 /// predicates are not established; absence of a refutation is not evidence.
 pub(crate) fn instantiated_fact_established(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
     parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,

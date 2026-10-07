@@ -11,7 +11,7 @@ use typed_trees::statement::StatementNode;
 /// and calls (including nested value calls) are treated with the same path
 /// overlap law as R5. An opaque call summary rejects the candidate.
 pub(super) fn loop_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
@@ -34,7 +34,7 @@ pub(super) fn loop_preserves_path(
 /// including preheaders outside the natural loop; otherwise a preheader write
 /// could make the contract fact stale before the first loop edge.
 pub(super) fn machine_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     path: &str,
@@ -46,7 +46,7 @@ pub(super) fn machine_preserves_path(
 }
 
 pub(super) fn state_preserves_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     state: &State,
@@ -78,7 +78,7 @@ pub(super) fn state_preserves_path(
 /// unconditional convergence), via the continuation (`_`) arm (a negated guard gives no upper
 /// bound), or via more than one transition (ambiguous).
 pub(super) fn source_arm_to_head_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
@@ -100,7 +100,7 @@ pub(super) fn source_arm_to_head_upper_bound(
 /// transition arm wraps its subject as `subject == true`, so an outer boolean equality is
 /// unwrapped first (matching `seed_boolean_equality_guard_facts`). `None` otherwise.
 pub(super) fn parse_counter_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     guard: ExpressionHandle,

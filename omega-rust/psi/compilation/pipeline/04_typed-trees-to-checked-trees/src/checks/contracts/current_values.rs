@@ -3,7 +3,6 @@
 //! arithmetic roster supplies only the values observed at that program point.
 
 use crate::checks::current_scalar_values::CurrentScalarValues;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle};
 use validation::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
@@ -11,7 +10,7 @@ use validation::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmet
 /// Current-state proof only. The exit owner separately requires exact incoming
 /// origins for every immutable invocation formal named by the guarantee.
 pub(crate) fn proves_exit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exit: &checked_trees::FlowExitFact,
     fact: &facts::Fact,
     frames: Option<&validation::CallFrameResolver<'_>>,
@@ -74,7 +73,7 @@ pub(crate) fn proves_exit(
 /// Bind the exact call's formal roster simultaneously to current actuals.
 /// The same prefix transfer handles an ordinary call and a named state edge.
 pub(crate) fn proves_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &checked_trees::FlowStateFact,
     call: &checked_trees::FlowCallFact,
     expression: ExpressionHandle,

@@ -536,7 +536,7 @@ pub(crate) fn finalize_checked_authored_selections(
 }
 
 fn late_binding_ordinal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     prior_occurrences: &[AuthoredDeclarationSelectionOccurrenceId],
     binding: AuthoredDeclarationSelectionLateBinding,
 ) -> usize {
@@ -596,7 +596,7 @@ pub(crate) fn finalization_diagnostic(
 /// already-bound targets keep the generic unresolved-selection diagnostic so
 /// selection ambiguity retains its ledger identity.
 fn undeclared_checked_call_callee(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selection: AuthoredDeclarationSelection,
 ) -> Option<String> {
     if let Some(name) = undeclared_statement_call_callee(program, selection) {
@@ -630,7 +630,7 @@ fn undeclared_checked_call_callee(
 /// The undeclared-callee check's declaration roster: every top-level kind
 /// that could still carry the call's target name in the selected program.
 fn top_level_declaration_exists(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     name: &str,
     reference: source::SourceSpan,
 ) -> bool {
@@ -664,7 +664,7 @@ fn top_level_declaration_exists(
 /// machine's state — so a surviving same-named method still suppresses the
 /// diagnostic and selection ambiguity keeps the generic ledger identity.
 fn undeclared_statement_call_callee(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selection: AuthoredDeclarationSelection,
 ) -> Option<String> {
     let call = program.machines().iter().find_map(|machine| {

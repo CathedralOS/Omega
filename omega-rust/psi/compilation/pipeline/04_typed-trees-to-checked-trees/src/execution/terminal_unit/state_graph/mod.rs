@@ -20,7 +20,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PermissionEventKind,
     PermissionEventSource, StatementNode, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode, TypeReferenceNode, TypedTrees,
+    TransitionTargetNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{
@@ -58,7 +58,7 @@ pub(super) use successors::{
 /// machine's result is outside the graph's result vocabulary. Body routing asks
 /// the same question before any builder runs.
 pub(super) fn result_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Option<checked_trees::CheckedControlResultPlan> {
@@ -78,7 +78,7 @@ pub(super) fn result_plan(
 
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
 pub(super) fn build_traced(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -787,7 +787,7 @@ pub(super) fn build_traced(
 /// Keep the remaining bindings in that sequence too, preserving source order
 /// and their references to the completed Boolean value.
 fn prefix_initializers(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     bindings: &[CheckedScalarBinding],

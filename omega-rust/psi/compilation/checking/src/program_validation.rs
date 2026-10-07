@@ -41,7 +41,6 @@ use crate::{
     value_custody::struct_literals, value_custody::wire, value_custody::write_only_borrows,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
@@ -127,7 +126,7 @@ pub struct ProgramValidation {
 }
 
 /// Validate a standalone program, including its generic contracts.
-pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Diagnostic>> {
     validate(
         program,
         GenericContracts::Check,
@@ -141,7 +140,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// Prepare formation and source-flow inputs before ownership selects implicit
 /// execution dependencies. This is not final effect admission.
 pub fn prepare_specialized_program(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     opaque_properties: OpaquePropertyValidation<'_>,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     validate(
@@ -166,7 +165,7 @@ enum GenericContracts {
 }
 
 fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     generic_contracts: GenericContracts,
     opaque_properties: OpaquePropertyValidation<'_>,
     quotient_admission: QuotientRequestAdmission,
@@ -756,7 +755,7 @@ pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec
 /// retained by the caller's prepared-effect scope. Formation and source flow
 /// have already run; no source is reparsed or revalidated wholesale here.
 pub fn admit_prepared_program_effects(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     facts: &mut ProgramValidationFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -793,7 +792,7 @@ pub fn admit_prepared_program_effects(
 /// normal completion. Check the exact selected boundary requirements in its
 /// transitive graph; Console reach alone neither proves nor excludes exit.
 fn validate_cleanup_normal_completion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

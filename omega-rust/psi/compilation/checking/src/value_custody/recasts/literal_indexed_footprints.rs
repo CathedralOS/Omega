@@ -11,8 +11,9 @@ use crate::value_custody::recasts::record_representation::{
     representation_is_exactly_tiled, shared_projection_type_representation,
 };
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression, TableIndexedExpression};
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCastExpression, TableIndexedExpression,
+};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Canonical checked footprint for the first precise indexed-recast loan rung.
@@ -48,7 +49,7 @@ impl ValidatedLiteralIndexedRecastFootprint {
 /// and the indexed-source unwrap.
 #[allow(clippy::too_many_arguments)]
 fn literal_indexed_recast_preamble<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -101,7 +102,7 @@ fn literal_indexed_recast_preamble<'program>(
 /// `Some(None)` means the target is not a slice — the caller falls back to
 /// the literal target-size arm.
 fn slice_backed_recast_region<'program>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -139,7 +140,7 @@ fn slice_backed_recast_region<'program>(
 /// subset. Other shapes remain under their existing conservative loan fence
 /// even when the broader recast judgment can validate their representation.
 pub fn validate_literal_indexed_recast_footprint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -201,7 +202,7 @@ pub fn validate_literal_indexed_recast_footprint(
 /// no-loan fence: unbounded offsets, non-byte interiors, and unsupported
 /// target shapes mint no loan at all.
 pub fn validate_runtime_indexed_recast_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -263,7 +264,7 @@ pub fn validate_runtime_indexed_recast_source(
 }
 
 pub(crate) fn literal_indexed_recast_target_size(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> Option<usize> {
     if let Some(primitive) = exact_primitive_type(program, target_type)
@@ -314,7 +315,7 @@ enum LiteralFixedArrayTerminal {
 }
 
 fn literal_fixed_array_target_terminal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> Option<LiteralFixedArrayTerminal> {
     let TypeReferenceNode::FixedArray {

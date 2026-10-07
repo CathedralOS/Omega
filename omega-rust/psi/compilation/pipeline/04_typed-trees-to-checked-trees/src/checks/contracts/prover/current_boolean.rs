@@ -5,12 +5,11 @@
 //! neither recovers an old initializer nor grants immutable entry identity.
 
 use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, ScalarValue};
-use typed_trees::TypedTrees;
 
 use crate::flow::CanonicalPlace;
 
 pub(crate) fn boolean_value_at_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     actual: &CanonicalPlace,
@@ -38,7 +37,7 @@ pub(crate) fn boolean_value_at_place(
 }
 
 fn ordinary_boolean_value_at_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     actual: &CanonicalPlace,
@@ -126,7 +125,7 @@ fn ordinary_boolean_value_at_place(
 }
 
 fn postcondition_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     point: ProgramPoint,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CanonicalPlace> {

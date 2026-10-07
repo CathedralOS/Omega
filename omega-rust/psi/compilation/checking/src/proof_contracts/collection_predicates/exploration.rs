@@ -23,7 +23,6 @@
 use super::integer_sets::IntegerSet;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 use std::collections::VecDeque;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -71,7 +70,7 @@ pub(crate) enum Binding {
 
 /// The integer carrier of a type, when it is a builtin fixed integer.
 pub(crate) fn integer_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(i128, i128)> {
     let bounds = match program.primitive_type_reference(type_reference)? {
@@ -103,7 +102,7 @@ pub(crate) enum ValueShape {
 }
 
 pub(crate) fn value_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<ValueShape> {
     let mut reference = type_reference;
@@ -148,7 +147,7 @@ pub(crate) fn value_shape(
 /// its machine symbol or its entry state symbol. `entered_by_call` admits
 /// arrival requirements, which the caller's checked body already proved.
 pub(crate) fn admitted_predicate_machine(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     entered_by_call: bool,
 ) -> Option<usize> {
@@ -242,7 +241,7 @@ pub(crate) struct Frame<'scope> {
 /// Explore `machine` entered at its first state with `bindings` over the
 /// initial atom sets.
 pub(crate) fn explore(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: usize,
     bindings: Vec<Binding>,
     atoms: Vec<IntegerSet>,
@@ -315,7 +314,7 @@ fn join(left: &[IntegerSet], right: &[IntegerSet]) -> Option<Vec<IntegerSet>> {
 /// Run one state's statements under one joined entry. Splits fork inside the
 /// visit; only results and state entries leave it.
 fn visit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     key: &FrameKey,
     atoms: Vec<IntegerSet>,
     remaining: &mut usize,
@@ -396,7 +395,7 @@ fn visit(
 }
 
 fn target_exit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     key: &FrameKey,
     atoms: &[IntegerSet],
@@ -435,7 +434,7 @@ fn target_exit(
 /// A result position that calls a predicate returns that call's result: the
 /// call is a tail transition into the callee's entry.
 fn tail_call_exit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     call: &typed_trees::expression::TableCallExpression,
@@ -460,7 +459,7 @@ fn tail_call_exit(
 /// Bind `arguments`, evaluated in the current frame, to the parameters of
 /// the target state.
 fn enter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     machine: usize,
@@ -499,7 +498,7 @@ fn enter(
 /// A sibling state of the current machine, or the entry of another admitted
 /// predicate reached by a tail call.
 fn named_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     current_machine: usize,
     symbol: symbols::SymbolHandle,
@@ -516,7 +515,7 @@ fn named_target(
 }
 
 fn argument_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     argument: ExpressionHandle,
@@ -555,7 +554,7 @@ fn argument_binding(
 }
 
 pub(crate) fn evaluate_boolean(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -567,7 +566,7 @@ pub(crate) fn evaluate_boolean(
 }
 
 pub(crate) fn evaluate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -686,7 +685,7 @@ pub(crate) fn evaluate(
 }
 
 fn evaluate_binary(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -831,7 +830,7 @@ fn decided_by_bounds(
 /// index. The result must fit the typed operand's Exact carrier; any other
 /// policy, or an unknown operand, stands down.
 fn exact_index_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: BinaryOperator,
     left: Value,
     right: Value,

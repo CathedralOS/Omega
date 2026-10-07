@@ -54,14 +54,13 @@ use crate::machine_calls::calls::write_frames::{
 use std::sync::Mutex;
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 pub(crate) fn summarize_state_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -87,7 +86,7 @@ pub(crate) fn summarize_state_written_paths(
 /// transition graph; a stack-truncated prefix cannot become complete merely
 /// because its immediate caller has an acyclic transition graph.
 pub(crate) fn summarize_complete_state_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -198,7 +197,7 @@ fn record_local_replacement_assignment(
 }
 
 pub(crate) fn walk_state_assignments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -260,7 +259,7 @@ struct StatementPrefixCollection<'request> {
 /// retain their index as `None` without cloning accumulated origin evidence.
 /// Selection changes only snapshot materialization, never body validation.
 pub(crate) fn walk_state_write_prefix_collected(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -288,7 +287,7 @@ pub(crate) fn walk_state_write_prefix_collected(
 }
 
 pub(super) fn stored_reference_transfer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -304,7 +303,7 @@ pub(super) fn stored_reference_transfer(
 /// Statements at or after an uncomputable point record `None`, matching the
 /// boundary walk's `None` for those indices exactly.
 pub(crate) fn collect_state_write_prefixes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -347,7 +346,7 @@ pub(crate) fn collected_prefix_at(
     collections: &Mutex<
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -379,7 +378,7 @@ pub(crate) fn collected_prefix_at(
 /// immediately before a demand query. Prefix results never enter the complete
 /// state-summary cache.
 pub(crate) fn walk_state_write_prefix(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -394,7 +393,7 @@ pub(crate) fn walk_state_write_prefix(
 }
 
 fn walk_state_write_prefix_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -890,20 +889,18 @@ fn walk_state_write_prefix_inner(
                             if !include_shared {
                                 return None;
                             }
-                            let reference =
-                                crate::value_custody::places::declared_place_type_raw(
-                                    program,
-                                    machine,
-                                    Some(state),
-                                    assignment.target,
-                                )?;
+                            let reference = crate::value_custody::places::declared_place_type_raw(
+                                program,
+                                machine,
+                                Some(state),
+                                assignment.target,
+                            )?;
                             reference_subjects::unknown_readonly_origin(
                                 program, reference, relative,
                             )
                         })
                     },
-                )?
-                {
+                )? {
                     if queried_assignment {
                         record_local_replacement_assignment(
                             &mut assignments,
@@ -1004,9 +1001,9 @@ fn walk_state_write_prefix_inner(
                         inference,
                     )
                 } else {
-                    let deduped_paths = |
-                        paths: for<'site> fn(
-                            &TypedTrees,
+                    let deduped_paths =
+                        |paths: for<'site> fn(
+                            &dyn crate::CheckingInput,
                             &Machine,
                             &MachineSymbols<'site>,
                             &TopLevelSymbols<'site>,
@@ -1016,29 +1013,28 @@ fn walk_state_write_prefix_inner(
                             &[checked_trees::expression::ExpressionHandle],
                             &mut FrameInference,
                         ) -> Option<Vec<String>>,
-                        inference: &mut FrameInference,
-                    | {
-                        if has_divergent_receiver {
-                            return None;
-                        }
-                        (!arguments.iter().any(|argument| {
-                            expression_is_effectful_indexed_place(program, *argument)
-                        }))
-                        .then(|| {
-                            paths(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                symbols,
-                                receiver_members,
-                                nested_call.target.as_str(),
-                                CallerWriteSite::Call(nested_call),
-                                arguments,
-                                inference,
-                            )
-                        })
-                        .flatten()
-                    };
+                         inference: &mut FrameInference| {
+                            if has_divergent_receiver {
+                                return None;
+                            }
+                            (!arguments.iter().any(|argument| {
+                                expression_is_effectful_indexed_place(program, *argument)
+                            }))
+                            .then(|| {
+                                paths(
+                                    program,
+                                    machine,
+                                    &machine_symbols,
+                                    symbols,
+                                    receiver_members,
+                                    nested_call.target.as_str(),
+                                    CallerWriteSite::Call(nested_call),
+                                    arguments,
+                                    inference,
+                                )
+                            })
+                            .flatten()
+                        };
                     let argument_types = super::call_targets::call_argument_types(
                         program,
                         machine,
@@ -1074,8 +1070,12 @@ fn walk_state_write_prefix_inner(
                         inference,
                         Some(&argument_origins),
                     )
-                    .or_else(|| deduped_paths(known_boundary_call_written_paths_for_parts, inference))
-                    .or_else(|| deduped_paths(known_requirement_call_written_paths_for_parts, inference))
+                    .or_else(|| {
+                        deduped_paths(known_boundary_call_written_paths_for_parts, inference)
+                    })
+                    .or_else(|| {
+                        deduped_paths(known_requirement_call_written_paths_for_parts, inference)
+                    })
                     .or_else(|| {
                         if has_divergent_receiver || has_divergent_actual {
                             return None;

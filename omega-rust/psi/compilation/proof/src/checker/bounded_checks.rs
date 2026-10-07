@@ -204,7 +204,10 @@ fn assignment_is_overwritten_before_consumption(
             // invariant window may not flow through it.
             StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return false,
             StatementNode::Assignment(assignment) => {
-                if crate::typed_expressions::expression_contains_call_node(proof_plan.program, assignment.value) {
+                if crate::typed_expressions::expression_contains_call_node(
+                    proof_plan.program,
+                    assignment.value,
+                ) {
                     return false;
                 }
                 let mut reads = Vec::new();
@@ -228,7 +231,10 @@ fn assignment_is_overwritten_before_consumption(
             }
             StatementNode::LocalData(local) => {
                 if local.initial_value.is_valid() {
-                    if crate::typed_expressions::expression_contains_call_node(proof_plan.program, local.initial_value) {
+                    if crate::typed_expressions::expression_contains_call_node(
+                        proof_plan.program,
+                        local.initial_value,
+                    ) {
                         return false;
                     }
                     let mut reads = Vec::new();
@@ -242,7 +248,10 @@ fn assignment_is_overwritten_before_consumption(
                 }
             }
             StatementNode::Expression(expression) => {
-                if crate::typed_expressions::expression_contains_call_node(proof_plan.program, *expression) {
+                if crate::typed_expressions::expression_contains_call_node(
+                    proof_plan.program,
+                    *expression,
+                ) {
                     return false;
                 }
                 let mut reads = Vec::new();

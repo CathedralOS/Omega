@@ -9,7 +9,6 @@
 
 use super::is_self_entry_call;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -24,7 +23,7 @@ mod slices;
 /// unrelated positive guard elsewhere in the state must not license the
 /// call.
 fn guarded_integer_predecessor_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     entry_name: &str,
     measure_position: usize,
@@ -98,7 +97,7 @@ fn guarded_integer_predecessor_call(
 }
 
 fn expression_names_measure(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&typed_trees::name::Identifier>,
@@ -122,7 +121,7 @@ fn expression_names_measure(
 /// resulting IH to establish its own premises, so its guarantees cannot also
 /// be the reason that induction is licensed.
 pub(crate) fn proof_call_has_structural_descent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
@@ -169,7 +168,7 @@ pub(crate) fn proof_call_has_structural_descent(
 }
 
 pub(crate) fn validate_proof_machine_recursion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     statement: &StatementNode,
@@ -363,7 +362,7 @@ pub(crate) fn validate_proof_machine_recursion(
 /// The root expression handles a statement can carry (guard subjects, arm
 /// arguments, terminal values, initializers, call arguments).
 fn statement_expression_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     use typed_trees::statement::StatementRootRole as Role;
@@ -383,7 +382,7 @@ fn statement_expression_roots(
 
 /// Collect the ARGUMENT spans of every self-entry call in this tree.
 fn collect_self_entry_call_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     entry_name: &str,
     expression: ExpressionHandle,
     found: &mut Vec<Vec<ExpressionHandle>>,
@@ -436,7 +435,7 @@ fn collect_self_entry_call_arguments(
 /// name, so a shadowing binding cannot launder a non-descending value
 /// through a descending parameter's name.
 fn substate_parameter_descends(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     argument: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
@@ -578,7 +577,7 @@ fn substate_parameter_descends(
 }
 
 fn strict_subterm_of_measure(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&Identifier>,

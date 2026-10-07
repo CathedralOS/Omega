@@ -17,7 +17,7 @@ mod remainder_bounds;
 /// into the destination parameter's merged facts. Keeping the two mirrors in
 /// one function is what lets `let j = i; -> load(j)` carry `i`'s bound.
 pub(in crate::checks::ranges) fn seed_local_alias_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -87,7 +87,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
 /// call writes retire them like any other label-keyed bound — a later
 /// `i = unknown` must not keep the initializer's contract.
 pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     label: &str,
     value: ExpressionHandle,
@@ -121,7 +121,7 @@ fn seed_integer_bounds(
 /// Returns `None` for values that do not alias a stable place (literals,
 /// arithmetic, other calls), which carry no transferable element-position facts.
 fn alias_source_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(value) {
@@ -151,7 +151,7 @@ fn alias_source_label(
 /// here additionally exposes it under the window's display label for proofs that
 /// resolve by label rather than by symbol.
 pub(in crate::checks::ranges) fn seed_subslice_window_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
     name: Option<&str>,

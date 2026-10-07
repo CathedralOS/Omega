@@ -11,15 +11,14 @@ use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralPathQualification, CheckedStructuralReturnedClaimTransferPlan,
     CheckedUnitCallCoordinate, CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan,
-    FlowCallFact, CheckedUnitStructuralPathSegment,
-    FlowClaimOutcomeEntryFact, FlowClaimOutcomeSource,
+    CheckedUnitStructuralPathSegment, FlowCallFact, FlowClaimOutcomeEntryFact,
+    FlowClaimOutcomeSource,
 };
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, SemanticDomainId,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -58,7 +57,7 @@ pub enum StateScalarContractRow {
 /// argument presentation proves it, so it is no runtime entry requirement.
 /// A scalar parameter's membership is an interval requirement and stays out.
 pub fn restates_structural_parameter_qualification(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     fact: &typed_trees::domain::ProofFact,
 ) -> bool {
@@ -103,7 +102,7 @@ pub fn restates_structural_parameter_qualification(
 /// qualifications. Declared integer ranges and exactly-interval memberships
 /// become interval rows; every other contract shape remains out of scope.
 pub fn structural_state_contract_scalar_predicates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<StateScalarContractRow>> {
     let mut expected = Vec::new();
@@ -220,7 +219,7 @@ pub fn structural_state_contract_scalar_predicates(
 /// arrival row: a relevant IEEE scalar of a state other than its machine's
 /// entry, declared in `Finite`.
 pub fn finite_arrival_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -275,7 +274,7 @@ pub fn finite_arrival_parameter(
 /// comparisons and each infinity fails one, so the conjunction holds exactly
 /// for finite values, both signed zeros included.
 pub fn state_finite_predicate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     parameter: SymbolHandle,
 ) -> Option<checked_trees::CheckedBooleanExpression> {
@@ -310,7 +309,7 @@ pub fn state_finite_predicate(
 /// window. References describe storage, not scalar arrival parameters; their
 /// invariants remain with the structural storage and loan checks.
 fn retain_declared_integer_ranges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
     predicates: &mut Vec<StateScalarContractRow>,
 ) -> Option<()> {
@@ -350,7 +349,7 @@ fn retain_declared_integer_ranges(
 /// The closed interval of the exactly-interval domain constraint on
 /// `reference` that `membership` restates.
 fn scalar_interval_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     membership: &typed_trees::domain::ProofMembershipFact,
     primitive: typed_trees::types::PrimitiveType,
@@ -386,7 +385,7 @@ pub struct StructuralResultContract {
 /// Split an owned value's declared contract without granting any qualification.
 /// Establishment and call checking remain the owners of those judgments.
 pub fn structural_result_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Result<StructuralResultContract, &'static str> {
     let mut qualifications = Vec::new();
@@ -426,7 +425,7 @@ pub fn structural_result_contract(
 
 /// Exact whole-result qualification row, excluding reference presentation.
 pub fn structural_result_qualifications(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Result<Vec<SemanticDomainId>, &'static str> {
     Ok(structural_result_contract(program, reference)?.qualifications)
@@ -441,7 +440,7 @@ pub fn structural_result_qualifications(
 /// a referent claim the loan cannot transport. Other reference referents
 /// carry a distinct identity, so their inside-borrow domains stay out.
 pub fn view_result_carrier_qualifications(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Result<Vec<SemanticDomainId>, &'static str> {
     let byte_view =
@@ -484,11 +483,11 @@ pub fn view_result_carrier_qualifications(
 /// constraints remain owned by `structural_result_qualifications`; this route
 /// only emits nonempty fixed-index paths and rejects malformed spans.
 pub fn structural_result_projected_qualifications(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralPathQualification>, &'static str> {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         is_root: bool,
         path: &mut Vec<CheckedUnitStructuralPathSegment>,
@@ -581,7 +580,7 @@ pub fn structural_result_projected_qualifications(
 /// The source ownership analysis supplies the outcome theorem; this join checks
 /// its exact custody, rather than inferring a theorem from matching carriers.
 pub fn reconstruct_structural_parameter_return_claims(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -735,7 +734,7 @@ fn retained_claim_segments(
 /// source handles. Numeric field identities and literal indexes are retained;
 /// spelling alone never selects a field from another declaration.
 pub fn structural_claim_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Result<Vec<CheckedUnitStructuralPathSegment>, &'static str> {
@@ -752,7 +751,7 @@ pub fn structural_claim_path(
 /// path grants no transfer or claim: callers separately replay those events.
 /// References cannot be crossed to manufacture ownership of their referents.
 pub fn structural_owned_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
@@ -816,7 +815,10 @@ pub fn structural_owned_path(
 /// Shared slice descriptors borrow contents without inheriting owned claims.
 /// Their unrestricted multiplicity remains distinct from the affine lifetime
 /// obligation of a materialized named-reference carrier.
-pub fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub fn shared_slice_view_result(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     crate::slice_view_shell(program, reference, &[])
         .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared)
 }
@@ -830,7 +832,7 @@ pub fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHa
 /// coordinate names — each refusing a target drift — arity-checked
 /// against the destination parameter roster.
 fn structural_authored_arguments<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &FlowCallFact,
     source_state: &typed_trees::state::State,
     coordinate: &CheckedUnitCallCoordinate,
@@ -872,7 +874,7 @@ fn structural_authored_arguments<'program>(
 }
 
 pub fn structural_call_custody(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
@@ -1226,7 +1228,7 @@ pub fn structural_call_custody(
     if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
         return Err("structural returned claim requires an owned whole argument");
     }
-        let authored_arguments = structural_authored_arguments(
+    let authored_arguments = structural_authored_arguments(
         program,
         call,
         source_state,

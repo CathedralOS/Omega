@@ -6,7 +6,7 @@
 //! of this module's machinery — signatures, entry claims, successors — reads
 //! this roster through `FusedStates`, each state keeping its authored owner
 //! for signatures and proof facts.
-use super::super::{StatementNode, TransitionTargetNode, TypedTrees};
+use super::super::{StatementNode, TransitionTargetNode};
 
 /// A composed graph's state roster: the dispatch machine's states followed by
 /// the foreign machines in its recursive component. Each entry pairs the
@@ -23,7 +23,7 @@ pub(in crate::execution::terminal_unit) type FusedStates<'program> = Vec<(
 /// call plan, including operand preparation and completion cleanup. Each
 /// fused state retains its authored owner for signatures and proof facts.
 pub(in crate::execution::terminal_unit) fn fused_states<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
 ) -> FusedStates<'program> {
     let mut fused: FusedStates<'program> = program
@@ -115,7 +115,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
 /// The valid named targets of one state's transitions, in authored order:
 /// each transition's target and continuation, filtered to `Named` spells.
 fn named_transition_targets<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
     program
@@ -141,7 +141,7 @@ fn named_transition_targets<'a>(
 /// the same normalization `named_transition_target_state_index` applies to
 /// one machine's own roster.
 pub(in crate::execution::terminal_unit) fn fused_target_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fused: &FusedStates<'_>,
     target: symbols::SymbolHandle,
 ) -> Option<usize> {

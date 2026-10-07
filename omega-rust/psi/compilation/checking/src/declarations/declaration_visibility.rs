@@ -4,11 +4,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolKind;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 fn is_sealed_toolchain_float_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
     let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) else {
@@ -32,7 +31,7 @@ fn is_sealed_toolchain_float_projection(
 }
 
 pub(crate) fn collect_declaration_visibility_diagnostics(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_public_const_declared_types(program, diagnostics);
@@ -97,7 +96,10 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
     }
 }
 
-fn validate_public_conformance_headers(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_public_conformance_headers(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for conformance in program
         .conformances()
         .iter()
@@ -113,7 +115,7 @@ fn validate_public_conformance_headers(program: &TypedTrees, diagnostics: &mut V
 }
 
 fn validate_public_conformance_header_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance_symbol: symbols::SymbolHandle,
     selected_symbol: symbols::SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -144,7 +146,9 @@ fn validate_public_conformance_header_selection(
     }
 }
 
-pub fn validate_declaration_visibility(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_declaration_visibility(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     if diagnostics.is_empty() {
@@ -154,7 +158,10 @@ pub fn validate_declaration_visibility(program: &TypedTrees) -> Result<(), Vec<D
     }
 }
 
-fn validate_public_const_declared_types(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_public_const_declared_types(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for declaration in program
         .const_declarations()
         .iter()
@@ -172,7 +179,7 @@ fn validate_public_const_declared_types(program: &TypedTrees, diagnostics: &mut 
 }
 
 fn validate_public_const_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     const_symbol: symbols::SymbolHandle,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,
@@ -231,7 +238,7 @@ fn validate_public_const_type_reference(
 }
 
 fn validate_public_const_data_visibility(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     const_symbol: symbols::SymbolHandle,
     selected_symbol: symbols::SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,

@@ -62,7 +62,7 @@ pub(in crate::flow) struct EvaluatedWritePrefix {
 }
 
 pub(super) struct Execution<'a, 'b, 'plans> {
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &'a BorrowFacts,
     proof: &'a ProofFacts,
     domains: &'a DomainFacts,
@@ -80,7 +80,7 @@ pub(super) struct Execution<'a, 'b, 'plans> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_statement_calls<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
@@ -181,7 +181,7 @@ pub(super) fn append_statement_calls<'plans>(
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        program: &'plans typed_trees::TypedTrees,
+        program: &'plans dyn ::validation::CheckingInput,
         borrow: &'a BorrowFacts,
         proof: &'a ProofFacts,
         domains: &'a DomainFacts,

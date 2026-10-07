@@ -4,7 +4,6 @@
 
 use super::StructuralTerm;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -18,7 +17,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// expression's owning state and expected type pass them through instead of
 /// losing the term.
 pub(crate) fn binary_term_in_scope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     scope: Option<(&Machine, &State, TypeReferenceHandle)>,
     expression: ExpressionHandle,
     left: StructuralTerm,
@@ -98,7 +97,7 @@ pub(crate) fn binary_term_in_scope(
 
 /// Walk an anchored name's symbol upward to its declaring machine and state.
 fn scoped_machine_state<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&'program Machine, &'program State)> {
     let mut owner = symbol;
@@ -129,7 +128,7 @@ fn scoped_machine_state<'program>(
 }
 
 fn expression_scope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {

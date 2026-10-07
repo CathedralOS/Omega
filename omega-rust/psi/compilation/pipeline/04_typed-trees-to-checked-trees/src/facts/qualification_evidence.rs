@@ -5,7 +5,6 @@ use language_semantics::{
     DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
@@ -13,7 +12,7 @@ use typed_trees::signature::{SignatureContractKind, StateSignature};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn domain_definition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
     program
@@ -23,7 +22,7 @@ pub(crate) fn domain_definition(
 }
 
 pub(crate) fn boundary_qualification_authorization(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     signature: &StateSignature,
     contract_kind: SignatureContractKind,
@@ -79,7 +78,7 @@ pub(crate) fn boundary_qualification_authorization(
 }
 
 pub(crate) fn call_contract_evidence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
@@ -160,7 +159,7 @@ pub(crate) fn call_contract_evidence(
 }
 
 pub(crate) fn machine_has_checked_domain_establishment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -168,7 +167,7 @@ pub(crate) fn machine_has_checked_domain_establishment(
 }
 
 fn machine_domain_establishment_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     domain_symbol: SymbolHandle,
 ) -> Option<QualificationEvidenceOrigin> {
@@ -225,7 +224,7 @@ fn machine_domain_establishment_origin(
 }
 
 fn call_carry_permission_evidence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     _target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
@@ -273,7 +272,7 @@ fn call_carry_permission_evidence(
 }
 
 pub(crate) fn operator_contract_evidence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_symbol: SymbolHandle,
     payload: FactPayload,
 ) -> QualificationEvidence {
@@ -300,7 +299,7 @@ pub(crate) fn operator_contract_evidence(
 /// mints through caller storage it borrows mutably. Other parameters are
 /// caller premises — nothing may establish into them.
 fn ensured_subject_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &StateSignature,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -328,14 +327,14 @@ fn ensured_subject_carrier(
 }
 
 fn membership_carry_permission(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     membership: &typed_trees::domain::ProofMembershipFact,
 ) -> Option<language_semantics::CarryPermission> {
     carry_permission_from_path(program, membership.domain)
 }
 
 fn carry_permission_from_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: arena::HandleSpan<typed_trees::name::Identifier>,
 ) -> Option<language_semantics::CarryPermission> {
     let name = program
@@ -353,7 +352,7 @@ fn carry_permission_from_path(
 /// slot is erased from the semantic identity, so both sides compare by head
 /// nominal when no runtime generic arguments remain.
 fn return_type_matches_domain_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: TypeReferenceHandle,
     domain_target: TypeReferenceHandle,
 ) -> bool {
@@ -366,7 +365,7 @@ fn return_type_matches_domain_target(
 }
 
 fn nominal_head_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
@@ -388,7 +387,7 @@ fn nominal_head_symbol(
 }
 
 pub(crate) fn unwrapped_type_references_match(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
@@ -402,7 +401,7 @@ pub(crate) fn unwrapped_type_references_match(
 }
 
 fn unwrapped_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     if !type_reference.is_valid() {

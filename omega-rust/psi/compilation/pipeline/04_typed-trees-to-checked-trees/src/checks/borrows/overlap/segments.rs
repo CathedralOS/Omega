@@ -13,7 +13,7 @@ use checked_trees::CapturedPlaceContainment;
 /// exact selector location so the equality check and both containment
 /// directions observe each selector's bound through one recorded value.
 struct SegmentContainmentEvaluation<'program, 'session, 'premises> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     selectors: &'session mut SelectorEvaluation<'premises>,
     extents: Vec<(SelectorLocation, EvaluatedIndexExtent)>,
     bound_lookup: &'session mut Option<validation::ImmutableBoundLookup<'program>>,
@@ -370,7 +370,7 @@ fn index_window_contains_window(
 }
 
 fn place_segments_containment_evaluated<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     selectors: &mut SelectorEvaluation<'_>,
@@ -441,7 +441,7 @@ fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegmen
 /// Share evaluated bounds between overlap and containment. A disjoint result
 /// already fixes containment to None and needs no further evaluation.
 pub(super) fn place_segments_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     premises: &[StatedOrderingPremise],
@@ -459,7 +459,7 @@ pub(super) fn place_segments_compatibility<'p>(
 }
 
 fn place_segments_may_overlap_evaluated<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     selectors: &mut SelectorEvaluation<'_>,
@@ -488,7 +488,7 @@ fn place_segments_may_overlap_evaluated<'p>(
 }
 
 fn place_segment_pair_may_overlap<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
     segment_index: usize,

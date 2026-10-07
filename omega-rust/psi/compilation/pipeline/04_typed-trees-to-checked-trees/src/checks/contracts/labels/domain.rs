@@ -1,7 +1,7 @@
 use symbols::SymbolHandle;
 
 pub(crate) fn domain_proves_expression_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
     base_label: &str,
     candidate_label: &str,
@@ -39,7 +39,7 @@ pub(crate) fn domain_proves_expression_label(
 }
 
 pub(crate) fn instantiate_domain_expression_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     expression: typed_trees::expression::ExpressionHandle,
     base_label: &str,

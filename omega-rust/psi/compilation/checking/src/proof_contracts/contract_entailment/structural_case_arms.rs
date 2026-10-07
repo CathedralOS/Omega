@@ -13,7 +13,6 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
 use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -60,7 +59,7 @@ pub(crate) struct StructuralCaseArm {
 /// validator proves their declared measure decreases, so recognizing this
 /// body shape cannot license an ungrounded induction.
 pub(crate) fn recognize_guarded_structural_value_arms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,
 ) -> Option<Vec<StructuralCaseArm>> {
@@ -161,7 +160,7 @@ pub(crate) fn recognize_guarded_structural_value_arms(
 /// two faces of ONE condition; unsupported trees simply refuse the
 /// structural-induction shortcut.
 fn guard_expressions_equal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -190,7 +189,7 @@ fn guard_expressions_equal(
 /// Stage a citation call's argument terms — each judged under its expected
 /// declared type — for establishment after the arm's own walk.
 fn stage_citation_argument_terms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -226,7 +225,7 @@ type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 /// the branch to a further named state. Unsupported statement order, an
 /// unresolved target, or a state cycle fails the whole recognition closed.
 pub(crate) fn recognize_structural_case_arms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -243,7 +242,7 @@ pub(crate) fn recognize_structural_case_arms(
 }
 
 pub(super) fn recognize_structural_case_arms_with_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -287,7 +286,7 @@ pub(super) fn recognize_structural_case_arms_with_requirement(
 
 #[allow(clippy::too_many_arguments)]
 fn recognize_structural_state_leaves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -627,7 +626,7 @@ fn recognize_structural_state_leaves(
 
 #[allow(clippy::too_many_arguments)]
 fn finalize_structural_case_arm(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -694,7 +693,7 @@ fn finalize_structural_case_arm(
 }
 
 pub(super) fn structural_arm_judge<'program>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'program>,
     case_hypotheses: &[(String, StructuralTerm)],

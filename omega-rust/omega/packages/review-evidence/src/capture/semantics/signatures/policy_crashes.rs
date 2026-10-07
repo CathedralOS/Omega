@@ -30,7 +30,7 @@ pub(crate) fn project(
         "static signature crash capsule",
     )?;
     let derived = typed_trees_to_checked_trees::derive_authored_signature_crash_buckets(
-        &compilation.typed,
+        compilation.checking_input,
         signature,
     );
     if derived != capsule.published_buckets() {

@@ -90,7 +90,7 @@ impl SelectedOperand {
 /// accumulate until the first non-cast expression, which is returned with the
 /// accumulated chain.
 fn peel_transparent_casts<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     source: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
@@ -120,7 +120,7 @@ fn peel_transparent_casts<'a>(
 /// Classify every cast in a peeled chain, advancing the running carrier
 /// through each conversion's target.
 fn classify_cast_chain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     casts: &[(
         ExpressionHandle,
         &typed_trees::expression::TableCastExpression,
@@ -146,7 +146,7 @@ fn classify_cast_chain(
 }
 
 pub(super) fn selected_operand(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exact_casts: &[validation::ExactIntegerCastFact],
     state: symbols::SymbolHandle,
     statement_index: usize,
@@ -194,7 +194,7 @@ pub(super) fn selected_operand(
 /// keeps `scalar_qualified_call_expression`'s same-carrier transparency and
 /// extends it to the remaining fixed-integer cast policies.
 pub(super) fn selected_call<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     exact_casts: &[validation::ExactIntegerCastFact],
     source: ExpressionHandle,
 ) -> Option<SelectedCall<'a>> {

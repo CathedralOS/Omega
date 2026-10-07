@@ -11,7 +11,6 @@ mod structural_paths;
 
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;
 use checked_trees::{CheckedBooleanExpression, CheckedOperatorFacts};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 
 /// Lower a contract predicate in the selected machine's entry-parameter
@@ -19,7 +18,7 @@ use typed_trees::expression::ExpressionHandle;
 /// meaning as executable guards without carrying typed-tree handles into the
 /// terminal producer.
 pub(crate) fn lower_machine_parameter_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     expression: ExpressionHandle,
@@ -62,7 +61,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 /// instantiate the parameter types, but never replaces authored symbols or
 /// manufactures an executable state for a bodyless requirement.
 pub(crate) fn lower_parameter_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
@@ -89,7 +88,7 @@ pub(crate) fn lower_parameter_boolean_expression(
 
 /// The retained-scalar parameter roster and each element's primitive type.
 fn scalar_parameters_and_types(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<(
     Vec<typed_trees::signature::StateParameter>,

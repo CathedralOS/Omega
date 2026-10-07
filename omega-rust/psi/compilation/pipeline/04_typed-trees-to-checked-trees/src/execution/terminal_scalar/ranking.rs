@@ -5,10 +5,9 @@ use checked_trees::{
     CheckedStructuralRankedGuardPlan, CheckedStructuralRankedSccEdgePlan,
     CheckedStructuralRankedSccPlan,
 };
-use typed_trees::TypedTrees;
 
 pub(super) fn plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     graph: &CheckedScalarMachineGraph,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     runtime_components: &[validation::ValidatedRuntimeNaturalComponent],

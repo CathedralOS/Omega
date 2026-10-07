@@ -27,7 +27,7 @@ pub(super) enum SimultaneousHoldConflict {
 }
 
 pub(super) fn simultaneous_hold_conflict<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     first: &CapturedPlace,
     first_kind: &BorrowAccessKind,
     second: &CapturedPlace,

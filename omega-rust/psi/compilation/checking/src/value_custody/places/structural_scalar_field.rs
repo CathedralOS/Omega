@@ -14,7 +14,6 @@
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -57,7 +56,7 @@ pub struct StructuralScalarField {
 /// construction and every store prove them. This query grants no membership:
 /// observing the established field reads its scalar carrier.
 pub fn structural_scalar_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
@@ -178,7 +177,7 @@ pub fn structural_scalar_field(
 /// these declared crossings lets lowering follow the plan without rediscovering
 /// reference access from the authored expression.
 fn readable_projection_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut carrier: TypeReferenceHandle,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<TypeReferenceHandle> {
@@ -205,7 +204,7 @@ fn readable_projection_carrier(
 /// before its payload field. A selected case is a path coordinate, not a
 /// synthetic record type; execution still needs its established case.
 fn selected_member_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     record: &'program typed_trees::data::DataDefinition,
     member: &typed_trees::expression::TableMemberExpression,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -281,7 +280,7 @@ enum Step<'a> {
 /// The exact authored machine and state, when each symbol names exactly one,
 /// asked whether the place spine keeps builtin coordinates.
 fn builtin_place_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     expression: ExpressionHandle,
@@ -314,7 +313,7 @@ struct StructuralSource {
 /// Rejoin a runtime expression to this exact authored statement. This does not
 /// replace selective execution replay or grant validity to an unevaluated arm.
 fn expression_at_statement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     expression: ExpressionHandle,
 ) -> bool {
@@ -348,7 +347,7 @@ fn expression_at_statement(
 /// This describes source identity; a consumer must still prove the unique
 /// producing operation completed before reading its established storage.
 pub fn saved_dispatch_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -387,7 +386,7 @@ pub fn saved_dispatch_subject(
 /// edge. Track containment per path, and decline that ambiguity rather than
 /// letting a copied occurrence erase the independent edge's effects.
 pub fn saved_dispatch_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -472,7 +471,7 @@ pub fn saved_dispatch_call(
 }
 
 fn same_authored_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -488,7 +487,7 @@ fn same_authored_call(
 }
 
 fn dispatch_case_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Option<ExpressionHandle> {
     use typed_trees::expression::BinaryOperator;
@@ -537,7 +536,7 @@ fn dispatch_case_subject(
 }
 
 fn structural_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
@@ -692,7 +691,7 @@ fn structural_source(
 /// complete scalar predicates retain their declaration invariant. Unsupported
 /// predicates and restricted non-Exact policies remain unsupported.
 fn realized_scalar_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     if crate::is_arithmetic_policy_only_integer(program, reference) {

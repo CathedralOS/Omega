@@ -9,7 +9,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn literal_argument_access_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -56,7 +56,7 @@ enum ProjectionMode {
 /// nested fields/array elements through the same projection owner as accesses;
 /// never replay a local initializer to discover its former tag.
 pub(crate) fn literal_value_path_is_inactive(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
@@ -103,7 +103,7 @@ pub(crate) fn literal_value_path_is_inactive(
 }
 
 pub(crate) fn literal_value_projections(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
@@ -123,7 +123,7 @@ pub(crate) fn literal_value_projections(
 }
 
 fn literal_projections(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],

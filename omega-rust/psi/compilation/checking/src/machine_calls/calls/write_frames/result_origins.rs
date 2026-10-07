@@ -14,7 +14,7 @@ use super::path_instantiation::aggregate_arguments::{
 use super::stored_origins::canonical_reference_origins;
 use super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
-    TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees, machine_state_by_symbol,
+    TableCallExpression, TopLevelSymbols, TypeReferenceHandle, machine_state_by_symbol,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
@@ -31,7 +31,7 @@ mod input_sources;
 mod state_equations;
 
 pub(super) fn call_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     call: &TableCallExpression,
     expected: TypeReferenceHandle,
@@ -118,7 +118,7 @@ pub(super) fn call_result_origins(
 /// their active-body guard and cannot borrow provisional state summaries.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn state_result_origins<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     expected_result: TypeReferenceHandle,
@@ -147,7 +147,7 @@ pub(super) fn state_result_origins<'program>(
 /// same chronological prefix evidence for both acyclic and cyclic graphs.
 #[allow(clippy::too_many_arguments)]
 fn state_equation<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     expected_result: TypeReferenceHandle,
@@ -258,11 +258,11 @@ fn state_equation<'program>(
         let mut edges = Vec::new();
         let mut returns = false;
         let merge_result = |result: ExpressionHandle,
-                                statement: &StatementNode,
-                                index: usize,
-                                returns: &mut bool,
-                                relative: &mut AggregateOrigins,
-                                inference: &mut FrameInference| {
+                            statement: &StatementNode,
+                            index: usize,
+                            returns: &mut bool,
+                            relative: &mut AggregateOrigins,
+                            inference: &mut FrameInference| {
             *returns = true;
             merge_result_arm(
                 program,
@@ -284,7 +284,14 @@ fn state_equation<'program>(
                 // A non-final expression is a discarded statement and never a
                 // result route.
                 StatementNode::Expression(result) if index + 1 == statements.len() => {
-                    merge_result(*result, statement, index, &mut returns, &mut relative, inference)?;
+                    merge_result(
+                        *result,
+                        statement,
+                        index,
+                        &mut returns,
+                        &mut relative,
+                        inference,
+                    )?;
                 }
                 // A crash route never produces an ordinary result.
                 StatementNode::Transition(transition)
@@ -296,7 +303,14 @@ fn state_equation<'program>(
                         }
                         match program.statement_table.transition_target(edge) {
                             TransitionTargetNode::Value(result) => {
-                                merge_result(*result, statement, index, &mut returns, &mut relative, inference)?;
+                                merge_result(
+                                    *result,
+                                    statement,
+                                    index,
+                                    &mut returns,
+                                    &mut relative,
+                                    inference,
+                                )?;
                             }
                             TransitionTargetNode::Named { arguments, .. } => merge_named_edge(
                                 program,
@@ -339,7 +353,7 @@ fn state_equation<'program>(
 /// its own statement, then merge the canonical origins into the relation.
 #[allow(clippy::too_many_arguments)]
 fn merge_result_arm(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     boundary: &StatementNode,
@@ -437,7 +451,7 @@ fn merge_result_arm(
 /// the prefix supplies the referents after all preceding writes and rebinds.
 #[allow(clippy::too_many_arguments)]
 fn reference_result_relation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     boundary_index: usize,
@@ -503,7 +517,7 @@ fn reference_result_relation(
 /// resolves to its proven parameter root before the caller instantiates it.
 #[allow(clippy::too_many_arguments)]
 fn merge_relative_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     boundary_index: usize,
@@ -576,7 +590,7 @@ fn merge_relative_origins(
 /// the authored local through that candidate once so the shared canonicalizer
 /// retains the crossed-reference boundary while projecting any later fields.
 fn canonical_result_reference_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     boundary_index: usize,
     origin: &Option<FramePlaceOrigin>,
@@ -625,7 +639,7 @@ fn canonical_result_reference_origins(
 /// immediately before the transition.
 #[allow(clippy::too_many_arguments)]
 fn merge_named_edge<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     source_state: &'program State,
     boundary: &StatementNode,
@@ -733,7 +747,7 @@ fn merge_named_edge<'program>(
 /// Equation solving and ordinary terminal calls use the identical operation.
 #[allow(clippy::too_many_arguments)]
 fn instantiate_edge_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source_state: &State,
     target_state: &State,
@@ -821,7 +835,7 @@ fn instantiate_edge_origins(
 /// input parameter before its source crosses that boundary.
 #[allow(clippy::too_many_arguments)]
 fn instantiate_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     host_machine: &Machine,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],

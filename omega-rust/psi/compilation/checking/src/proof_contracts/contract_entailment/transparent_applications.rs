@@ -6,7 +6,6 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
 use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_call_machine_name, structural_term,
 };
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -18,18 +17,18 @@ use typed_trees::signature::SignatureContractKind;
 /// proof-side expansion. The first rung accepts equality formulas directly
 /// and never treats a primitive or witness-bearing proposition as transparent.
 pub fn transparent_proposition_application_entailed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     goal: &typed_trees::proposition::PropositionApplication,
 ) -> bool {
     fn equation(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         judge: &StructuralJudge<'_>,
         application: &typed_trees::proposition::PropositionApplication,
     ) -> Option<(StructuralTerm, StructuralTerm)> {
         fn argument_term(
-            program: &TypedTrees,
+            program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
         ) -> Option<StructuralTerm> {
             let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -47,10 +46,9 @@ pub fn transparent_proposition_application_entailed(
             ) else {
                 return None;
             };
-            let Some(data_symbol) = crate::program_scope::type_shape::head_data_symbol(
-                program,
-                state.return_type,
-            ) else {
+            let Some(data_symbol) =
+                crate::program_scope::type_shape::head_data_symbol(program, state.return_type)
+            else {
                 return structural_term(program, expression);
             };
             let data = crate::program_scope::data_definitions::data_definition_by_symbol(

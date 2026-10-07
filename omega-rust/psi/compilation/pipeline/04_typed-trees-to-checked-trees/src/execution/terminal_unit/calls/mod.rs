@@ -51,7 +51,7 @@ pub(crate) struct CallTarget<'program> {
 
 impl<'program> CallTarget<'program> {
     pub(crate) fn declared(
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
     ) -> Self {

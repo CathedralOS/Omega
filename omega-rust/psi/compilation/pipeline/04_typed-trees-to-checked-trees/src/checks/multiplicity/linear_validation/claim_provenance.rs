@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn written_linear_targets(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -78,7 +78,7 @@ pub(crate) fn written_linear_targets(
 /// a source name. Both local writes and anonymous owners retain the same input
 /// identities, provenance and conditional claim frontier.
 pub(crate) fn written_owner_targets(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     target: &crate::flow::CanonicalPlace,
@@ -135,14 +135,14 @@ pub(crate) fn written_owner_targets(
 /// `claim` the per-walk field, `common` the unanimous-match fold.
 #[allow(clippy::too_many_arguments)]
 fn expression_permission_claim_scan<X>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
     descend: &dyn Fn(
-        &typed_trees::TypedTrees,
+        &dyn ::validation::CheckingInput,
         SymbolHandle,
         usize,
         typed_trees::expression::ExpressionHandle,
@@ -240,7 +240,7 @@ fn expression_permission_claim_scan<X>(
 }
 
 fn expression_permission_claim_identity_for_claim(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -329,7 +329,7 @@ fn expression_permission_claim_identity_for_claim(
 }
 
 fn expression_permission_provenance_for_claim(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,

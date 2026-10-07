@@ -4,7 +4,6 @@
 use crate::facts::canonical_encoding::{encode_contract_set_canonical, encode_type_spelling};
 use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
 use crate::facts::{crash_calls, operator_crashes};
-use typed_trees::TypedTrees;
 
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
@@ -13,7 +12,7 @@ use typed_trees::TypedTrees;
 /// conservative call propagation, without proof-based pruning; a stronger
 /// prover therefore cannot change an exported contract ID (acceptance 8).
 pub(crate) fn build_contract_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     service_reaches: &checked_trees::ServiceReachFacts,
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
     suspensions: &checked_trees::SuspensionFacts,
@@ -299,7 +298,7 @@ pub(crate) fn build_contract_plans(
 /// typed trees, so this second gate is what rejects a missing, foreign, or
 /// reordered entry before the source-independent carrier leaves this stage.
 fn validate_checked_resource_envelope_coverage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     plans: &checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for machine in program.machines() {
@@ -337,7 +336,7 @@ fn validate_checked_resource_envelope_coverage(
 }
 
 pub(crate) fn build_mutation_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> checked_trees::MutationFacts {
     let mut owned_resolver = None;
@@ -376,7 +375,7 @@ pub(crate) fn build_mutation_facts(
 }
 
 pub(crate) fn build_closed_scalar_value_contract_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> checked_trees::ClosedScalarValueContractPlan {
@@ -558,7 +557,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
 /// lowering preparation rejoins it to the checked float-meaning equality
 /// roster rather than approximating a scalar predicate.
 fn lower_float_meaning_equality_clause(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<checked_trees::ClosedScalarContractValue> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -611,7 +610,7 @@ fn lower_float_meaning_equality_clause(
 /// walk decides that coverage over the operation's own operands while it
 /// decides Exact formation (`validation`'s `trap_coverage`).
 fn trapping_sites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,

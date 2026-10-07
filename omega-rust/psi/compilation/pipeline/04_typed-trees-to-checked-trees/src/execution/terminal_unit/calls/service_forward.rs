@@ -5,11 +5,11 @@
 
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, TypedTrees,
+    CheckedUnitStructuralPathSegment,
 };
 
 pub(super) fn fused_service_arguments_match(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_state: &typed_trees::state::State,

@@ -57,14 +57,17 @@ pub(super) fn project(
             .iter()
             .enumerate()
             .filter_map(|(index, symbol)| {
-                provider_planning::IntrinsicRequirement::by_symbol(&compilation.typed, *symbol)
-                    .filter(|requirement| {
-                        requirement.requirement_identity == checked.requirement_identity
-                            && requirement
-                                .as_operator()
-                                .is_none_or(|operator| operator.is_boundary)
-                    })
-                    .map(|requirement| (index, requirement))
+                provider_planning::IntrinsicRequirement::by_symbol(
+                    compilation.checking_input,
+                    *symbol,
+                )
+                .filter(|requirement| {
+                    requirement.requirement_identity == checked.requirement_identity
+                        && requirement
+                            .as_operator()
+                            .is_none_or(|operator| operator.is_boundary)
+                })
+                .map(|requirement| (index, requirement))
             })
             .collect::<Vec<_>>();
         let [(row_index, requirement)] = requirements.as_slice() else {
@@ -172,7 +175,7 @@ fn project_requirement_coordinate(
             "a closed application on a requirement without an entry state",
         ));
     }
-    let typed = &compilation.typed;
+    let typed = compilation.checking_input;
     Ok(PackageReviewOperatorCoordinate {
         identity: nominal_identity(compilation, requirement)?,
         parameter_dispatch: typed

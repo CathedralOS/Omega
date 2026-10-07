@@ -4,7 +4,7 @@
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter,
-    TypeReferenceNode, TypedTrees, ValueEnvironment, WritableRoots, argument_matches_carrier,
+    TypeReferenceNode, ValueEnvironment, WritableRoots, argument_matches_carrier,
     declared_place_type, declared_reference_access,
     validate_call_arguments_with_type_correspondence,
 };
@@ -13,7 +13,7 @@ use super::{
 /// stored reference must compare under its bound rather than against raw ids.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_requirement_call_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -71,7 +71,7 @@ pub(super) fn validate_requirement_call_arguments(
 /// Recover the public requirement of an exact evidence-child call in its
 /// declaring generic machine. This grants no concrete realization identity.
 pub fn named_conformance_target_requirement<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     target: symbols::SymbolHandle,
 ) -> Result<
@@ -104,7 +104,7 @@ pub fn named_conformance_target_requirement<'program>(
 }
 
 pub(super) fn named_conformance_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     receiver: symbols::SymbolHandle,
 ) -> bool {
@@ -117,7 +117,7 @@ pub(super) fn named_conformance_receiver(
 }
 
 pub(super) fn expression_conformance_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     receiver: ExpressionHandle,
 ) -> symbols::SymbolHandle {
@@ -138,7 +138,7 @@ pub(super) fn expression_conformance_receiver(
 /// refinement's own (empty) machine list. Refining a refinement is rejected at
 /// symbol resolution, so exactly one hop reaches the nominal base.
 fn bound_carrier_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: symbols::SymbolHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
     let definition = program
@@ -157,7 +157,7 @@ fn bound_carrier_definition(
 /// Evidence selects a requirement namespace, not an implicit runtime receiver.
 /// Rejoin its exact child to the bound's reachable, unambiguous requirement.
 pub(super) fn named_conformance_requirement<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     receiver: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
@@ -219,7 +219,7 @@ pub(super) fn named_conformance_requirement<'program>(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_named_conformance_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -307,7 +307,7 @@ pub(super) fn validate_named_conformance_arguments(
 /// inherited rows share its spelling. Resolution leaves both unresolved
 /// rather than choosing one.
 pub(super) fn unresolved_implementation_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     implementation: symbols::SymbolHandle,
     target: &str,
 ) -> String {

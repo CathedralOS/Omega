@@ -6,7 +6,7 @@ use checked_trees::{
 };
 
 pub(crate) fn build_contract_operator_use_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
@@ -35,7 +35,7 @@ pub(crate) fn build_contract_operator_use_facts(
 }
 
 fn append_contract_operator_use(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
     operator_uses: &mut arena::Arena<ContractOperatorUseFact>,

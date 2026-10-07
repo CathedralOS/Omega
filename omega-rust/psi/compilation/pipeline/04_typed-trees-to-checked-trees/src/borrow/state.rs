@@ -20,7 +20,7 @@ pub(super) struct BorrowFactArenas<'arenas> {
 }
 
 pub(super) fn append_state_borrow_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     arenas: &mut BorrowFactArenas<'_>,

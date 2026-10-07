@@ -15,7 +15,7 @@ fn reverse(operator: BinaryOperator) -> BinaryOperator {
 }
 
 fn exact_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -24,7 +24,7 @@ fn exact_parameter(
 }
 
 fn positive(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     nonnegative: bool,
@@ -40,7 +40,7 @@ fn positive(
 /// `remaining > 0 && acc < 1000` carries the same positivity as `remaining >
 /// 0` alone.
 fn positive_guard(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     guard: &patterns::GuardFact,
     nonnegative: bool,
@@ -95,7 +95,7 @@ fn positive_guard(
 }
 
 pub(super) fn guard_is_positive_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     parameter: &typed_trees::signature::StateParameter,
@@ -111,7 +111,7 @@ pub(super) fn guard_is_positive_parameter(
 }
 
 pub(super) fn guard_is_positive_parameter_member(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     guards: &[patterns::GuardFact],
     parameter: &typed_trees::signature::StateParameter,

@@ -16,7 +16,7 @@ use symbols::SymbolHandle;
 /// literals, unary and binary results, range operands — keep no reference
 /// rather than borrowing a same-shaped row.
 pub(crate) fn expression_type_reference_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -35,7 +35,7 @@ pub(crate) fn expression_type_reference_in_state(
 }
 
 pub(crate) fn canonical_place_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
@@ -103,7 +103,7 @@ pub(crate) fn canonical_place_type_reference(
 }
 
 pub(crate) fn project_type_reference_from_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     current: typed_trees::types::TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -116,7 +116,7 @@ pub(crate) fn project_type_reference_from_segments(
 /// Retained owner paths already rebase stores through tracked local aliases.
 /// Unknown projection types cannot establish owned storage.
 pub(crate) fn loan_carrier_has_owned_storage(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     owner_symbol: SymbolHandle,
@@ -156,14 +156,14 @@ pub(crate) fn loan_carrier_has_owned_storage(
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
 /// (a record, a scalar, an unbound parameter) has none to resume at.
 pub(crate) fn collection_element_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     indexed_element_type_reference(program, type_reference, &[])
 }
 
 fn project_type_reference_from_segment_iter<'segment>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut current: typed_trees::types::TypeReferenceHandle,
     segments: impl IntoIterator<Item = &'segment facts::PlaceSegment>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -186,7 +186,7 @@ fn project_type_reference_from_segment_iter<'segment>(
 }
 
 fn symbol_type_reference_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -223,7 +223,7 @@ fn symbol_type_reference_in_state(
 }
 
 fn machine_member_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -240,7 +240,7 @@ fn machine_member_type_reference(
 }
 
 fn attached_data_field_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -256,7 +256,7 @@ fn attached_data_field_type_reference(
 }
 
 fn field_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     field_symbol: SymbolHandle,
     substitutions: &mut Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
@@ -315,7 +315,7 @@ fn field_type_reference(
 }
 
 fn indexed_element_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -336,7 +336,7 @@ fn indexed_element_type_reference(
 }
 
 fn substituted_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> typed_trees::types::TypeReferenceHandle {
@@ -369,7 +369,7 @@ fn substituted_type_reference(
 /// rather than letting the first same-shaped row mint evidence for the wrong
 /// subject.
 pub(super) fn unique_data_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let mut definitions = program
@@ -381,7 +381,7 @@ pub(super) fn unique_data_definition_by_symbol(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -400,7 +400,7 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {

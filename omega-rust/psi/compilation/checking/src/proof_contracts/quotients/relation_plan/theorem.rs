@@ -9,7 +9,6 @@ use super::static_application::validate_static_application;
 use super::{RelationPlanError, RepresentativeStaticApplication};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContract;
@@ -39,7 +38,7 @@ pub(in crate::proof_contracts::quotients) struct SelectedTheoremTelescope {
 }
 
 pub(super) fn derive_selected_theorem_telescope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     selected: &StaticMachineArgument,
 ) -> Result<SelectedTheoremTelescope, RelationPlanError> {
     let (machine, state) = selected_theorem_machine_state(program, selected.symbol)?;
@@ -84,7 +83,7 @@ pub(super) fn derive_selected_theorem_telescope(
 }
 
 fn selected_theorem_machine_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Result<(&Machine, &State), RelationPlanError> {
     let mut matches = program.machines().iter().flat_map(|machine| {

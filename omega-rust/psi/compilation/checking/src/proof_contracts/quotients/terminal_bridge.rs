@@ -1,11 +1,10 @@
 //! All-or-nothing extraction for the first non-executable Terminal replay seam.
 
 use language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn extract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
 ) -> Result<Vec<CanonicalQuotientCorrespondence>, Vec<String>> {
     let requests = program
@@ -70,7 +69,7 @@ pub(super) fn extract(
 }
 
 fn extract_one(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
     request_expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,

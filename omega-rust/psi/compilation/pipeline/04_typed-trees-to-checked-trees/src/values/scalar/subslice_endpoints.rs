@@ -11,7 +11,6 @@ use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpressionRole,
     CheckedSubsliceSite,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
@@ -19,7 +18,7 @@ use typed_trees::statement::StatementNode;
 /// whose operator use (if any) resolved to the builtin meaning. `lower`
 /// evaluates one endpoint as a `u64` in the site's own scalar namespace.
 pub(crate) fn subslice_endpoints<Value>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     site: CheckedSubsliceSite,
@@ -65,7 +64,7 @@ pub(crate) fn subslice_endpoints<Value>(
 /// The source occurrence, not the result's destination or the endpoint's syntax,
 /// identifies a range operand. Both scalar plan producers consume this inventory.
 pub(super) fn sites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -166,7 +165,7 @@ pub(super) fn sites(
 /// Structural formals have their own dense ordinal. Erased and scalar formals
 /// consume their authored actual but no structural position.
 fn structural_call_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     site: &crate::semantic::calls::CallSite<'_>,
 ) -> Vec<(typed_trees::expression::ExpressionHandle, u32)> {
     use crate::semantic::calls::CallSite;

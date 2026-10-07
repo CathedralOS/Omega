@@ -20,7 +20,6 @@
 use super::{exact_self_field, single_member_receiver_field};
 use language_core::{SELF_RECEIVER, place_field, place_label};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -44,7 +43,7 @@ pub struct AttachedStorageRoot<'parameters> {
 /// the machine's own symbol, which is what `exact_self_field` matches, so that
 /// is the symbol reported for a receiver.
 pub fn attached_storage_root<'parameters>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &'parameters [StateParameter],
 ) -> Option<AttachedStorageRoot<'parameters>> {
@@ -65,7 +64,7 @@ pub fn attached_storage_root<'parameters>(
 /// The parameter form resolves the root by symbol, not by spelling, so a local
 /// that happens to share the parameter's name is not this storage.
 pub fn exact_attached_storage_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -90,7 +89,7 @@ pub fn exact_attached_storage_field<'program>(
 /// deliberately unconstrained: what makes a deeper place usable is the
 /// caller's own stability reasoning, not the shape of the path.
 pub fn expression_names_attached_storage(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -131,7 +130,7 @@ pub fn expression_names_attached_storage(
 /// same thing in every declaration that can spell it, or it means nothing
 /// there.
 pub fn canonical_storage_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
     label: &str,
@@ -154,7 +153,7 @@ pub fn canonical_storage_label(
 /// `None` when the declaration reaches no attached storage at all: there is
 /// no spelling for the place there, so no fact about it belongs to it.
 pub fn declaration_storage_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
     canonical: &str,

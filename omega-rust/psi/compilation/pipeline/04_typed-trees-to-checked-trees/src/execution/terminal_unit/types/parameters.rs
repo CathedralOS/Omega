@@ -32,7 +32,7 @@ pub(crate) fn parameter_is_root(parameter: &StateParameter, root: SymbolHandle) 
 }
 
 pub(in crate::execution::terminal_unit) fn machine_binders(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, String)> {
     program
@@ -77,7 +77,7 @@ pub(in crate::execution::terminal_unit) fn abi_parameter_count(
 /// the proof lane (`erased_proof_parameter_plans`), so this plan skips
 /// them. Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
@@ -112,7 +112,7 @@ pub(crate) fn erased_scalar_parameter_plans(
 /// identity (`Nat`, `Proof`). These carriers admit no scalar lane; the
 /// contract term lane carries them by identity instead.
 pub(crate) fn erased_proof_parameter_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
@@ -150,7 +150,7 @@ pub(crate) fn erased_proof_parameter_plans(
 /// structural parameter retains its authored position independently of the
 /// machine's qualification.
 pub(crate) fn structural_parameter_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
 ) -> bool {
     if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
@@ -171,7 +171,7 @@ pub(crate) fn structural_parameter_candidate(
 /// Resolve the authored slot before the final structural roster is available.
 /// Callers with a completed roster must use that roster instead.
 pub(crate) fn dense_structural_parameter_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     authored_position: usize,
 ) -> Option<u32> {

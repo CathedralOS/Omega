@@ -3,7 +3,6 @@
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -13,7 +12,7 @@ use typed_trees::state::State;
 /// A wholly anonymous argument first lands here; its integrality diagnostics
 /// cannot be discarded as if an earlier typed operation had already checked it.
 pub(super) fn report_argument_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,

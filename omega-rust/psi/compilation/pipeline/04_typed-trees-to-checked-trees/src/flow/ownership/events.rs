@@ -66,7 +66,7 @@ impl<'segments> DirectMoveEventSink<'segments> {
 impl DirectMoveEventSink<'_> {
     pub(super) fn proof_only(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
     ) -> &typed_trees::proof_only::ProofOnlyClassification {
         self.proof_only
             .get_or_insert_with(|| validation::proof_only_classification(program))
@@ -101,7 +101,7 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
 /// Join a retained call ordinal to its existing authored transition lane.
 /// A failed join stays unknown; it must not become a guard or ordinary event.
 pub(crate) fn call_permission_evaluation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

@@ -3,10 +3,11 @@
 //! the semantic evaluator retains the continuation that will replace them.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
-pub(super) fn require_evaluated_constants(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn require_evaluated_constants(
+    program: &dyn ::validation::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
     // A declaration projection preserves backing handles for its frozen
     // descriptors. Only the live judgment's roots own constant obligations;
     // detached Product types must not turn a settled Build into a whole-package

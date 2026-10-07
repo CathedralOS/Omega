@@ -9,7 +9,6 @@ use checked_trees::{
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -26,11 +25,11 @@ const MAX_REFERENCE_ORIGIN_VISITS: usize = MAX_REFERENCE_ORIGIN_LEAVES * 2;
 const MAX_REFERENCE_ORIGIN_DEPTH: usize = 128;
 
 fn reference_origin_expansion_is_bounded(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         depth: usize,
         visits: &mut usize,
@@ -91,12 +90,15 @@ fn reference_origin_expansion_is_bounded(
 /// Arrays recurse through the same stored-value tree as record fields; the
 /// owned aggregate holds each loan descriptor, never the referent's bytes.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
-pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub fn is_reference_record(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     if !reference_origin_expansion_is_bounded(program, reference) {
         return false;
     }
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         seen: &mut Vec<SymbolHandle>,
     ) -> Option<bool> {
@@ -165,7 +167,7 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
 /// exclude scalar and const parameters, just like ordinary call preparation.
 pub fn initializer_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -230,7 +232,7 @@ pub fn initializer_source(
 /// state parameter named `symbol` — the structural-parameter lane both
 /// borrowed-carrier walks index by.
 fn structural_parameter_position<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &'program typed_trees::state::State,
     symbol: SymbolHandle,
 ) -> Option<(usize, &'program typed_trees::signature::StateParameter)> {
@@ -248,7 +250,7 @@ fn structural_parameter_position<'program>(
 }
 
 fn reference_parameter_can_supply(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: TypeReferenceHandle,
     result: TypeReferenceHandle,
 ) -> bool {
@@ -284,7 +286,7 @@ fn reference_parameter_can_supply(
 /// to locals stay opaque: folding them would need the
 /// constant-binding evidence the producer resolves elsewhere.
 pub fn borrowed_initializer_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -441,7 +443,7 @@ pub fn borrowed_initializer_source(
 /// Peel constraint shells and reference wrappers to the nominal owner one
 /// carrier's members live under.
 fn nominal_member_owner_type<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<&'p typed_trees::data::DataDefinition> {
     loop {
@@ -461,7 +463,7 @@ fn nominal_member_owner_type<'p>(
 /// Reconstruct the declaration-ordered reference roster from a complete
 /// constructor. Reference leaves retain formal ingress instead of scalar data.
 pub fn construction_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -479,7 +481,7 @@ pub fn construction_sources(
 /// Completion and call substitution share one returned-leaf origin query.
 /// Earlier ordinary statements do not change which authored value is returned.
 pub fn returned_record_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if !is_reference_record(program, state.return_type) {
@@ -492,7 +494,7 @@ pub fn returned_record_sources(
 /// The expression producing a state's returned value: the tail expression
 /// statement, or the exit arm of a terminal return transition.
 pub fn tail_return_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     let last = program
@@ -529,7 +531,7 @@ struct ConstructionSource {
 }
 
 fn construction_sources_with_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -668,7 +670,7 @@ struct AggregateProjection {
 /// Each field identity and fixed index is checked against its declared carrier;
 /// a stored reference remains an explicit crossing after this selection.
 fn aggregate_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<AggregateProjection> {
@@ -789,7 +791,7 @@ fn aggregate_projection(
 /// every selected descriptor. The projection removes only its owner prefix;
 /// the holder path stays relative to the storage actually supplying the loan.
 fn projected_construction_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -823,7 +825,7 @@ fn projected_construction_sources(
 /// Substitute returned permission leaves through the exact resolved invocation.
 /// Expression and terminal calls share this owner; neither creates a local loan.
 fn call_sources_with_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     target: SymbolHandle,
     arguments: &[typed_trees::expression::ExpressionHandle],
@@ -958,7 +960,7 @@ fn reference_access_can_supply(
 /// the exact declaration selectors, reference crossings and returned access;
 /// it neither creates a holder nor grants permission to borrow the backing.
 fn whole_reference_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<ConstructionSource>> {
     let (referent, access) = stored_loan_parts(program, state.return_type)?;
@@ -1087,7 +1089,7 @@ fn whole_reference_sources(
 }
 
 fn returned_sources_with_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<ConstructionSource>> {
@@ -1161,7 +1163,7 @@ fn returned_sources_with_calls(
 
 /// Every normal completion contributes its exact caller-relative origin.
 pub fn returned_reference_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     returned_sources_with_calls(program, state, &mut vec![state.symbol])
@@ -1172,7 +1174,7 @@ pub fn returned_reference_sources(
 /// Its exact flow occurrence has no expression/local holder; the ingress roster
 /// is therefore the custody, rather than a fabricated local loan handle.
 pub fn terminal_call_reference_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -1232,12 +1234,12 @@ pub fn terminal_call_reference_sources(
 /// names each borrowed referent; it does not authorize creating a fresh loan
 /// or moving storage through the referent boundary.
 fn formal_record_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     parameter_index: u32,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         parameter_index: u32,
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -1304,7 +1306,7 @@ fn formal_record_sources(
 }
 
 fn aggregate_construction_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -1398,14 +1400,17 @@ fn aggregate_construction_sources(
 /// the shared-borrow join. `is_reference_record` counts that view for result
 /// custody, so this local-construction gate excludes it explicitly. The
 /// checked producer and the lowering replay both ask this one question.
-pub fn local_owes_record_loans(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub fn local_owes_record_loans(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     is_reference_record(program, reference) && shared_borrowed_parts(program, reference).is_none()
 }
 
 /// Join each stored carrier leaf to its exact captured loan and weakening.
 /// Similar lifetime spelling and UnretainedDerived alone are not authority.
 pub fn local_record_loans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1582,7 +1587,7 @@ pub fn local_record_loans(
 /// Runtime-indexed, case and referent hops are not direct backing geometry.
 /// Transfers through a stored descriptor use its captured loan instead.
 pub fn loan_place_segments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<facts::PlaceSegment>> {
@@ -1636,7 +1641,7 @@ pub fn loan_place_segments(
 /// This establishes correspondence, not a new reborrow: the owned carrier and
 /// its existing permission move together.
 fn construction_source_loan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1706,7 +1711,7 @@ fn construction_source_loan(
 /// expression rather than a `let` statement's initializer, and the consuming
 /// statement's activity or last-use discipline is checked by the caller.
 fn call_actual_leaf_loan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1781,7 +1786,7 @@ fn call_actual_leaf_loan(
 }
 
 fn record_loan_is_active(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1809,7 +1814,7 @@ fn record_loan_is_active(
 
 /// Whole owned operands retain every captured leaf until their consuming call.
 pub fn owned_record_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1839,7 +1844,7 @@ pub fn owned_record_argument(
 /// paths `formal_record_sources` and `local_record_loans` reconstruct, so one
 /// resolver keeps those joins from drifting.
 pub(crate) fn declared_field_path<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut selected: TypeReferenceHandle,
     members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
 ) -> Option<(
@@ -1877,7 +1882,7 @@ pub(crate) fn declared_field_path<'a>(
 /// `path` is the projected field-identity path exactly as
 /// `projected_argument_path` spells it.
 pub fn projected_record_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1914,7 +1919,7 @@ pub fn projected_record_argument(
 /// anonymous carrier itself is consumed whole by the projection, so its
 /// entire returned leaf roster must live under the edge.
 pub fn nested_call_record_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1942,14 +1947,11 @@ pub fn nested_call_record_argument(
         )
 }
 
-
-
-
 /// Every admitted returned leaf source replays through the call's exact
 /// actual to an active leaf loan at this statement.
 #[allow(clippy::too_many_arguments)]
 fn sources_replay_active_leaf_loans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1989,7 +1991,7 @@ fn sources_replay_active_leaf_loans(
 /// sources — `None` when the call does not return a reference record.
 /// Callers then require each source's active leaf loan, filtered per site.
 fn reference_record_call_sources<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<(
     &'program typed_trees::state::State,
@@ -2011,7 +2013,7 @@ fn reference_record_call_sources<'program>(
 /// `nested_call_record_argument` proves under the consumer's projected edge,
 /// here required of the complete returned roster.
 pub fn nested_call_result_loans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -2040,7 +2042,7 @@ pub fn nested_call_result_loans(
 /// A projected argument crosses the stored carrier only after its exact local
 /// construction and active leaf loan have been reconstructed.
 pub fn record_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -2133,7 +2135,9 @@ pub fn record_argument(
 /// index 0 — the invalid handle — carries the classification every handle
 /// the table does not name reads. The table is append-only, so an index is
 /// never reused and a recorded row cannot go stale under a later handle.
-pub fn classify_program_reference_custody(program: &TypedTrees) -> ReferenceCustodyFacts {
+pub fn classify_program_reference_custody(
+    program: &dyn crate::CheckingInput,
+) -> ReferenceCustodyFacts {
     let table = &program.type_reference_table;
     let highest = table
         .type_reference_rows()
@@ -2166,7 +2170,7 @@ pub fn classify_program_reference_custody(program: &TypedTrees) -> ReferenceCust
 /// absence row: a state carrying an invalid symbol names no declaration to
 /// look up, so it must not take the row every unnamed symbol reads.
 pub fn classify_program_state_reference_custody(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> StateReferenceCustodyFacts {
     let declared_states = || {
         program
@@ -2188,7 +2192,7 @@ pub fn classify_program_state_reference_custody(
 
 /// One state's reference-result custody row.
 fn state_reference_custody(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> StateReferenceCustodyRow {
     StateReferenceCustodyRow {
@@ -2200,7 +2204,10 @@ fn state_reference_custody(
 }
 
 /// One type reference's custody row.
-fn reference_custody(program: &TypedTrees, reference: TypeReferenceHandle) -> ReferenceCustodyRow {
+fn reference_custody(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> ReferenceCustodyRow {
     let stored = stored_loan_parts(program, reference);
     ReferenceCustodyRow {
         primitive_loan_referent: parts(program, reference)
@@ -2227,7 +2234,7 @@ fn reference_custody(program: &TypedTrees, reference: TypeReferenceHandle) -> Re
 /// Stored reference classification precedes referent-oriented normalization.
 /// The first executable carrier retains a mutable, unqualified primitive loan.
 pub fn parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     let TypeReferenceNode::Reference {
@@ -2256,7 +2263,7 @@ pub fn parts(
 /// as a `&mut u8` does. Slice views and unclassified referees stay out:
 /// `&mut [T]` is a view descriptor, not a stored loan leaf.
 fn stored_mutable_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     mutable_borrowed_parts(program, reference).filter(|(referee, _)| {
@@ -2274,7 +2281,7 @@ fn stored_mutable_parts(
 /// rosters and formal forwarding — asks this one question so the admitted
 /// shape never drifts between them.
 pub fn stored_loan_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     parts(program, reference)
@@ -2288,7 +2295,7 @@ pub fn stored_loan_parts(
 /// does. Callers that need the primitive-only reference-result shape keep
 /// using `parts`.
 pub fn mutable_borrowed_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
@@ -2301,7 +2308,7 @@ pub fn mutable_borrowed_parts(
 /// the same caller-frame storage an exclusive borrow does; only the access
 /// authority differs (writes admitted, reads fenced).
 pub fn write_only_borrowed_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
@@ -2314,7 +2321,7 @@ pub fn write_only_borrowed_parts(
 /// `parts`' loan — it just cannot be written through. The referee must be
 /// spelled as a `Named` type: this is the shared reference-result shape.
 pub fn shared_borrowed_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
@@ -2335,7 +2342,7 @@ pub fn shared_borrowed_parts(
 /// exclusive side. Callers that need the shared reference-result shape keep
 /// using `shared_borrowed_parts`.
 pub fn shared_place_borrowed_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
@@ -2348,7 +2355,10 @@ pub fn shared_place_borrowed_parts(
 /// affine loan custody. A stored reference value instead uses
 /// `result_multiplicity`: its descriptor is an owned lifetime resource even
 /// when its referent is shared. Aggregate bindings own their stored elements.
-pub fn binding_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
+pub fn binding_multiplicity(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Multiplicity {
     match crate::reference_shell(program, reference) {
         Some(shell) if shell.access == language_semantics::ReferenceAccess::Shared => {
             Multiplicity::Unrestricted
@@ -2360,7 +2370,10 @@ pub fn binding_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle
 
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Reference carrier custody must end exactly once.
-pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
+pub fn result_multiplicity(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Multiplicity {
     // Aggregate custody follows the stored element, not source use
     // multiplicity. References are reusable source observations, but each
     // materialized loan carrier (also inside nested arrays) ends once.
@@ -2383,7 +2396,10 @@ pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle)
     }
 }
 
-pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State) -> Option<usize> {
+pub fn source_parameter(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+) -> Option<usize> {
     let StatementNode::Expression(expression) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -2414,7 +2430,7 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
 /// encodes it. Only declared `Member` projections through reference records
 /// qualify — indexes, case payloads, and non-record receivers stay opaque.
 pub fn source_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
     parts(program, state.return_type)?;
@@ -2432,7 +2448,7 @@ pub fn source_leaf(
 /// Completion admission and ordinary result-origin substitution share the same
 /// projection and whole-carrier transfer checks.
 fn expression_source_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -2450,8 +2466,7 @@ fn expression_source_leaf(
     if members.is_empty() {
         return None;
     }
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, current)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, current)
     else {
         return None;
     };
@@ -2533,7 +2548,7 @@ fn expression_source_leaf(
 /// result access. The complete relation owns internal jumps and captured alias
 /// substitution; distinct projected paths remain alternatives, not permissions.
 fn reference_result_source_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
     let (_, access) = stored_loan_parts(program, state.return_type)?;
@@ -2572,7 +2587,7 @@ fn reference_result_source_parameter(
 /// storage. A write-only carrier fences reads, so it is the one authority a
 /// shared result cannot borrow through.
 fn view_source_parameter_is_readable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     write_only_borrowed_parts(program, parameter.type_reference).is_none()
@@ -2582,7 +2597,7 @@ fn view_source_parameter_is_readable(
 /// symbol, the machine `*self` authority, or a `self` member — the member only
 /// while `self` is mutably borrowed.
 fn view_source_parameter_is_mutable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
@@ -2591,7 +2606,7 @@ fn view_source_parameter_is_mutable(
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -2905,7 +2920,7 @@ pub fn result_loan(
 }
 
 fn mutable_source_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -2990,7 +3005,7 @@ fn mutable_source_place(
 /// symbol, else the self receiver's parameter, a same-named parameter, or the
 /// latest local spelling the name before this statement.
 fn mutable_name_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -3030,7 +3045,7 @@ fn mutable_name_root(
 /// its fixed ordinal, a half-open literal range is a window, and anything
 /// else stays a runtime `Index` expression.
 fn index_place_segment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> facts::PlaceSegment {
     if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
@@ -3047,7 +3062,7 @@ fn index_place_segment(
 }
 
 fn fixed_half_open_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
@@ -3079,7 +3094,7 @@ fn fixed_half_open_range(
 /// spells the data field `Main::bag`, not the machine's `Main::main::bag`
 /// state spelling, so both resolvers must answer the same symbol.
 fn mutable_effective_member_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -3100,7 +3115,7 @@ fn mutable_effective_member_symbol(
 /// indexed collections keep their element's named owner, and names and
 /// members resolve through the symbols their roots already spell.
 fn mutable_receiver_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -3146,7 +3161,7 @@ fn mutable_receiver_type_symbol(
 /// attached machine's own data for its `self` root, the declared type of a
 /// parameter or earlier local, or the named owner of a data field's type.
 fn mutable_symbol_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -3213,7 +3228,7 @@ fn mutable_symbol_type_symbol(
 /// definition, an attached machine's data, and machine-owned data, exactly
 /// as `resolve_member_symbol_from_type_symbol` spells them.
 fn mutable_member_from_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -3267,7 +3282,7 @@ fn mutable_member_from_type_symbol(
 /// lives under a sum case, then the field itself — the spelling
 /// `push_field_place_segments` shares for place construction.
 fn push_field_place_segments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     segments: &mut Vec<facts::PlaceSegment>,
     symbol: SymbolHandle,
 ) {
@@ -3282,7 +3297,7 @@ fn push_field_place_segments(
 /// joins. Each qualifying earlier loan yields one candidate; none means the
 /// root names the place directly (a parameter's own storage).
 fn rebase_place_through_local_loans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -3326,7 +3341,7 @@ fn rebase_place_through_local_loans(
 /// segments, so the loan's own (root, segments) rebase the actual's
 /// remainder. Dynamic owners overlap any index-shaped place step.
 fn loan_owner_path_is_prefix(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner_path: &[checked_trees::BorrowLoanOwnerSegment],
     segments: &[facts::PlaceSegment],
 ) -> bool {
@@ -3370,7 +3385,7 @@ fn loan_owner_path_is_prefix(
 /// The execution scheduler must also retire holders borrowing this local's
 /// storage before using this boundary to dispose of its whole value.
 pub fn whole_local_release_boundary(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -3481,7 +3496,7 @@ pub fn release_statement(
 /// operations, their custody accounting and the lowered validation see one
 /// boundary.
 pub fn release_boundary(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -3524,7 +3539,7 @@ fn state_flow(
 /// identity, then the leaf's own `path` is appended. Both the local-carrier
 /// and nested-call lanes select their sole matching leaf this way.
 fn callee_parameter_leaf_path<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &typed_trees::state::State,
     position: usize,
     record_type: TypeReferenceHandle,

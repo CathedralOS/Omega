@@ -17,7 +17,7 @@ use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 
 /// Bound shared by every walk below: `record_dependencies` and
 /// `collect_reads` recurse over expression trees, while the captures.rs
@@ -124,7 +124,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(in crate::checks::ranges) fn expression_exact_length(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -192,7 +192,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(in crate::checks::ranges) fn receiver_lengths(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
     ) -> Vec<ReceiverLength> {
@@ -244,7 +244,7 @@ impl<'field> RangeFacts<'field> {
     /// the caller re-spells the destination label from the place.
     pub(in crate::checks::ranges) fn storage_sub_places(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         storages: &[(CanonicalPlace, SymbolHandle)],
@@ -335,7 +335,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         source: ExpressionHandle,
@@ -394,7 +394,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(in crate::checks::ranges) fn record_expression_dependencies(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -417,7 +417,7 @@ impl<'field> RangeFacts<'field> {
     /// incomplete; they never become storage-free premises.
     pub(in crate::checks::ranges) fn record_incoming_guard_dependencies(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         evaluation: &State,
         destination: &State,
@@ -439,7 +439,7 @@ impl<'field> RangeFacts<'field> {
 
     fn record_dependencies(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         scope: &ExpressionDependencyScope<'_>,
         expression: ExpressionHandle,
@@ -533,7 +533,7 @@ impl<'field> RangeFacts<'field> {
     /// scan over every same-label row would find a disagreement. A scalar
     /// binding enters that comparison as its single place, and bindings
     /// sharing a label must also name one exact place among themselves.
-    fn label_collisions(&self, program: &TypedTrees) -> LabelCollisions<'_> {
+    fn label_collisions(&self, program: &dyn ::validation::CheckingInput) -> LabelCollisions<'_> {
         let mut groups = BTreeMap::<&str, LabelRows<'_>>::new();
         for row in &self.expression_dependencies {
             groups
@@ -586,7 +586,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(super) fn preserved_expression_labels(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         writes: Option<&[CanonicalPlace]>,
@@ -647,7 +647,7 @@ impl<'field> RangeFacts<'field> {
     /// identity and same-label collision checks before selecting these rows.
     pub(super) fn preserved_scalar_binding_labels(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         storage_writes: Option<&[CanonicalPlace]>,
@@ -693,7 +693,7 @@ impl<'field> RangeFacts<'field> {
 
     pub(in crate::checks::ranges) fn expression_is_disjoint_from_writes(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -704,7 +704,11 @@ impl<'field> RangeFacts<'field> {
     }
 }
 
-fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
+fn places_overlap(
+    program: &dyn ::validation::CheckingInput,
+    left: &CanonicalPlace,
+    right: &CanonicalPlace,
+) -> bool {
     (left.root) == (right.root)
         && crate::flow::canonical_place_segments_may_overlap(
             program,
@@ -714,7 +718,7 @@ fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &Canonical
 }
 
 fn same_reads(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: Option<&[CanonicalPlace]>,
     right: Option<&[CanonicalPlace]>,
 ) -> bool {

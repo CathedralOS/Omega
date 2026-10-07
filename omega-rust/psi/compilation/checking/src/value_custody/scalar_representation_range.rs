@@ -3,7 +3,6 @@
 //! query. Consumers cannot replace that query with a syntax-only integer fold.
 
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -21,11 +20,11 @@ use typed_trees::types::{
 /// `1..=0`, never `None`: decoding and initialization must reject every value,
 /// including when an exclusive endpoint's predecessor lies below `i64::MIN`.
 pub fn scalar_representation_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<language_semantics::wire::WireScalarRange> {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         primitive: PrimitiveType,
         handle: TypeReferenceHandle,
         minimum: &mut BigInt,

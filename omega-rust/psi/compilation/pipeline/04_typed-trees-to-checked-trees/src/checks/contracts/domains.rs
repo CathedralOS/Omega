@@ -7,7 +7,7 @@ use super::labels::{
 };
 
 pub(super) fn prove_boolean_expression_via_context_domain_membership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     expression: typed_trees::expression::ExpressionHandle,
@@ -18,7 +18,7 @@ pub(super) fn prove_boolean_expression_via_context_domain_membership(
 }
 
 pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     caller_state_symbol: SymbolHandle,
@@ -43,7 +43,7 @@ pub(super) fn prove_instantiated_boolean_expression_via_context_domain_membershi
 /// is known: a `Place` fact's canonical or display base label must prove the
 /// label through the domain's own label rule.
 fn context_domain_proves_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     candidate_label: &String,

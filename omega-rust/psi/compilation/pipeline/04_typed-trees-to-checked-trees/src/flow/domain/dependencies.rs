@@ -19,7 +19,7 @@ pub(crate) struct DomainDependencyCacheEntry {
 }
 
 pub(crate) fn build_domain_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
 ) -> DomainFacts {
     let mut cache = DomainDependencyCache::default();
@@ -54,7 +54,7 @@ pub(crate) fn build_domain_facts(
 }
 
 pub(crate) fn domain_dependency_segments<'cache>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     cache: &'cache mut DomainDependencyCache,
     domain_symbol: SymbolHandle,
@@ -87,7 +87,7 @@ pub(crate) fn domain_dependency_segments<'cache>(
 }
 
 fn compute_domain_dependency_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     cache: &mut DomainDependencyCache,
     domain_symbol: SymbolHandle,

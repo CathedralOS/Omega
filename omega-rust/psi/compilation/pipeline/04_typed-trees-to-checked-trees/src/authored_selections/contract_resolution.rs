@@ -7,7 +7,7 @@
 
 use checked_trees::{CheckFacts, ContractProofFactOwner};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CheckedContractOperatorResolution {
@@ -18,7 +18,7 @@ pub(crate) enum CheckedContractOperatorResolution {
 /// `owner_index` is the caller's exact-owner index, when it holds one for this
 /// program and these facts; without it each operand query rescans the program.
 pub(super) fn checked_operator_resolution(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -33,7 +33,7 @@ pub(super) fn checked_operator_resolution(
 }
 
 pub(super) fn checked_operand_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
@@ -69,7 +69,7 @@ pub(super) fn checked_operand_type(
 }
 
 pub(super) fn checked_named_operator_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -129,7 +129,7 @@ pub(super) fn checked_named_operator_call<'program>(
 /// declaration, no candidate means the already-validated compiler builtin,
 /// and ambiguity remains unresolved.
 fn checked_spelled_operator_resolution(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -166,7 +166,7 @@ fn checked_spelled_operator_resolution(
 /// D40 equality is a proof-only compiler intrinsic, not an authored runtime
 /// operator. Admit only the sealed toolchain `FloatMeaning` carrier.
 fn checked_float_meaning_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -190,7 +190,7 @@ fn checked_float_meaning_equality(
 /// A resultless signature contract is a theorem slot. Its `==` is proposition
 /// equality over retained terms, including copies on exact realizing machines.
 fn checked_resultless_law_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
@@ -244,7 +244,7 @@ fn checked_resultless_law_equality(
 }
 
 fn contract_contains_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -252,7 +252,7 @@ fn contract_contains_expression(
 }
 
 fn resultless_state_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
@@ -276,7 +276,7 @@ fn resultless_state_signature(
 }
 
 fn resultless_machine_state(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
@@ -291,7 +291,7 @@ fn resultless_machine_state(
 }
 
 fn type_reference_is_unit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     matches!(

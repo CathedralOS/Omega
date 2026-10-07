@@ -12,9 +12,11 @@
 //! executable operations must be justified by Terminal's own rows.
 
 use checked_trees::CheckFacts;
-use typed_trees::TypedTrees;
 
-pub(crate) fn retire_fact_only_citations(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn retire_fact_only_citations(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program

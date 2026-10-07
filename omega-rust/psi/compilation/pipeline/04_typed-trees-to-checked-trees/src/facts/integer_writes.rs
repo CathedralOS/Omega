@@ -9,7 +9,7 @@ use checked_trees::{
     CheckedOperatorFacts, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
     FlowFacts, MutationFacts, PerformedIntegerWrite,
 };
-use typed_trees::{TypedTrees, statement::StatementNode};
+use typed_trees::statement::StatementNode;
 
 pub(super) mod obligations;
 
@@ -18,7 +18,7 @@ pub(super) mod obligations;
 /// the same field. Neither supersedes the other, and duplicate rows must not
 /// turn a completed occurrence into an ambiguous decision handle.
 pub(super) fn retain_assignment_decision(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut checked_trees::ProofFacts,
     decision: checked_trees::CheckedIntegerAssignmentDecision,
 ) {
@@ -45,7 +45,7 @@ pub(super) fn retain_assignment_decision(
 }
 
 pub(super) fn retain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     values: &CheckedValueFacts,
     flow: &FlowFacts,

@@ -13,7 +13,7 @@ use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
+    CheckedUnitStructuralResultBindingPlan, Multiplicity, StatementNode, SymbolHandle,
 };
 use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
@@ -35,7 +35,7 @@ use typed_trees::expression::ExpressionHandle;
 /// expression the place canonicalized from: its retained `AssignmentIndex`
 /// scalars resolve a runtime segment's element coordinate.
 pub(in crate::execution::terminal_unit) fn window_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -64,7 +64,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
 /// `StoreStructuralField` destination (`path` empty), while a whole-root
 /// move-out still opens no pinned window.
 pub(in crate::execution::terminal_unit) fn window_place_admitting(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -153,7 +153,7 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
 /// parameter or machine rather than a local. Mirrors the checker rule that
 /// windows key on the resolved storage place, not the access route.
 pub(in crate::execution::terminal_unit) fn resolve_storage_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
@@ -214,7 +214,7 @@ pub(super) struct OpenWindows {
 /// exclusive borrowed storage it can move out of. Copy locals never open a
 /// window, and a mutable or reference-typed local binds nothing to restore.
 pub(in crate::execution::terminal_unit) fn move_out_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     local: &typed_trees::statement::TableLocalData,
@@ -242,7 +242,7 @@ impl OpenWindows {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn move_out(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &mut ShapeCollector<'_>,
         machine: &typed_trees::machine::Machine,
@@ -306,7 +306,7 @@ impl OpenWindows {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn replace(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
@@ -340,7 +340,7 @@ impl OpenWindows {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn replace_element(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,

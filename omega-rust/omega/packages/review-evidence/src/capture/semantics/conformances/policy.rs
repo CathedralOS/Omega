@@ -84,7 +84,7 @@ pub fn project_checked_conformance_policy<'a>(
     // Reclosure above checks the retained selection against the original.
     // Temporary references below need only local typed storage, not a mutable
     // copy of its proof facts, build results, or source-consumption evidence.
-    let mut instantiated = Cow::Borrowed(&compilation.typed);
+    let mut instantiated = Cow::Borrowed(compilation.checking_input.typed_program());
     let mut substitutions = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(application.arguments.iter()) {
         substitutions.push((
@@ -94,7 +94,7 @@ pub fn project_checked_conformance_policy<'a>(
     }
     let project_type = |reference| {
         signature_type_identity(
-            &instantiated,
+            instantiated.as_ref(),
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &binders,
@@ -121,7 +121,7 @@ pub fn project_checked_conformance_policy<'a>(
                     value,
                 } => {
                     validation::validate_exact_const_value_encoding(
-                        &compilation.typed,
+                        compilation.checking_input,
                         *declared_carrier,
                         &value.encoding,
                     )
@@ -217,9 +217,11 @@ fn validate_retained_application(
     };
     // This reclassifies retained arguments against the same checked declaration
     // telescope. It executes no source code and consumes no proof certificate.
-    let closed =
-        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, &selected)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = typed_trees_to_checked_trees::close_conformance_application(
+        compilation.checking_input,
+        &selected,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     if closed.declaration != application.declaration
         || closed.lifetime_arguments != application.lifetime_arguments
         || closed.type_arguments != application.type_arguments

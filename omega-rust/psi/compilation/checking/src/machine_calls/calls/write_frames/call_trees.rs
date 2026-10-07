@@ -4,7 +4,7 @@ use super::call_targets::call_argument_types;
 use super::value_expressions::{ValuePosition, push_value_children, value_call_result_is_admitted};
 use super::{
     ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, MachineSymbols,
-    ParameterRelativeFrameOrigin, StateParameter, SymbolHandle, TopLevelSymbols, TypedTrees,
+    ParameterRelativeFrameOrigin, StateParameter, SymbolHandle, TopLevelSymbols,
     expression_is_effectful_for_transparent_result, expression_is_effectful_indexed_place,
     expression_reborrows_transparent_alias_binding, known_boundary_call_written_paths_for_parts,
     known_call_written_paths_for_parts, receiver_member_chain,
@@ -29,7 +29,7 @@ enum PendingNode {
 /// Declaration lookup identifies reference slots without replaying caller-prefix
 /// origin transfer from inside a raw frame query.
 pub(super) fn receiver_expression_preserves_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: ExpressionHandle,
     machine_symbols: &MachineSymbols<'_>,
@@ -69,7 +69,7 @@ pub(super) fn receiver_expression_preserves_origin(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn stable_alias_index_expression_preserves_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     machine_symbols: &MachineSymbols<'_>,
@@ -108,7 +108,7 @@ pub(super) fn stable_alias_index_expression_preserves_origin(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn parameter_relative_expression_preserves_transparent_result(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     position: ValuePosition,
@@ -175,7 +175,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
 /// the frame resolver's active-state checks.
 #[allow(clippy::too_many_arguments)]
 fn complete_expression_tree(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     root: PendingNode,
     machine_symbols: &MachineSymbols<'_>,

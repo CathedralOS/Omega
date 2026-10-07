@@ -1,6 +1,5 @@
 use super::value_classification::{ValueClass, concrete_data_type_name, value_class};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -9,7 +8,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// point for `scan_expression_calls`'s Binary arm: it calls this once, and new
 /// operand-type checks are added here (one place), not threaded through the walker.
 pub(crate) fn validate_binary_operand_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -37,7 +36,7 @@ pub(crate) fn validate_binary_operand_types(
 /// Whether `operand`'s type is a float (`f32`/`f64`): a landed float literal, or a place
 /// whose declared type resolves to a float primitive. Looks through `Mutable`.
 pub(super) fn expression_is_float_typed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operand: ExpressionHandle,
@@ -74,7 +73,7 @@ pub(super) fn expression_is_float_typed(
 /// yet `--check` passed silently. If float bit-ops are ever added, update the
 /// interpreter and this together.
 fn report_float_bitwise_operator(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -116,7 +115,7 @@ fn report_float_bitwise_operator(
 /// coercion) are fine, and an operand that does not classify (a call result, a
 /// nested comparison) is skipped, so this never false-positives on them.
 fn report_cross_class_binary_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     left: ExpressionHandle,
@@ -162,7 +161,7 @@ fn report_cross_class_binary_operands(
 /// `[u8; N]` are the same shape family and values flow between them). The shape
 /// check skips these -- the array-vs-scalar dichotomy does not apply to text.
 pub(super) fn type_reference_is_text_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
     if !handle.is_valid() {
@@ -190,7 +189,7 @@ pub(super) fn type_reference_is_text_carrier(
 /// Numeric/Text; a comparison / logical / call / bool operand (None/Boolean) is
 /// allowed, so `(a == 1) && (b < 5)` and `x && y` (bools) stay valid.
 fn report_non_bool_logical_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -228,7 +227,7 @@ fn report_non_bool_logical_operands(
 /// job, and a text-vs-unresolved pair is left alone. (Ordering `< <= > >=` on text is
 /// a separate, plausible-future case, not rejected here.)
 fn report_invalid_text_operator(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -282,7 +281,7 @@ fn report_invalid_text_operator(
 /// A comparison / logical / call / unresolved operand classifies as None and is
 /// allowed, so a real bool (including a bare `a == 1`) is never rejected.
 pub(crate) fn report_non_bool_logical_not(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operand: ExpressionHandle,
@@ -306,7 +305,7 @@ pub(crate) fn report_non_bool_logical_not(
 /// over one fixed-width integer representation and preserves that width; it is
 /// neither Boolean negation nor a float/text bit reinterpretation.
 pub(crate) fn report_non_integer_bitwise_not(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operand: ExpressionHandle,
@@ -338,7 +337,7 @@ pub(crate) fn report_non_integer_bitwise_not(
 /// parameter types, and an operand whose type is unresolved stays with the
 /// checked selection.
 pub(crate) fn report_non_integer_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     indexed: &typed_trees::expression::TableIndexedExpression,
@@ -433,7 +432,7 @@ fn binary_operator_spelling(
 /// Unknown expression types remain unknown to the shared candidate resolver.
 /// Admissibility and executable supply still belong to the checked selection.
 fn report_undeclared_struct_operator(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -493,7 +492,7 @@ fn report_undeclared_struct_operator(
 /// logical `&&`/`||` are left alone; text carriers (`String`, `[u8]`) are excluded
 /// (string concat / comparison). Only PLACE operands are resolved.
 fn report_array_operator_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     operator: typed_trees::expression::BinaryOperator,
@@ -538,7 +537,10 @@ fn report_array_operator_operands(
 
 /// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
 /// through `Reference`/`Constrained` shells.
-pub(super) fn type_reference_is_array(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+pub(super) fn type_reference_is_array(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
     if !handle.is_valid() {
         return false;
     }

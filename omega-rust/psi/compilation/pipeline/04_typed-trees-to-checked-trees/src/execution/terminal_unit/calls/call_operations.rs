@@ -19,7 +19,7 @@ use crate::execution::terminal_unit::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    PrimitiveType, SymbolHandle, TypedTrees, strips_erased_parameter,
+    PrimitiveType, SymbolHandle, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -53,7 +53,7 @@ pub(super) struct PlannedCall<'p> {
 /// Build one call with the scalar-callee evidence available to this pass.
 /// `None` supplies no registered scalar targets; it never consults published catalogs.
 pub(in crate::execution) fn build_call_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine: &typed_trees::machine::Machine,

@@ -29,7 +29,6 @@ pub(crate) mod integer_sets;
 
 use exploration::{Binding, Frame, Stop, ValueShape, integer_carrier, value_shape};
 pub(crate) use integer_sets::IntegerSet;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -56,7 +55,7 @@ pub(crate) struct PredicateApplication<'program> {
 }
 
 pub(crate) fn predicate_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     fact: ExpressionHandle,
 ) -> Option<PredicateApplication<'_>> {
@@ -140,7 +139,7 @@ impl Unfolding {
 
 /// Explore `machine` from its entry with one knowledge row per parameter.
 pub(crate) fn unfold(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: usize,
     arguments: &[ArgumentKnowledge],
 ) -> Option<Unfolding> {
@@ -198,7 +197,7 @@ pub(crate) fn unfold(
 
 /// The full carrier knowledge of a parameter or field type: nothing known.
 pub(crate) fn unknown_knowledge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<ArgumentKnowledge> {
     Some(match value_shape(program, type_reference)? {
@@ -219,7 +218,7 @@ pub(crate) fn unknown_knowledge(
 
 /// The zero representation of a parameter or field type.
 fn zero_knowledge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<ArgumentKnowledge> {
     Some(match value_shape(program, type_reference)? {
@@ -233,7 +232,7 @@ fn zero_knowledge(
 
 /// The field a data-fact argument names: `field` or `&field`.
 pub(crate) fn fact_argument_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &DataDefinition,
     argument: ExpressionHandle,
 ) -> Option<&'program DataField> {
@@ -250,7 +249,7 @@ pub(crate) fn fact_argument_field<'program>(
 /// A data fact that applies a predicate to fields of `definition`, with each
 /// argument's knowledge supplied by `field_knowledge`.
 fn data_fact_unfolding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
     field_knowledge: &mut dyn FnMut(&DataField) -> Option<ArgumentKnowledge>,
@@ -276,7 +275,7 @@ fn data_fact_unfolding(
 /// Whether one data `where` fact is a collection-predicate application that
 /// holds at the all-zero representation of its fields.
 pub(crate) fn data_fact_holds_at_zero(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
 ) -> bool {
@@ -289,7 +288,7 @@ pub(crate) fn data_fact_holds_at_zero(
 
 /// Whether a data fact mentions `field` as a predicate argument.
 pub(crate) fn data_fact_applies_to_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
     field: symbols::SymbolHandle,
@@ -303,7 +302,7 @@ pub(crate) fn data_fact_applies_to_field(
 
 /// Decide one data fact with the caller's knowledge of its argument fields.
 pub(crate) fn data_fact_decided(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
     field_knowledge: &mut dyn FnMut(&DataField) -> Option<ArgumentKnowledge>,
@@ -317,7 +316,7 @@ pub(crate) fn data_fact_decided(
 /// of `definition` that applies a predicate to it, each fact explored with no
 /// other knowledge. `None` when no fact constrains the field.
 pub(crate) fn standing_field_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     field: &DataField,
 ) -> Option<Vec<IntegerSet>> {
@@ -387,7 +386,7 @@ pub(crate) struct FactConsequence {
 /// return `true`, explored with no other knowledge. `None` outside the
 /// explorer's fragment or budget, or when no path returns `true`.
 pub(crate) fn data_fact_element_consequences(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
 ) -> Option<FactConsequence> {
@@ -453,7 +452,7 @@ pub(crate) fn data_fact_element_consequences(
 }
 
 fn field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     field: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -479,7 +478,7 @@ fn field_type(
 /// only weakens the premises. The goal then holds when every fork of its own
 /// evaluation is `true`.
 pub fn premises_prove_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     goal: ExpressionHandle,
 ) -> bool {
@@ -569,7 +568,7 @@ pub fn premises_prove_expression(
 }
 
 fn collect_conjuncts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     into: &mut Vec<ExpressionHandle>,
 ) {
@@ -585,7 +584,7 @@ fn collect_conjuncts(
 /// Refine the frame's atoms by the `true`-path consequences of one predicate
 /// application whose arguments are the frame's own parameters or literals.
 fn assume_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     premise: ExpressionHandle,
@@ -629,7 +628,7 @@ fn assume_application(
 /// Refine the frame's atoms by one ordinary guard: explore its forks and
 /// join the atoms of those where it holds.
 fn assume_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     premise: ExpressionHandle,
@@ -665,7 +664,7 @@ fn assume_guard(
 }
 
 fn holds_on_every_fork(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frame: &Frame<'_>,
     atoms: Vec<IntegerSet>,
     goal: ExpressionHandle,

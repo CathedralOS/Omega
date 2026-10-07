@@ -42,7 +42,7 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan, ScalarCalleePlans,
-    TransitionExit, TransitionTargetNode, TypedTrees, control,
+    TransitionExit, TransitionTargetNode, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::{
@@ -56,7 +56,7 @@ use crate::execution::terminal_unit::types::{
 /// entry re-entry remain state-graph edges; requirements keep their declaration
 /// identity and ordinary machines keep their executable state identity.
 pub(super) fn invoked_callable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     transition: &typed_trees::statement::TableTransition,
 ) -> Option<symbols::SymbolHandle> {
@@ -86,7 +86,7 @@ pub(super) fn invoked_callable(
 /// A fused machine entry still has its authored call contract, but execution
 /// transfers to its retained state instead of allocating another activation.
 pub(super) fn external_callable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     fused: &super::FusedStates<'_>,
     transition: &typed_trees::statement::TableTransition,
@@ -168,7 +168,7 @@ pub(super) fn completion(
 /// retained bindings) gives its next result, and the arm returns that value.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn arm_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,

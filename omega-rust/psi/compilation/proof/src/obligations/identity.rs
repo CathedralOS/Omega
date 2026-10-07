@@ -31,7 +31,6 @@ use crate::obligations::plan::{
 use arena::HandleSpan;
 use std::fmt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral, MatchPattern,
     PrivateLayoutOperationRequest, QuotientOperationRequest, StaticMachineArgument,
@@ -257,7 +256,7 @@ pub fn proof_obligation_key(
 }
 
 fn machine_state_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> String {
@@ -270,7 +269,10 @@ fn machine_state_identity(
     )
 }
 
-fn owner_identity(program: &TypedTrees, owner: &ProofObligationOwner) -> String {
+fn owner_identity(
+    program: &dyn ::validation::CheckingInput,
+    owner: &ProofObligationOwner,
+) -> String {
     match owner {
         ProofObligationOwner::Unknown => "owner:unknown".to_owned(),
         ProofObligationOwner::MachineOwnedData {
@@ -424,7 +426,10 @@ fn float_identity(literal: &FloatLiteral) -> String {
     format!("{:016x}", literal.value_f64().to_bits())
 }
 
-fn guard_identity(program: &TypedTrees, guard: &TransitionGuardNode) -> String {
+fn guard_identity(
+    program: &dyn ::validation::CheckingInput,
+    guard: &TransitionGuardNode,
+) -> String {
     match guard {
         TransitionGuardNode::Always => "guard:always".to_owned(),
         TransitionGuardNode::When(condition) => {
@@ -434,7 +439,7 @@ fn guard_identity(program: &TypedTrees, guard: &TransitionGuardNode) -> String {
 }
 
 fn binary_operands_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operands: &Option<BinaryValueOperands>,
 ) -> String {
     match operands {
@@ -496,7 +501,7 @@ fn unary_operator_tag(operator: typed_trees::expression::UnaryOperator) -> &'sta
 /// Canonical identity of one resolved declaration: the hermetic package- or
 /// toolchain-qualified identity where provenance exists, the canonical
 /// declaration path otherwise, `unresolved` for an invalid handle.
-fn symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
+fn symbol_identity(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "unresolved".to_owned();
     }
@@ -506,7 +511,7 @@ fn symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
     program.symbols.display_path(symbol, "::")
 }
 
-fn name_path_identity(program: &TypedTrees, path: &TableNamePath) -> String {
+fn name_path_identity(program: &dyn ::validation::CheckingInput, path: &TableNamePath) -> String {
     if path.symbol.is_valid() {
         return atom("name", symbol_identity(program, path.symbol));
     }
@@ -531,7 +536,10 @@ fn name_path_identity(program: &TypedTrees, path: &TableNamePath) -> String {
     atom("name-spelled", identity)
 }
 
-fn expression_identity(program: &TypedTrees, expression: ExpressionHandle) -> String {
+fn expression_identity(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> String {
     if !expression.is_valid() {
         return "expr:invalid".to_owned();
     }
@@ -705,7 +713,7 @@ fn expression_identity(program: &TypedTrees, expression: ExpressionHandle) -> St
     }
 }
 
-fn call_identity(program: &TypedTrees, call: &TableCallExpression) -> String {
+fn call_identity(program: &dyn ::validation::CheckingInput, call: &TableCallExpression) -> String {
     compound(
         "call",
         [
@@ -747,7 +755,7 @@ fn call_identity(program: &TypedTrees, call: &TableCallExpression) -> String {
 }
 
 fn requirement_dispatch_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     dispatch: Option<&StaticRequirementDispatch>,
 ) -> String {
     match dispatch {
@@ -781,7 +789,10 @@ fn requirement_dispatch_identity(
     }
 }
 
-fn quotient_identity(program: &TypedTrees, request: Option<&QuotientOperationRequest>) -> String {
+fn quotient_identity(
+    program: &dyn ::validation::CheckingInput,
+    request: Option<&QuotientOperationRequest>,
+) -> String {
     match request {
         None => "quotient:none".to_owned(),
         Some(request) => compound(
@@ -807,7 +818,7 @@ fn quotient_identity(program: &TypedTrees, request: Option<&QuotientOperationReq
 }
 
 fn private_layout_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     request: &PrivateLayoutOperationRequest,
 ) -> String {
     compound(
@@ -816,7 +827,10 @@ fn private_layout_identity(
     )
 }
 
-fn static_argument_identity(program: &TypedTrees, argument: &StaticMachineArgument) -> String {
+fn static_argument_identity(
+    program: &dyn ::validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> String {
     compound(
         "static-argument",
         [
@@ -870,7 +884,7 @@ fn static_argument_identity(program: &TypedTrees, argument: &StaticMachineArgume
 }
 
 fn static_symbol_application_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     application: &StaticSymbolApplication,
 ) -> String {
     compound(

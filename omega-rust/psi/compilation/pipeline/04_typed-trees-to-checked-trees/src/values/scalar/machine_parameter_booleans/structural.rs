@@ -14,7 +14,6 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
     CheckedStructuralParameterField,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -22,7 +21,7 @@ use typed_trees::types::PrimitiveType;
 /// Lower `expression` in the entry parameters' namespace, or `None` when no
 /// structural form describes it.
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
@@ -232,7 +231,7 @@ pub(super) fn lower(
 }
 
 fn lower_structural_float_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, CheckedStructuralParameterField)> {
@@ -253,7 +252,7 @@ fn lower_structural_float_field(
 }
 
 fn lower_structural_case_membership(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     parameters: &[StateParameter],
     expression: ExpressionHandle,

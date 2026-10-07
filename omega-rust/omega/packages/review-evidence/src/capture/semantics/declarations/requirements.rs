@@ -109,7 +109,7 @@ pub(crate) fn provider_requirement_identity(
             Ok(PackageReviewNominalIdentity {
                 owner: nominal.owner,
                 path: typed_trees::operator::boundary_operator_requirement_identity(
-                    &compilation.typed,
+                    compilation.checking_input,
                     operator,
                 ),
             })

@@ -3,7 +3,7 @@ use super::dependent_relations::{
 };
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypedTrees, declared_place_type_raw, guard_narrowing, literal_i64,
+    PrimitiveType, State, declared_place_type_raw, guard_narrowing, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::place_label;
@@ -19,7 +19,7 @@ use language_core::place_label;
 /// machine-wide preserved (the coupling speaks of machine entry; the atoms
 /// of state entry).
 pub(super) fn refine_dependent_product(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -38,13 +38,9 @@ pub(super) fn refine_dependent_product(
     }
     // a's STRICT dependent atom names Fa; c's STRICT atom names Fb (the
     // multiplier field).
-    let Some((_a_expr, fa, fb)) = dependent_product_atoms(
-        program,
-        machine,
-        state,
-        product.left,
-        product.right,
-    ) else {
+    let Some((_a_expr, fa, fb)) =
+        dependent_product_atoms(program, machine, state, product.left, product.right)
+    else {
         return naive;
     };
     let Some(c_field) = strict_dependent_atom_field(program, machine, state, right) else {
@@ -70,7 +66,7 @@ pub(super) fn refine_dependent_product(
 /// operand's expression, `a`'s STRICT dependent field, and the `self.Fb`
 /// field. `None` is each site's `naive` fallback.
 fn dependent_product_atoms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     left: ExpressionHandle,
@@ -100,7 +96,7 @@ fn dependent_product_atoms(
 /// place whose declared range maximum is `self.<field> - 1` (the exclusive
 /// sugar's normalization -- `a < field` at entry).
 fn strict_dependent_atom_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -119,7 +115,7 @@ fn strict_dependent_atom_field(
 /// preserved machine-wide; `None` is each site's `naive` fallback, either
 /// because no coupling exists or because a state writes one of the fields.
 fn preserved_product_coupling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     fa: &typed_trees::name::Identifier,
     fb: &typed_trees::name::Identifier,
@@ -144,7 +140,7 @@ fn preserved_product_coupling(
 /// A machine with no data binding names no such conjunct, so there is no
 /// coupling to find and the caller keeps its naive bound.
 fn requires_product_coupling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     fa: &typed_trees::name::Identifier,
     fb: &typed_trees::name::Identifier,
@@ -171,7 +167,7 @@ fn requires_product_coupling(
 }
 
 fn product_coupling_conjunct(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     guard: ExpressionHandle,
     fa_label: &str,
@@ -234,7 +230,7 @@ fn product_coupling_conjunct(
 /// specification product total. Narrowing, signedness-changing, semantic,
 /// address, recast, and policy-bearing conversions remain visible and reject.
 fn product_coupling_operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<String> {
@@ -271,7 +267,7 @@ fn product_coupling_operand(
 /// `(Fa-1)*Fb = Fa*Fb - Fb <= K` (Fb unsigned) -- interval `[0, K]`. The
 /// enclosing Add then tightens to `K - 1`.
 pub(super) fn refine_dependent_product_factor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -281,8 +277,7 @@ pub(super) fn refine_dependent_product_factor(
     let Some(state) = state else {
         return naive;
     };
-    let Some((_, fa, fb)) = dependent_product_atoms(program, machine, state, left, right)
-    else {
+    let Some((_, fa, fb)) = dependent_product_atoms(program, machine, state, left, right) else {
         return naive;
     };
     let Some(k) = preserved_product_coupling(program, machine, &fa, &fb) else {

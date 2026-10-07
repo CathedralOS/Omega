@@ -18,8 +18,8 @@ use crate::proof_contracts::arithmetic_domains::return_ranges::{
     ensured_call_result_interval, infer_return_interval,
 };
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, TypedTrees,
-    call_return_type, range_constraint_interval,
+    ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, call_return_type,
+    range_constraint_interval,
 };
 use symbols::BuiltinFunction;
 
@@ -61,7 +61,7 @@ pub(super) fn analyze(
 /// alike. Otherwise an unbounded call could evade its enclosing operation's
 /// formation checks merely because it failed the static-call recognizer.
 fn with_declared_result_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     analysis: Analysis,
 ) -> Analysis {

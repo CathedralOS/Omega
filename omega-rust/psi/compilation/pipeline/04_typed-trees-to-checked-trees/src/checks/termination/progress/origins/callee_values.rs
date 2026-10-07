@@ -5,17 +5,17 @@ use super::FlowStateFact;
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
-use typed_trees::{TypedTrees, machine::Machine};
 
 /// A constructor operand's own declared type: the data type a struct literal
 /// declares, the callee parameter's type when the whole operand is the
 /// literal, or a constant array's declared type. Without one there is no
 /// exact operand provenance.
 pub(super) fn literal_operand_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     rooted: ExpressionHandle,
     declared: Option<TypeReferenceHandle>,
 ) -> Option<TypeReferenceHandle> {
@@ -38,7 +38,7 @@ pub(super) fn literal_operand_type(
 /// provably leave the demanded projection unwritten, and every other root
 /// (an opaque expression, an unresolved route) stays unproven.
 pub(super) fn callee_value_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     expression: ExpressionHandle,
@@ -82,7 +82,7 @@ pub(super) fn callee_value_place(
 /// the initializer owes `[field, x]`, and a nested call owes the same
 /// composed path as its result projection.
 pub(super) fn callee_value_place_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     expression: ExpressionHandle,
@@ -200,7 +200,7 @@ pub(super) fn callee_value_place_leaf(
 /// backward trace cannot replay leaves the path unproven. Nested call results
 /// resolve through the same callee scope at a decremented depth.
 pub(super) fn callee_demanded_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     body: CalleeBody<'_>,
     place: CanonicalPlace,
@@ -258,7 +258,7 @@ pub(super) fn callee_demanded_origin(
 /// An opaque frame or an overlapping write proves nothing, so the binding
 /// stays unproven rather than borrowing a same-shaped guarantee.
 pub(super) fn callee_leaves_demanded_path_unwritten(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     callee: &Machine,
     callee_state: &State,

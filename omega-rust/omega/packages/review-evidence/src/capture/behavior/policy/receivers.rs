@@ -3,11 +3,10 @@
 use super::rejected;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn validate_call_receiver_roots(
-    source: &TypedTrees,
+    source: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     for (_, call) in facts.flow.control.calls.iter() {
@@ -28,7 +27,7 @@ pub(crate) fn validate_call_receiver_roots(
 }
 
 fn validate_receiver_root(
-    source: &TypedTrees,
+    source: &dyn ::validation::CheckingInput,
     mut receiver: ExpressionHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     // A path cannot visit more nodes than the expression table contains.

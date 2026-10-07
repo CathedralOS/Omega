@@ -3,7 +3,6 @@
 use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
@@ -14,7 +13,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 /// probes this predicate per guarded self-call, so each pass fills the cell
 /// at most once instead of once per call site.
 pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     guard: ExpressionHandle,
     argument: ExpressionHandle,
     parameter: &StateParameter,
@@ -96,7 +95,7 @@ enum TailBound {
 /// immutable-integer-bound machinery. Every other shape -- mutable, ambiguous,
 /// cyclic, qualified, or computed beyond a constant shift -- stays unknown.
 fn tail_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bound_lookup: &crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<TailBound> {
@@ -141,7 +140,7 @@ fn tail_bound(
 /// `bound + bonus >= start` over ordering keys. `bonus` is 1 when the guard is
 /// `len > bound` (which proves `len >= bound + 1`), 0 for `len >= bound`.
 fn bound_ordering_at_least(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bound: TailBound,
     start: TailBound,
     bonus: i64,
@@ -184,7 +183,7 @@ fn bound_ordering_at_least(
 /// `start >= 1`: a literal by its value, a symbol by its declared carrier
 /// floor plus its constant shift (`i + 1` is positive for any unsigned `i`;
 /// `step` needs a declared range flooring at 1).
-fn tail_bound_is_positive(program: &TypedTrees, start: TailBound) -> bool {
+fn tail_bound_is_positive(program: &dyn crate::CheckingInput, start: TailBound) -> bool {
     match start {
         TailBound::Literal(value) => value >= 1,
         TailBound::Symbol { symbol, offset } => bound_symbol_floor(program, symbol)
@@ -197,7 +196,7 @@ fn tail_bound_is_positive(program: &TypedTrees, start: TailBound) -> bool {
 /// integer carrier's representable floor (unsigned types floor at zero),
 /// tightened by an enforced declared range minimum. `None` for a non-integer
 /// or unresolved binding -- never a guessed value.
-fn bound_symbol_floor(program: &TypedTrees, symbol: SymbolHandle) -> Option<i64> {
+fn bound_symbol_floor(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<i64> {
     let type_reference = crate::value_custody::places::bound_symbol_declared_type(program, symbol)?;
     let carrier = match program
         .type_reference_table
@@ -225,7 +224,7 @@ fn bound_symbol_floor(program: &TypedTrees, symbol: SymbolHandle) -> Option<i64>
 }
 
 fn names_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameter: &StateParameter,
 ) -> bool {
@@ -238,7 +237,7 @@ fn names_parameter(
     )
 }
 
-fn parameter_is_slice(program: &TypedTrees, parameter: &StateParameter) -> bool {
+fn parameter_is_slice(program: &dyn crate::CheckingInput, parameter: &StateParameter) -> bool {
     let mut reference = parameter.type_reference;
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {

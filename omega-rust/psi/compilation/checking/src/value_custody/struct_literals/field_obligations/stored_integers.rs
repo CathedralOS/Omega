@@ -8,14 +8,13 @@ use crate::proof_contracts::arithmetic_domains::{
 };
 use checked_trees::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, TableStructLiteral, TableStructLiteralField};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_construction(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

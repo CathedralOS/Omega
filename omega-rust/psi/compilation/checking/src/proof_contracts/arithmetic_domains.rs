@@ -121,7 +121,6 @@ pub(crate) use value_environment::ValueEnvironment;
 
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
@@ -151,7 +150,7 @@ use crate::value_custody::places::declared_place_type_raw;
 /// the S3 proof obligation.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_arithmetic_domains(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -179,7 +178,7 @@ pub(crate) fn validate_arithmetic_domains(
 /// post-order — the shared scaffold behind the per-domain shift-count and
 /// division-definedness validations.
 pub(super) fn visit_binary_operators(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     operators: &[typed_trees::expression::BinaryOperator],
     mut check: impl FnMut(&typed_trees::expression::TableBinaryExpression),

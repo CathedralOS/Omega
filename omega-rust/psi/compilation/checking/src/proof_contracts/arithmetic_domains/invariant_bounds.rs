@@ -11,7 +11,7 @@
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, ProofFact, SignatureContractKind, State, TableCallExpression,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees, enforced_declared_range, literal_i64,
+    TypeReferenceHandle, TypeReferenceNode, enforced_declared_range, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
@@ -24,7 +24,7 @@ mod fields;
 /// References and atomic/policy carriers supply no invariant here. A caller
 /// using a field type must separately establish its exact declaration identity.
 pub fn enforced_integer_type_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
     let primitive = exact_integer_primitive(program, type_reference)?;
@@ -36,7 +36,7 @@ pub fn enforced_integer_type_bounds(
 }
 
 fn exact_integer_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let mut carrier_type = type_reference;
@@ -73,7 +73,7 @@ fn exact_integer_primitive(
 /// of the evaluation snapshot. A parameter's own `requires` bounds are arrival
 /// facts, not snapshot facts, so they are read.
 pub fn immutable_integer_expression_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -93,7 +93,7 @@ pub fn immutable_integer_expression_bounds(
 /// a mutable place what every store enforces -- its declared range and its
 /// data's `where` facts.
 pub(crate) fn standing_integer_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -124,7 +124,7 @@ pub(crate) fn standing_integer_interval(
 /// the outermost shell would see none for exactly the places a reference
 /// spells.
 fn place_carrier_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     place_type: Option<TypeReferenceHandle>,
 ) -> Option<Interval> {
     place_type
@@ -140,7 +140,7 @@ fn place_carrier_interval(
 /// [`standing_integer_interval`] already treats a whole interval that
 /// restates the carrier.
 pub(crate) fn upper_bound_beyond_place_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -162,7 +162,7 @@ pub(crate) fn upper_bound_beyond_place_carrier(
 /// `where` facts. Reads no arrival fact, so it is safe inside `requires`
 /// resolution.
 fn stored_place_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -189,7 +189,7 @@ fn stored_place_interval(
 /// [`standing_integer_interval`] as open-ended endpoints, for checkers
 /// outside validation.
 pub fn standing_integer_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -204,7 +204,7 @@ pub fn standing_integer_bounds(
 /// decide its callee's requirement. For checkers outside validation. `None`
 /// for a non-integer place.
 pub fn stored_integer_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -226,7 +226,7 @@ pub fn stored_integer_bounds(
 /// carrier and declared range, narrowed for an immutable parameter by its
 /// state's `requires` comparisons. Either endpoint may be open.
 pub fn state_parameter_integer_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: SymbolHandle,
@@ -248,7 +248,7 @@ pub fn state_parameter_integer_interval(
 /// The same bounds with either endpoint allowed to be open: an unrestricted
 /// u64 keeps its zero floor although its ceiling does not fit an i64.
 pub(crate) fn immutable_integer_expression_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -276,7 +276,7 @@ pub(crate) fn immutable_integer_expression_interval(
 /// lose exactly the verdict at full-width carriers -- `x + 0` over an
 /// unbounded u64 lands, but its interval's high end does not fit i64.
 pub fn declared_integer_expression_lands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -295,7 +295,7 @@ pub fn declared_integer_expression_lands(
 /// An unrestricted u64 has a useful zero floor even though its ceiling does
 /// not fit the interval engine's i64 endpoint representation.
 pub(super) fn builtin_comparison_intervals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -362,7 +362,10 @@ impl Bounds {
     }
 }
 
-fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<Bounds> {
+fn type_bounds(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<Bounds> {
     let primitive = exact_integer_primitive(program, type_reference)?;
     let carrier = primitive_range(primitive)?;
     Some(Bounds {
@@ -375,7 +378,7 @@ fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Opt
 }
 
 fn bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -637,7 +640,7 @@ fn bounds(
 /// carriers and out-of-width counts stay unbounded here.
 /// Both operands' bounds, `?`-threaded — the binary arms share this pair.
 fn binary_operand_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     binary: &typed_trees::expression::TableBinaryExpression,
@@ -661,7 +664,7 @@ fn binary_operand_bounds(
 }
 
 fn unsigned_bitwise_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: BinaryOperator,
     left: Bounds,
     right: Bounds,
@@ -731,13 +734,16 @@ fn unsigned_bitwise_bounds(
 /// holds wherever the call value is read. `None` for a call whose callee or
 /// return type is not an exact fixed integer.
 pub(crate) fn call_result_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<Interval> {
     Some(call_result_bounds(program, call)?.interval)
 }
 
-fn call_result_bounds(program: &TypedTrees, call: &TableCallExpression) -> Option<Bounds> {
+fn call_result_bounds(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<Bounds> {
     let (callee, entry) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
     let declared = type_bounds(program, entry.return_type)?;
@@ -754,7 +760,11 @@ fn call_result_bounds(program: &TypedTrees, call: &TableCallExpression) -> Optio
 /// exits, so the interval holds wherever the call result is read. Only
 /// literal operands bound `result` here: a conjunct naming callee state
 /// compares against a post-return snapshot the caller cannot see.
-fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &State) -> Interval {
+fn ensures_result_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: &State,
+) -> Interval {
     let mut interval = Interval::UNBOUNDED;
     let ensures = program
         .machine_contracts(machine)
@@ -763,21 +773,21 @@ fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &Stat
         .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     each_proof_conjunct(program, ensures, |_, binary| {
-            for (subject, operand, subject_on_left) in [
-                (binary.left, binary.right, true),
-                (binary.right, binary.left, false),
-            ] {
-                if !program.expression_table.names_reserved_result(subject) {
-                    continue;
-                }
-                if let Some(bound) = literal_i64(program, operand).map(Interval::constant) {
-                    interval = interval.intersect(super::guard_narrowing::comparison_interval(
-                        binary.operator,
-                        bound,
-                        subject_on_left,
-                    ));
-                }
+        for (subject, operand, subject_on_left) in [
+            (binary.left, binary.right, true),
+            (binary.right, binary.left, false),
+        ] {
+            if !program.expression_table.names_reserved_result(subject) {
+                continue;
             }
+            if let Some(bound) = literal_i64(program, operand).map(Interval::constant) {
+                interval = interval.intersect(super::guard_narrowing::comparison_interval(
+                    binary.operator,
+                    bound,
+                    subject_on_left,
+                ));
+            }
+        }
     });
     interval
 }
@@ -788,7 +798,7 @@ fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &Stat
 /// place whose stores enforce a bound (`y <= self.max_y` with
 /// `where max_y <= 2` bounds `y` by 2).
 fn requires_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: SymbolHandle,
@@ -809,46 +819,46 @@ fn requires_interval(
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     each_proof_conjunct(program, requires, |conjunct, binary| {
-            let builtin = match binary.operator {
-                BinaryOperator::Equal => super::guard_narrowing::has_builtin_equality(
-                    program,
-                    machine,
-                    Some(state),
-                    conjunct,
-                ),
-                _ => super::guard_narrowing::has_builtin_ordering(
-                    program,
-                    machine,
-                    Some(state),
-                    conjunct,
-                ),
-            };
-            if !builtin {
-                return;
+        let builtin = match binary.operator {
+            BinaryOperator::Equal => super::guard_narrowing::has_builtin_equality(
+                program,
+                machine,
+                Some(state),
+                conjunct,
+            ),
+            _ => super::guard_narrowing::has_builtin_ordering(
+                program,
+                machine,
+                Some(state),
+                conjunct,
+            ),
+        };
+        if !builtin {
+            return;
+        }
+        for (subject, operand, subject_on_left) in [
+            (binary.left, binary.right, true),
+            (binary.right, binary.left, false),
+        ] {
+            let names_parameter = matches!(
+                program.expression_table.expression(subject),
+                ExpressionNode::Name(path)
+                    if path.symbol == parameter && path.head_symbol == path.symbol
+            );
+            if !names_parameter {
+                continue;
             }
-            for (subject, operand, subject_on_left) in [
-                (binary.left, binary.right, true),
-                (binary.right, binary.left, false),
-            ] {
-                let names_parameter = matches!(
-                    program.expression_table.expression(subject),
-                    ExpressionNode::Name(path)
-                        if path.symbol == parameter && path.head_symbol == path.symbol
-                );
-                if !names_parameter {
-                    continue;
-                }
-                let bound = literal_i64(program, operand)
-                    .map(Interval::constant)
-                    .or_else(|| stored_place_interval(program, machine, state, operand));
-                if let Some(bound) = bound {
-                    interval = interval.intersect(super::guard_narrowing::comparison_interval(
-                        binary.operator,
-                        bound,
-                        subject_on_left,
-                    ));
-                }
+            let bound = literal_i64(program, operand)
+                .map(Interval::constant)
+                .or_else(|| stored_place_interval(program, machine, state, operand));
+            if let Some(bound) = bound {
+                interval = interval.intersect(super::guard_narrowing::comparison_interval(
+                    binary.operator,
+                    bound,
+                    subject_on_left,
+                ));
             }
+        }
     });
     interval
 }
@@ -856,7 +866,7 @@ fn requires_interval(
 /// Visit each non-`And` binary conjunct inside the proof facts' expression
 /// terms — the `And`-splitting walk both parameter-bound readers share.
 fn each_proof_conjunct<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     facts: impl Iterator<Item = &'program ProofFact>,
     mut visit: impl FnMut(ExpressionHandle, &'program typed_trees::expression::TableBinaryExpression),
 ) {
@@ -866,8 +876,7 @@ fn each_proof_conjunct<'program>(
         };
         let mut conjuncts = vec![*expression];
         while let Some(conjunct) = conjuncts.pop() {
-            let ExpressionNode::Binary(binary) =
-                program.expression_table.expression(conjunct)
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
             else {
                 continue;
             };

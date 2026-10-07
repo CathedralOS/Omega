@@ -162,7 +162,6 @@ use std::collections::BTreeMap;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -223,7 +222,7 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
 /// contract-entailment obligation. Membership on an unauthorized machine
 /// keeps its stand-down.
 fn membership_ensures_is_route_authorized(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -285,7 +284,7 @@ fn membership_ensures_is_route_authorized(
 }
 
 pub(crate) fn validate_machine_contract_entailment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -298,7 +297,7 @@ pub(crate) fn validate_machine_contract_entailment(
 }
 
 pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
     stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
@@ -313,7 +312,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
 }
 
 pub(crate) fn validate_machine_contract_entailment_with_outcomes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
     stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
@@ -375,11 +374,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     if matches!(contract.kind, SignatureContractKind::Requires) {
                         requires_propositions.push(application);
                     } else if account_stand_downs {
-                        push_unsupported_stand_down(
-                            stand_downs,
-                            contract_index,
-                            fact_index,
-                        );
+                        push_unsupported_stand_down(stand_downs, contract_index, fact_index);
                     }
                     all_facts_are_expressions = false;
                 }
@@ -392,11 +387,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                             membership.domain_symbol,
                         )
                     {
-                        push_unsupported_stand_down(
-                            stand_downs,
-                            contract_index,
-                            fact_index,
-                        );
+                        push_unsupported_stand_down(stand_downs, contract_index, fact_index);
                     }
                     all_facts_are_expressions = false;
                 }
@@ -1026,7 +1017,10 @@ struct FactCallTargets {
     all_declared: bool,
 }
 
-fn fact_call_targets(program: &TypedTrees, expression: ExpressionHandle) -> FactCallTargets {
+fn fact_call_targets(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> FactCallTargets {
     if !expression.is_valid() {
         return FactCallTargets {
             any: false,

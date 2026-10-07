@@ -12,8 +12,7 @@
 //! ordering facts compose, while nonconvex exclusions keep their own meaning.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnvironment, declared_place_type_raw,
-    place_path,
+    PrimitiveType, State, TypeReferenceNode, ValueEnvironment, declared_place_type_raw, place_path,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
@@ -93,7 +92,11 @@ impl Operand {
         self.survives_preserving_length(written, None)
     }
 
-    pub(super) fn is_immutable_snapshot(&self, program: &TypedTrees, state: &State) -> bool {
+    pub(super) fn is_immutable_snapshot(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+    ) -> bool {
         match self {
             Self::Integer(..) => true,
             Self::Place { root, fields, .. } => {
@@ -374,7 +377,7 @@ pub(super) fn rebind_relations(
 /// Only a builtin element store through an exact mutable byte parameter leaves
 /// this view's extent unchanged. Callers cross all operand effects first.
 pub(super) fn byte_store_collection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -422,7 +425,7 @@ pub(super) fn byte_store_collection(
 }
 
 pub(super) fn operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -433,7 +436,7 @@ pub(super) fn operand(
 /// `operand` served by the resolver's once-computed whole-program call plans
 /// when a live call-frame resolver reaches this site.
 pub(super) fn operand_with_frames(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -443,7 +446,7 @@ pub(super) fn operand_with_frames(
 }
 
 fn build_operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -607,7 +610,7 @@ fn build_operand(
 }
 
 fn integer_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -654,7 +657,7 @@ fn integer_meaning(
 }
 
 pub(super) fn record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     environment: &mut ValueEnvironment,
@@ -771,7 +774,7 @@ fn integer_carrier_ceiling(primitive: PrimitiveType) -> Option<Operand> {
 /// Two reads of the same resolved place at one subtraction have equal values.
 /// This local identity needs no entry premise or arithmetic re-analysis.
 pub(super) fn same_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -796,7 +799,7 @@ pub(super) fn same_place(
 }
 
 pub(super) fn subtract_floor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -821,7 +824,7 @@ pub(super) fn subtract_floor(
 /// that includes the excluded point. No source guard is replayed here: joins,
 /// edge substitution and writes already determined which relations survive.
 pub(super) fn excludes_integer_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -860,7 +863,7 @@ pub(super) fn excludes_integer_value(
 /// unbounded. Only representable interval endpoints are projected; inequality
 /// exclusions retain their nonconvex meaning with their existing query owner.
 pub(super) fn refine_place_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -915,7 +918,7 @@ pub(super) fn refine_place_interval(
 /// The relation's exact operand identity and ordinary write invalidation
 /// remain authoritative.
 pub(super) fn unsigned_increase_fits(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -943,7 +946,7 @@ pub(super) fn unsigned_increase_fits(
 /// length is usize-bounded (unbounded at i64 resolution). `None` leaves a
 /// call result's bound unknown -- its contract evidence lives elsewhere.
 fn operand_carrier_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     operand: &Operand,
@@ -970,7 +973,7 @@ fn operand_carrier_bound(
 /// every carrier because no admitted integer carrier exceeds it; a narrower
 /// ceiling admits only an operand whose carrier bound fits inside it.
 fn operand_carrier_within_ceiling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     operand: &Operand,

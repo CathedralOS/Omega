@@ -11,13 +11,12 @@
 //! propagate destination types.
 
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
 
 pub fn children(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     node: &ExpressionNode,
     mut child: impl FnMut(ExpressionHandle),
 ) {
@@ -76,13 +75,13 @@ pub fn children(
 /// Visit every reachable expression node after its value edges, each once.
 /// `arm` observes a node only after the node's children already walked.
 pub fn visit_post_order(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
     mut arm: impl FnMut(&ExpressionNode),
 ) {
     fn inner(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         visited: &mut Vec<ExpressionHandle>,
         arm: &mut dyn FnMut(&ExpressionNode),
@@ -102,7 +101,7 @@ pub fn visit_post_order(
 /// expression, returning each projected node outermost-first plus the root.
 /// `None` on a cycle, an invalid cursor, or more than `max_depth` edges.
 pub fn projection_climb(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     max_depth: usize,
 ) -> Option<(Vec<ExpressionHandle>, ExpressionHandle)> {
@@ -133,7 +132,7 @@ pub fn projection_climb(
 /// The symbol a single-member `Name` argument resolves, through a shared
 /// borrow: `&field` and `field` name the same symbol.
 pub fn single_member_argument_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let named = match program.expression_table.expression(argument) {
@@ -158,7 +157,7 @@ pub fn single_member_argument_symbol(
 
 /// The last member of the `Name` path `value` names, when it names one.
 pub fn name_path_last_member<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<&'a str> {
     let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
@@ -172,7 +171,10 @@ pub fn name_path_last_member<'a>(
 }
 
 /// Strip `Atomic` wrappers: an atomically-evaluated step is still a step.
-pub fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> ExpressionHandle {
+pub fn unwrapped(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> ExpressionHandle {
     while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
         expression = atomic.value;
     }
@@ -182,7 +184,7 @@ pub fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> Expr
 /// Push every value edge in reverse source order so a stack `pop` yields
 /// source-order traversal.
 pub fn push_children_reversed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     node: &ExpressionNode,
     pending: &mut Vec<ExpressionHandle>,
 ) {
@@ -193,7 +195,7 @@ pub fn push_children_reversed(
 
 /// Structural readers visit every source edge, not just executable arms.
 pub(crate) fn match_children(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     dispatch: TableMatchExpression,
 ) -> impl Iterator<Item = ExpressionHandle> + '_ {
     std::iter::once(dispatch.subject).chain(
@@ -213,7 +215,7 @@ pub(crate) fn match_children(
 
 /// Append first visits in recursive preorder, sharing the caller's occurrence roster.
 pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     nodes: &mut Vec<ExpressionHandle>,
     seen: &mut HashSet<ExpressionHandle, Hashing>,
@@ -234,7 +236,7 @@ pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
 /// The single-segment `Name` path's resolved symbol — `None` for member
 /// chains, projections, or an unresolved path.
 pub(crate) fn single_segment_name_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

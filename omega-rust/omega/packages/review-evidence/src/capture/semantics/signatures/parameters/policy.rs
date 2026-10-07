@@ -9,7 +9,7 @@ use language_semantics::declaration_selection::AuthoredDeclarationSelectionExpos
 use symbols::SymbolHandle;
 
 pub(crate) fn project_policy_type_parameters_after(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     checked_source: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
@@ -34,7 +34,7 @@ pub(crate) fn project_policy_type_parameters_after(
 }
 
 pub(crate) fn project_policy_type_parameters(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     checked_source: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,

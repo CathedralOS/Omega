@@ -21,7 +21,7 @@ use super::overlap::StatedOrderingPremise;
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
 pub(super) fn check_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -78,7 +78,7 @@ pub(super) fn check_compatibility<'p>(
 }
 
 fn check_call_borrows<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,

@@ -8,7 +8,6 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
 use sha2::{Digest, Sha256};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
@@ -19,7 +18,7 @@ use typed_trees::typed_trees::{
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_conformance_applications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
@@ -52,7 +51,7 @@ pub(crate) fn validate_conformance_applications(
 }
 
 fn validate_call_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: StaticArgumentCall<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -64,7 +63,7 @@ fn validate_call_arguments(
 }
 
 fn validate_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -83,7 +82,7 @@ fn validate_arguments(
 }
 
 pub fn close_conformance_application(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
     let Some(conformance) = program
@@ -287,7 +286,7 @@ pub fn close_conformance_application(
 }
 
 fn validate_type_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     conformance: &str,
     parameter: &str,
     argument: &StaticMachineArgument,
@@ -317,7 +316,7 @@ fn category_error(
 }
 
 fn close_const_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     conformance: &str,
     parameter: &str,
     parameter_carrier: TypeReferenceHandle,
@@ -442,7 +441,7 @@ fn close_const_argument(
 }
 
 pub(crate) fn static_argument_identity(
-    _program: &TypedTrees,
+    _program: &dyn ::validation::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> String {
     argument.display_name()
@@ -453,7 +452,7 @@ pub(crate) fn static_argument_identity(
 /// evidence binder's instantiated trait arguments and an implementation's own
 /// trait arguments compare in one vocabulary.
 pub(crate) fn type_argument_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> String {
     if argument.type_reference.is_valid() {
@@ -472,7 +471,7 @@ pub(crate) fn type_argument_identity(
 }
 
 pub(crate) fn substituted_type_identity_with_lifetimes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, String)],
     lifetime_substitutions: &[(String, String)],
@@ -598,7 +597,7 @@ struct ApplicationIdentity {
 
 #[allow(clippy::too_many_arguments)]
 fn application_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     declaration: &str,
     lifetime_arguments: &[String],
     type_arguments: &[String],

@@ -14,10 +14,9 @@ use checked_trees::{ContextualCleanupApplication, ContextualCleanupFacts, FlowFa
 use facts::{PlaceRoot, PlaceSegment};
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(crate) fn bind_applications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     cleanup: &mut ContextualCleanupFacts,
 ) {
@@ -90,7 +89,7 @@ pub(crate) fn bind_applications(
 }
 
 fn source_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     instance: SymbolHandle,
 ) -> SymbolHandle {
@@ -110,7 +109,7 @@ fn source_symbol(
 }
 
 fn source_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     path: &[PlaceSegment],
     instance: SymbolHandle,
 ) -> Vec<PlaceSegment> {
@@ -127,7 +126,10 @@ fn source_path(
         .collect()
 }
 
-fn source_occurrence(program: &TypedTrees, source: PermissionEventSource) -> PermissionEventSource {
+fn source_occurrence(
+    program: &dyn ::validation::CheckingInput,
+    source: PermissionEventSource,
+) -> PermissionEventSource {
     match source {
         PermissionEventSource::Call {
             statement_index,

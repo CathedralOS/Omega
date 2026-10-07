@@ -1,9 +1,7 @@
 //! Member, index, and selector reads: projected places, temporary member
 //! symbols, and the operand rosters an operator call reads through.
 
-use super::super::{
-    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees,
-};
+use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use super::collect_reads;
 use super::operands::{capture_place_read, collect_operand_reads, collect_place_read};
 use crate::checks::ranges::facts::RangeCallContext;
@@ -42,7 +40,7 @@ use symbols::SymbolHandle;
 /// borrow of a temporary has no statement-use place custody to lend the
 /// projection.
 pub(super) fn collect_member_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -137,7 +135,7 @@ pub(super) fn collect_member_reads<'a, 'b>(
 /// unproven. The footprint itself still comes from the receiver's own read
 /// scan — this answers only which field the projection selects.
 pub(super) fn temporary_member_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     member: &typed_trees::expression::TableMemberExpression,
@@ -146,7 +144,7 @@ pub(super) fn temporary_member_symbol(
 }
 
 pub(super) fn temporary_member_symbol_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     member: &typed_trees::expression::TableMemberExpression,
@@ -195,7 +193,7 @@ pub(super) fn temporary_member_symbol_at(
 /// `effective_member_symbol` answer came first — and every other kind keeps
 /// the leaf unproven.
 pub(super) fn temporary_receiver_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     receiver: ExpressionHandle,
@@ -257,7 +255,7 @@ pub(super) fn temporary_receiver_leaf(
 /// nested call or a selected nested indexing still has to prove its own
 /// complete footprint.
 pub(super) fn collect_selected_index_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -330,7 +328,7 @@ pub(super) fn collect_selected_index_reads<'a, 'b>(
 /// ambiguous, or inconsistent custody yields no operands — the same
 /// evidence floor the checked-call join applies.
 pub(super) fn selected_operator_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -378,7 +376,7 @@ pub(super) fn selected_operator_operands(
 /// to address one element: parent replacement overlaps its child path already.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn descend_and_capture_symbol_place<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -414,7 +412,7 @@ pub(super) fn descend_and_capture_symbol_place<'a, 'b>(
 }
 
 pub(super) fn collect_selector_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -563,7 +561,7 @@ pub(super) fn collect_selector_reads<'a, 'b>(
 /// cannot borrow `f@Case`'s identity merely because the name happens to
 /// resolve inside one variant.
 pub(super) fn member_receiver_escapes_binder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
     depth: usize,
 ) -> bool {
@@ -584,7 +582,7 @@ pub(super) fn member_receiver_escapes_binder(
 }
 
 pub(super) fn has_builtin_index_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,

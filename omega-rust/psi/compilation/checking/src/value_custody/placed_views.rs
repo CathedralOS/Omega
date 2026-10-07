@@ -10,7 +10,6 @@
 use access_plans::{AccessExposure, AtomicPermissions, FieldAccess};
 use diagnostics::Diagnostic;
 use language_core::atomic::AtomicOrderingPlan;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -23,13 +22,16 @@ pub use checked_atomic_resident::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
 };
 
-pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_plans(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     plan_replay::validate_plans(program, diagnostics);
     placement_custody::validate_agreements(program, diagnostics);
 }
 
 pub(crate) fn validate_statement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -56,7 +58,7 @@ pub(crate) fn validate_statement(
 /// [`validate_assignment`]; direct ordinary assignment is deliberately not
 /// exempt.
 pub(crate) fn assignment_is_placed_atomic_operation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -70,7 +72,7 @@ pub(crate) fn assignment_is_placed_atomic_operation(
 }
 
 fn validate_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -121,7 +123,7 @@ fn validate_assignment(
 }
 
 fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -225,7 +227,7 @@ fn validate_expression(
 }
 
 fn placed_atomic_field_for_place<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     place: ExpressionHandle,
@@ -235,7 +237,7 @@ fn placed_atomic_field_for_place<'program>(
 }
 
 fn placed_view_field_for_place<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     place: ExpressionHandle,
@@ -249,7 +251,7 @@ fn placed_view_field_for_place<'program>(
 }
 
 fn placed_view_field_for_call_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<(
     &typed_trees::typed_trees::PlacedViewPlan,
@@ -272,7 +274,7 @@ fn placed_view_field_for_call_target(
 }
 
 fn placed_view_field_for_statement_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::statement::TableCall,
@@ -282,7 +284,6 @@ fn placed_view_field_for_statement_call<'program>(
 )> {
     placed_view_field_for_call_target(program, call.target_symbol).or_else(|| {
         let receiver =
-
             crate::program_scope::call_targets::call_receiver_member_names(program, call);
         let type_reference = crate::value_custody::places::declared_member_path_type(
             program,
@@ -299,7 +300,7 @@ fn placed_view_field_for_statement_call<'program>(
 /// already carry ordinary resolved targets; statement calls retain a member
 /// path and need this typed late-binding pass.
 pub(crate) fn statement_call_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::statement::TableCall,
@@ -316,7 +317,7 @@ pub(crate) fn statement_call_target(
 }
 
 fn validate_binding_private_use(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     view: &typed_trees::typed_trees::PlacedViewPlan,
     field: &typed_trees::typed_trees::PlacedFieldPlan,
@@ -366,7 +367,10 @@ fn observing_compare_exchange_permission(
     }
 }
 
-fn fetch_operation(program: &TypedTrees, expression: ExpressionHandle) -> Option<&'static str> {
+fn fetch_operation(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<&'static str> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -392,7 +396,7 @@ fn report_unauthorized(
 }
 
 fn statement_expression_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     use typed_trees::statement::StatementRootRole as Role;

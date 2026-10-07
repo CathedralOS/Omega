@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -34,7 +33,7 @@ struct StateSymbol<'program> {
 
 impl<'program> MachineSymbols<'program> {
     pub fn build(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &'program Machine,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
@@ -188,7 +187,7 @@ impl<'program> MachineSymbols<'program> {
 /// generated roots whose parent is invalid and whose `generated_from` carries
 /// the authored derivation. Their generated field, owned-data, and state
 /// children still resolve under the machine symbol itself.
-fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHandle {
+fn retained_machine_symbol(program: &dyn crate::CheckingInput, machine: &Machine) -> SymbolHandle {
     let spelling = machine.symbol_spelling();
     let authored =
         retained_child_symbol(program, program.symbols.root(), machine.symbol, &spelling);
@@ -208,7 +207,7 @@ fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHan
 }
 
 fn retained_child_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parent: SymbolHandle,
     symbol: SymbolHandle,
     name: &str,
@@ -224,7 +223,7 @@ fn retained_child_symbol(
 }
 
 fn callable_receiver_type_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     if let Some(requirement) =

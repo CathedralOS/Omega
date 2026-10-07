@@ -13,7 +13,6 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
@@ -24,7 +23,7 @@ mod named_routes;
 pub(super) use named_routes::statement_entry_route_is_false;
 
 pub(crate) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     semantic: &FactPlan,
@@ -265,7 +264,7 @@ pub(crate) fn build(
 /// `named_routes`). Anything unproven stays conservative.
 #[allow(clippy::too_many_arguments)]
 fn retained_operator_crash_routes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     semantic: &FactPlan,
@@ -399,7 +398,7 @@ fn retained_operator_crash_routes(
 /// The flow pass reuses this ordering when it captures operand-time evidence
 /// for a named use, so captured operand rows align with this list.
 pub(crate) fn named_call_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<Vec<ExpressionHandle>> {
@@ -432,7 +431,7 @@ pub(crate) fn named_call_operands(
 /// (checks/contracts/labels/calls.rs). Other operands keep their proof
 /// spelling.
 pub(crate) fn named_call_operand_labels(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     operands: &[ExpressionHandle],
 ) -> Vec<String> {
@@ -465,7 +464,7 @@ pub(crate) fn named_call_operand_labels(
 }
 
 fn unreachable_match_arm(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_use: &checked_trees::CheckedOperatorUseFact,
 ) -> bool {
     let CheckedOperatorOccurrence::MatchEquality { source_arm } = operator_use.occurrence else {

@@ -100,7 +100,7 @@ pub(super) fn build_call_requires_contexts(
 }
 
 pub(super) fn build_call_exit_contexts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &checked_trees::ProofFacts,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,

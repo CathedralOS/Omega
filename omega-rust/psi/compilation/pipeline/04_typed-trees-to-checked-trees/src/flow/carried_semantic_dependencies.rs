@@ -9,7 +9,7 @@ use checked_trees::{
 };
 use language_semantics::{PermissionEventKind, PermissionEventSource};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::{TypedTrees, types::TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Rederive the complete canonical semantic-dependency table from compiler
 /// authority rather than trusting a previously retained table.
@@ -17,7 +17,7 @@ use typed_trees::{TypedTrees, types::TypeReferenceHandle};
 /// `program` must be the final typed program paired with `facts`. The retained
 /// `facts.flow.semantic_dependencies` rows are deliberately not consulted.
 pub(crate) fn derive_checked_semantic_dependencies(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedSemanticDependencies {
     let mut rows = Vec::new();
@@ -138,7 +138,7 @@ pub(crate) fn derive_checked_semantic_dependencies(
 }
 
 fn append_type_dependencies(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     rows: &mut Vec<CheckedSemanticDependency>,
     consumer_machine: SymbolHandle,
     type_reference: TypeReferenceHandle,
@@ -180,7 +180,7 @@ fn append_type_dependencies(
 }
 
 pub(super) fn event_statement_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     source: PermissionEventSource,
 ) -> usize {
@@ -202,7 +202,7 @@ pub(super) fn event_statement_index(
 }
 
 pub(super) fn event_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     root: facts::PlaceRoot,
@@ -240,7 +240,7 @@ pub(super) fn event_type_reference(
 }
 
 fn call_return_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     for machine in program.machines() {
@@ -262,7 +262,7 @@ fn call_return_type_reference(
 }
 
 fn collect_nominal_symbols(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     symbols: &mut Vec<SymbolHandle>,
 ) {
@@ -309,7 +309,7 @@ fn collect_nominal_symbols(
 }
 
 fn push_nominal_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     symbols: &mut Vec<SymbolHandle>,
 ) {
@@ -331,7 +331,7 @@ fn push_nominal_symbol(
 }
 
 fn event_exposure(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     root: facts::PlaceRoot,
@@ -361,7 +361,10 @@ fn event_exposure(
     }
 }
 
-fn machine_signature_exposure(program: &TypedTrees, machine_symbol: SymbolHandle) -> Exposure {
+fn machine_signature_exposure(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+) -> Exposure {
     if program.machines().iter().any(|machine| {
         machine.symbol == machine_symbol
             && (machine.is_public || machine.supply_mode.is_boundary_declaration())

@@ -9,7 +9,6 @@ use checked_trees::{
 use facts::ProgramPoint;
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -47,7 +46,7 @@ pub(super) struct StateCallIndex<'program, 'flow> {
 
 impl<'program, 'flow> StateCallIndex<'program, 'flow> {
     pub(super) fn new(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         flow: &'flow FlowFacts,
         state_flow: &'flow checked_trees::FlowStateFact,
     ) -> Self {
@@ -92,7 +91,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
 }
 
 pub(super) fn construction_field_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     case_name: Option<&str>,
     field_name: &str,
@@ -125,7 +124,7 @@ pub(super) fn construction_field_type(
 }
 
 pub(super) fn literal_element_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     if !type_reference.is_valid() {
@@ -143,7 +142,7 @@ pub(super) fn literal_element_type(
 }
 
 pub(super) fn expression_indexed_instances(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     state: &State,
@@ -264,7 +263,7 @@ pub(super) fn expression_indexed_instances(
 /// the promise is admitted as establishment: like the declared return type,
 /// the declared instance is what the value is, whatever its evidence.
 pub(super) fn append_call_result_ensured_instances(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     state_calls: &StateCallIndex<'_, '_>,
     machine: &Machine,
@@ -347,7 +346,7 @@ pub(super) fn append_call_result_ensured_instances(
     }
 }
 pub(super) fn call_return_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if let Some(state) = crate::semantic::calls::find_state(program, state_symbol) {
@@ -366,7 +365,7 @@ pub(super) fn call_return_type(
 }
 
 pub(super) fn collect_type_indexed_instances(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     instances: &mut Vec<IndexedInstance>,
     visited: &mut Vec<TypeReferenceHandle>,
@@ -404,7 +403,7 @@ pub(super) fn collect_type_indexed_instances(
 }
 
 pub(super) fn instance_from_constraint(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &DomainConstraint,
 ) -> IndexedInstance {
     IndexedInstance {
@@ -416,7 +415,7 @@ pub(super) fn instance_from_constraint(
 }
 
 pub(super) fn selected_operation_count(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     arguments: impl Iterator<Item = TypeReferenceHandle>,
 ) -> usize {
     let mut expressions = Vec::new();

@@ -2,11 +2,11 @@
 
 use crate::monomorphization::{
     HandleSpan, SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, range_arguments,
+    range_arguments,
 };
 
 pub(crate) fn infer_static_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
     type_parameters: &[(SymbolHandle, String)],
@@ -268,7 +268,7 @@ pub(crate) fn infer_static_bindings(
 }
 
 pub(crate) fn infer_fixed_array_length_binding(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     required: &typed_trees::types::FixedArrayLength,
     actual: &typed_trees::types::FixedArrayLength,
     const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
@@ -320,7 +320,7 @@ pub(crate) fn infer_fixed_array_length_binding(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn infer_domain_argument_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     required_constraints: HandleSpan<TypeConstraintNode>,
     actual_constraints: HandleSpan<TypeConstraintNode>,
     type_parameters: &[(SymbolHandle, String)],
@@ -378,7 +378,7 @@ pub(crate) fn same_domain_family(
 }
 
 pub(crate) fn same_type_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {

@@ -13,7 +13,6 @@
 
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// One claim in a type's linear frontier: the exact path below the root, the
@@ -39,7 +38,7 @@ pub struct ClaimFrontierClaim {
 /// declaration; a whole-value linear claim carries an invalid reference
 /// because no `Named` reference to the attached data exists in the table.
 pub fn owned_receiver_claims(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> (Multiplicity, Vec<ClaimFrontierClaim>) {
     let Some(machine) = program
@@ -92,7 +91,7 @@ pub fn owned_receiver_claims(
 }
 
 pub fn linear_claim_frontier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     crate::program_scope::value_properties::memoized_claim_frontier(program, type_reference)
@@ -101,7 +100,7 @@ pub fn linear_claim_frontier(
 /// The uncached whole-table walk; the memoized entry routes here on a miss or
 /// when no program plan scope is open.
 pub(crate) fn linear_claim_frontier_uncached(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     let mut claims = Vec::new();
@@ -129,7 +128,7 @@ pub(crate) fn linear_claim_frontier_uncached(
 }
 
 fn append_linear_claim_frontier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
@@ -311,7 +310,7 @@ fn append_linear_claim_frontier(
 }
 
 fn append_data_linear_claim_frontier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
@@ -367,7 +366,7 @@ fn append_data_linear_claim_frontier(
 /// Descend into `field`'s declared type under the current path prefix.
 #[allow(clippy::too_many_arguments)]
 fn append_field_claim_frontier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     field: &typed_trees::data::DataField,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &mut Vec<facts::PlaceSegment>,
@@ -413,7 +412,7 @@ fn push_claim(
 /// occurrence takes the argument's multiplicity; everything else is the
 /// declaration's own.
 fn type_multiplicity_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
@@ -480,7 +479,7 @@ fn type_multiplicity_with_substitutions(
 /// primitive name the builtin domain, and only then a name lookup — so every
 /// verdict is the same value the scanning version produced.
 fn frontier_type_multiplicity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     parameters_by_symbol: &std::collections::HashMap<
         SymbolHandle,
@@ -556,7 +555,7 @@ fn frontier_type_multiplicity(
 /// that never resolved, so a same-named declaration elsewhere cannot answer
 /// for a resolved one.
 fn find_data_definition<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     symbol: SymbolHandle,
     name: &str,

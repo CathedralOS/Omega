@@ -1,7 +1,7 @@
 use symbols::SymbolHandle;
 
 pub(crate) fn machine_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> String {
     crate::lookup::machine_by_symbol(program, machine_symbol)
@@ -10,7 +10,7 @@ pub(crate) fn machine_name(
 }
 
 pub(crate) fn call_target_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> String {
     program
@@ -33,7 +33,10 @@ pub(crate) fn call_target_label(
         .unwrap_or_else(|| symbol_name(program, target_symbol))
 }
 
-pub(crate) fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
+pub(crate) fn symbol_name(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> String {
     if !symbol.is_valid() {
         return "unknown".to_owned();
     }

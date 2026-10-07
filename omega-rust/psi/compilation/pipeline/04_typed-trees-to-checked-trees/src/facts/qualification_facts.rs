@@ -1,9 +1,10 @@
 //! Qualification facts and service reach facts.
 
 use crate::facts::canonical_encoding::domain_is_vacuous;
-use typed_trees::TypedTrees;
 
-pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::QualificationFacts {
+pub(crate) fn build_qualification_facts(
+    program: &dyn ::validation::CheckingInput,
+) -> checked_trees::QualificationFacts {
     use checked_trees::VacuousQualificationUse;
     use language_semantics::SemanticDomainTable;
     /// Membership sets take the integer hasher; none is iterated for output order.
@@ -12,7 +13,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
     fn collect_casts(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: SymbolHandle,
         state: SymbolHandle,
         statement_index: u32,
@@ -451,7 +452,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
 /// requirements, boundaries, and external realizations retain fixed published
 /// ceilings independently of a selected implementation.
 pub(crate) fn build_service_reach_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     inferred: flow_effects::ServiceReachInferencePlan,
 ) -> checked_trees::ServiceReachFacts {
     checked_trees::ServiceReachFacts {

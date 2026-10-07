@@ -11,9 +11,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, TypedTrees,
-};
+use typed_trees::{AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget};
 
 mod definition_membership;
 mod domain_bounds;
@@ -29,7 +27,7 @@ pub use domain_bounds::{
 /// primitive bound. This grants no value, effect, or lifetime proof: callers
 /// must still establish their own range and evaluation-snapshot obligations.
 pub fn has_builtin_bound_expression_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -42,7 +40,7 @@ pub fn has_builtin_bound_expression_meaning(
 /// independent builtin fact even when another child selects an authored
 /// operator. Boolean wrappers still owe their own exact equality meaning.
 pub fn has_builtin_decomposed_guard_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -69,7 +67,7 @@ pub fn has_builtin_decomposed_guard_meaning(
 /// Check one binary node's selected meaning; callers own operand traversal.
 /// This grants no value, totality, effect, or lifetime evidence.
 pub fn has_builtin_binary_expression_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -98,7 +96,7 @@ pub fn has_builtin_binary_expression_meaning(
 /// The memo key for a machine and state that live in `program`'s own
 /// tables: their positions there, with `u32::MAX` for a stateless query.
 fn meaning_key(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -132,7 +130,7 @@ fn meaning_key(
 }
 
 fn binary_expression_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -175,7 +173,7 @@ fn binary_expression_meaning(
 }
 
 fn bound_subtree_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -210,25 +208,30 @@ fn bound_subtree_meaning(
 }
 
 pub(super) fn builtin_ordering(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    builtin_comparison_meaning(program, machine, state, expression, comparison, |operator| {
-        match operator {
+    builtin_comparison_meaning(
+        program,
+        machine,
+        state,
+        expression,
+        comparison,
+        |operator| match operator {
             BinaryOperator::Less => Some(OperatorSpelling::Less),
             BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
             BinaryOperator::Greater => Some(OperatorSpelling::Greater),
             BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
             _ => None,
-        }
-    })
+        },
+    )
 }
 
 pub(super) fn builtin_boolean_equality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -244,13 +247,18 @@ pub(super) fn builtin_boolean_equality(
     // Parser-generated arm comparisons are ordinary equality expressions too.
     // Neither their missing authored occurrence nor their Boolean literal is
     // evidence that a visible equality declaration has builtin meaning.
-    builtin_comparison_meaning(program, machine, state, expression, comparison, |operator| {
-        match operator {
+    builtin_comparison_meaning(
+        program,
+        machine,
+        state,
+        expression,
+        comparison,
+        |operator| match operator {
             BinaryOperator::Equal => Some(OperatorSpelling::Equal),
             BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
             _ => None,
-        }
-    })
+        },
+    )
 }
 
 /// Whether `comparison` unambiguously selects the exact sealed toolchain
@@ -264,7 +272,7 @@ pub(super) fn builtin_boolean_equality(
 /// the builtin-meaning gate authoritative. This grants only the comparison
 /// relation; the float fact readers still owe their own operand checks.
 pub(crate) fn sealed_float_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -288,7 +296,7 @@ pub(crate) fn sealed_float_comparison(
 /// responsible for float formats, formal identities and literal landing.
 /// A boundary declaration alone never grants primitive comparison meaning.
 pub fn has_builtin_or_sealed_float_comparison_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     comparison: BinaryOperator,
@@ -336,7 +344,7 @@ fn float_comparison_spelling(comparison: BinaryOperator) -> Option<OperatorSpell
 }
 
 fn sealed_float_comparison_for_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     comparison: BinaryOperator,
@@ -406,7 +414,7 @@ fn sealed_float_comparison_for_operands(
 /// exact selected declaration and source custody must survive that spelling
 /// change. Binary nodes retain their existing, caller-owned meaning checks.
 pub(crate) fn guard_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -441,7 +449,7 @@ pub(crate) fn guard_comparison(
 }
 
 fn call_targets_declaration_entry(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
     declaration: symbols::SymbolHandle,
 ) -> bool {
@@ -457,7 +465,7 @@ fn call_targets_declaration_entry(
 /// subject and carrier. This distinguishes tag observation from ordinary value
 /// equality; it does not admit the operands or their declarations.
 pub fn has_exact_case_membership_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -485,7 +493,7 @@ pub fn has_exact_case_membership_meaning(
 /// Rejoin membership in an abstract signature's exact parameter scope. A
 /// parameter from another declaration cannot supply this subject's carrier.
 pub fn has_exact_parameter_case_membership_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
@@ -500,7 +508,7 @@ pub fn has_exact_parameter_case_membership_meaning(
 }
 
 fn exact_case_membership_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
     subject_matches: impl FnOnce(ExpressionHandle, &DataDefinition) -> bool,
@@ -569,7 +577,7 @@ fn exact_case_membership_meaning(
 /// and import visibility remain separate source-authority checks; payload and
 /// default obligations apply only when the expression is used as a value.
 pub fn exact_case_reference_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
     if !program.expression_table.expression_is_valid(expression) {
@@ -623,7 +631,7 @@ pub fn exact_case_reference_owner(
 }
 
 fn membership_subject_matches_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_context: Option<(&Machine, Option<&State>)>,
     subject: ExpressionHandle,
     owner: &DataDefinition,
@@ -690,7 +698,7 @@ fn membership_subject_matches_owner(
 }
 
 fn operand_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -699,7 +707,7 @@ fn operand_type(
 }
 
 fn operand_type_at_depth(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -829,7 +837,7 @@ fn operand_type_at_depth(
 /// Children recurse through [`operand_type_at_depth`], which retries the
 /// state-scoped place table first on every level.
 fn operand_place_projection_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -904,7 +912,7 @@ fn operand_place_projection_type(
 }
 
 pub(crate) fn builtin_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     atom: symbols::BuiltinTypeAtom,
 ) -> Option<TypeReferenceHandle> {
     // Builtin result types are independent of the sibling expression. Reuse an
@@ -922,7 +930,7 @@ pub(crate) fn builtin_type_reference(
 /// A recognized numeric bound must retain the meaning of the arithmetic
 /// expression it consumes, independently of the body's eventual operator.
 pub(super) fn builtin_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -936,7 +944,7 @@ pub(super) fn builtin_arithmetic(
 }
 
 fn builtin_arithmetic_node(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -977,7 +985,7 @@ fn builtin_arithmetic_node(
 /// Check only the constant-shaped subtree it could fold; a nonconstant place
 /// remains the responsibility of the calling relation recognizer.
 pub(super) fn folded_constant_is_builtin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -986,7 +994,7 @@ pub(super) fn folded_constant_is_builtin(
 }
 
 fn constant_subtree_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -1016,7 +1024,7 @@ fn constant_subtree_meaning(
 /// builtin tests: `spelling` maps the admitted operators, and both operand
 /// types must be spelled-meaning arguments at the comparison site.
 fn builtin_comparison_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,

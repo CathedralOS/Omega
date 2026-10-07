@@ -6,7 +6,7 @@
 use super::{
     CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode, PrimitiveType,
-    SignatureContractKind, SymbolHandle, TypedTrees, returns,
+    SignatureContractKind, SymbolHandle, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
@@ -20,7 +20,7 @@ use crate::execution::terminal_unit::structural_scalar_graph_signature;
 
 /// Rejoin owned and borrowed graph signatures before ordinary Unit calls use them.
 pub(super) fn registered_structural_graph_target<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine_symbol: SymbolHandle,
@@ -86,7 +86,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
 }
 
 pub(super) fn registered_primitive_store_target<'plans>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'plans>>,
     machine_symbol: SymbolHandle,
@@ -217,7 +217,7 @@ impl ScalarCallSite<'_> {
 }
 
 pub(super) fn available_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     candidates: &[CheckedUnitEffectMachinePlan],

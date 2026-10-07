@@ -29,7 +29,6 @@ use facts::NormalizedWriteFrame;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -44,11 +43,11 @@ use typed_trees::statement::{StatementNode, TableCall};
 /// call identity. Per-machine caches are built at the query boundary and fail
 /// closed if the program's symbols are already invalid.
 pub struct CallFrameResolver<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     symbols: TopLevelSymbols<'program>,
     /// The query memos. Inside a frozen-program scope every resolver built
     /// for the scope's program shares one set; see
-    /// `enter_frozen_program_scope`.
+    /// `CheckingContext`.
     caches: std::sync::Arc<CallFrameCaches>,
     /// Per-machine member/state symbol tables, built once with the resolver
     /// so every write-frame query shares them. `None` retains the build's
@@ -124,7 +123,7 @@ pub(crate) struct CallFrameCaches {
 impl CallFrameCaches {
     fn call_plans(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
     ) -> std::sync::Arc<(
         flow_effects::OperationalPlan,
         flow_effects::ServiceReachInferencePlan,
@@ -148,7 +147,7 @@ impl CallFrameCaches {
 /// Both known-callee written-path lanes (boundary call and requirement call)
 /// take the same parts; a probe closure picks the lane.
 type KnownWrittenPathsForParts = for<'site> fn(
-    &'site TypedTrees,
+    &'site dyn crate::CheckingInput,
     &Machine,
     &MachineSymbols<'_>,
     &TopLevelSymbols<'_>,
@@ -160,7 +159,7 @@ type KnownWrittenPathsForParts = for<'site> fn(
 ) -> Option<Vec<String>>;
 
 fn compute_call_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> (
     flow_effects::OperationalPlan,
     flow_effects::ServiceReachInferencePlan,
@@ -175,7 +174,7 @@ fn compute_call_plans(
 /// same pair inside a frozen-program scope, or computes a one-shot pair outside
 /// it. Recursive frame queries must not deep-clone both plans per callee.
 pub fn operand_call_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> std::sync::Arc<(
     flow_effects::OperationalPlan,
@@ -556,7 +555,7 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    pub fn new(program: &'program TypedTrees) -> Option<Self> {
+    pub fn new(program: &'program dyn crate::CheckingInput) -> Option<Self> {
         let mut diagnostics = Vec::new();
         let symbols = TopLevelSymbols::build(program, &mut diagnostics);
         diagnostics.is_empty().then_some(Self {
@@ -626,9 +625,8 @@ impl<'program> CallFrameResolver<'program> {
             return frame.clone();
         }
 
-        let frame =
-            if let Some(machine_symbols) = self.machine_symbols(current_machine) {
-                with_caller_origins(
+        let frame = if let Some(machine_symbols) = self.machine_symbols(current_machine) {
+            with_caller_origins(
                     self.program,
                     current_machine,
                     &self.symbols,
@@ -735,9 +733,9 @@ impl<'program> CallFrameResolver<'program> {
                     },
                 )
                 .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
-            } else {
-                NormalizedWriteFrame::opaque()
-            };
+        } else {
+            NormalizedWriteFrame::opaque()
+        };
         if let Ok(mut cache) = self.caches.statement_calls.lock() {
             cache.insert(cache_key, frame.clone());
         }
@@ -985,7 +983,7 @@ pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
 }
 
 pub(crate) fn statement_value_expression_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     use typed_trees::statement::StatementRootRole as Role;
@@ -1003,7 +1001,7 @@ pub(crate) fn statement_value_expression_roots(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_expression_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -1146,8 +1144,7 @@ pub(super) fn collect_expression_call_written_paths(
             let has_divergent_actual = arguments
                 .iter()
                 .any(|argument| origins.mentions_divergent(program, *argument));
-            let probe_paths = |paths: KnownWrittenPathsForParts,
-                               inference: &mut FrameInference| {
+            let probe_paths = |paths: KnownWrittenPathsForParts, inference: &mut FrameInference| {
                 paths(
                     program,
                     current_machine,
@@ -1250,7 +1247,7 @@ pub(super) fn collect_expression_call_written_paths(
 }
 
 fn value_builtin_has_empty_write_frame(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     if !call.receiver.is_valid() {
@@ -1276,7 +1273,7 @@ fn value_builtin_has_empty_write_frame(
 }
 
 pub(super) fn syntactic_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],
     arguments: &[ExpressionHandle],
@@ -1325,14 +1322,13 @@ pub(super) fn syntactic_call_written_paths(
 /// this fallback. Aggregate literals and unproven call results also remain
 /// opaque: their reachable references are not described by producer writes.
 pub(crate) fn conservative_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCall,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
     let receiver_members =
-
         crate::program_scope::call_targets::call_receiver_member_names(program, call);
     syntactic_call_written_paths(
         program,

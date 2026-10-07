@@ -34,14 +34,14 @@ impl Transfers {
 }
 
 struct Query<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     results: &'a Results,
     binding: u32,
 }
 
 pub(super) fn transfers(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     results: &Results,
     binding: u32,

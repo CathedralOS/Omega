@@ -7,7 +7,6 @@
 
 use super::DomainApplication;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataMember, TypeParameterKind};
 use typed_trees::domain::ProofFact;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -33,7 +32,7 @@ pub(super) enum SourceSegment {
 }
 
 pub(super) fn parameter_sources(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     contracts: &[&SignatureContract],
 ) -> (Vec<ContentSource>, bool) {
@@ -78,7 +77,7 @@ struct TypeBinding {
 }
 
 pub(super) fn domain_sources(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> (Vec<ContentSource>, bool) {
     let mut sources = Vec::new();
@@ -97,7 +96,7 @@ pub(super) fn domain_sources(
 
 #[allow(clippy::too_many_arguments)]
 fn append_sources(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[TypeBinding],
     borrowed: bool,
@@ -270,7 +269,7 @@ fn append_sources(
 }
 
 fn substituted_head<'scope>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
     mut substitutions: &'scope [TypeBinding],
 ) -> (TypeReferenceHandle, &'scope [TypeBinding]) {
@@ -291,7 +290,7 @@ fn substituted_head<'scope>(
 }
 
 fn reference_shell(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
     mut substitutions: &[TypeBinding],
 ) -> bool {
@@ -306,7 +305,7 @@ fn reference_shell(
 }
 
 fn type_size(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[TypeBinding],
 ) -> usize {

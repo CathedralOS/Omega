@@ -23,7 +23,7 @@ use traversal::{CallSiteTraversal, find_call_site_in_statement};
 /// name the same evaluated descriptor even when an explicit borrow encloses a
 /// range. A view of existing storage peels like any shared borrow.
 pub(crate) fn shared_argument_referent(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
     formal: TypeReferenceHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
@@ -59,7 +59,7 @@ pub(crate) fn shared_argument_referent(
 /// its own result. The place builder roots exactly the computed forms at their
 /// expression.
 pub(crate) fn view_argument_names_existing_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
 ) -> bool {
     crate::flow::canonical_place_from_expression(program, argument)
@@ -128,7 +128,7 @@ impl CallSite<'_> {
 /// `AuthoredDeclarationSelectionIntrinsic::CollectionView`; consumers holding
 /// the selection ledger read the retained identity instead of asking here.
 pub(crate) fn collection_view_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<CollectionViewOperation> {
     if call.target_symbol.is_valid()
@@ -180,7 +180,7 @@ pub(crate) enum MeasureReceiver {
 /// spelling but no receiver type asks the map directly and keeps its own
 /// narrowing visible at its site.
 pub(crate) fn collection_measure_member(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
     receiver: MeasureReceiver,
 ) -> Option<CollectionMeasure> {
@@ -202,7 +202,7 @@ pub(crate) fn collection_measure_member(
 /// Whether a declared type reference names a collection carrier: a fixed
 /// array or slice, reached through references and constraint shells.
 pub(crate) fn type_reference_is_collection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -222,7 +222,7 @@ pub(crate) fn type_reference_is_collection(
 }
 
 pub(crate) fn find_call_site<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -239,7 +239,7 @@ pub(crate) fn find_call_site<'program>(
 /// lookup's traversal and ordinals, retaining its selection ancestry instead.
 /// Calls after an earlier state transition require edge-specific custody.
 pub(crate) fn call_is_unconditional(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -265,7 +265,7 @@ pub(crate) fn call_is_unconditional(
 /// callers that own the symbols' storage (e.g. every checked body call of one
 /// state) and must not rescan the program per call.
 pub(crate) fn find_call_site_in_state<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &'program typed_trees::state::State,
     statement_index: usize,
@@ -283,7 +283,7 @@ pub(crate) fn find_call_site_in_state<'program>(
 /// Batching per statement keeps per-call work off quadratic re-walks when a
 /// caller (checked-body source binding) needs every site anyway.
 pub(crate) fn collect_call_sites_in_statement<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &'program typed_trees::state::State,
     statement_index: usize,
@@ -304,7 +304,7 @@ pub(crate) fn collect_call_sites_in_statement<'program>(
 /// Reuse call-ordinal traversal to distinguish guard evaluation from the two
 /// mutually exclusive target operands of a transition.
 pub(crate) fn transition_call_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -322,7 +322,7 @@ pub(crate) fn transition_call_target(
 }
 
 pub(crate) fn call_site_argument_expressions<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     call_site: &CallSite<'program>,
 ) -> &'program [ExpressionHandle] {
     lookup::call_site_argument_expressions(program, call_site)

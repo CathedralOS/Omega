@@ -14,7 +14,6 @@ use language_semantics::const_value::{
 };
 use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::statement::StatementNode;
@@ -22,7 +21,10 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
+pub(super) fn spelling(
+    program: &dyn ::validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<String> {
     if argument.type_reference.is_valid()
         || argument.application.is_some()
         || argument.evidence_projection.is_some()
@@ -66,7 +68,7 @@ pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -
 }
 
 pub(super) fn validate_authored(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidates: &[Candidate],
     callees: &[CalleeState],
 ) -> Result<(), Vec<Diagnostic>> {
@@ -103,7 +105,7 @@ pub(super) fn validate_authored(
 }
 
 pub(super) fn forwarded_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> TypeReferenceHandle {
     if !argument.symbol.is_valid() {
@@ -130,7 +132,7 @@ pub(super) fn forwarded_type(
 /// that resolved to no static declaration still qualifies; the caller's value
 /// scope decides whether it denotes a subject (`resolve_runtime_subject`).
 pub(super) fn is_runtime_value_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> bool {
     !argument.type_reference.is_valid()
@@ -151,7 +153,7 @@ pub(super) fn is_runtime_value_subject(
 /// payload can resolve, and only an ordinary `Local`/`Parameter` symbol
 /// counts — a runtime subject is never a type, machine, or evidence name.
 pub(super) fn resolve_runtime_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     scope_limit: usize,
     argument: &StaticMachineArgument,
@@ -180,7 +182,7 @@ pub(super) fn resolve_runtime_subject(
 }
 
 fn validate_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
     arguments: &[StaticMachineArgument],
 ) -> Result<(), Diagnostic> {
@@ -370,7 +372,7 @@ fn validate_arguments(
 }
 
 pub(super) fn validate_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Result<(), Diagnostic> {
     let machine = &program.machines()[candidate.template.machine_index];
@@ -415,7 +417,7 @@ pub(super) fn validate_bindings(
 // to whichever machine happens to share its arena. Follow only that
 // caller's type roots; named data does not lend its separate binder scope.
 pub(super) fn collect_type_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,
     expressions: &mut Vec<ExpressionHandle>,
@@ -472,7 +474,7 @@ pub(super) fn collect_type_expressions(
 }
 
 pub(super) fn has_pending_type_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     arguments: &[Option<TypeReferenceHandle>],
 ) -> bool {
     if program.pending_const_range_endpoints.is_empty() {
@@ -491,7 +493,7 @@ pub(super) fn has_pending_type_arguments(
 /// A static type is checked under the source caller even when the callee never
 /// uses its type binder. Unowned arena expressions cannot borrow another scope.
 fn validate_structural_type_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     callees: &[CalleeState],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -505,7 +507,7 @@ fn validate_structural_type_arguments(
         })
     }
     fn validate_types(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         caller: validation::StaticTypeArgumentOwner<'_>,
         arguments: &[StaticMachineArgument],
         symbols: &validation::TopLevelSymbols<'_>,
@@ -543,7 +545,7 @@ fn validate_structural_type_arguments(
         }
     }
     fn validate_expressions(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         caller: validation::StaticTypeArgumentOwner<'_>,
         symbols: &validation::TopLevelSymbols<'_>,
         diagnostics: &mut Vec<Diagnostic>,

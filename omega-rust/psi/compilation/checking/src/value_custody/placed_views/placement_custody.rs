@@ -2,7 +2,6 @@ use std::path::Path;
 
 use diagnostics::Diagnostic;
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -13,7 +12,10 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// replays one exact concrete policy/schema plan, its direct erased fields,
 /// and one acyclic ordinary record path from a represented outer field to
 /// erased leaves through at most twenty-three additional represented records.
-pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(super) fn validate_agreements(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
             .traits()
@@ -184,7 +186,7 @@ const MAX_CUSTODY_RECORD_DEPTH: usize = 24;
 
 #[allow(clippy::too_many_arguments)]
 fn validate_nested_record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     schema: &typed_trees::data::DataDefinition,
     custody: &typed_trees::data::DataDefinition,
@@ -214,7 +216,7 @@ fn validate_nested_record(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_nested_record_at_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     root_schema: &typed_trees::data::DataDefinition,
     custody: &typed_trees::data::DataDefinition,
@@ -334,7 +336,7 @@ fn validate_nested_record_at_path(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_custody_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     custody: &typed_trees::data::DataDefinition,
     schema_field: &DataField,
@@ -378,7 +380,7 @@ fn validate_custody_leaf(
 
 #[allow(clippy::too_many_arguments)]
 fn push_missing_nested_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     custody: &typed_trees::data::DataDefinition,
     nested_schema: &typed_trees::data::DataDefinition,
@@ -425,7 +427,7 @@ fn push_missing_nested_paths(
 
 #[allow(clippy::too_many_arguments)]
 fn push_missing_custody_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     custody: &typed_trees::data::DataDefinition,
     plan_name: &str,
@@ -443,7 +445,7 @@ fn push_missing_custody_path(
 }
 
 fn direct_nested_custody_record<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     schema_field: &DataField,
     owner_symbol: symbols::SymbolHandle,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -451,7 +453,7 @@ fn direct_nested_custody_record<'program>(
 }
 
 fn nested_custody_record<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     schema_field: &DataField,
     ancestors: &[symbols::SymbolHandle],
     record_depth: usize,
@@ -486,7 +488,7 @@ fn nested_custody_record<'program>(
 }
 
 fn type_contains_erased_descendant(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
@@ -506,7 +508,7 @@ const MAX_CUSTODY_DESCENDANT_TYPE_DEPTH: usize = 64;
 const MAX_CUSTODY_DESCENDANT_RECORDS: usize = 256;
 
 fn type_contains_erased_descendant_bounded(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
     memo: &mut Vec<(symbols::SymbolHandle, bool)>,
@@ -594,7 +596,7 @@ fn type_contains_erased_descendant_bounded(
 
 #[allow(clippy::too_many_arguments)]
 fn plain_record_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let TypeReferenceNode::Named { symbol, .. } =
@@ -616,7 +618,10 @@ fn plain_record_for_type(
     .then_some(record)
 }
 
-fn is_core_placement_custody(program: &TypedTrees, definition: &TraitDefinition) -> bool {
+fn is_core_placement_custody(
+    program: &dyn crate::CheckingInput,
+    definition: &TraitDefinition,
+) -> bool {
     definition.name.as_str() == "PlacementCustody"
         && !definition.is_boundary
         && program
@@ -630,7 +635,7 @@ fn is_core_placement_custody(program: &TypedTrees, definition: &TraitDefinition)
 }
 
 fn concrete_named_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -672,7 +677,7 @@ fn canonical_path(owner: &typed_trees::data::DataDefinition, field: &DataField) 
 }
 
 fn represented_field_diagnostic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     schema: &typed_trees::data::DataDefinition,
     custody: &typed_trees::data::DataDefinition,
@@ -692,7 +697,7 @@ fn represented_field_diagnostic(
 
 #[allow(clippy::too_many_arguments)]
 fn nested_path_represented_field_diagnostic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     path: &str,
     schema: &typed_trees::data::DataDefinition,
@@ -713,7 +718,7 @@ fn nested_path_represented_field_diagnostic(
 }
 
 fn unsupported_nested_custody_diagnostic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     schema: &typed_trees::data::DataDefinition,
     field: &DataField,
@@ -729,7 +734,7 @@ fn unsupported_nested_custody_diagnostic(
 }
 
 fn represented_decision(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     placement: &LayoutPlacementReport,
 ) -> String {
@@ -760,14 +765,14 @@ fn represented_decision(
 }
 
 fn fixed_type_width_bytes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     fixed_type_layout(program, type_reference, &mut Vec::new()).map(|(size, _)| size)
 }
 
 fn fixed_type_layout(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> Option<(usize, usize)> {

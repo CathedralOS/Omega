@@ -9,7 +9,6 @@ use checked_trees::CheckedScalarExpressionBindings;
 use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::FlowFacts;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -18,7 +17,7 @@ use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn is_scalar_return_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -39,7 +38,7 @@ pub(crate) fn is_scalar_return_call(
         })
 }
 pub(crate) fn retain_nested_structural_call_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     plans: &mut CheckedScalarExpressionPlans,
@@ -212,7 +211,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
 /// `source` is the state's unique flow fact, which the caller resolves once
 /// per state.
 pub(super) fn nested_structural_call_sites<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     source: &checked_trees::FlowStateFact,
     machine: &typed_trees::machine::Machine,
@@ -314,7 +313,7 @@ pub(super) fn nested_structural_call_sites<'program>(
 /// Borrow-free owned storage can carry nominal cleanup: its consuming
 /// continuation must select the hook, rather than exclude the producer here.
 pub(crate) fn nested_structural_call_return_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {

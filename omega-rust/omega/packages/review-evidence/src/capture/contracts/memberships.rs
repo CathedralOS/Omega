@@ -4,10 +4,10 @@
 //! to its family merely because those parameter identities are also retained.
 
 use diagnostics::Diagnostic;
-use typed_trees::{TypedTrees, domain::ProofMembershipFact};
+use typed_trees::domain::ProofMembershipFact;
 
 pub(crate) fn require_declaration_membership(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     membership: &ProofMembershipFact,
 ) -> Result<(), Vec<Diagnostic>> {
     if !membership.domain_arguments.is_empty()

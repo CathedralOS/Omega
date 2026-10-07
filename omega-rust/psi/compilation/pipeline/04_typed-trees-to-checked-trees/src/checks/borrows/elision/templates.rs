@@ -3,13 +3,12 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument},
     statement::{StatementNode, TransitionTargetNode},
 };
 
 pub(super) fn check_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     deferred: &[SymbolHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -91,7 +90,7 @@ pub(super) fn check_calls(
 }
 
 fn check_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     deferred: &[SymbolHandle],
@@ -139,7 +138,7 @@ fn check_target(
 /// unresolved structure, unmatched leaves, and access escalation all keep
 /// the historical rejection.
 fn closed_return_frontier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     target: SymbolHandle,

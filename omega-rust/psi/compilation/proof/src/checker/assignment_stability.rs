@@ -62,7 +62,8 @@ fn prepare_assignment_prefix<'query>(
     context: &'query AssignmentRangeContext<'_>,
 ) -> Option<arrival_stability::ArrivalPrefix<'query>> {
     let program = proof_plan.program;
-    let (machine, state) = super::machine_and_state(program, obligation.machine_symbol, obligation.state_symbol)?;
+    let (machine, state) =
+        super::machine_and_state(program, obligation.machine_symbol, obligation.state_symbol)?;
 
     // Every place the guard fact (and the value it refines) depends on. The
     // DE-HOISTED binary operands are included too: the obligation value may
@@ -195,5 +196,3 @@ pub(crate) fn member_paths_may_alias(left: &[String], right: &[String]) -> bool 
     let shared = left.len().min(right.len());
     left[..shared] == right[..shared]
 }
-
-

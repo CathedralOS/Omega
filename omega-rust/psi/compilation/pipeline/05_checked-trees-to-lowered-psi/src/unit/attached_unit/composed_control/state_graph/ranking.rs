@@ -158,7 +158,7 @@ pub(super) fn validate_witness(
             .filter(|_| custody.subjects.len() == 1)
             .and_then(|range| {
                 validation::ranking_range_required_symbols(
-                    checked,
+                    &checked.typed,
                     owner,
                     range,
                     validation::RankingRangeMeasure::Single(custody.subjects[0]),
@@ -167,7 +167,7 @@ pub(super) fn validate_witness(
             })
             .unwrap_or_else(|| vec![subject.symbol]);
         let entry_roles = validation::discover_state_entry_mappings(
-            checked,
+            &checked.typed,
             owner,
             subject.symbol,
             &required_roles,

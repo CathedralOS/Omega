@@ -1,7 +1,7 @@
 //! Rejoin a write-only receiver with its attached storage declaration.
 use super::{
     DataDefinition, DataShapeKind, Diagnostic, ExpressionHandle, ExpressionNode, Machine,
-    SymbolHandle, TypedTrees, WriteOnlyRoot, closed_write_only_data_by_symbol, write_only_record,
+    SymbolHandle, WriteOnlyRoot, closed_write_only_data_by_symbol, write_only_record,
 };
 use typed_trees::data::DataField;
 use typed_trees::expression::TableNamePath;
@@ -12,7 +12,7 @@ pub(super) use projections::captured_type;
 pub(super) use projections::{ProjectionAdmission, projected};
 
 pub(super) fn record<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
 ) -> Option<&'program DataDefinition> {
     let machine = machine(program, root)?;
@@ -23,7 +23,7 @@ pub(super) fn record<'program>(
 }
 
 pub(super) fn field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
@@ -31,7 +31,7 @@ pub(super) fn field<'program>(
 }
 
 fn machine<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
 ) -> Option<&'program Machine> {
     if !root.receiver_machine.is_valid() {
@@ -48,7 +48,7 @@ pub(super) fn matches_name(root: &WriteOnlyRoot, path: &TableNamePath) -> bool {
 }
 
 pub(super) fn mentions_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
     path: &TableNamePath,
 ) -> bool {
@@ -63,7 +63,7 @@ pub(super) fn mentions_name(
 }
 
 pub(super) fn bare_field<'program, 'roots>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
 ) -> Option<(&'roots WriteOnlyRoot, &'program DataField)> {
@@ -79,7 +79,7 @@ pub(super) fn bare_field<'program, 'roots>(
 }
 
 fn attached_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
     symbol: SymbolHandle,
     name: &str,

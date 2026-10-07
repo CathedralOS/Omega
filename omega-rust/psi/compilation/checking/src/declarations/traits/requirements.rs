@@ -5,12 +5,11 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::operator::trait_operator_operand_signature;
 use typed_trees::trait_definition::TraitDefinition;
 
 pub(crate) fn validate_trait_requirements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -123,7 +122,7 @@ pub(crate) fn validate_trait_requirements(
 }
 
 fn validate_trait_operator_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -148,7 +147,7 @@ fn validate_trait_operator_bindings(
 }
 
 fn validate_trait_requirement_cycles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     path: &mut Vec<SymbolHandle>,
     reported_cycle_symbols: &mut Vec<SymbolHandle>,

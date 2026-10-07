@@ -18,14 +18,13 @@ use crate::value_custody::recasts::scalar_representation::{
 };
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The rung-A judgment for one blessed `&x as &T` (§5b rules 1-4 over the
 /// scalar fragment).
 pub(crate) fn judge_scalar_recast(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -460,7 +459,13 @@ fn interior_offset_unproven_rejected(
         region_length,
     } = interior
     {
-        push_offset_unproven(diagnostics, context, offset_display, *region_length, source_span);
+        push_offset_unproven(
+            diagnostics,
+            context,
+            offset_display,
+            *region_length,
+            source_span,
+        );
         return true;
     }
     false
@@ -491,7 +496,7 @@ fn reject_when_target_overruns_region(
 }
 
 fn judge_slice_recast(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -705,7 +710,7 @@ fn judge_slice_recast(
 /// `let v: &f32 = &self.x;` (x: i64) is an accidental, unjudged recast --
 /// native bit-puns while the interpreter delivers the semantic value.
 pub(crate) fn report_unspelled_reference_pun(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     initializer: ExpressionHandle,
@@ -743,7 +748,7 @@ pub(crate) fn report_unspelled_reference_pun(
 }
 
 pub(crate) fn strip_mutable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     match program.expression_table.expression(expression) {

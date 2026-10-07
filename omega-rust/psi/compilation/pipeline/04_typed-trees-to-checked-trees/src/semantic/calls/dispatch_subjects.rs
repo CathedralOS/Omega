@@ -7,14 +7,13 @@
 //! operands and authored selection occurrence. The language evaluates the
 //! call once, at the first arm (wiki/spec/language/expressions.md), so each
 //! copy names that one result rather than a call site of its own.
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 /// The authored call whose saved result a case guard tests. Ordinary call
 /// operand preparation owns its nested invocations and evaluation order.
 pub(crate) fn computed_case_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let (subject, _) = crate::proof::exact_outcome_case_test(program, guard)?;
@@ -26,7 +25,7 @@ pub(crate) fn computed_case_subject(
 /// Source spans are diagnostic only, so a separately authored call of the
 /// same shape keeps its own occurrence and stays a separate evaluation.
 pub(crate) fn repeats_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: ExpressionHandle,
     copy: ExpressionHandle,
 ) -> bool {
@@ -46,7 +45,7 @@ pub(crate) fn repeats_subject(
 /// The computed subject statement `index` evaluates: the subject of its
 /// guard when no earlier transition of `statements` tests a copy of it.
 pub(crate) fn evaluated_case_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: &[StatementNode],
     index: usize,
 ) -> Option<ExpressionHandle> {
@@ -95,7 +94,7 @@ impl StatementDispatchCalls {
 /// subject its guard tests. A statement whose guard tests no computed subject
 /// spells only ordinary calls.
 pub(crate) fn statement_dispatch_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: &[StatementNode],
     index: usize,
 ) -> StatementDispatchCalls {

@@ -4,12 +4,11 @@
 use crate::values::scalar::structural_fields;
 use crate::values::scalar::structural_fields::structural_data;
 use checked_trees::CheckedStructuralPredicatePathSegment;
-use typed_trees::TypedTrees;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 fn field_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: TypeReferenceHandle,
     identity: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -27,7 +26,7 @@ fn field_type(
 }
 
 pub(super) fn path_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     parameter_position: u32,
     path: &[CheckedStructuralPredicatePathSegment],
@@ -85,7 +84,7 @@ pub(super) fn path_type_reference(
 }
 
 pub(super) fn path_primitive_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     parameter_position: u32,
     path: &[CheckedStructuralPredicatePathSegment],
@@ -99,7 +98,7 @@ pub(super) fn path_primitive_type(
 }
 
 pub(super) fn structural_record_fields(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<&typed_trees::data::DataField>> {
     let data = structural_data(program, type_reference)?;
@@ -117,7 +116,7 @@ pub(super) fn structural_record_fields(
 }
 
 pub(super) fn payloadless_sum_cases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<String>> {
     let data = structural_data(program, type_reference)?;

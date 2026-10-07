@@ -8,14 +8,14 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
-    TypedTrees, is_reference,
+    is_reference,
 };
 
 /// A Fused binding projected from an ordinary parameter retains its exact
 /// requirement and compiler-issued erasure authorization. This proves the call
 /// receiver; attachment-field requirements remain a separate roster obligation.
 pub(super) fn parameter_binding_receiver_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
@@ -40,7 +40,7 @@ pub(super) fn parameter_binding_receiver_matches(
 /// call planner separately requires its structural parameter, and attachment
 /// collection uses this only for an already-planned matching boundary call.
 pub(crate) fn parameter_binding_receiver_source<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
@@ -104,7 +104,7 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
 /// transfers nominal cleanup obligations and stored loan custody with the
 /// whole value. Source copyability does not erase either carried obligation.
 pub(crate) fn boundary_value_result_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
     expected: &ExpectedCallValueResult<'_>,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
@@ -132,7 +132,7 @@ pub(crate) fn boundary_value_result_matches(
 /// its declared `&[T]`/`&mut [T]` view, and the projected path names the
 /// storage rather than materializing a view local.
 pub(crate) fn fixed_array_slice_view_is_admitted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -148,7 +148,7 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
 
 /// A fixed byte array lends initialized elements without becoming a bounded owner.
 pub(crate) fn fixed_byte_array_view_is_admitted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -170,7 +170,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
 /// a slice. Returns the peeled source and both element types when the source/
 /// target shape is the fixed-array-to-slice view both admissions test.
 fn fixed_array_slice_view_parts<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     mut source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(
@@ -212,7 +212,7 @@ fn fixed_array_slice_view_parts<'a>(
 /// name plus the resolved member symbol an expression-site receiver carries.
 /// A direct `Boundary::method` call and a non-`self` receiver have neither.
 fn provider_attachment_receiver(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> Option<(typed_trees::name::Identifier, Option<SymbolHandle>)> {
     match call_site {
@@ -246,14 +246,14 @@ fn provider_attachment_receiver(
 /// The receiver field's authored name alone, so a caller can tell whether a
 /// call is routed through `self.<field>` at all.
 pub(crate) fn provider_attachment_receiver_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> Option<typed_trees::name::Identifier> {
     provider_attachment_receiver(program, call_site).map(|(name, _)| name)
 }
 
 pub(crate) fn provider_attachment_receiver_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_site: &crate::semantic::calls::CallSite<'_>,
     provider_symbol: SymbolHandle,
@@ -299,7 +299,7 @@ pub(crate) fn provider_attachment_receiver_matches(
 /// `&'a mut <boundary trait>` (unwrapping qualifications and the mutable
 /// borrow to the trait symbol; a shared `&` borrow is not a provider handle).
 fn field_type_carries_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     provider_symbol: SymbolHandle,
 ) -> bool {
@@ -318,7 +318,7 @@ fn field_type_carries_requirement(
 /// down; deeper nesting stays refused so a named member cannot launder an
 /// indirect boundary path past the attachment rule.
 fn service_record_member_carries_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     provider_symbol: SymbolHandle,
 ) -> bool {

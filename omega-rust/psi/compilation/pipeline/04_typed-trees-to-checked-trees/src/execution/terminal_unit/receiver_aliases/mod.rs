@@ -1,7 +1,7 @@
 //! Erase nonescaping reference carriers, not their captured referent or access.
 use super::{
     CheckFacts, CheckedStructuralAccess, ExpressionNode, StatementNode, SymbolHandle,
-    TypeReferenceHandle, TypedTrees,
+    TypeReferenceHandle,
 };
 use crate::execution::terminal_unit::types::{
     lent_storage_identity, state_flow, structural_access_for_type_reference,
@@ -36,7 +36,7 @@ pub(super) struct ReceiverAlias {
 /// already-erased parent alias.
 #[allow(clippy::too_many_arguments)]
 fn formation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     flow: &checked_trees::FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
@@ -300,7 +300,7 @@ fn formation(
 /// at their own use sites. A carrier whose evidence does not reconstruct is
 /// simply absent from the roster and its uses stay unsupported.
 pub(super) fn aliases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -354,7 +354,7 @@ pub(super) fn aliases(
 }
 
 fn exclusive_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<BorrowAccessKind> {
     match structural_access_for_type_reference(program, reference)? {
@@ -399,7 +399,7 @@ pub(super) fn resolve(
 /// sequence advances past their declarations; every other reference local
 /// continues to reject through the ordinary local-data path.
 pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

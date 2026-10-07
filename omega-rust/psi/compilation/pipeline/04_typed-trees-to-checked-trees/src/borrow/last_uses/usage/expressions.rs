@@ -1,7 +1,7 @@
 use checked_trees::expression::ExpressionHandle;
 
 pub(super) fn expression_uses_local_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     local_name: &str,
 ) -> bool {

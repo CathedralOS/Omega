@@ -1,7 +1,7 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
-    StatementNode, SymbolHandle, TransitionGuardNode, TransitionTargetNode, TypedTrees,
-    is_arm_pattern_marker, structural_call_machine_name, structural_term, term_contains,
+    StatementNode, SymbolHandle, TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker,
+    structural_call_machine_name, structural_term, term_contains,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
@@ -145,7 +145,7 @@ impl StructuralTerm {
 }
 
 pub(super) struct StructuralJudge<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
     resolve_applications: bool,
@@ -191,7 +191,7 @@ impl Clone for StructuralJudge<'_> {
 
 impl<'program> StructuralJudge<'program> {
     pub(super) fn from_requires(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
@@ -199,7 +199,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn from_case_requires(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
@@ -214,7 +214,7 @@ impl<'program> StructuralJudge<'program> {
     /// of a mathematical function. Contracts retain their denotational terms;
     /// body substitution must not identify two independent observations.
     pub(super) fn from_runtime_requires(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
@@ -228,7 +228,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn from_requires_with_resolution(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
         resolve_applications: bool,
@@ -262,7 +262,7 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
-    pub(super) fn intake(&mut self, program: &TypedTrees, fact: ExpressionHandle) {
+    pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             return;
         };
@@ -1392,7 +1392,11 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
-    pub(super) fn judge(&self, program: &TypedTrees, fact: ExpressionHandle) -> StructuralJudgment {
+    pub(super) fn judge(
+        &self,
+        program: &dyn crate::CheckingInput,
+        fact: ExpressionHandle,
+    ) -> StructuralJudgment {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             // A boolean-valued proof call is itself a proposition. Resolve a
             // closed checked application exactly as `call == true`; N6

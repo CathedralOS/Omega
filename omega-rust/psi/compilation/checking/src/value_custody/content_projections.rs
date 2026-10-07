@@ -14,7 +14,6 @@ use language_semantics::content::{
     ContentScalarExpression, projection_report_fingerprint,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
@@ -38,7 +37,7 @@ struct ProjectionDomainCandidate<'program> {
 }
 
 pub(crate) fn validate_content_projection_conformances(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut published: Vec<(language_semantics::SemanticDomainId, SymbolHandle, String)> =
@@ -172,7 +171,9 @@ pub(crate) fn validate_content_projection_conformances(
 /// checked-tree builder calls this only after program validation succeeds;
 /// invalid or incomplete candidates are therefore omitted rather than
 /// represented as partial facts.
-pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjectionPlan> {
+pub fn build_content_projection_plans(
+    program: &dyn crate::CheckingInput,
+) -> Vec<ContentProjectionPlan> {
     program
         .machines()
         .iter()
@@ -223,7 +224,10 @@ pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjec
         .collect()
 }
 
-pub(crate) fn is_content_projection_machine(program: &TypedTrees, machine: &Machine) -> bool {
+pub(crate) fn is_content_projection_machine(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> bool {
     program
         .machine_trait_conformances(machine)
         .iter()
@@ -250,7 +254,7 @@ pub(crate) fn is_content_projection_machine(program: &TypedTrees, machine: &Mach
 }
 
 fn selected_content_algebra(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conformance: &typed_trees::machine::TraitConformance,
 ) -> Option<ContentAlgebraIdentity> {
     // `Content<Owner, A>`: the owner is the projected subject's carrier,
@@ -291,7 +295,7 @@ fn selected_content_algebra(
 }
 
 fn projection_result_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<ExpressionHandle> {
     let [state] = program.machine_states(machine) else {
@@ -316,7 +320,7 @@ fn projection_result_expression(
 }
 
 pub(crate) fn content_projection_body_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<ExpressionHandle> {
     program
@@ -335,7 +339,7 @@ pub(crate) fn content_projection_body_expression(
 }
 
 fn normalize_projection_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     subject: ProjectionSubject,
     algebra: &ContentAlgebraIdentity,
     expression: ExpressionHandle,
@@ -382,7 +386,7 @@ fn normalize_projection_expression(
 }
 
 fn normalize_projection_scalar(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     subject: ProjectionSubject,
     expression: ExpressionHandle,
 ) -> Option<ContentScalarExpression> {
@@ -390,7 +394,7 @@ fn normalize_projection_scalar(
 }
 
 fn normalize_projection_scalar_context(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     subject: ProjectionSubject,
     expression: ExpressionHandle,
     within_integer_coercion: bool,
@@ -490,7 +494,7 @@ fn normalize_projection_scalar_context(
 }
 
 fn normalize_subject_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     subject: ProjectionSubject,
     expression: ExpressionHandle,
 ) -> Option<(Vec<ContentFieldSegment>, TypeReferenceHandle)> {
@@ -513,7 +517,7 @@ fn normalize_subject_field(
 }
 
 fn data_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     mut receiver_type: TypeReferenceHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataField> {
@@ -549,7 +553,10 @@ fn data_field<'program>(
         })
 }
 
-fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition) -> bool {
+fn is_content_projection_trait(
+    program: &dyn crate::CheckingInput,
+    candidate: &TraitDefinition,
+) -> bool {
     compiler_owned_symbol(program, candidate.symbol)
         && candidate
             .name
@@ -562,12 +569,19 @@ fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition
         && matches!(program.trait_machine_signatures(candidate), [requirement] if requirement.name.as_str() == "project")
 }
 
-fn is_content_scalar_embedding(program: &TypedTrees, call: &TableCallExpression) -> bool {
+fn is_content_scalar_embedding(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
     crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call)
 }
 
-fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    let type_reference = crate::program_scope::type_shape::unconstrained_base(program, type_reference);
+fn runtime_scalar_can_embed(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let type_reference =
+        crate::program_scope::type_shape::unconstrained_base(program, type_reference);
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Named { name, .. }
@@ -575,7 +589,7 @@ fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceH
     )
 }
 
-fn compiler_owned_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn compiler_owned_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
     let owning_machine = program.machines().iter().find(|machine| {
         machine.symbol == symbol
             || program
@@ -596,7 +610,10 @@ fn compiler_owned_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
     }
 }
 
-fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<ProjectionSubject> {
+fn projection_subject(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> Option<ProjectionSubject> {
     let state = program.machine_states(machine).first()?;
     let [parameter] = program.state_parameters(state) else {
         return None;
@@ -619,9 +636,8 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<Project
     }
 }
 
-
 fn projection_domain_candidates<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     subject: ProjectionSubject,
 ) -> Vec<ProjectionDomainCandidate<'program>> {
@@ -664,7 +680,7 @@ fn projection_domain_candidates<'program>(
 }
 
 fn domain_accepts_projection_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     carrier: TypeReferenceHandle,
 ) -> bool {
@@ -687,7 +703,7 @@ fn domain_accepts_projection_carrier(
 }
 
 fn declared_domain_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<&typed_trees::types::DomainConstraint> {
     match program.type_reference_table.type_reference(type_reference) {

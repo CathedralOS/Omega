@@ -6,7 +6,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(super) fn contextual_effective_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     receiver: ExpressionHandle,
@@ -27,7 +27,7 @@ pub(super) fn contextual_effective_member_symbol(
 }
 
 fn contextual_expression_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -78,7 +78,7 @@ fn contextual_expression_type_symbol(
 }
 
 fn contextual_symbol_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -100,7 +100,7 @@ fn contextual_symbol_type_symbol(
 }
 
 pub(super) fn contextual_name_root_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,

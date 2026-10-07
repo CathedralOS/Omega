@@ -14,7 +14,6 @@ use checked_trees::{FlowFacts, FlowSemanticContextRef};
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use language_semantics::const_value::boolean_literal_spelling;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
@@ -30,7 +29,7 @@ pub(super) struct ExpressionSubstitution<'program> {
 }
 
 pub(super) fn established_index_equalities(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     flow: &FlowFacts,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -69,7 +68,7 @@ pub(super) fn established_index_equalities(
 }
 
 pub(super) fn established_index_equality_for_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     flow: &FlowFacts,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -103,7 +102,7 @@ pub(super) fn established_index_equality_for_argument(
 }
 
 pub(super) fn expression_proves_index_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
     actual: TypeReferenceHandle,
@@ -166,7 +165,7 @@ pub(super) fn expression_proves_index_equality(
 }
 
 pub(super) fn fact_substitutions<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     point: ProgramPoint,
 ) -> Vec<ExpressionSubstitution<'program>> {
@@ -272,7 +271,7 @@ pub(crate) enum BoundIndexArgument {
 /// shape this does not classify empties the whole map rather than risk a
 /// misaligned substitution.
 pub(crate) fn bound_index_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     scope_limit: usize,
     target_symbol: SymbolHandle,
@@ -356,7 +355,7 @@ pub(crate) fn bound_index_substitutions(
 /// against the enclosing state's scope at the call's statement position —
 /// the same scope rule `resolve_runtime_subject` applies during selection.
 pub(super) fn bound_index_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     scope_limit: usize,
     argument: &StaticMachineArgument,
@@ -385,7 +384,7 @@ pub(super) fn bound_index_argument(
 /// rule `resolve_runtime_subject` applies during selection, so a shadowed
 /// local cannot bind to an earlier same-named binding.
 pub(super) fn resolve_scope_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     scope_limit: usize,
     argument: &StaticMachineArgument,
@@ -410,7 +409,7 @@ pub(crate) type BoundIndexSubstitutions = Vec<(SymbolHandle, BoundIndexArgument)
 /// boundary — this is what lets an argument in `Coordinate<N>` discharge a
 /// parameter declared `in Coordinate<I>` when the call bound `I` to `N`.
 pub(super) fn enclosing_call_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     state_calls: &StateCallIndex<'_, '_>,
     point: ProgramPoint,
@@ -452,7 +451,7 @@ pub(super) fn enclosing_call_substitutions(
 /// call whose declared result carries the callee's binders — a call result
 /// `Coordinate<I>` compares as `Coordinate<N>` under the call's own binding.
 pub(super) fn value_call_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     statement_index: usize,
     value: ExpressionHandle,
@@ -479,7 +478,7 @@ pub(super) fn value_call_substitutions(
 /// parameters substituted, denotes the index `argument` spells under the
 /// enclosing call's binder substitutions.
 pub(super) fn substituted_expression_matches_index_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
     argument: TypeReferenceHandle,
@@ -509,7 +508,7 @@ pub(super) fn substituted_expression_matches_index_argument(
 }
 
 pub(super) fn substituted_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
 ) -> Option<ExpressionHandle> {
@@ -535,7 +534,7 @@ pub(super) fn substituted_root(
 }
 
 pub(super) fn substituted_expressions_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     authored: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
     local: ExpressionHandle,

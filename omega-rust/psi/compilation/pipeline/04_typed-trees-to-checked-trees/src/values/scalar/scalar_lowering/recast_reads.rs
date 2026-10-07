@@ -7,7 +7,6 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
     CheckedStructuralPredicatePathSegment,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -21,7 +20,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// element or as the first byte of a `u8` region, and deeper view chains have
 /// no scalar place read to re-view.
 pub(crate) fn recast_view_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expression = expression;
@@ -192,7 +191,7 @@ pub(super) fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanE
 /// carrier remains a scalar representation view so its landing obligation
 /// reaches Terminal Psi through the ordinary scalar computation path.
 pub(crate) fn lower_recast_boolean_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],

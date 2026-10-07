@@ -33,16 +33,17 @@ pub fn project_checked_callable_policy<'a>(
     let build = compilation.custody.build().selected_build_machine_symbol;
     // Selected dispatch changes no checked body, so the settled trees are the
     // authored source the policy callables classify.
-    let source = &compilation.typed;
+    let source = compilation.checking_input;
     crate::capture::behavior::policy::validate_call_receiver_roots(source, &compilation.facts)?;
     let mutation_resolver = validation::CallFrameResolver::new(source)
         .ok_or_else(|| rejected("checked source has no exact call resolver"))?;
     let mut projected_build = false;
     let mut callables = Vec::new();
-    let operational = validation::infer_operational_may(compilation);
-    let service_reaches = validation::infer_service_reaches(compilation, &operational);
+    let operational = validation::infer_operational_may(compilation.checking_input);
+    let service_reaches =
+        validation::infer_service_reaches(compilation.checking_input, &operational);
     let inferred_crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
-        &compilation.typed,
+        compilation.checking_input,
         &compilation.facts,
     );
     for machine in compilation.machines() {

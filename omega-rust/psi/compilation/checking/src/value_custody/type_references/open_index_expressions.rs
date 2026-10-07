@@ -10,7 +10,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn validate_indexed_domain_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     constraint: &typed_trees::types::DomainConstraint,
     scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -35,7 +35,7 @@ pub(super) fn validate_indexed_domain_arguments(
 }
 
 pub(crate) fn validate_indexed_qualification_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     cast: &typed_trees::expression::TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
@@ -85,7 +85,7 @@ pub(crate) fn validate_indexed_qualification_arguments(
 /// Const-typed domain parameters' `(expression, expected)` sites zipped from
 /// one argument row — deduped by expression.
 fn collect_domain_const_sites<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: impl Iterator<Item = &'a TypeReferenceHandle>,
     sites: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -126,7 +126,12 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
                 continue;
             };
             let parameters = typed_trees::domain::index_parameters(program, definition);
-            collect_domain_const_sites(program, parameters, constraint.arguments.iter(), &mut sites);
+            collect_domain_const_sites(
+                program,
+                parameters,
+                constraint.arguments.iter(),
+                &mut sites,
+            );
         }
     }
     let indexed_qualification_sites = program
@@ -199,7 +204,7 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
 /// it. The open index walk sees only shared expression tables, so the owning
 /// machine is recovered from the expression's binder leaves — an open index
 /// expression is parameterized by exactly one declaration's binders.
-fn const_binder_owners(program: &TypedTrees) -> HashMap<SymbolHandle, SymbolHandle> {
+fn const_binder_owners(program: &dyn crate::CheckingInput) -> HashMap<SymbolHandle, SymbolHandle> {
     let mut owners = HashMap::new();
     let mut seed = |parameters: &[typed_trees::data::TypeParameter], owner: SymbolHandle| {
         for parameter in parameters {
@@ -244,7 +249,7 @@ fn const_binder_owners(program: &TypedTrees) -> HashMap<SymbolHandle, SymbolHand
 /// when no leaf is a generic binder (a fully concrete arithmetic expression
 /// never carries open-index authority).
 fn open_index_expression_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     binder_owners: &HashMap<SymbolHandle, SymbolHandle>,
 ) -> Option<SymbolHandle> {
@@ -274,7 +279,7 @@ fn open_index_expression_owner(
 }
 
 fn normalize_open_index_expression_operations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     index_type: TypeReferenceHandle,
     owner: Option<SymbolHandle>,
@@ -457,7 +462,7 @@ fn normalize_open_index_expression_operations(
 /// name no parameter position, and a bound's subject is always one of the
 /// machine's own binders, so they cannot carry an index type.
 fn binary_requirement_trait_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     requirement: &typed_trees::signature::StateSignature,
 ) -> Option<usize> {
@@ -483,7 +488,7 @@ fn binary_requirement_trait_parameter(
 }
 
 fn validate_indexed_domain_argument_pack(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::domain::DomainDefinition,
     domain_name: &str,
     arguments: &[TypeReferenceHandle],
@@ -575,11 +580,9 @@ fn validate_indexed_domain_argument_pack(
 
 /// A const or value binder's declared type reference — the only kinds the
 /// candidate filters above admit.
-fn const_binder_type_reference(
-    binder: &typed_trees::data::TypeParameter,
-) -> TypeReferenceHandle {
-    let (TypeParameterKind::Const { type_reference }
-    | TypeParameterKind::Value { type_reference }) = binder.kind
+fn const_binder_type_reference(binder: &typed_trees::data::TypeParameter) -> TypeReferenceHandle {
+    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
+        binder.kind
     else {
         unreachable!();
     };
@@ -587,7 +590,7 @@ fn const_binder_type_reference(
 }
 
 fn validate_open_index_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     expected: TypeReferenceHandle,
     scope: TypeParameterScope<'_>,
@@ -701,7 +704,10 @@ fn validate_open_index_expression(
     }
 }
 
-fn const_index_type_label(program: &TypedTrees, type_reference: TypeReferenceHandle) -> String {
+fn const_index_type_label(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> String {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => name.as_str().to_owned(),
         TypeReferenceNode::Constrained { base_type, .. } => {
@@ -720,7 +726,7 @@ fn const_index_type_label(program: &TypedTrees, type_reference: TypeReferenceHan
 }
 
 fn integer_const_fits_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     value: i128,
 ) -> bool {

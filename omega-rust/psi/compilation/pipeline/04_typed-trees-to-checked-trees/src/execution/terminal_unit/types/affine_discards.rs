@@ -36,7 +36,7 @@ pub(in crate::execution::terminal_unit) fn reference_consumed_parameters(
 }
 
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -213,7 +213,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
 }
 
 pub(in crate::execution::terminal_unit) fn checked_no_code_affine_discard_positions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -241,7 +241,7 @@ pub(in crate::execution::terminal_unit) fn checked_no_code_affine_discard_positi
 /// arguments and declaration fields are both inspected: substituting an owned
 /// argument cannot turn an authored reference field into owned storage.
 pub(super) fn partial_affine_source_contents_are_owned(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     visited: &mut Vec<SymbolHandle>,
 ) -> bool {

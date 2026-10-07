@@ -34,7 +34,7 @@ pub(super) struct ResolvedOperatorStatementCall<'program> {
 /// consumer (ownership, mutation invalidation, and postcondition flow) must use
 /// this one resolution rule rather than guessing independently.
 pub(super) fn resolve_operator_statement_call<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     call: &typed_trees::statement::TableCall,
 ) -> Option<ResolvedOperatorStatementCall<'program>> {
     // A valid receiver symbol that resolves to a typed value (a local,
@@ -76,7 +76,7 @@ pub(super) fn resolve_operator_statement_call<'program>(
 /// Resolve an operator call from its already-separated path and arity facts.
 /// Expression-call ownership and statement-call flow share this exact rule.
 pub(super) fn resolve_operator_for_call<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     static_receiver_segments: Option<&[&str]>,
     target_name: &str,
@@ -102,7 +102,7 @@ struct OperatorStatementOperand {
 }
 
 fn operator_statement_operands<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
@@ -175,7 +175,7 @@ fn operator_statement_operands<'program>(
 /// places and labels canonicalize exactly as the statement form's do, so
 /// contract instantiation renders identical operand names either way.
 fn named_operator_call_operands<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -223,7 +223,7 @@ fn named_operator_call_operands<'program>(
 /// then the operator's `ensures` publish onto the caller operands.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_named_operator_call_effects(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domains: &DomainFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -310,7 +310,7 @@ pub(super) fn apply_named_operator_call_effects(
 /// nothing". The expression-form counterpart of
 /// `operator_statement_call_mutated_places`.
 pub(super) fn named_operator_call_mutated_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -344,7 +344,7 @@ pub(super) fn named_operator_call_mutated_places(
 /// operands still invalidate every fact depending on those places before the
 /// operator's postconditions are introduced.
 pub(super) fn operator_statement_call_mutated_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
@@ -374,7 +374,7 @@ pub(super) fn operator_statement_call_mutated_places(
 /// operand, including any relative field/index segments.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_operator_statement_ensures(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
@@ -415,7 +415,7 @@ pub(super) fn append_operator_statement_ensures(
 /// `StatementNode::Call` path and the expression-form named-use path.
 #[allow(clippy::too_many_arguments)]
 fn append_operator_ensures_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     operator: &typed_trees::operator::OperatorDefinition,
@@ -632,7 +632,7 @@ fn append_operator_ensures_context(
 /// operator's parameters. Contract name paths are intentionally not resolved
 /// as caller symbols, so the parameter's authored name is the fallback root.
 fn operator_contract_relative_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {

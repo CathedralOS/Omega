@@ -4,7 +4,7 @@ use super::{CanonicalPlace, canonical_place_segments_may_overlap, frame_storage_
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::PlaceRoot;
 use typed_trees::types::TypeReferenceNode;
-use typed_trees::{TypedTrees, machine::Machine, statement::StatementNode};
+use typed_trees::{machine::Machine, statement::StatementNode};
 
 mod result_candidates;
 
@@ -18,7 +18,7 @@ pub(crate) use result_candidates::{
 /// Returns `None` when the symbol is not a reference-typed local or the route
 /// cannot be replayed.
 pub(crate) fn reference_route_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
@@ -51,7 +51,7 @@ pub(crate) fn reference_route_source(
 }
 
 pub(crate) fn local_reference_storage_before_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -101,7 +101,7 @@ pub(crate) fn local_reference_storage_before_statement(
 }
 
 pub(crate) fn local_reference_storage_at_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     flow: &FlowFacts,
@@ -138,7 +138,7 @@ pub(crate) fn local_reference_storage_at_call(
 /// or conservative treatment, including when an earlier operand's frame could
 /// have written a candidate.
 pub(crate) fn local_reference_candidate_storages_at_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     borrow: &checked_trees::BorrowFacts,
     machine: &Machine,
@@ -206,7 +206,7 @@ fn call_position_in_state(
 /// The statement-prefix origin alone says nothing about those effects.
 /// Calls are retained in execution order, not authored preorder ordinal.
 fn preserve_call_prefix_storage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     flow: &FlowFacts,
@@ -266,7 +266,7 @@ fn preserve_call_prefix_storage(
 /// serve this path; the ceiling stays sound because every caller-visible write
 /// goes through an exclusive borrow it names.
 fn preserve_candidate_call_prefix_storage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     borrow: &checked_trees::BorrowFacts,
     machine: &Machine,
@@ -318,7 +318,7 @@ fn preserve_candidate_call_prefix_storage(
 }
 
 fn preserve_frame(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,

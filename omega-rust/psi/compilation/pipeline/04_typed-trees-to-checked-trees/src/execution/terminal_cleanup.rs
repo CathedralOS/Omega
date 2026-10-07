@@ -15,9 +15,8 @@ use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
-use typed_trees::{
-    TypedTrees,
-    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
 use crate::flow::FlowOwnershipEventSource;
@@ -32,7 +31,7 @@ use crate::flow::FlowOwnershipEventSource;
 /// obligations stay separate: ordinary completion disposes the local, while
 /// a named successor must account for its selected transfer or disposal.
 pub(crate) fn build_checked_structural_control_cleanup_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralControlCleanupPlans {
     let mut states = Vec::new();
@@ -47,7 +46,7 @@ pub(crate) fn build_checked_structural_control_cleanup_plans(
 }
 
 fn build_state_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -264,7 +263,7 @@ fn build_state_plan(
 /// a copyable field or element read look like an unaccountable partial move.
 /// Claims and nominal drops still cannot use the no-code retirement.
 fn projected_read_retains_parent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     transition: &typed_trees::statement::TableTransition,
@@ -350,7 +349,7 @@ fn projected_read_retains_parent(
 }
 
 pub(super) fn checked_whole_affine_discard_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: &typed_trees::state::State,
@@ -359,7 +358,7 @@ pub(super) fn checked_whole_affine_discard_parameters(
 }
 
 fn checked_whole_affine_discard_parameters_excluding_results(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: symbols::SymbolHandle,
     state: &typed_trees::state::State,
@@ -540,7 +539,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
 /// selected normal-edge actions own the whole or partial disposal. This roster
 /// does not turn local results into parameters or reconstruct outgoing syntax.
 pub(super) fn state_exit_result_locals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

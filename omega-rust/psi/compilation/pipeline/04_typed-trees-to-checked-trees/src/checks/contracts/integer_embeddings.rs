@@ -2,13 +2,12 @@
 
 use super::return_values::{exit_return_expression, is_result_reference};
 use checked_trees::{FlowExitFact, FlowStateFact};
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 
 pub(super) fn proves_exit_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     exit_flow: &FlowExitFact,
     fact: &facts::Fact,

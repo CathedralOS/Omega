@@ -30,7 +30,6 @@ use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -43,7 +42,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// place-shape and unknown-field checks are the same for both; only the
 /// final root demand differs.
 pub(crate) fn validate_assignment_target_handle(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -137,7 +136,10 @@ pub(crate) fn validate_assignment_target_handle(
     }
 }
 
-fn is_mutable_place_handle(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_mutable_place_handle(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => is_mutable_place_handle(program, indexed.collection),
         ExpressionNode::Member(member) => is_mutable_place_handle(program, member.receiver),
@@ -146,7 +148,10 @@ fn is_mutable_place_handle(program: &TypedTrees, expression: ExpressionHandle) -
     }
 }
 
-fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+fn expression_root_name_handle(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<&str> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Indexed(indexed) => {
             expression_root_name_handle(program, indexed.collection)
@@ -179,7 +184,7 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
 /// `Member(Name([self]), field)` or a two-segment `Name([self, field])` path.
 /// `None` for anything deeper (`self.a.b`), a bare local, or a non-`self` receiver.
 pub(crate) fn direct_self_field_member(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Option<&str> {
     match program.expression_table.expression(target) {
@@ -205,7 +210,7 @@ pub(crate) fn direct_self_field_member(
 /// Select one live nominal declaration without replacing retained identity by
 /// a coincidentally matching diagnostic name.
 fn data_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<&DataDefinition> {
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
@@ -222,7 +227,7 @@ fn data_definition_by_symbol(
 /// The attached declaration selected for this machine. Diagnostic attachment
 /// spelling is not authority to recover a missing or different nominal owner.
 pub(crate) fn machine_attached_data<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<&'a DataDefinition> {
     data_definition_by_symbol(program, machine.attached_data_symbol)
@@ -234,7 +239,7 @@ pub(crate) fn machine_attached_data<'a>(
 /// instruction selection). Shared by the wire-call argument checks and the
 /// machine-call type-parameter bound check (frozen decision 13).
 pub(crate) fn declared_place_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     argument: ExpressionHandle,
@@ -244,7 +249,7 @@ pub(crate) fn declared_place_type(
 }
 
 pub fn assignment_value_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     destination: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     // Assignment through a reference writes its referent, not the reference
@@ -261,7 +266,7 @@ pub fn assignment_value_type(
 /// also recognizes declared call results and substituted constant arrays; a
 /// result here does not establish that an expression denotes storage.
 pub fn declared_place_type_raw(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     argument: ExpressionHandle,
@@ -346,7 +351,7 @@ pub fn declared_place_type_raw(
 /// semantic facts that name storage must retain the field/local declaration
 /// reached by the receiver's declared type instead.
 pub(crate) fn declared_member_field_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
@@ -370,7 +375,7 @@ pub(crate) fn declared_member_field_symbol(
 /// bound-floor evidence; mutability vetting and stored-value identity stay
 /// with the normalization that produced the symbol.
 pub(crate) fn bound_symbol_declared_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if !symbol.is_valid() {
@@ -445,7 +450,7 @@ pub(crate) use result_shape::expression_result_is_reference;
 /// `None` for a non-indexed target, an unresolvable collection, or a collection
 /// that is not an array/slice.
 pub(crate) fn declared_indexed_projection_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&typed_trees::state::State>,
     target: ExpressionHandle,
@@ -459,7 +464,7 @@ pub(crate) fn declared_indexed_projection_type(
 /// range-refined leaf (`[i32 [0..=7]; N]` or `rows[i].count: i32 [0..=7]`)
 /// keeps its range for operand analysis and arithmetic-domain resolution.
 pub(crate) fn declared_indexed_projection_type_raw(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&typed_trees::state::State>,
     target: ExpressionHandle,
@@ -512,7 +517,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
 /// so the implementation lives with the table in `typed-trees`; this delegates
 /// rather than restating it, leaving one implementation to maintain.
 pub fn unwrapped_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     program.unwrapped_type_reference(type_reference)
@@ -526,7 +531,7 @@ pub fn unwrapped_type_reference(
 /// before a custody join asks what storage a copy, move, or borrow
 /// reproduces.
 pub fn peel_declared_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -544,7 +549,7 @@ pub fn peel_declared_constraints(
 /// layout or custody, which no qualification erases. A pair that differs in
 /// any other way keeps its full normalized-identity comparison.
 pub fn declared_carriers_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
@@ -633,7 +638,10 @@ pub fn declared_carriers_match(
 /// case supplies the additional active payload. This is shape admission,
 /// not proof of a declaration's domain constraints, which source validation
 /// checks separately. Byte sequences and erased members remain unsupported.
-pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+pub fn zeroed_structural_parts(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     let mut pending = vec![type_reference];
     while let Some(current) = pending.pop() {
         let Some(reference) = unwrapped_type_reference(program, current) else {

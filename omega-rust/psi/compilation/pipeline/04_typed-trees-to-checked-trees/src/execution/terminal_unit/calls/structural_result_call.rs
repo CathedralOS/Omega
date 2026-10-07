@@ -17,11 +17,11 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, Multiplicity, SymbolHandle, TypeReferenceNode,
-    TypedTrees, is_reference,
+    is_reference,
 };
 
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -413,7 +413,7 @@ pub(super) fn structural_custody_parts(
 }
 
 pub(super) fn with_structural_custody(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
@@ -436,7 +436,7 @@ pub(super) fn with_structural_custody(
 /// `bag: &mut Bag` spells a `Reference` type, while a binding declared on the
 /// bare record type carries that access in the parameter's own `is_mutable`.
 pub(crate) fn view_source_parameter_is_mutable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     parameter.is_mutable
@@ -456,7 +456,7 @@ pub(crate) fn view_source_parameter_is_mutable(
 /// `data_binding_parameter` names. The retired `self` flag no longer marks
 /// it, so asking for that flag refused every state unconditionally.
 pub(crate) fn view_data_member_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine: SymbolHandle,
     root: SymbolHandle,

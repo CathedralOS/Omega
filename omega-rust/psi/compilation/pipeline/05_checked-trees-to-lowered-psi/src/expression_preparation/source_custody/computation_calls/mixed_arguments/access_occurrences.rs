@@ -274,12 +274,15 @@ pub(crate) fn replay(
                         },
                     ),
                     ExpressionNode::Name(_) | ExpressionNode::StructLiteral(_)
-                        if validation::scalar_case_constructor(checked, expression).is_some() =>
+                        if validation::scalar_case_constructor(&checked.typed, expression)
+                            .is_some() =>
                     {
-                        let constructor = validation::scalar_case_constructor(checked, expression)
-                            .ok_or(LoweringError::Unsupported(
-                                "computed case lost its source constructor",
-                            ))?;
+                        let constructor =
+                            validation::scalar_case_constructor(&checked.typed, expression).ok_or(
+                                LoweringError::Unsupported(
+                                    "computed case lost its source constructor",
+                                ),
+                            )?;
                         children.extend(
                             constructor
                                 .fields

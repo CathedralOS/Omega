@@ -5,10 +5,9 @@ use crate::facts::canonical_encoding::{
     encode_contract_set_canonical, encode_type_spelling,
 };
 use crate::facts::crash_calls;
-use typed_trees::TypedTrees;
 
 pub(crate) fn build_crash_contract_capsules(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> Vec<checked_trees::CrashContractCapsule> {
@@ -198,7 +197,7 @@ pub(crate) fn build_crash_contract_capsules(
 }
 
 fn build_operator_crash_contract_capsule(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
@@ -300,7 +299,7 @@ pub(crate) fn encode_signature_contract_kind(
 }
 
 pub(crate) fn build_published_crash_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -340,7 +339,7 @@ pub(crate) fn build_published_crash_plan(
 }
 
 fn build_structural_runtime_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -416,7 +415,7 @@ fn build_structural_runtime_requirements(
 /// positions; bound witness lanes and outcome-specific clauses stay outside
 /// this capsule because they carry separate evidence plans.
 fn build_structural_runtime_guarantees(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -452,7 +451,7 @@ fn build_structural_runtime_guarantees(
 }
 
 pub(crate) fn derive_authored_machine_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<checked_trees::CrashRouteBucket> {
     let parameter_names = program
@@ -479,7 +478,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
 }
 
 pub(crate) fn derive_authored_signature_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<checked_trees::CrashRouteBucket> {
     let parameter_names = program
@@ -505,7 +504,7 @@ pub(crate) fn derive_authored_signature_crash_buckets(
 /// read as formal `k + 1`); a route the operator reader cannot structure
 /// keeps its identity only, so downstream lowering still fails closed on it.
 pub(crate) fn derive_authored_operator_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     operators: &checked_trees::CheckedOperatorFacts,
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -535,7 +534,7 @@ enum CrashContractOwner<'program> {
 }
 
 fn build_published_crash_buckets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -652,7 +651,7 @@ fn build_published_crash_buckets(
 }
 
 fn build_checked_crash_sites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     crash_plan: &checked_trees::CrashPlan,
 ) -> Vec<checked_trees::CheckedCrashSite> {
@@ -699,7 +698,7 @@ fn build_checked_crash_sites(
 }
 
 pub(crate) fn is_true_crash_route(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
 ) -> bool {
     matches!(
@@ -718,7 +717,7 @@ pub(crate) fn is_true_crash_route(
 /// join a source expression to a published bucket only after both normalize to
 /// the same source-handle-free bytes.
 pub(crate) fn canonical_crash_path_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
@@ -745,7 +744,7 @@ pub(crate) fn canonical_crash_path_predicate(
 /// existing typed operands. This uses the published crash-route encoder but
 /// never rewrites the published contract itself.
 pub(crate) fn canonical_crash_binary_path_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: typed_trees::expression::BinaryOperator,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
@@ -777,7 +776,7 @@ pub(crate) fn canonical_crash_binary_path_predicate(
 /// checker-derived crash-predicate relation. This is an internal join key;
 /// only complete predicate identities enter checked crash plans.
 pub(crate) fn canonical_crash_operand_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],

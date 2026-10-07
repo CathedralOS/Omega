@@ -21,13 +21,13 @@ use bounds::{
 /// seed; reversing that dispatch both loses valid bounds and admits facts
 /// from operators without builtin meaning.
 fn peel_boolean_alias_guard(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
     recurse: fn(
-        &typed_trees::TypedTrees,
+        &dyn ::validation::CheckingInput,
         &typed_trees::machine::Machine,
         &typed_trees::state::State,
         &mut RangeFacts<'_>,
@@ -65,7 +65,7 @@ fn peel_boolean_alias_guard(
 /// with the literal seeders. This needs machine/state context, so it runs
 /// beside `seed_guard_facts` at the co-located transition arm.
 pub(super) fn seed_value_vs_value_endpoints(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -148,7 +148,7 @@ pub(super) fn seed_value_vs_value_endpoints(
 }
 
 fn immutable_parameter_endpoint(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -173,7 +173,7 @@ fn immutable_parameter_endpoint(
 }
 
 pub(super) fn seed_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -199,7 +199,7 @@ pub(super) fn seed_guard_facts(
 /// The operand of a logical negation, the one unary guard spelling whose
 /// truth and refutation swap.
 fn negated_operand(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match program.expression_table.expression(guard) {
@@ -213,7 +213,7 @@ fn negated_operand(
 }
 
 fn seed_binary_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -367,7 +367,7 @@ fn seed_binary_guard_facts(
 /// folds like an assignment value would. Only a place operand carries the
 /// fact; two folded constants need no entry at all.
 fn seed_equal_integer_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     place: ExpressionHandle,
     value: ExpressionHandle,
@@ -394,7 +394,7 @@ fn seed_equal_integer_fact(
 }
 
 fn seed_boolean_equality_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -411,7 +411,7 @@ fn seed_boolean_equality_guard_facts(
 }
 
 fn seed_boolean_inequality_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
@@ -428,7 +428,7 @@ fn seed_boolean_inequality_guard_facts(
 }
 
 pub(super) fn seed_negated_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,

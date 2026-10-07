@@ -13,7 +13,7 @@ use crate::borrow::owner_segment_matches_place_segment;
 use crate::borrow::tracker::BorrowOwnerSegment;
 
 pub(super) fn statement_uses_local_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
     local_name: &str,
 ) -> bool {
@@ -69,7 +69,7 @@ pub(super) fn statement_uses_local_name(
 }
 
 pub(super) fn statement_uses_owner_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -134,7 +134,7 @@ pub(super) fn statement_uses_owner_path(
 }
 
 pub(crate) fn owner_path_overlaps_place_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
@@ -152,7 +152,7 @@ pub(crate) fn owner_path_overlaps_place_segments(
 }
 
 fn expression_uses_owner_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -227,7 +227,7 @@ fn expression_uses_owner_path(
 }
 
 fn transition_target_uses_owner_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     target: &typed_trees::statement::TransitionTargetNode,

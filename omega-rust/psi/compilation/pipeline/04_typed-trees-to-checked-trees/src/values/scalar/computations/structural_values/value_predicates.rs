@@ -3,7 +3,7 @@
 //! parts fresh establishment seeds.
 
 use super::super::{
-    ExpressionHandle, ExpressionNode, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
+    ExpressionHandle, ExpressionNode, PrimitiveType, SymbolHandle, TypeReferenceNode,
 };
 use super::place_types::{
     borrowed_place_leaf_type, canonical_place_is_borrowable, copied_place_type,
@@ -16,7 +16,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// Construction and whole-place moves must agree on that runtime carrier;
 /// type arguments still require substitution and remain outside this lookup.
 pub(super) fn closed_data_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(reference) {
@@ -54,7 +54,7 @@ pub(super) fn closed_data_symbol(
 /// the same way a record literal does: each authored field keeps its own
 /// scalar or nested structural value under the selected case.
 pub(in crate::values::scalar::computations) fn is_structural_case_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -76,7 +76,7 @@ pub(in crate::values::scalar::computations) fn is_structural_case_value(
 }
 
 pub(in crate::values::scalar::computations) fn is_record_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -204,7 +204,7 @@ pub(in crate::values::scalar::computations) fn is_record_value(
 /// constructing the node, and it does no plan mutation before that admission,
 /// so a rejected borrow still leaves no partial structural plan.
 pub(in crate::values::scalar::computations) fn is_shared_borrow_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -232,7 +232,7 @@ pub(in crate::values::scalar::computations) fn is_shared_borrow_value(
 /// the checked loan the view holds; this only decides that the destination is
 /// a view at all, so the ordinary owned classifications keep every other local.
 pub(in crate::values::scalar::computations) fn is_borrowed_slice_view_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> bool {
     crate::execution::terminal_unit::types::borrowed_slice_view_element(program, expected, &[])
@@ -257,7 +257,7 @@ pub(in crate::values::scalar::computations) fn is_borrowed_slice_view_value(
 /// the builder branch that owns it -- the owned-place arm in `computations`
 /// offers every projected place and does not re-derive this shape.
 pub(super) fn is_view_element_copy(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -298,7 +298,7 @@ pub(super) fn is_view_element_copy(
 /// scalar; a range or any other qualification needs its own evidence and
 /// keeps the copy declined.
 pub(super) fn plain_or_policy_scalar_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
@@ -327,7 +327,7 @@ pub(super) fn plain_or_policy_scalar_field(
 /// their scalar-element route; structural elements each register their own
 /// value node, the same way record fields do inside a constructor.
 pub(in crate::values::scalar::computations) fn is_fixed_array_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -366,7 +366,7 @@ pub(in crate::values::scalar::computations) fn is_fixed_array_value(
 /// structural carrier exactly as it does for a borrowed primitive elsewhere,
 /// and the borrow still denotes the original storage rather than a snapshot.
 pub(super) fn shared_record_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let TypeReferenceNode::Reference {
@@ -412,7 +412,7 @@ pub(super) fn shared_record_reference(
 /// bounded integers, nested composites — has no authored zero spelling to
 /// synthesize, so the field must stay authored.
 pub(super) fn zeroed_scalar_array_parts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, u64)> {
     let reference = validation::unwrapped_type_reference(program, type_reference)?;

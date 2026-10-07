@@ -8,7 +8,6 @@
 use super::{RelationPlanError, RepresentativeStaticApplication};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::QuotientOperationRequest;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContract;
@@ -48,7 +47,7 @@ pub(in crate::proof_contracts::quotients) struct RepresentativeTelescope {
 }
 
 pub(super) fn derive_representative_telescope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     request: &QuotientOperationRequest,
 ) -> Result<RepresentativeTelescope, RelationPlanError> {
     let (machine, state) =
@@ -82,7 +81,7 @@ pub(super) fn derive_representative_telescope(
 }
 
 pub(super) fn representative_machine_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Result<(&Machine, &State), RelationPlanError> {
     let mut matches = program.machines().iter().flat_map(|machine| {

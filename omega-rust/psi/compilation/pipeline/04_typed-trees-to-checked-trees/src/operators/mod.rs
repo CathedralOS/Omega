@@ -37,7 +37,6 @@ use language_core::operator_spelling::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::FloatFormat;
 use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
 };
@@ -61,7 +60,7 @@ pub(crate) use receiver::expression_type_reference_for_origin;
 pub(crate) use selection::select_pending_domain_operator_meanings;
 
 pub(crate) fn build_operator_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     build_operator_uses(program, values)
@@ -75,7 +74,7 @@ pub(crate) fn build_operator_facts(
 /// The operator and named uses with their candidates, without the requirement
 /// uses and declaration contracts `build_operator_facts` adds.
 pub(crate) fn build_operator_uses(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     let mut uses = Arena::default();
@@ -108,7 +107,7 @@ pub(crate) fn build_operator_uses(
 }
 
 pub(crate) fn derive_checked_operator_realization_contracts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<checked_trees::CheckedOperatorRealizationContract> {
     let mut rows = Vec::new();
     for machine in program.machines() {
@@ -147,7 +146,7 @@ pub(crate) fn derive_checked_operator_realization_contracts(
 }
 
 pub(crate) fn derive_checked_operator_crash_contracts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<checked_trees::CheckedOperatorCrashContract> {
     use std::collections::BTreeMap;
     use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
@@ -232,7 +231,7 @@ pub(crate) fn derive_checked_operator_crash_contracts(
 }
 
 fn collect_expression_operator_use(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
@@ -495,7 +494,7 @@ fn collect_expression_operator_use(
 /// lowering. This also covers compiler-synthesized calls from `abs` and
 /// `clamp`, whose acknowledgement records their generated origin.
 fn builtin_float_operator_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
@@ -519,7 +518,7 @@ fn builtin_float_operator_use_fact(
 /// spells it as a top-level `boundary requirement`, that requirement machine.
 /// Both are the same slot; the returned symbol tells the species apart.
 pub(super) fn builtin_float_operator_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
@@ -638,7 +637,7 @@ pub(super) fn builtin_float_operator_selection(
 /// classification and destination-owned float-to-integer conversions carry no
 /// float result adapter.
 fn named_operator_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
@@ -725,7 +724,7 @@ fn named_operator_use_fact(
 }
 
 pub(super) fn named_float_policy_adapter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     origin: CheckedValueOrigin,
     format: FloatFormat,
@@ -788,7 +787,7 @@ pub(crate) fn binary_operator_spelling(operator: BinaryOperator) -> Option<Opera
 
 /// Candidate count and arena span for a resolved spelling candidate set.
 fn checked_candidate_span(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
     candidates: &[SpelledOperator<'_>],
 ) -> (usize, arena::HandleSpan<CheckedOperatorCandidateFact>) {
@@ -849,7 +848,7 @@ fn operator_use_record(
 }
 
 fn binary_operator_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
@@ -900,7 +899,10 @@ fn binary_operator_use_fact(
     })
 }
 
-fn indexed_operator_spelling(program: &TypedTrees, index: ExpressionHandle) -> OperatorSpelling {
+fn indexed_operator_spelling(
+    program: &dyn ::validation::CheckingInput,
+    index: ExpressionHandle,
+) -> OperatorSpelling {
     if index.is_valid()
         && matches!(
             program.expression_table.expression(index),
@@ -914,7 +916,7 @@ fn indexed_operator_spelling(program: &TypedTrees, index: ExpressionHandle) -> O
 }
 
 pub(crate) fn indexed_operand_types(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     indexed: &TableIndexedExpression,
     origin: CheckedValueOrigin,
 ) -> Vec<Option<TypeReferenceHandle>> {
@@ -947,7 +949,7 @@ pub(crate) fn indexed_operand_types(
 /// evidence. Every known operand position participates, including both range
 /// bounds for `[..]`.
 fn operator_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
@@ -1045,7 +1047,7 @@ fn origin_machine_symbol(origin: CheckedValueOrigin) -> Option<SymbolHandle> {
 }
 
 fn trait_operator_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
@@ -1106,7 +1108,7 @@ fn trait_operator_use_fact(
 }
 
 fn arithmetic_policy_adapter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> CheckedArithmeticPolicyAdapter {
@@ -1170,7 +1172,7 @@ fn float_policy_adapter(
 }
 
 pub(crate) fn checked_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &SpelledOperator<'_>,
 ) -> CheckedOperatorCandidateFact {
     let fact = if let Some(domain) = candidate.domain {

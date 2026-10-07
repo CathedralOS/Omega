@@ -1,11 +1,10 @@
 //! The existing scalar-return boundary operation with a whole parameter receiver.
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, StatementNode, TypedTrees,
-    initializer_target_is_supported,
+    ExpressionHandle, ExpressionNode, Machine, StatementNode, initializer_target_is_supported,
 };
 
 pub(super) fn is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {

@@ -32,7 +32,7 @@ pub(crate) fn statement_span_handles(
 }
 
 pub(crate) fn rewrite_cloned_calls(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
     state_symbols: &[(SymbolHandle, SymbolHandle)],

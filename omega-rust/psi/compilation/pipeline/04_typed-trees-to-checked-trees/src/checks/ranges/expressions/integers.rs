@@ -14,7 +14,7 @@ use super::super::facts::RangeFacts;
 /// `..=usize::MAX` overflow edge) reports a proof failure (`None`) rather than
 /// silently wrapping — the overflow is surfaced as a diagnostic, never a panic.
 pub(in crate::checks::ranges) fn provable_range_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
 ) -> Option<(i64, Option<i64>)> {
@@ -48,7 +48,7 @@ pub(in crate::checks::ranges) fn normalize_exclusive_end(
 }
 
 pub(in crate::checks::ranges) fn expression_integer_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<i64> {
@@ -75,7 +75,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
 }
 
 pub(in crate::checks::ranges) fn expression_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Option<&str>)> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

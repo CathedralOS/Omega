@@ -1,5 +1,4 @@
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameter;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -16,7 +15,7 @@ pub(super) struct BinderBinding {
 }
 
 pub(super) fn required_type_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     generic_types: &[&TypeParameter],
@@ -34,7 +33,7 @@ pub(super) fn required_type_matches(
 }
 
 pub(super) fn required_type_matches_exact(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     generic_types: &[&TypeParameter],
@@ -44,7 +43,7 @@ pub(super) fn required_type_matches_exact(
 }
 
 fn required_type_matches_inner<const EXACT: bool>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     generic_types: &[&TypeParameter],
@@ -293,7 +292,7 @@ fn fixed_array_lengths_match(
 /// Explicit selections stay fixed; ordinary argument correspondence separately
 /// checks access, qualifications and the complete substituted carrier.
 pub(in crate::machine_calls) fn infer_call_type_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     mut required: TypeReferenceHandle,
     mut actual: TypeReferenceHandle,

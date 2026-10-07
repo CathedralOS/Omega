@@ -7,7 +7,6 @@
 
 use std::collections::HashSet;
 
-use typed_trees::TypedTrees;
 use typed_trees::domain::{DomainAliasDefinition, DomainDefinition};
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::types::{
@@ -21,7 +20,7 @@ pub(super) enum CarrierFenceViolation {
 }
 
 pub(super) fn first_forbidden_carrier_content(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     type_reference: TypeReferenceHandle,
     visited_proof_data: &mut HashSet<u32>,
@@ -111,7 +110,7 @@ pub(super) fn first_forbidden_carrier_content(
 }
 
 fn first_routed_qualification(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     constraint: &DomainConstraint,
     visited_aliases: &mut HashSet<u32>,
 ) -> Option<String> {
@@ -133,7 +132,7 @@ fn first_routed_qualification(
 }
 
 fn first_routed_domain_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DomainDefinition,
     visited_aliases: &mut HashSet<u32>,
 ) -> Option<String> {
@@ -149,7 +148,7 @@ fn first_routed_domain_definition(
 }
 
 fn first_routed_alias_constituent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     alias: &DomainAliasDefinition,
     visited_aliases: &mut HashSet<u32>,
 ) -> Option<String> {
@@ -165,7 +164,7 @@ fn first_routed_alias_constituent(
 }
 
 fn first_forbidden_data_content(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     definition: &typed_trees::data::DataDefinition,
     visited_proof_data: &mut HashSet<u32>,

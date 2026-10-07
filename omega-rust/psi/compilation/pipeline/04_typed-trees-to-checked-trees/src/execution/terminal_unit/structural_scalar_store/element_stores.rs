@@ -12,12 +12,12 @@ use super::destination::{Destination, Root, exact_relevant_field};
 use super::value::{self, AssignmentSource};
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralPathSegment, Multiplicity, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
 pub(super) fn store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -94,7 +94,7 @@ pub(super) fn store(
 /// Exact mutable view root, independent of the selected leaf. A parameter
 /// retains its admitted borrow; a local retains its resolved declaration.
 pub(super) fn element_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     destination: &Destination<'_>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {

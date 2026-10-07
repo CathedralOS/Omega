@@ -80,7 +80,7 @@ pub(super) struct RangeFacts<'field> {
     /// the 'field program handle the leaf scans construct the lookup from.
     pub(super) bound_lookup:
         std::rc::Rc<std::cell::RefCell<Option<validation::ImmutableBoundLookup<'field>>>>,
-    pub(super) bound_program: Option<&'field typed_trees::TypedTrees>,
+    pub(super) bound_program: Option<&'field dyn ::validation::CheckingInput>,
 }
 
 impl<'field> RangeFacts<'field> {

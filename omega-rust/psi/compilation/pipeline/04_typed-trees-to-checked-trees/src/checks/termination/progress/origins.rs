@@ -4,7 +4,7 @@ use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::TableCallExpression;
-use typed_trees::{TypedTrees, machine::Machine};
+use typed_trees::machine::Machine;
 
 mod call_places;
 mod callee_values;
@@ -15,7 +15,7 @@ pub(super) use call_places::{call_argument_boundary_place, call_argument_place};
 use reference_bounds::*;
 
 pub(super) fn at_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,

@@ -7,7 +7,6 @@ use super::{
 use crate::machine_calls::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, StateParameter};
@@ -33,7 +32,7 @@ impl<'a> CallableParts<'a> {
     /// The parts a state signature declares: a machine parameter's contract
     /// presents exactly what it authored.
     fn of_signature(
-        program: &'a TypedTrees,
+        program: &'a dyn crate::CheckingInput,
         signature: &'a typed_trees::signature::StateSignature,
     ) -> Self {
         Self {
@@ -54,7 +53,7 @@ impl<'a> CallableParts<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_selected_callable_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
     suspensions: &[MachineSuspensionRow],
     blockings: &[MachineBlockingRow],
@@ -117,7 +116,7 @@ pub(super) fn validate_selected_callable_shape(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     suspensions: &[MachineSuspensionRow],
     blockings: &[MachineBlockingRow],
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -189,7 +188,7 @@ fn validate_callable_shape(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
@@ -354,7 +353,7 @@ fn validate_callable_parts(
 /// a provider silently change `machine Target(...)` beneath an otherwise
 /// matching requirement.
 pub(crate) fn validate_trait_callable_parameter_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     requirement_parameters: &[TypeParameter],
     actual_parameters: &[TypeParameter],
@@ -438,7 +437,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_type_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,

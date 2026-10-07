@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode,
     Judgment, Machine, Polynomial, RESULT_BINDER, StatementNode, TransitionGuardNode,
-    TransitionTargetNode, TypedTrees, is_arm_pattern_marker,
+    TransitionTargetNode, is_arm_pattern_marker,
 };
 use crate::proof_contracts::contract_entailment::stand_downs::{
     record_all_expression_stand_downs, record_expression_stand_down,
@@ -29,7 +29,7 @@ enum ArmKind {
 /// stands down (bodied machines were previously never judged here, so this
 /// path only ever ADDS judgments for the shape it fully reads).
 pub(super) fn inductive_transition_entailment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     requires: &[ExpressionHandle],
     ensures: &[ExpressionHandle],
@@ -291,7 +291,7 @@ struct JudgedArm<'program> {
 }
 
 fn prepare_arm<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     root: &typed_trees::state::State,
     requires: &[ExpressionHandle],
@@ -443,7 +443,7 @@ pub(super) fn guard_arm_comparison(
     ))
 }
 
-fn failed_guard_display(program: &TypedTrees, guard: ExpressionHandle) -> String {
+fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(guard)
         && binary.operator == BinaryOperator::Equal
         && let ExpressionNode::Boolean(polarity) = program.expression_table.expression(binary.right)
@@ -514,7 +514,7 @@ fn self_call_argument_map(
 /// machine-level termination pass independently re-checks the declared clause
 /// and fails compilation when it cannot.
 fn discharges_strict_decrease(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     engine: &mut Engine<'_>,
     argument_map: &BTreeMap<String, Polynomial>,

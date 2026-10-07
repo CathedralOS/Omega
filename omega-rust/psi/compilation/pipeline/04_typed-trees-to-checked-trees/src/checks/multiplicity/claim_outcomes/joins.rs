@@ -91,7 +91,7 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
 /// No exit may disappear through filter_map. Missing facts, unknown sources,
 /// and recursive expansion all make the complete correspondence unavailable.
 fn state_frontiers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -227,7 +227,7 @@ fn state_frontiers(
 
 #[allow(clippy::too_many_arguments)]
 fn expression_frontiers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement: usize,
     expression: ExpressionHandle,
@@ -311,7 +311,7 @@ fn expression_frontiers(
 /// alternatives together, preserving correlations between returned fields.
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -474,7 +474,7 @@ fn expand_joined_frontier(
 }
 
 fn complete_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
     entries: &[CheckedClaimOutcomeEntry],
     inactive_paths: &[Vec<PlaceSegment>],
@@ -515,7 +515,7 @@ fn complete_frontier(
 /// entire statement, including earlier argument evaluation.
 #[allow(clippy::too_many_arguments)]
 fn excluded_input_at_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -653,7 +653,7 @@ fn excluded_input_at_call(
 }
 
 fn derive_receipts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
@@ -852,7 +852,7 @@ fn store_source(
 }
 
 pub(crate) fn publish_conditional_claim_joins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) {
     let ownership = &mut facts.flow.ownership;
@@ -946,7 +946,7 @@ fn read_source(
 }
 
 pub(crate) fn validate_conditional_claim_joins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
     diagnostics: &mut Vec<Diagnostic>,

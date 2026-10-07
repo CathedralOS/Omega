@@ -9,7 +9,6 @@ use checked_trees::{
     CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpressionBindings,
     CheckedScalarExpressionRole,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -44,7 +43,10 @@ pub(crate) fn retain_call_arguments(
     }
 }
 
-pub(crate) fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::SymbolHandle) -> bool {
+pub(crate) fn call_is_boundary(
+    program: &dyn ::validation::CheckingInput,
+    target_symbol: symbols::SymbolHandle,
+) -> bool {
     let requirement_symbol = program
         .machine_parameter_signature(target_symbol)
         .map_or(target_symbol, |(_, signature)| signature.symbol);
@@ -69,7 +71,7 @@ pub(crate) fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::Sym
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_call_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
     statement_ordinal: u32,
@@ -221,7 +223,7 @@ pub(crate) fn lower_call_arguments(
 /// `field_symbol`, or the selected case's payload field when the literal
 /// constructs a case.
 fn proof_field_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_symbol: symbols::SymbolHandle,
     case_symbol: Option<symbols::SymbolHandle>,
     field_symbol: symbols::SymbolHandle,
@@ -258,7 +260,7 @@ fn proof_field_type(
 /// retained as a term, not a runtime operand.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_proof_term(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -351,7 +353,7 @@ pub(crate) fn lower_proof_term(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_direct_call_binding_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: symbols::SymbolHandle,
     statement_ordinal: u32,
@@ -476,7 +478,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
 /// beneath same-carrier integer casts — the two custody spellings a statement
 /// can write for `CallSite::Expression` argument rows.
 pub(crate) fn value_call_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     scalar_qualified_call_expression(program, value).or_else(|| {
@@ -491,7 +493,7 @@ pub(crate) fn value_call_expression(
 /// Locate a call beneath only same-carrier integer qualifications. The actual
 /// callee declaration supplies that carrier; no conversion result is guessed.
 pub(crate) fn scalar_qualified_call_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut targets = Vec::new();

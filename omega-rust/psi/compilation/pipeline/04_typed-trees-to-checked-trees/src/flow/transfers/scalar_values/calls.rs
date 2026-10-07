@@ -16,7 +16,7 @@ use symbols::SymbolHandle;
 // Intervening Unit calls preserve these normal-return facts only when their
 // complete storage footprint is empty. This never proves that a call returns.
 pub(super) fn capture_call<Value: CapturedValue>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -379,7 +379,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
 /// this authored call expression: the ordinal is the occurrence key, not a
 /// trusted field on the row.
 fn exact_call_occurrence<'facts>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &'facts BorrowFacts,
     context: &mut FlowBuildContext,
     caller_state: SymbolHandle,

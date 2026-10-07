@@ -7,7 +7,6 @@
 //! Inline named implementations additionally capture their own telescope.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameter;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -15,7 +14,7 @@ use typed_trees::references::{TypedReferences, visit_type_reference};
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn invocation_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     realization: &Machine,
     family: &Machine,
     trait_symbol: SymbolHandle,

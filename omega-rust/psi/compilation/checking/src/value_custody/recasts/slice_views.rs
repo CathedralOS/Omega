@@ -4,7 +4,6 @@
 //! confer no layout, validity or loan authority. The recast judgment owns
 //! source admission, and Terminal reconstructs the representation relation.
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -17,7 +16,7 @@ pub struct SliceRecastSource {
 }
 
 pub fn slice_recast_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SliceRecastSource> {
     let initializer = super::strip_mutable(program, expression);

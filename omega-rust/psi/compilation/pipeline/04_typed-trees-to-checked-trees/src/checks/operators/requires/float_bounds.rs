@@ -10,7 +10,6 @@ use checked_trees::CheckedOperatorFacts;
 use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
 use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -25,7 +24,7 @@ struct RequiredComparison {
 }
 
 pub(super) fn contexts_prove_comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -90,7 +89,7 @@ pub(super) fn contexts_prove_comparison(
 }
 
 fn required_comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -146,7 +145,7 @@ fn required_comparison(
 }
 
 fn expression_proves_comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     owner: SymbolHandle,
     expression: ExpressionHandle,
@@ -201,7 +200,7 @@ fn expression_proves_comparison(
 }
 
 fn expression_has_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: &CanonicalPlace,
 ) -> bool {
@@ -210,7 +209,7 @@ fn expression_has_place(
 }
 
 fn fact_has_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     place: FactPlace,
     expected: &CanonicalPlace,

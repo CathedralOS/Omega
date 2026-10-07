@@ -6,10 +6,10 @@ use super::super::{
 };
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State, TypedTrees,
-    collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates, fields,
-    find_declared_measure, hypothesis_landed_endpoints, integer_bindings, lengths, meanings,
-    measure_body_shape, parameter_comparisons, projections, saved_arguments, validate_mapping,
+    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State, collect_guard,
+    entry_comparisons, exact_integer_parameter, field_coordinates, fields, find_declared_measure,
+    hypothesis_landed_endpoints, integer_bindings, lengths, meanings, measure_body_shape,
+    parameter_comparisons, projections, saved_arguments, validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
@@ -48,7 +48,7 @@ pub(crate) enum RankingRangeCallProgress {
 /// state query's raw-distance induction hypothesis. IncreasingTo includes its
 /// zero plateau even when the entry cursor is already beyond its bound.
 pub(crate) fn prove_ranking_range_call_entry(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: RankingRangeCallMember<'_>,
 ) -> bool {
     let prove = || -> Option<bool> {
@@ -227,7 +227,7 @@ pub(crate) fn prove_ranking_range_call_entry(
 /// When only one side authors a range, the component owner must separately
 /// conserve its endpoint inputs through every unranged participant.
 pub(crate) fn prove_ranking_range_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: RankingRangeCallMember<'_>,
     caller_site: &RankingRangeCallSite<'_>,
     callee: RankingRangeCallMember<'_>,
@@ -862,7 +862,7 @@ pub(crate) fn prove_ranking_range_call(
 /// through the member's exact scalar entry (see `ranking_range_premise_symbols`).
 /// `None` when the member has no supported scalar witness.
 pub(crate) fn call_member_premise_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
 ) -> Option<Vec<SymbolHandle>> {
     let (_, measure) = scalar_entry(program, member)?;
@@ -870,7 +870,7 @@ pub(crate) fn call_member_premise_symbols(
 }
 
 fn admit_member(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
     state: &State,
     measure: RankingRangeMeasure,
@@ -979,7 +979,7 @@ fn membership(
 /// so an opaque endpoint still fails `normalize` rather than borrowing a
 /// foreign record's lineage.
 fn bind_destination_fields(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     destination: &State,
     source: &State,
@@ -1041,7 +1041,7 @@ fn bind_destination_fields(
 /// coordinate cannot read -- stays unbound, so an opaque endpoint still
 /// fails `normalize` rather than naming a guessed length.
 fn bind_destination_lengths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     destination: &State,
     source: &State,
@@ -1136,7 +1136,7 @@ fn bind_destination_lengths(
 /// The produced length coordinate of a slice-typed entry parameter: the
 /// metadata atom shared with `.len` projections, never the collection value.
 fn length_coordinate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     subject: ExpressionHandle,
     length_bindings: &[(symbols::SymbolHandle, String)],
@@ -1163,7 +1163,7 @@ fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Po
 }
 
 pub(super) fn rank_coordinate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     engine: &mut Engine<'_>,
     measure: RankingRangeMeasure,
@@ -1196,7 +1196,7 @@ pub(super) fn rank_coordinate(
 /// reaching this judgment — so the extra carriers hold that same value and
 /// contribute an explicit equality hypothesis rather than a second binding.
 pub(super) fn telescoped_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     entry_parameters: &[SymbolHandle],
@@ -1261,7 +1261,7 @@ pub(super) fn telescoped_bindings(
 /// coordinates. A copied collection keeps the same produced length; a windowed
 /// or diverging claimant was already demoted by discovery.
 pub(super) fn telescoped_length_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     entry_parameters: &[SymbolHandle],
@@ -1319,7 +1319,7 @@ pub(super) fn telescoped_length_bindings(
 /// caller's range endpoints when spelled, the spelled arguments, the guard
 /// conditions, and the caller's entry projections.
 fn installation_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &RankingRangeCallMember<'_>,
     source: &State,
     mut expressions: Vec<ExpressionHandle>,
@@ -1362,7 +1362,7 @@ fn scalar_subjects(
 /// resolved chain that cannot arrive fails the judgment rather than naming a
 /// guessed carrier.
 fn member_subject_coordinates<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     authored: &'program State,
     site: &'program State,
     entry_parameters: Option<&[SymbolHandle]>,
@@ -1391,7 +1391,7 @@ fn member_subject_coordinates<'program>(
 }
 
 fn scalar_entry<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
 ) -> Option<(&'program State, RankingRangeMeasure)> {
     let machine = program
@@ -1555,7 +1555,7 @@ fn scalar_entry<'program>(
 /// non-self, non-const `u8..=u64` formal, or an exact member chain rooted at
 /// such a formal whose declared leaf is unsigned.
 fn entry_scalar_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     subject: ExpressionHandle,
 ) -> Option<()> {
@@ -1602,7 +1602,7 @@ fn entry_scalar_parameter(
 /// installed against the member machine's own coordinates, then normalized.
 /// `Some(None)` = no authored range; outer `None` = the range is unreadable.
 fn member_call_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
     state: &State,
     engine: &mut Engine<'_>,
@@ -1629,7 +1629,7 @@ fn member_call_range(
 #[allow(clippy::too_many_arguments)]
 
 fn install_call_field_coordinates<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     caller: &RankingRangeCallMember<'_>,
     source: &State,
     entry: &State,
@@ -1654,7 +1654,7 @@ fn install_call_field_coordinates<'program>(
 }
 
 fn install_call_slice_coordinates<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     caller: &RankingRangeCallMember<'_>,
     source: &State,
     entry: &State,

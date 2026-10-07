@@ -15,7 +15,7 @@ use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
 pub(super) struct LiveValues<'a, 'plans> {
-    pub program: &'a typed_trees::TypedTrees,
+    pub program: &'a dyn ::validation::CheckingInput,
     pub semantic: &'a FactPlan,
     pub context: &'a FlowBuildContext<'plans>,
     pub state: SymbolHandle,
@@ -51,14 +51,14 @@ pub(super) trait CapturedValue: Sized {
     /// still satisfy the formal's declared scalar type, so that declaration —
     /// at worst the raw carrier — bounds the incoming value.
     fn formal_fallback(
-        _program: &typed_trees::TypedTrees,
+        _program: &dyn ::validation::CheckingInput,
         _parameter: &typed_trees::signature::StateParameter,
     ) -> Option<Self> {
         None
     }
     /// The value held at the place `expression` names in `live`'s state.
     fn value_at_expression(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         live: &LiveValues<'_, '_>,
         statement_index: usize,
         expression: ExpressionHandle,
@@ -75,7 +75,7 @@ pub(super) trait CapturedValue: Sized {
     /// caller place with a live snapshot or declared storage invariant. Never
     /// a source replay of nested computation the plan did not retain.
     fn operand(
-        _program: &typed_trees::TypedTrees,
+        _program: &dyn ::validation::CheckingInput,
         _live: &LiveValues<'_, '_>,
         _statement_index: usize,
         _expression: ExpressionHandle,
@@ -136,7 +136,7 @@ impl CapturedValue for ScalarValue {
     }
 
     fn operand(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         live: &LiveValues<'_, '_>,
         statement_index: usize,
         expression: ExpressionHandle,
@@ -239,7 +239,7 @@ impl CapturedValue for IntegerRange {
     }
 
     fn formal_fallback(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         parameter: &typed_trees::signature::StateParameter,
     ) -> Option<Self> {
         let primitive = program.primitive_type_reference(parameter.type_reference)?;
@@ -248,7 +248,7 @@ impl CapturedValue for IntegerRange {
     }
 
     fn operand(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         live: &LiveValues<'_, '_>,
         statement_index: usize,
         expression: ExpressionHandle,

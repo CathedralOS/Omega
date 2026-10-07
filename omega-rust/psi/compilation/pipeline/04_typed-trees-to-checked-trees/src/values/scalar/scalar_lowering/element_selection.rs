@@ -9,7 +9,6 @@ use checked_trees::{
 };
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
@@ -29,7 +28,7 @@ pub(in crate::values::scalar) struct ElementSelection {
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::values::scalar) fn selected_element(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -135,7 +134,7 @@ pub(in crate::values::scalar) fn selected_element(
 /// how the observation is emitted. Static literal geometry remains explicit.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn indexed_scalar_read(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],

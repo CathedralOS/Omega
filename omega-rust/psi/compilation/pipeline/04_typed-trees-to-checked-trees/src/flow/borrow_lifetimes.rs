@@ -62,7 +62,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
     source: arena::HandleSpan<FlowConstraintRef>,
     borrow: &BorrowFacts,
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reassigned_place: Option<CanonicalPlace>,
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
@@ -217,7 +217,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
 }
 
 fn borrow_owner_path_overlaps_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_path: &[checked_trees::BorrowLoanOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {

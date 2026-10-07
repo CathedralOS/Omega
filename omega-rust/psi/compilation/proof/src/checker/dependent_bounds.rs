@@ -127,7 +127,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
 ) -> bool {
     use typed_trees::signature::SignatureContractKind;
     use typed_trees::statement::StatementNode;
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let Some(machine) = program
         .machines()
         .iter()
@@ -288,7 +288,7 @@ pub(crate) fn dependent_field_floor(
     obligation: &BoundedTransitionArgumentObligation,
     max_field: &Identifier,
 ) -> Option<i64> {
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let machine = program
         .machines()
         .iter()
@@ -308,7 +308,7 @@ pub(crate) fn dependent_field_floor(
 /// permissive -- probed live on the store side -- and must never discharge a
 /// bound). Mirrors the checker crate's `enforced_range_of_type_reference`.
 fn enforced_literal_range_minimum(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<i64> {
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -352,7 +352,7 @@ pub(crate) fn dependent_call_field_floor(
     obligation: &BoundedCallArgumentObligation,
     max_field: &Identifier,
 ) -> Option<i64> {
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let machine = program
         .machines()
         .iter()
@@ -386,7 +386,7 @@ pub(crate) fn obligation_data_binding<'plan>(
     machine_name: &str,
     state_name: &str,
 ) -> Option<&'plan str> {
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let machine = program
         .machines()
         .iter()
@@ -406,7 +406,7 @@ pub(crate) fn state_preserves_field(
     state_name: &str,
     field: &Identifier,
 ) -> bool {
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let Some(machine) = program
         .machines()
         .iter()
@@ -469,7 +469,7 @@ fn place_preserved_in_statements(
     statements: &[typed_trees::statement::StatementNode],
 ) -> bool {
     use typed_trees::statement::StatementNode;
-    let program = &proof_plan.program;
+    let program = proof_plan.program;
     let call_frames = validation::CallFrameResolver::new(program);
     let field = &Identifier::generated(
         place_field(data_binding, field_path)

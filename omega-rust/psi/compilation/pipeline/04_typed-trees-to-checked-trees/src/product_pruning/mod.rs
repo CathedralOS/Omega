@@ -385,7 +385,7 @@ fn retain_live_family_members(typed: &mut TypedTrees) {
 /// top-level declaration that starts before it in its file, which is robust
 /// to typing re-homing an occurrence onto an expression no statement reaches.
 pub fn target_sibling_selection_occurrences(
-    typed: &TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
 ) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
     // Projection retains backing declarations. Absence from executable roots
     // alone is not a target-sibling designation: ordinary private projections

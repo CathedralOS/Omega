@@ -36,7 +36,7 @@ struct StateTransitionEdge {
 }
 
 pub(super) fn check_persistent_borrow_assignments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -81,7 +81,7 @@ pub(super) fn check_persistent_borrow_assignments(
 /// mutable aggregate parameter does not: scalar writes and unrelated helpers
 /// must not acquire a new slot-summary requirement from their parameter type.
 fn check_stored_output_relations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -156,7 +156,7 @@ fn check_stored_output_relations(
 }
 
 fn static_persistent_paths_at_state_entries(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     states: &[typed_trees::state::State],
@@ -246,7 +246,7 @@ fn static_persistent_paths_at_state_entries(
 }
 
 fn state_transition_edges(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Vec<StateTransitionEdge> {
     program
@@ -277,7 +277,7 @@ fn state_transition_edges(
 }
 
 fn rebase_static_paths_for_transition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     arguments: arena::HandleSpan<typed_trees::expression::ExpressionHandle>,
@@ -334,7 +334,7 @@ fn rebase_static_paths_for_transition(
 }
 
 fn expression_is_exact_stable_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
@@ -353,7 +353,7 @@ fn expression_is_exact_stable_index(
 }
 
 fn stable_index_origin_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     symbol: SymbolHandle,
     visiting: &mut Vec<SymbolHandle>,
@@ -380,7 +380,7 @@ fn stable_index_origin_symbol(
 }
 
 fn analyze_persistent_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
@@ -513,7 +513,7 @@ fn analyze_persistent_state(
 }
 
 fn source_is_known_static_persistent_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -602,7 +602,7 @@ fn persistent_field_and_tail(
 }
 
 fn stable_persistent_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
@@ -616,7 +616,7 @@ fn stable_persistent_path(
 }
 
 fn static_persistent_segment(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     segment: facts::PlaceSegment,
 ) -> Option<StaticPersistentSegment> {
@@ -635,7 +635,7 @@ fn static_persistent_segment(
 }
 
 fn immutable_state_index_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -656,7 +656,7 @@ fn immutable_state_index_symbol(
 }
 
 fn exact_name_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -740,7 +740,7 @@ fn static_persistent_segments_may_overlap(
 }
 
 fn add_static_borrow_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: StaticPersistentPath,
     target_type: TypeReferenceHandle,
     paths: &mut Vec<StaticPersistentPath>,
@@ -776,7 +776,7 @@ fn add_static_borrow_frontier(
 /// Returns whether existing state-local canonical markers must retire as well.
 /// Resolve the frame only when either provenance frontier needs invalidation.
 fn retain_static_paths_across_call_frame(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     paths: &mut Vec<StaticPersistentPath>,
@@ -810,7 +810,7 @@ fn retain_static_paths_across_call_frame(
 }
 
 fn static_path_frame_aliases(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
     path: &StaticPersistentPath,
@@ -893,7 +893,7 @@ fn owner_path_place_segments(
 }
 
 fn static_provenance_invalidated_by_mutation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     known: &crate::flow::CanonicalPlace,
     mutated: &crate::flow::CanonicalPlace,
 ) -> bool {
@@ -925,7 +925,7 @@ fn static_provenance_invalidated_by_mutation(
 }
 
 fn place_is_proven_prefix_of(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     prefix: &crate::flow::CanonicalPlace,
     place: &crate::flow::CanonicalPlace,
@@ -940,7 +940,7 @@ fn place_is_proven_prefix_of(
 }
 
 fn place_segments_proven_equal(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
@@ -974,7 +974,7 @@ fn place_segments_proven_equal(
 }
 
 fn immutable_local_index_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -1016,7 +1016,7 @@ fn immutable_local_index_symbol(
 /// needs to reach its initializer; `resolving` stops a chain of locals from
 /// revisiting one.
 fn is_state_independent_borrow_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     resolving: &mut Vec<SymbolHandle>,
@@ -1078,7 +1078,7 @@ fn is_state_independent_borrow_source(
 }
 
 fn state_returns_only_static_borrows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -1126,7 +1126,7 @@ fn state_returns_only_static_borrows(
 }
 
 fn persistent_target_type<'program>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place: &crate::flow::CanonicalPlace,
     persistent: &[(SymbolHandle, &'program str, TypeReferenceHandle)],
 ) -> Option<(&'program str, TypeReferenceHandle)> {
@@ -1164,7 +1164,7 @@ fn persistent_target_type<'program>(
 }
 
 fn attached_persistent_fields<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
     machine
@@ -1188,7 +1188,7 @@ fn attached_persistent_fields<'program>(
 }
 
 fn persistent_storage<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
     attached_persistent_fields(program, machine)

@@ -7,7 +7,6 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_term, structural_term_in_scope,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -19,7 +18,7 @@ use typed_trees::signature::SignatureContractKind;
 /// proven contradiction is an error, while an unproved/unknown fact remains for
 /// the later fail-closed obligation rung instead of becoming a false positive.
 pub(crate) fn reject_refuted_value_call_requires(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
     callee_machine: &Machine,
@@ -89,7 +88,7 @@ pub(crate) fn reject_refuted_value_call_requires(
 /// bound, guard, and entailment channels; this only discharges what the
 /// terms themselves decide.
 pub fn instantiated_value_call_requires_proven(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
     callee_parameters: &[typed_trees::signature::StateParameter],
@@ -134,7 +133,7 @@ pub fn instantiated_value_call_requires_proven(
 /// runtime values. Such an argument is not termifiable for instantiation and
 /// declines the whole map, in both the refutation and the proof direction.
 fn argument_term_map(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
     callee_parameters: &[typed_trees::signature::StateParameter],
@@ -168,7 +167,7 @@ fn argument_term_map(
 /// `requires` facts — the same premise environment both sides of the
 /// instantiated judgment read.
 fn caller_requires_judge<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     caller_machine: &'program Machine,
     caller_state: &'program typed_trees::state::State,
 ) -> StructuralJudge<'program> {
@@ -181,7 +180,7 @@ fn caller_requires_judge<'program>(
 /// the only thing that pairs a specialized copy's clause with the one its
 /// author wrote, so every reader of that pairing walks the chain this way.
 fn requires_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
 ) -> Vec<ExpressionHandle> {
@@ -201,7 +200,7 @@ fn requires_expressions(
 /// The name the callee's author wrote. Specialization mints a machine whose
 /// name carries its selection fingerprint -- `Indexing::index$specialized$…`
 /// -- and that spelling is the compiler's, not a reader's.
-fn authored_callee_name(program: &TypedTrees, callee_machine: &Machine) -> String {
+fn authored_callee_name(program: &dyn crate::CheckingInput, callee_machine: &Machine) -> String {
     let authored = program.symbols.authored_origin(callee_machine.symbol);
     if authored == callee_machine.symbol {
         return callee_machine.name.as_str().to_owned();
@@ -217,7 +216,7 @@ fn authored_callee_name(program: &TypedTrees, callee_machine: &Machine) -> Strin
 /// order; a differing count means that assumption does not hold here, and the
 /// instantiated fact stands alone rather than risk naming the wrong clause.
 fn authored_requires_spellings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
 ) -> Option<Vec<String>> {
@@ -244,7 +243,7 @@ fn authored_requires_spellings(
 }
 
 pub(super) fn instantiated_fact_judgment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
@@ -358,7 +357,7 @@ pub(super) fn instantiated_fact_judgment(
 /// normalized through the judge: applications resolve under the judge's
 /// machine bodies, constant applications unfold to their closed constructor.
 fn instantiated_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
     binary: &typed_trees::expression::TableBinaryExpression,
     map: &[(String, StructuralTerm)],
@@ -393,7 +392,7 @@ fn instantiated_operands(
 /// directly. Anything else — a runtime-length slice, a non-`.len` tail, or an
 /// unrooted subject — keeps its symbolic form.
 fn declared_len_extent_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
     term: StructuralTerm,
 ) -> StructuralTerm {
@@ -477,7 +476,7 @@ fn declared_len_extent_term(
 /// term-ify yields one instantiated equation under the citation's
 /// parameter map.
 pub(crate) fn collect_instantiated_conjuncts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,

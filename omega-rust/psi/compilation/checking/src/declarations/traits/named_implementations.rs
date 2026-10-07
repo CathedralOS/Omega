@@ -14,13 +14,12 @@
 
 use super::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::trait_definition::ConformanceRowSource;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn validate_conformances(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -104,7 +103,7 @@ pub(crate) fn validate_conformances(
 }
 
 fn validate_closed_rows(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     implementation_name: &str,
     root_trait: &TraitDefinition,
@@ -211,7 +210,7 @@ fn validate_closed_rows(
 }
 
 pub(crate) fn arguments_for_declaring_trait(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_trait: &TraitDefinition,
     current_arguments: &[TypeReferenceHandle],
     target_trait: symbols::SymbolHandle,

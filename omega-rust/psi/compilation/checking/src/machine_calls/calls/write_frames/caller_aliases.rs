@@ -8,8 +8,8 @@ pub use super::place_paths::RecastSource;
 use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    Machine, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
-    append_place_suffix, memoized, statement_value_expression_roots, type_is_caller_isolated_local,
+    Machine, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, append_place_suffix,
+    memoized, statement_value_expression_roots, type_is_caller_isolated_local,
     type_may_carry_write,
 };
 use crate::declarations::symbols::PrefixSiteEntry;
@@ -21,7 +21,7 @@ use symbols::SymbolKeyMap as HashMap;
 use typed_trees::signature::StateParameter;
 
 pub(super) fn caller_binding_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
@@ -37,7 +37,7 @@ pub(super) fn caller_binding_type(
 /// Validate the root declaration of a retained name path without treating a
 /// projected member as a standalone reference binding.
 pub(super) fn caller_name_root_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
@@ -197,7 +197,7 @@ pub(super) type StateAssignments<'lookup> = dyn Fn(
     + 'lookup;
 
 pub(super) fn assignment_write_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
@@ -208,7 +208,7 @@ pub(super) fn assignment_write_target(
 }
 
 pub(super) fn assignment_write_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
@@ -230,7 +230,7 @@ pub(super) fn assignment_write_paths(
 /// The same recorded assignment prefix distinguishes replacing a reference
 /// slot from writing its referent and retains every current alias alternative.
 pub(super) fn assignment_destination_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     machine_symbols: &super::MachineSymbols<'_>,
@@ -298,7 +298,7 @@ pub(super) fn assignment_destination_origins(
 }
 
 fn assignment_evidence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
@@ -355,7 +355,7 @@ fn assignment_evidence(
 }
 
 pub(super) fn local_write_origins_before_statement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
@@ -374,7 +374,13 @@ pub(super) fn local_write_origins_before_statement(
             let statements = program.statement_table.statements(state.statement_nodes);
             let statement = statements.get(index)?;
             tracked_prefix_evidence(
-                collections, program, machine, state, statement, index, symbols,
+                collections,
+                program,
+                machine,
+                state,
+                statement,
+                index,
+                symbols,
             )?
         }
         CallerPrefixSite::Untracked => CallerPrefixEvidence {
@@ -480,7 +486,11 @@ impl CallOriginContext<'_> {
         expanded
     }
 
-    pub fn mentions_divergent(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    pub fn mentions_divergent(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
         self.divergent.iter().any(|(name, _)| {
             super::local_aliases::expression_mentions_place_roots(
                 program,
@@ -495,7 +505,7 @@ impl CallOriginContext<'_> {
     #[allow(clippy::too_many_arguments)]
     pub fn argument_origins(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         machine_symbols: &super::MachineSymbols<'_>,
         symbols: &TopLevelSymbols<'_>,
@@ -545,7 +555,7 @@ impl CallOriginContext<'_> {
 /// Freeze the caller prefix once before resolving a demand, then use exactly
 /// that evidence for both contextual case selection and storage closure.
 pub(super) fn with_caller_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
@@ -570,7 +580,7 @@ pub(super) fn with_caller_origins(
 /// Typed and footprint consumers share the same retained caller prefix. Only
 /// the footprint wrapper performs rendered-path closure afterward.
 pub(super) fn with_caller_origin_context<T>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
@@ -612,7 +622,7 @@ pub(super) fn with_caller_origin_context<T>(
 /// The owned locals declared before statement `index` whose storage no
 /// caller can see, by the same rule the state walk records them.
 fn preceding_isolated_locals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     index: usize,
 ) -> Vec<String> {
@@ -729,7 +739,7 @@ struct CallerPrefixEvidence<'program> {
 }
 
 fn caller_aliases_at_site<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
@@ -766,7 +776,7 @@ fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
 /// the machine, so it memoizes on the shared symbol index rather than
 /// repeating for every demand site in the machine.
 fn machine_has_tracked_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
 ) -> bool {
@@ -796,7 +806,7 @@ fn machine_has_tracked_origins(
 }
 
 fn caller_prefix_site<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
@@ -831,7 +841,7 @@ fn caller_prefix_site<'program>(
 }
 
 fn caller_prefix_entry<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
@@ -873,7 +883,7 @@ fn tracked_prefix_evidence<'program>(
     collections: &Mutex<
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &'program typed_trees::state::State,
     statement: &'program StatementNode,
@@ -903,7 +913,7 @@ fn tracked_prefix_evidence<'program>(
 }
 
 fn caller_aliases_at_prefix<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerPrefixSite<'program>,
@@ -926,7 +936,13 @@ fn caller_aliases_at_prefix<'program>(
         });
     };
     tracked_prefix_evidence(
-        collections, program, machine, state, statement, index, symbols,
+        collections,
+        program,
+        machine,
+        state,
+        statement,
+        index,
+        symbols,
     )
 }
 
@@ -935,7 +951,7 @@ fn caller_aliases_at_prefix<'program>(
 /// it memoizes on the shared symbol index, and a hit rebuilds the borrowed
 /// state/statement references instead of storing addresses.
 pub(super) fn caller_statement_at_site<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
@@ -965,7 +981,7 @@ pub(super) fn caller_statement_at_site<'program>(
 }
 
 pub(super) fn caller_statement_owner<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     site: CallerWriteSite<'_>,
 ) -> Option<(
@@ -1005,14 +1021,17 @@ pub(super) fn caller_statement_owner<'program>(
 }
 
 fn contains_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     target: ExpressionHandle,
 ) -> bool {
     expression_any(program, root, |expression| expression == target)
 }
 
-pub(crate) fn expression_has_calls(program: &TypedTrees, root: ExpressionHandle) -> bool {
+pub(crate) fn expression_has_calls(
+    program: &dyn crate::CheckingInput,
+    root: ExpressionHandle,
+) -> bool {
     expression_any(program, root, |expression| {
         matches!(
             program.expression_table.expression(expression),
@@ -1022,7 +1041,7 @@ pub(crate) fn expression_has_calls(program: &TypedTrees, root: ExpressionHandle)
 }
 
 pub(super) fn expression_any(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     mut predicate: impl FnMut(ExpressionHandle) -> bool,
 ) -> bool {

@@ -32,7 +32,6 @@ use checked_trees::{
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
     CheckedMathematicalDeclaration, CheckedMathematicalParameter,
 };
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataProperties, TypeParameter, TypeParameterKind};
 use typed_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalType, MathematicalTypeHandle,
@@ -51,7 +50,7 @@ use crate::proof::{FixedCore, FixedCoreVocabulary};
 /// surface cannot record faithfully fails with diagnostics rather than
 /// elaborating partially.
 pub(crate) fn build_checked_mathematical_declarations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<Vec<CheckedMathematicalDeclaration>, Vec<diagnostics::Diagnostic>> {
     let vocabulary = FixedCoreVocabulary::resolve(&program.symbols);
     program
@@ -62,7 +61,7 @@ pub(crate) fn build_checked_mathematical_declarations(
 }
 
 fn elaborate_declaration(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
 ) -> Result<CheckedMathematicalDeclaration, Vec<diagnostics::Diagnostic>> {
@@ -102,7 +101,7 @@ fn elaborate_declaration(
 }
 
 fn elaborate_binder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
     binder: &TypeParameter,
@@ -149,7 +148,7 @@ fn elaborate_binder(
 /// to a fixed `core::*` declaration is the vocabulary; the unresolved
 /// authored spelling is the transitional fallback only.
 fn classify_subject_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
     binder: &TypeParameter,
@@ -221,7 +220,7 @@ fn classify_subject_carrier(
 /// application in domain/callee position parenthesizes so the spelling keeps
 /// its authored grouping.
 fn mathematical_type_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &MathematicalDefinition,
     handle: MathematicalTypeHandle,
 ) -> Result<String, Vec<diagnostics::Diagnostic>> {
@@ -274,7 +273,7 @@ fn mathematical_type_identity(
 /// Borrows, constrained references and dynamic traits are runtime-custody or
 /// property surfaces the checked declaration cannot record, so they refuse.
 fn ordinary_type_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &MathematicalDefinition,
     reference: TypeReferenceHandle,
 ) -> Result<String, Vec<diagnostics::Diagnostic>> {
@@ -307,7 +306,7 @@ fn ordinary_type_identity(
 }
 
 fn refuse(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &MathematicalDefinition,
     message: String,
 ) -> Vec<diagnostics::Diagnostic> {

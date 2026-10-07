@@ -17,7 +17,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// `>= 0` proof. A signed index -- or one whose type cannot be resolved -- is
 /// NOT exempt (closed-world: exempt only when provably unsigned).
 pub(super) fn expression_is_unsigned_integer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -34,7 +34,7 @@ pub(super) fn expression_is_unsigned_integer(
 /// interval, but its u8 result still cannot exceed 255. Signed nonnegativity
 /// remains a separate obligation at the access.
 pub(in crate::checks) fn expression_integer_carrier_maximum(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -63,7 +63,7 @@ pub(in crate::checks) fn expression_integer_carrier_maximum(
 /// BigInt so `i64::MIN` and every unsigned bound share one comparison type.
 /// Non-integer carriers contribute no floor.
 pub(in crate::checks) fn expression_integer_carrier_minimum(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -89,7 +89,7 @@ pub(in crate::checks) fn expression_integer_carrier_minimum(
 /// Resolves a type reference (through references and constraints) to its
 /// underlying primitive, when it names one.
 fn primitive_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -103,7 +103,7 @@ fn primitive_of_type_reference(
 }
 
 pub(super) fn expression_is_slice(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -127,7 +127,7 @@ pub(super) fn expression_is_slice(
 /// return interval and enforced result contract, intersected with its carrier.
 /// Checking the callee's return remains an independent duty.
 pub(in crate::checks) fn expression_enforced_declared_range(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -205,7 +205,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
 /// unranged, non-Exact, or the arithmetic overflows (the index prover then
 /// reports its clean cannot-prove error).
 fn dependent_range_substituted(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
@@ -260,7 +260,7 @@ fn has_non_exact_domain(constraints: &[typed_trees::types::TypeConstraintNode]) 
 }
 
 fn dependent_range_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<(i64, typed_trees::dependent_ranges::SymbolicMaxBound)> {
     match program.type_reference_table.type_reference(handle) {
@@ -305,7 +305,7 @@ fn dependent_range_of_type_reference(
 /// arithmetic domain is deliberately permissive and kills the walk
 /// (`None`); `visit` returning `false` stops early.
 pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut handle: TypeReferenceHandle,
     mut visit: impl FnMut(&[typed_trees::types::TypeConstraintNode]) -> bool,
 ) -> Option<()> {
@@ -331,7 +331,7 @@ pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
 }
 
 fn enforced_range_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
     let mut bounds: Option<(BigInt, BigInt)> = None;
@@ -396,7 +396,7 @@ fn enforced_range_of_type_reference(
 /// to the receiver application. Join them by declaration and argument position,
 /// never by the two binders' possibly identical spellings.
 pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
@@ -496,7 +496,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
 /// symbolic extent only when its symbol is an in-scope binder's, so the
 /// binder is found by identity alone.
 fn symbolic_extent_floor(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     extent_symbol: SymbolHandle,
@@ -523,7 +523,7 @@ fn symbolic_extent_floor(
 /// Selected builtin meaning, not comparison spelling, supplies the ordering;
 /// unrelated binders and disjunctive alternatives supply no bound.
 fn const_extent_requires_floor(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     extent: SymbolHandle,
@@ -609,7 +609,7 @@ fn const_extent_requires_floor(
 /// parameter list is empty. The binder is matched by symbol; the data
 /// declaration's name is only a fallback when its symbol never resolved.
 fn attached_data_const_parameter_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     extent_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -644,7 +644,7 @@ fn attached_data_const_parameter_reference(
 /// a symbolic or absent maximum — a `u64[1..=18446744073709551615]`/`u64[0..N]` lower bound is
 /// still an enforced floor.
 fn constrained_minimum_of_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<i64> {
     let mut minimum: Option<numerics::bignum::BigInt> = None;
@@ -681,7 +681,7 @@ fn constrained_minimum_of_type_reference(
 /// an integer range of every declared type and requires a binder's carrier
 /// range to close.
 pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -715,7 +715,7 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
 }
 
 pub(in crate::checks::ranges) fn expression_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -790,7 +790,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
 }
 
 fn type_reference_for_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -851,7 +851,7 @@ fn type_reference_for_symbol(
 }
 
 fn type_reference_is_slice(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -870,7 +870,7 @@ fn type_reference_is_slice(
 }
 
 fn data_field_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
     member_name: &typed_trees::name::Identifier,
@@ -903,7 +903,7 @@ fn data_field_type_reference(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -917,7 +917,7 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_in_definition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_definition: &typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &typed_trees::name::Identifier,

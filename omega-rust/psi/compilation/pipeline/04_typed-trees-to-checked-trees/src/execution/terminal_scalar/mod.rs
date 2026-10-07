@@ -36,7 +36,7 @@ use checked_trees::{
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     scalar_graphs: &CheckedScalarGraphPlans,
 ) -> CheckedTerminalMachineSelections {
@@ -112,9 +112,8 @@ pub(crate) fn build_checked_terminal_machine_selections(
             .collect(),
     }
 }
-use typed_trees::{
-    TypedTrees,
-    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
 mod computation_walk;
@@ -129,7 +128,7 @@ mod state_contracts;
 mod successors;
 
 pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
@@ -215,7 +214,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
 /// edge arguments were planned during fact construction over the same program
 /// and are used as planned.
 pub(crate) fn finalize_checked_scalar_graph_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     control: &checked_trees::FlowControlFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -267,7 +266,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
 }
 
 fn build_machine_graph(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -375,7 +374,7 @@ fn build_machine_graph(
 }
 
 fn checked_state_graph(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     owner_state_count: usize,
@@ -693,7 +692,7 @@ fn checked_state_graph(
 /// Retain the contiguous authored declaration/assignment prefix in the shared
 /// scalar binding representation. Consumers choose the supported value forms.
 pub(super) fn checked_binding_prefix(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Option<Vec<CheckedScalarBinding>> {
@@ -704,7 +703,7 @@ pub(super) fn checked_binding_prefix(
 /// the scalar binding inventory. Both collectors must use the same rule:
 /// otherwise a store can disappear between them while its graph stays eligible.
 fn assignment_has_projected_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> bool {
     matches!(
@@ -715,7 +714,7 @@ fn assignment_has_projected_target(
 }
 
 fn checked_statement_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     computations: &checked_trees::CheckedScalarComputationPlans,
     unit_calls: bool,
@@ -851,7 +850,7 @@ fn checked_statement_bindings(
 }
 
 fn checked_binding_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedScalarBindingValue> {
     let typed_trees::expression::ExpressionNode::Call(call) =
@@ -901,7 +900,7 @@ fn checked_binding_value(
 }
 
 fn checked_successor(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
@@ -954,7 +953,7 @@ fn checked_successor(
 
 /// Retain authored exit coordinates independently of the preceding operation values.
 pub(super) fn checked_terminator(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
@@ -1097,7 +1096,7 @@ pub(super) fn checked_terminator(
 }
 
 fn checked_branch_destination(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,

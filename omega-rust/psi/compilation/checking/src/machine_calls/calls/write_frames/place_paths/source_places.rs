@@ -4,7 +4,6 @@
 
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -61,7 +60,7 @@ impl FrameSourcePlace {
     }
 
     pub(in crate::machine_calls::calls::write_frames) fn from_expression(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Self {
         let mut facts = FactPlan::default();
@@ -130,7 +129,7 @@ impl FrameSourcePlace {
     /// append only the projection beyond the original base.
     pub(in crate::machine_calls::calls::write_frames) fn projected(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         whole_expression: ExpressionHandle,
         base_expression: ExpressionHandle,
     ) -> Self {
@@ -253,7 +252,7 @@ fn segments_have_index_geometry(segments: &[PlaceSegment]) -> bool {
 }
 
 fn source_has_builtin_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
@@ -266,7 +265,7 @@ fn source_has_builtin_coordinates(
 /// the first state of an attached machine. A data field's declaration alone
 /// cannot identify which attached machine is evaluating the expression.
 fn source_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<(&Machine, &State)> {

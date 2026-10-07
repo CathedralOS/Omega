@@ -16,7 +16,7 @@ use symbols::SymbolHandle;
 /// predicates over `self` reduces, and then EVERY predicate must be
 /// established, never a subset.
 pub(super) fn predicate_only_domain_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
     let domain = typed_trees::domain::domain_by_symbol(program, domain_symbol)?;
@@ -56,7 +56,7 @@ pub(super) fn predicate_only_domain_predicates(
 /// substitution `contracts::domains` already runs in the MEMBERSHIP ->
 /// PREDICATE direction. This is that rendering read the other way.
 pub(super) fn predicate_only_domain_labels(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<Vec<String>> {
@@ -96,7 +96,7 @@ pub(super) fn predicate_only_domain_labels(
 /// membership while a predicate it cannot see -- `self != 7` beside
 /// `self <= 15` -- stays unproven.
 pub(super) fn predicate_only_domain_interval(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {

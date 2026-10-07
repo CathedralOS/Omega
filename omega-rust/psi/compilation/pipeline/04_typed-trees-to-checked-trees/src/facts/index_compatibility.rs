@@ -5,7 +5,6 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use facts::{FactPlan, ProgramPoint};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -36,7 +35,7 @@ use unevidenced_diagnostics::append_unevidenced_establishment_diagnostics;
 pub(crate) use index_terms::{bound_index_expressions_equal, expression_uses_binder};
 
 pub(super) fn build_index_compatibility_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
@@ -252,7 +251,7 @@ pub(super) fn build_index_compatibility_facts(
 
 #[allow(clippy::too_many_arguments)]
 fn append_expression_compatibilities(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
@@ -489,7 +488,7 @@ fn append_expression_compatibilities(
 /// substitution. Identically spelled positions need no equality fact; this is
 /// spelling identity, not the index equality `index_terms_equal` decides.
 fn index_arguments_structurally_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {

@@ -38,7 +38,7 @@ mod scalar_values;
 mod write_target;
 
 pub(super) fn propagate_statement_transfers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -503,7 +503,7 @@ fn publish_statement_contexts(
 
 #[allow(clippy::too_many_arguments)]
 fn retain_qualification_correspondence(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     semantic: &mut FactPlan,
     source_fact: facts::FactHandle,
@@ -595,7 +595,7 @@ fn retain_qualification_correspondence(
 }
 
 fn exact_qualification_payload(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     payload: QualificationPayloadIdentity,
 ) -> bool {
     match payload {
@@ -616,7 +616,7 @@ fn exact_qualification_payload(
 }
 
 fn exact_evidence_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     evidence: QualificationEvidence,
 ) -> bool {
     evidence.source_symbol.is_valid()
@@ -629,7 +629,7 @@ fn exact_evidence_source(
 }
 
 fn exact_structural_symbol_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     semantic: &FactPlan,
     handle: PlaceHandle,
@@ -756,7 +756,7 @@ fn exact_structural_symbol_place(
 }
 
 fn correspondence_root_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     formation_statement_index: usize,
@@ -798,7 +798,7 @@ fn correspondence_root_type_reference(
 }
 
 fn exact_statement_owner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
@@ -810,7 +810,7 @@ fn exact_statement_owner(
 }
 
 fn contextual_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

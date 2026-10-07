@@ -4,7 +4,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 /// Preserve an exact edge's polarity while removing Boolean wrappers. Callers
 /// establish selected builtin meaning before using the resulting integer order.
 pub(in crate::checks::termination::ranking) fn comparison(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: GuardFact,
 ) -> Option<(ExpressionHandle, BinaryOperator, ExpressionHandle)> {
     let mut expression = fact.expression;

@@ -26,7 +26,7 @@ struct SymbolIndex {
 }
 
 impl SymbolIndex {
-    fn build(program: &typed_trees::TypedTrees) -> Self {
+    fn build(program: &dyn ::validation::CheckingInput) -> Self {
         let mut index = Self {
             machine_index: HashMap::default(),
             state_index_in_machine: HashMap::default(),
@@ -325,7 +325,7 @@ impl<'plans> FlowBuildContext<'plans> {
         )
     }
 
-    fn symbol_index(&mut self, program: &typed_trees::TypedTrees) -> &SymbolIndex {
+    fn symbol_index(&mut self, program: &dyn ::validation::CheckingInput) -> &SymbolIndex {
         self.symbol_index
             .get_or_insert_with(|| SymbolIndex::build(program))
     }
@@ -333,7 +333,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// Position of `machine_symbol` in `program.machines()`.
     pub(super) fn machine_index(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
     ) -> Option<usize> {
         self.symbol_index(program)
@@ -345,7 +345,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// Position of `state_symbol` inside `machine_symbol`'s state list.
     pub(super) fn state_index_in_machine(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     ) -> Option<usize> {
@@ -359,7 +359,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// symbol -- the shape the traits x signatures contract scan repeats.
     pub(super) fn signature_location(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         signature_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
         self.symbol_index(program)
@@ -372,7 +372,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// in the program -- the shape `semantic::calls::find_state` scans for.
     pub(super) fn state_location(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
     ) -> Option<(usize, usize)> {
         self.symbol_index(program)
@@ -383,7 +383,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn canonical_place_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
         statement_index: usize,
         expression: typed_trees::expression::ExpressionHandle,
@@ -403,7 +403,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn expression_result_type_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         expression: typed_trees::expression::ExpressionHandle,
@@ -418,7 +418,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn transition_call_target_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
@@ -443,7 +443,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// are all program-immutable.
     pub(super) fn entry_origin_chain_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
     ) -> Rc<Vec<(SymbolHandle, SymbolHandle)>> {
@@ -474,7 +474,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn expression_occurrences_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
         self.expression_occurrences
@@ -493,7 +493,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn proof_fact_occurrences_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         fact: arena::Handle<typed_trees::domain::ProofFact>,
     ) -> Rc<Vec<typed_trees::expression::ExpressionHandle>> {
         self.proof_fact_occurrences
@@ -511,7 +511,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// `BigInt` parsing memoize on first widening demand.
     pub(super) fn integer_literal_thresholds_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
     ) -> Rc<Vec<numerics::bignum::BigInt>> {
         self.integer_literal_thresholds
             .get_or_insert_with(|| {
@@ -546,7 +546,7 @@ impl<'plans> FlowBuildContext<'plans> {
 
     pub(super) fn reference_candidate_places_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
         statement_index: usize,
         root: SymbolHandle,
@@ -573,7 +573,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// the shared one the whole build carries.
     pub(super) fn statement_storage_writes_at(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
         statement_index: usize,
@@ -680,7 +680,7 @@ pub(super) fn active_context_facts(
 /// the statement's active contexts must select every case the source path's
 /// segments name.
 pub(super) fn source_transfer_cases_selected(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     contexts: &FlowBuildContext<'_>,
     active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,

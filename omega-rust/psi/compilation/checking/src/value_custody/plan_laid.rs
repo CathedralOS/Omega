@@ -4,9 +4,11 @@
 //! than storage. Borrowing or recasting the destination does not change that law.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
-pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_plans(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let mut data_symbols = Vec::with_capacity(program.plan_laid_layouts.len());
     for plan in &program.plan_laid_layouts {
         if data_symbols.contains(&plan.data_symbol) {
@@ -142,7 +144,7 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
 }
 
 fn target_neutral_report_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     plan: &typed_trees::PlanLaidLayout,
     schema: &typed_trees::data::DataDefinition,
     schema_fields: &[&typed_trees::data::DataField],
@@ -181,7 +183,7 @@ fn target_neutral_report_matches(
 }
 
 fn normalized_schema_report_fingerprint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> u64 {
     use typed_trees::data::{DataField, DataMember};
@@ -219,7 +221,12 @@ fn normalized_schema_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     /// A member field's fingerprint row: position-bearing name, relevance
     /// bit, and spelled declared type.
-    fn field_row(hash: &mut u64, program: &TypedTrees, field: &DataField, position: usize) {
+    fn field_row(
+        hash: &mut u64,
+        program: &dyn crate::CheckingInput,
+        field: &DataField,
+        position: usize,
+    ) {
         member_name(hash, field.identity, field.name.as_str(), position);
         byte(
             hash,
@@ -228,7 +235,12 @@ fn normalized_schema_report_fingerprint(
                 language_core::BindingRelevance::Erased => 1,
             },
         );
-        text(hash, program.display_type_reference(field.type_reference).as_str());
+        text(
+            hash,
+            program
+                .display_type_reference(field.type_reference)
+                .as_str(),
+        );
     }
 
     bytes(&mut hash, b"omega.schema.v2");
@@ -285,7 +297,7 @@ fn normalized_schema_report_fingerprint(
 }
 
 fn stored_integer_capabilities_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     plan: &typed_trees::PlanLaidLayout,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
@@ -303,7 +315,7 @@ fn stored_integer_capabilities_match(
 }
 
 fn stored_integer_write_is_total(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     field_type: typed_trees::types::TypeReferenceHandle,
     stored_width: u64,
     interpretation: layout_plans::IntegerInterpretation,
@@ -518,7 +530,7 @@ fn geometry_matches(
 }
 
 fn runtime_fields<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> Vec<&'program typed_trees::data::DataField> {
     program

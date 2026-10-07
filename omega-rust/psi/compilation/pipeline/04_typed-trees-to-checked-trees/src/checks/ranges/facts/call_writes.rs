@@ -3,7 +3,7 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 
 /// Immutable owner-local call identity, borrowed across incoming passes and branches.
 pub(in crate::checks::ranges) struct RangeCallContext<'program> {
@@ -63,7 +63,7 @@ impl<'program> RangeCallContext<'program> {
     /// for the same occurrence; anything else reports no evidence.
     pub(in crate::checks::ranges) fn find_call(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         statement_index: usize,
@@ -152,7 +152,7 @@ pub(super) struct CallStorageWrites {
 impl RangeFacts<'_> {
     pub(super) fn structured_call_writes(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         site: &CallSite<'_>,

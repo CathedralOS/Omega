@@ -10,11 +10,10 @@
 //! does. Every other requirement keeps its existing provers; this is a client
 //! of the one interval engine rather than another private one.
 use checked_trees::{FlowCallFact, FlowStateFact};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     requirement: ExpressionHandle,
@@ -69,7 +68,7 @@ pub(super) fn proves(
 /// The argument expression the call passes for the plain parameter name
 /// `parameter` of its target.
 fn argument_for(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     parameter: ExpressionHandle,

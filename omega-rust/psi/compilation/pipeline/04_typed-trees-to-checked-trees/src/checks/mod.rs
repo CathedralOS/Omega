@@ -71,7 +71,7 @@ pub(crate) use ranges::enter_root_currency_scope;
 pub(crate) use ranges::incoming_guards::IncomingGuardIndexCache;
 
 pub(crate) fn initialize_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -83,7 +83,7 @@ pub(crate) fn initialize_checked_direct_borrow_resources(
 /// program and the borrow facts, so the same table answers fact construction,
 /// resource construction, borrow statements, and range indexing in one check pass.
 pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,

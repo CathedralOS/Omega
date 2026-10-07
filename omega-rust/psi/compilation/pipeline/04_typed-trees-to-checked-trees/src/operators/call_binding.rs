@@ -301,7 +301,7 @@ pub(crate) fn bind_selected_operator_calls(
 /// Finalization uses it to settle the retained `Operator` occurrence on the
 /// rewritten node to the exact declaration.
 pub(crate) fn token_bound_machine_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SymbolHandle> {
     if call.operational_acknowledgement.origin
@@ -323,7 +323,7 @@ pub(crate) fn token_bound_machine_call_target(
         .map(|machine| machine.symbol)
 }
 
-fn machine_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
+fn machine_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {
     crate::lookup::machine_by_symbol(program, symbol).map_or_else(
         || "<unknown machine>".to_owned(),
         |machine| machine.name.to_string(),

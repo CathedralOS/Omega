@@ -30,7 +30,7 @@ use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_copied_field_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -207,7 +207,7 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
 /// carrier rather than element views of a collection, so this lane claims only
 /// the two element views. A non-collection receiver fails closed the same way.
 pub(super) fn collection_view_source_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -268,7 +268,7 @@ pub(super) fn collection_view_source_place(
 /// index truncation, no coarse-only path) may lend evidence to the binding.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn bound_reference_referent_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -335,7 +335,7 @@ pub(super) fn bound_reference_referent_place(
 }
 
 fn declared_local_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     local_symbol: SymbolHandle,

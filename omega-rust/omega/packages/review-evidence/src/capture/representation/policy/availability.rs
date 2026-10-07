@@ -23,7 +23,7 @@ pub(super) fn project(
         declaration.is_public
             && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
             && representation_planning::is_compiler_owned_opaque_representation_trait(
-                &compilation.typed,
+                compilation.checking_input,
                 declaration.trait_symbol,
             )
     }) {

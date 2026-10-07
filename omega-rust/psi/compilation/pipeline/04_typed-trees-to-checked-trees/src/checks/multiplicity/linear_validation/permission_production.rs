@@ -16,7 +16,7 @@ use typed_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_statement_permission_production(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

@@ -16,7 +16,7 @@ use super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
     Multiplicity, StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::control;
@@ -177,7 +177,7 @@ pub(in crate::execution::terminal_unit) struct EdgeCalls<'a> {
 }
 
 pub(in crate::execution::terminal_unit) fn successor(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     fused: &FusedStates<'_>,
     source_index: usize,
@@ -227,7 +227,7 @@ pub(in crate::execution::terminal_unit) fn successor(
 // cleanup; constructing bindings establishes neither cleanup contract.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn successor_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     fused: &FusedStates<'_>,
     source_index: usize,
@@ -938,7 +938,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
 /// linear custody requires an owned root. Parameter and local establishments
 /// share that rule and the target's exact subtree type.
 fn projected_value_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     source_structural: &[CheckedUnitStructuralParameterPlan],
@@ -1057,7 +1057,7 @@ fn projected_value_subject(
 /// checks remain independent.
 #[allow(clippy::too_many_arguments)]
 fn projected_loan_transfer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: symbols::SymbolHandle,
     source: symbols::SymbolHandle,
@@ -1126,7 +1126,7 @@ fn projected_loan_transfer(
 /// downstream channel can rejoin the projected subtree without
 /// re-deriving the destructure local.
 fn case_payload_transfer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place: crate::flow::CanonicalPlace,
     subject_place: &crate::flow::CanonicalPlace,
     selected_case: symbols::SymbolHandle,

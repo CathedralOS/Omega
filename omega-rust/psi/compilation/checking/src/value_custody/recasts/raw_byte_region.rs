@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -20,7 +19,7 @@ pub struct SliceRecastByteRegion {
 }
 
 pub fn slice_recast_byte_region(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -62,7 +61,7 @@ pub fn slice_recast_byte_region(
 /// but an unsized slice with multi-byte elements additionally owes divisibility
 /// of the complete remaining region; an interval cannot prove that congruence.
 pub(super) fn exact_interior_byte_region_offset(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     source: ExpressionHandle,
@@ -114,7 +113,7 @@ pub(super) enum InteriorByteRegion {
 /// guard, or the boundary-ensures witness. `footprint` is the number of bytes
 /// the view occupies at the offset (zero for a slice over the remainder).
 pub(super) fn interior_byte_region_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -199,7 +198,7 @@ pub(super) fn interior_byte_region_source(
 /// literal offset 4294967295 -- a number no program contains. Rejected here,
 /// the unproven-offset judgment names the three discharge routes instead.
 fn proved_offset_upper_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -275,7 +274,7 @@ pub(super) fn push_offset_unproven(
 /// decidable subset is a raw named record whose transitive fields are raw
 /// fact-free scalar primitives or records with no default-domain facts.
 fn record_view_is_fact_free(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
@@ -311,7 +310,7 @@ fn record_view_is_fact_free(
 }
 
 pub(super) fn record_view_type_is_fact_free(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {

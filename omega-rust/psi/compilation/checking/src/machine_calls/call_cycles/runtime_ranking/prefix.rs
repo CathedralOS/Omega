@@ -5,7 +5,6 @@
 use crate::machine_calls::calls::{CallFrameResolver, frame_paths_overlap};
 use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 
@@ -18,7 +17,7 @@ use super::projection::{RankOrder, RankProjection};
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
 pub(super) fn preserves_rank(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     rank: &RankProjection,

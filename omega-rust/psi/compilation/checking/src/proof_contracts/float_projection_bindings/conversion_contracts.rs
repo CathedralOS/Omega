@@ -7,7 +7,6 @@
 //! integer semantic family has eight carriers, so its proof-position overload
 //! is selected by that exact parameter kind before checking sealed custody.
 
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::OperatorDefinition;
@@ -18,7 +17,7 @@ use typed_trees::types::PrimitiveType;
 /// contract states a sealed format conversion. Admission of the call and
 /// proof of that contract remain with their ordinary owners.
 pub fn float_format_conversion_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<(PrimitiveType, PrimitiveType)> {
     numeric_float_conversion_contract(program, operator)
@@ -28,7 +27,7 @@ pub fn float_format_conversion_contract(
 /// A sealed conversion to a float carrier, from either a float projection or
 /// the selected integer parameter. The declaration name selects no semantics.
 pub fn numeric_float_conversion_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<(PrimitiveType, PrimitiveType)> {
     use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
@@ -159,7 +158,7 @@ pub fn numeric_float_conversion_contract(
 }
 
 fn projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
@@ -184,7 +183,7 @@ fn projection(
 /// Kernel identity establishes truncation or saturation, never the callable's
 /// name. The result occurrence and source parameter belong to this operator.
 pub fn float_integer_conversion_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<(
     PrimitiveType,
@@ -287,7 +286,7 @@ pub fn float_integer_conversion_contract(
 /// Exact here is the named truncating operation's contract-gated meaning;
 /// authored Exact coercions separately owe integrality before using it.
 pub fn float_integer_conversion_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
     minimum: f64,
     maximum: f64,

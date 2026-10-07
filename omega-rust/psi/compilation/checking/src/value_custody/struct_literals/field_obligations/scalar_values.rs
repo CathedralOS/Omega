@@ -8,7 +8,6 @@ use crate::proof_contracts::arithmetic_domains::{
     occurrence_value_environment, validate_value_range,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -22,7 +21,7 @@ pub(super) struct ConstructionScalarValue {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

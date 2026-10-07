@@ -106,7 +106,7 @@ fn application(
     let [schema] = schemas.as_slice() else {
         return Err(rejected("callback layout has no exact schema declaration"));
     };
-    let mut projected = Cow::Borrowed(&compilation.typed);
+    let mut projected = Cow::Borrowed(compilation.checking_input.typed_program());
     let reference = match schema.generic_instance {
         Some(reference) => reference,
         None => projected
@@ -120,7 +120,7 @@ fn application(
     Ok(PackagePolicyCallbackLayoutApplication {
         policy: nominal_identity(compilation, plan.policy_symbol)?,
         schema: signature_type_identity(
-            &projected,
+            projected.as_ref(),
             compilation.custody.sources().exact_toolchain_sources(),
             reference,
             &[],

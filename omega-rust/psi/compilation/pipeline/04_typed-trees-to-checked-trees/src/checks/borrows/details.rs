@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 /// visible before `statement_index`, matching how the borrow places resolve
 /// them.
 pub(super) fn binding_reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,

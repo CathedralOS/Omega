@@ -18,7 +18,6 @@ use checked_trees::{
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
@@ -29,7 +28,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct Builder<'program, 'plans> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) flow: &'program FlowFacts,
     pub(super) borrow: &'program checked_trees::BorrowFacts,

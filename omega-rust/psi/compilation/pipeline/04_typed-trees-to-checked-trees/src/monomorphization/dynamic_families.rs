@@ -177,7 +177,7 @@ fn queue_family_demand(
 /// dynamic implementation selections. Each selection names its implementation
 /// exactly, so every finite-family row it can dispatch is generated once.
 fn collect_selection_demands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selections: &[validation::DynamicImplementationSelection],
     demands: &mut Vec<(SymbolHandle, Vec<FamilyTuple>)>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -258,7 +258,7 @@ fn collect_selection_demands(
 /// non-value argument coordinate stays empty, matching the boundary's roster
 /// join.
 fn tuple_specialization_exists(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     template: SymbolHandle,
     tuple: &FamilyTuple,
 ) -> bool {

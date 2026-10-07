@@ -7,7 +7,7 @@ use facts::FactPlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn canonical_place_to_fact_place_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -38,7 +38,7 @@ pub(crate) fn append_place_segment(
 }
 
 pub(crate) fn resolve_place_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &FactPlan,
     place: facts::PlaceHandle,
     member_name: &str,
@@ -92,7 +92,7 @@ pub(crate) fn resolve_place_member_symbol(
 }
 
 fn fact_place_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &FactPlan,
     place: &facts::Place,
 ) -> Option<SymbolHandle> {

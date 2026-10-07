@@ -5,7 +5,7 @@ use crate::flow::{CanonicalPlace, FlowBuildContext};
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use facts::{FactOrigin, FactPlan, ProgramPoint, ScalarValue};
-use typed_trees::{TypedTrees, expression::ExpressionHandle, state::State};
+use typed_trees::{expression::ExpressionHandle, state::State};
 
 pub(super) fn meet(previous: &mut Vec<BoundPredicate>, incoming: &[BoundPredicate]) -> bool {
     let before = previous.len();
@@ -15,7 +15,7 @@ pub(super) fn meet(previous: &mut Vec<BoundPredicate>, incoming: &[BoundPredicat
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
     state: &State,

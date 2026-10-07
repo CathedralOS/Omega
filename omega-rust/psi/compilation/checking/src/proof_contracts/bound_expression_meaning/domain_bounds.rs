@@ -8,7 +8,6 @@ use super::definition_membership::{
     exact_domain_subject_type, facts_contain_expression, has_exact_domain_definition,
 };
 use language_core::OperatorSpelling;
-use typed_trees::TypedTrees;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -18,7 +17,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// turn a foreign nominal type into an integer. Mutability and capture identity
 /// are separate obligations of the bound normalizer.
 pub fn has_exact_integer_domain_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     bound_lookup: &crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
@@ -65,7 +64,7 @@ pub fn has_exact_integer_domain_subject(
 }
 
 fn integer_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     // Do not unwrap references or atomic shells: those do not name an owned
@@ -88,7 +87,7 @@ fn integer_carrier(
 /// Each extracted child must be checked separately, starting at the declared
 /// predicate root. Subtree ownership alone does not imply the subtree is true.
 pub fn has_builtin_domain_decomposed_guard_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
@@ -125,7 +124,7 @@ pub fn has_builtin_domain_decomposed_guard_meaning(
 }
 
 fn operand_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {

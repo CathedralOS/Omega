@@ -22,7 +22,6 @@ use checked_trees::{
     CheckedScalarExpressionRole,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -77,7 +76,7 @@ pub(super) fn located_binding_symbols<'a>(
 /// statement kind reads, the state's scalar signature and the rosters each
 /// statement's plans extend.
 struct StatementPlanner<'p, 's> {
-    program: &'p TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     operators: &'p CheckedOperatorFacts,
     exact_integer_casts: &'p [validation::ExactIntegerCastFact],
     proof_only: &'s typed_trees::proof_only::ProofOnlyClassification,
@@ -125,7 +124,7 @@ impl<'p> StatementPlanner<'p, '_> {
 }
 
 pub(crate) fn build_checked_scalar_expression_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
@@ -254,7 +253,7 @@ fn retain_subslice_endpoints(
 }
 
 pub(crate) fn lower_closed_integer_literal_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     mut expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
@@ -301,7 +300,7 @@ pub(crate) fn lower_closed_integer_literal_guard(
 }
 
 pub(crate) fn assignment_target_primitive_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let mut crossed_reference = false;

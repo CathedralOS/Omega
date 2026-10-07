@@ -4,7 +4,6 @@
 use checked_trees::CheckFacts;
 use language_core::OperatorSpelling;
 use typed_trees::{
-    TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     machine::Machine,
     signature::StateParameter,
@@ -26,7 +25,7 @@ enum Meaning {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &Machine,
     caller_state: &State,
@@ -155,7 +154,7 @@ pub(super) fn proves(
 }
 
 fn builtin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &Machine,
     state: &State,
@@ -178,7 +177,7 @@ fn builtin(
 }
 
 fn observation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 
 /// Observing a place evaluates its address and calls, without moving the place.
 pub(in crate::flow::ownership) fn append(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
@@ -60,7 +60,7 @@ pub(in crate::flow::ownership) fn append(
 /// The result of a consuming collection operator is fresh, not a projection
 /// that could transfer that same collection a second time.
 pub(super) fn append_indexed_operands(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
@@ -129,7 +129,7 @@ pub(super) fn selected_operator(
 /// element views are claimed here: `as_view`/`bytes` view a text carrier, not
 /// collection storage whose elements this lane could keep observed.
 pub(super) fn append_builtin_collection_view(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state: SymbolHandle,
     statement: usize,
@@ -201,7 +201,7 @@ pub(super) fn append_builtin_collection_view(
 /// its move-and-restore window outside the service-seam case, so forged or
 /// custody-carrying paths still reject.
 pub(super) fn detached_borrowed_copy_admitted(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
     place: &CanonicalPlace,
@@ -296,7 +296,7 @@ pub(super) fn detached_borrowed_copy_admitted(
 /// rejects an invocation that would span the hole). Requirement slots and
 /// machine parameters resolve to provider contracts the same way.
 fn call_target_is_service_signature(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> bool {
     // A trait-bound machine parameter reuses its bound trait's signature
@@ -315,7 +315,7 @@ fn call_target_is_service_signature(
 
 /// The access of a possibly-constrained reference type.
 fn reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     match program.type_reference_table.type_reference(type_reference) {

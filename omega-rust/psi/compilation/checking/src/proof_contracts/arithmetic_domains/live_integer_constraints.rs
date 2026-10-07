@@ -6,10 +6,7 @@
 //! formation of operand arithmetic. Callers must check those operands first.
 
 use super::ordered_values::{Operand, RelationConstraint};
-use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, Machine, State, TypedTrees,
-    ValueEnvironment,
-};
+use super::{ArithmeticDomain, BinaryOperator, ExpressionHandle, Machine, State, ValueEnvironment};
 use crate::proof_contracts::contract_entailment::{
     ScopedArithmeticComparison, ScopedArithmeticValue, scoped_arithmetic_comparisons_unsatisfiable,
 };
@@ -19,7 +16,7 @@ use numerics::bignum::BigInt;
 /// Each expression denotes its current observation, not an earlier source
 /// occurrence which merely has the same spelling.
 pub(super) fn excludes_values(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -52,7 +49,7 @@ pub(super) fn excludes_values(
 /// integer judgment; neither the requested bound nor a cast's target range is
 /// installed as a premise.
 pub(super) fn proves_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     environment: &ValueEnvironment,
@@ -89,7 +86,7 @@ pub(super) fn proves_range(
 }
 
 fn contradicts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     environment: &ValueEnvironment,
     mut observations: Observations,

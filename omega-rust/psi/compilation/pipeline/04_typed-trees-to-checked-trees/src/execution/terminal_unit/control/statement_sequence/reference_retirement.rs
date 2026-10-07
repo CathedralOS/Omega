@@ -5,7 +5,7 @@
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralResultBindingPlan, SymbolHandle, TypedTrees,
+    CheckedUnitStructuralResultBindingPlan, SymbolHandle,
 };
 use checked_trees::{BorrowLoanFact, CheckedStructuralValueKind, CheckedUnitStructuralPathSegment};
 
@@ -15,7 +15,7 @@ mod transfers;
 use transfers::transfers;
 
 pub(super) fn transferred_paths(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     results: &Results,
     binding_ordinal: u32,
@@ -31,7 +31,7 @@ pub(super) fn transferred_paths(
 }
 
 pub(super) struct Retirement<'a> {
-    pub(super) program: &'a TypedTrees,
+    pub(super) program: &'a dyn ::validation::CheckingInput,
     pub(super) facts: &'a CheckFacts,
     pub(super) machine: SymbolHandle,
     pub(super) state: &'a typed_trees::state::State,

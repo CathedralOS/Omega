@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, StateParameter, SymbolHandle, TypeReferenceNode,
-    TypedTrees, strips_erased_parameter,
+    strips_erased_parameter,
 };
 
 /// Which attachment storage a qualified machine's signature retains.
@@ -36,7 +36,7 @@ enum AttachmentStorage {
 /// The qualified structural signature of a state without scalar
 /// parameters, and the attachment an authored receiver retains.
 pub(crate) fn structural_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -47,7 +47,7 @@ pub(crate) fn structural_signature(
 }
 
 fn scalar_parameter_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     position: usize,
     parameter: &StateParameter,
 ) -> Option<CheckedStructuralScalarParameterPlan> {
@@ -67,7 +67,7 @@ fn scalar_parameter_signature(
 /// receiver parameter, so the roster is exactly the authored telescope and the
 /// plan needs no attachment slot of its own.
 fn structural_signature_with_partial_affine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -228,7 +228,7 @@ fn service_parameter_access_matches(
 }
 
 pub(crate) fn structural_scalar_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -250,7 +250,7 @@ pub(crate) fn structural_scalar_signature(
 
 /// A boundary machine retains its data owner identity as ABI metadata.
 pub(crate) fn boundary_owner_scalar_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -278,7 +278,7 @@ pub(crate) fn boundary_owner_scalar_signature(
 /// qualifications) that declined the state. Only the general state-graph
 /// route traces this, so the marks carry that route's phase prefix.
 pub(crate) fn structural_scalar_signature_traced(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -302,7 +302,7 @@ pub(crate) fn structural_scalar_signature_traced(
 
 #[allow(clippy::too_many_arguments)]
 fn structural_scalar_signature_with_storage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -339,7 +339,7 @@ fn structural_scalar_signature_with_storage(
 
 /// A scalar graph's explicit parameters and the structural shapes they require.
 pub(crate) fn ambient_self_scalar_graph_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Option<(
@@ -360,7 +360,7 @@ pub(crate) fn ambient_self_scalar_graph_signature(
 }
 
 pub(crate) fn free_structural_scalar_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -380,7 +380,7 @@ pub(crate) fn free_structural_scalar_signature(
 /// `free_structural_scalar_signature` with the per-parameter trace marks of
 /// `structural_scalar_signature_traced`.
 pub(crate) fn free_structural_scalar_signature_traced(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -397,7 +397,7 @@ pub(crate) fn free_structural_scalar_signature_traced(
 }
 
 fn scalar_and_structural_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -419,7 +419,7 @@ fn scalar_and_structural_parameters(
 /// lanes. A typed state and a selector call's instantiated slot present
 /// their formals to callers identically.
 pub(crate) fn parameter_signatures(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     parameters: &[StateParameter],
     binders: &[(SymbolHandle, String)],
@@ -507,7 +507,7 @@ pub(crate) fn parameter_signatures(
 }
 
 pub(crate) fn entry_claims(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

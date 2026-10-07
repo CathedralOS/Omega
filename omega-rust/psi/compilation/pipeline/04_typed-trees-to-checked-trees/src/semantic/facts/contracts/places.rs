@@ -9,7 +9,7 @@ use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn contract_fact_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> FactPlace {
@@ -33,7 +33,7 @@ pub(crate) fn contract_fact_place(
 /// mutating any operand invalidates the whole assumption rather than leaving
 /// a comparison alive under an opaque expression root.
 pub(crate) fn contract_fact_dependency_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
@@ -53,7 +53,7 @@ pub(crate) fn contract_fact_dependency_places(
 /// point; parameter and `result` paths are instantiated through the exact
 /// source call rather than reconstructed from normalized display labels.
 pub(crate) fn outcome_specific_fact_dependency_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     proof: &ProofFacts,
     arm: &checked_trees::OutcomeSpecificArmFact,
@@ -130,7 +130,7 @@ fn push_unique_place(facts: &FactPlan, places: &mut Vec<PlaceHandle>, candidate:
 }
 
 fn contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     expression: ExpressionHandle,
@@ -211,7 +211,7 @@ fn contract_expression_place(
 }
 
 fn contract_name_path_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
     path: &typed_trees::expression::TableNamePath,
@@ -267,7 +267,7 @@ fn contract_name_path_place(
 /// the parameter symbol so the fact place is rooted at the parameter, which
 /// is how call-site obligations instantiate the same contract.
 fn contract_owner_parameter_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: ContractProofFactOwner,
     path: &typed_trees::expression::TableNamePath,
     head_name: Option<&typed_trees::name::Identifier>,
@@ -285,7 +285,7 @@ fn contract_owner_parameter_symbol(
 }
 
 fn contract_owner_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: ContractProofFactOwner,
     mut matches: impl FnMut(&typed_trees::signature::StateParameter) -> bool,
 ) -> Option<&typed_trees::signature::StateParameter> {

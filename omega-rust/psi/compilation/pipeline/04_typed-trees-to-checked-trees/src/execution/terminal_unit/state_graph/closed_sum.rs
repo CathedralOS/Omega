@@ -13,8 +13,7 @@ use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventSource,
     ScalarCalleePlans, ShapeCollector, Signature, StatementNode, TransitionExit,
-    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees, returns,
-    terminal_calls,
+    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
@@ -24,7 +23,7 @@ use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
@@ -668,7 +667,7 @@ impl DispatchSubject {
     /// Whether `expression` names this subject at `statement_index`.
     fn names(
         self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         statement_index: usize,
         expression: typed_trees::expression::ExpressionHandle,
@@ -693,7 +692,7 @@ impl DispatchSubject {
     #[allow(clippy::too_many_arguments)]
     fn payload_field<'program>(
         self,
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         statement_index: usize,
         argument: typed_trees::expression::ExpressionHandle,
@@ -767,7 +766,7 @@ impl DispatchSubject {
 /// expression, and consumed by the dispatch.
 #[allow(clippy::too_many_arguments)]
 fn subject_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -898,7 +897,7 @@ fn subject_call(
 /// or a payload read's receiver. A copy in any other position would be a
 /// second evaluation the single dispatch cannot account for.
 fn subject_reads_are_complete(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

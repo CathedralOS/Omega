@@ -3,7 +3,7 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
-    StrictArithmeticSymbolBinding, TypedTrees, inductive_judgment,
+    StrictArithmeticSymbolBinding, inductive_judgment,
 };
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -96,7 +96,7 @@ pub enum RankingRangePremises {
 /// premise carrier (`ranking_range_premise_symbols`), so each such mutable
 /// parameter still denotes its arrival value at the transition.
 pub fn prove_ranking_range_edge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     range: ExpressionHandle,
@@ -162,7 +162,7 @@ pub(super) fn push_measure_subjects(
 /// (`ranking_range_premise_symbols` through the telescope), so each such
 /// mutable parameter still denotes its arrival value at the transition.
 pub fn prove_ranking_range_transition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
@@ -211,7 +211,7 @@ pub struct RankingRangeEdgeProof {
 /// discovery uses this set to decide whether several slots claiming one entry
 /// keep their duplicated equality obligation or resolve to a bare forward.
 pub fn ranking_range_required_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
@@ -231,7 +231,7 @@ pub fn ranking_range_required_symbols(
 /// invalidates it, whatever value it stores. An invalid `range` means the
 /// witness authored no range and contributes no endpoint.
 pub fn ranking_range_premise_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
@@ -250,7 +250,7 @@ pub fn ranking_range_premise_symbols(
 /// Establish the produced rank at entry, including an acyclic invocation.
 /// No backedge guard or actual argument can strengthen this obligation.
 pub fn prove_ranking_range_entry(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     range: ExpressionHandle,
@@ -298,7 +298,7 @@ pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
 /// parameters carry in their `Constrained` shells into `expressions`;
 /// `recorded` also collects each contributing parameter's symbol.
 pub(super) fn constrained_parameter_bound_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: &State,
     expressions: &mut Vec<ExpressionHandle>,
     mut recorded: Option<&mut Vec<symbols::SymbolHandle>>,
@@ -333,7 +333,7 @@ pub(super) fn constrained_parameter_bound_expressions(
 }
 
 fn subject_field_coordinates<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &'program State,
     state: &'program State,
     entry_parameters: Option<&[symbols::SymbolHandle]>,
@@ -367,7 +367,7 @@ fn subject_field_coordinates<'program>(
 /// member chain, an unclaimed or contested role, and a record without one
 /// matching leaf all keep no coordinate.
 fn carried_subject_coordinate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &'program State,
     state: &'program State,
     entry_parameters: &[symbols::SymbolHandle],
@@ -383,7 +383,7 @@ fn carried_subject_coordinate<'program>(
 /// formal's own carrier. A bare slot, a record with no such leaf or two, and
 /// a width the typed arrival could never carry all keep no coordinate.
 fn carried_natural_coordinate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     root: &'program State,
     parameter: &'program StateParameter,
     entry: symbols::SymbolHandle,
@@ -402,7 +402,7 @@ fn carried_natural_coordinate<'program>(
 }
 
 fn prove_edge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     range: ExpressionHandle,
@@ -1119,7 +1119,7 @@ fn prove_edge(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn hypothesis_landed_endpoints(
     engine: &mut Engine<'_>,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     range_start: ExpressionHandle,
@@ -1158,7 +1158,7 @@ pub(super) fn hypothesis_landed_endpoints(
 /// `?` when no formal pairs it, `Ok(None)` when the role is empty (each
 /// caller continues), `Ok(Some(entry))` for a valid role.
 pub(super) fn coordinate_entry_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     entries: &[symbols::SymbolHandle],
     parameter: symbols::SymbolHandle,
@@ -1172,7 +1172,7 @@ pub(super) fn coordinate_entry_symbol(
 }
 
 pub(super) fn computed_rank(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     engine: &mut Engine<'_>,
     subject: ExpressionHandle,
@@ -1242,7 +1242,7 @@ pub(super) fn integer_carrier_bounds(primitive: PrimitiveType) -> Option<(BigInt
 /// Read entry facts in the root template, even when their current aliases
 /// belong to a named state. Nothing here derives a fact from a state spelling.
 fn entry_comparisons(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
     engine: &mut Engine<'_>,
@@ -1259,7 +1259,7 @@ fn entry_comparisons(
 /// not substitute them: only the member's own entry-invariant proof can
 /// re-establish a requires clause after an internal arrival.
 fn contract_comparisons(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
     engine: &mut Engine<'_>,
@@ -1285,7 +1285,7 @@ fn contract_comparisons(
 /// Constrained-type hypotheses for a state's own formals. They hold on every
 /// arrival and remain valid at any call site inside that state.
 fn parameter_comparisons(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
     engine: &mut Engine<'_>,
@@ -1353,7 +1353,11 @@ fn comparison_proven(
 
 /// Initial-entry precision is safe only when no local edge can revisit the
 /// root. Check exact primary and continuation named targets.
-fn root_has_incoming_transition(program: &TypedTrees, machine: &Machine, root: &State) -> bool {
+fn root_has_incoming_transition(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    root: &State,
+) -> bool {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
     program.machine_states(machine).iter().any(|state| {
@@ -1383,7 +1387,7 @@ fn root_has_incoming_transition(program: &TypedTrees, machine: &Machine, root: &
 }
 
 fn validate_mapping(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     entry_parameters: &[symbols::SymbolHandle],
@@ -1444,7 +1448,7 @@ fn validate_mapping(
 }
 
 fn integer_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<Vec<StrictArithmeticSymbolBinding>> {
     let mut bindings = Vec::new();
@@ -1468,7 +1472,7 @@ fn integer_bindings(
 /// The `ProofFact::Expression` bodies every `Requires` contract on `machine`
 /// carries — the premise vocabulary a view's read surface always includes.
 pub(super) fn required_contract_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
@@ -1487,7 +1491,7 @@ pub(super) fn required_contract_expressions(
 }
 
 fn exact_integer_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     while let TypeReferenceNode::Constrained {

@@ -1,7 +1,7 @@
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
 use language_core::place_field;
-use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
+use typed_trees::{machine::Machine, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
     /// Shared direct-assignment transfer for the checking and incoming-edge
@@ -10,7 +10,7 @@ impl RangeFacts<'_> {
     /// Value snapshots are replaced separately after the RHS is evaluated.
     pub(in crate::checks::ranges) fn invalidate_assignment_bounds(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         statement: &StatementNode,
@@ -87,7 +87,7 @@ impl RangeFacts<'_> {
 
     fn mutable_byte_view_extent(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         target: typed_trees::expression::ExpressionHandle,
@@ -141,7 +141,7 @@ impl RangeFacts<'_> {
     /// Declared fixed-array extents remain true regardless of element writes.
     pub(in crate::checks::ranges) fn invalidate_call_writes(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         paths: Option<&[String]>,
@@ -325,7 +325,7 @@ impl RangeFacts<'_> {
 /// the same parameter/local namespace the write paths use. `None` reports
 /// "unresolvable — keep the caller's conservative answer".
 fn descriptor_covered(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     statement_index: usize,
     writes: &[CanonicalPlace],
@@ -347,7 +347,7 @@ fn descriptor_covered(
 /// A write covers a descriptor place only by reaching it or an ancestor:
 /// `rooms` covers `rooms`, but `rooms[0].tag` — any depth below — does not.
 fn write_covers_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     write: &CanonicalPlace,
     place: &CanonicalPlace,
 ) -> bool {

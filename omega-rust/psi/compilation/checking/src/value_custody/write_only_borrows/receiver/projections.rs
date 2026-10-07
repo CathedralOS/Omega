@@ -4,9 +4,7 @@ use super::super::{
     TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
     is_supported_checked_referee,
 };
-use super::{
-    ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot, bare_field, write_only_record,
-};
+use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record};
 
 /// How far a non-observing projected address may descend through fixed-array
 /// elements. `MembersOnly` serves content-independent record-field places:
@@ -22,7 +20,7 @@ pub(in crate::value_custody::write_only_borrows) enum ProjectionAdmission {
 /// Local formation freezes only literal coordinates. Runtime receiver dispatch
 /// retains its existing separate selector-evaluation and range checks.
 pub(in crate::value_custody::write_only_borrows) fn captured_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<TypeReferenceHandle> {
@@ -36,7 +34,7 @@ pub(in crate::value_custody::write_only_borrows) fn captured_type(
 }
 
 pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
     admission: ProjectionAdmission,

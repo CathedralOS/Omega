@@ -14,19 +14,16 @@
 //! qualified names, constants — keep their existing opaque atoms.
 
 use symbols::SymbolHandle;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
-};
 
 /// Where each `when` guard in `machine` was evaluated: the guard's own
 /// transition statement. A guard edge carries its fact into joined and
 /// continued states, so the state a guard applies to is not the state its
 /// operand reads ran in — provenance has to answer for the evaluation site.
 pub(super) fn guard_eval_sites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
 ) -> Vec<(ExpressionHandle, SymbolHandle, usize)> {
     let mut sites = Vec::new();
@@ -55,7 +52,7 @@ pub(super) fn guard_eval_sites(
 /// launder a sound sibling, and a sound sibling does not rescue a spoiled
 /// one.
 pub(super) fn entry_meaning_conjuncts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     eval_sites: &[(ExpressionHandle, SymbolHandle, usize)],
     guard: ExpressionHandle,
@@ -89,7 +86,7 @@ pub(super) fn entry_meaning_conjuncts(
 
 #[derive(Clone, Copy)]
 struct GuardContext<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &'a Machine,
     /// `(state, statement ordinal)` where the guard expression ran.
     eval_site: (SymbolHandle, usize),

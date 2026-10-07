@@ -9,7 +9,6 @@
 
 use checked_trees::{CheckFacts, CrashRouteGuard};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 mod entry_guards;
 mod entry_requirements;
@@ -28,7 +27,9 @@ mod source_fallthrough;
 /// selectors need no clause here: a nonempty selector list on a non-`When`
 /// arm already rejects in `bind_outcome_specific_arm_facts`, and a `When`
 /// guard on a crash exit rejects above regardless.
-pub(crate) fn check_crash_exit_edge_isolation(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn check_crash_exit_edge_isolation(
+    program: &dyn ::validation::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::statement::{
         StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     };
@@ -84,7 +85,7 @@ pub(crate) fn check_crash_exit_edge_isolation(program: &TypedTrees) -> Result<()
 /// substitutions, operands, and selected requirement buckets remain checkable.
 /// Portable products still need their own invocation/certificate representation.
 pub(crate) fn check_operator_invocation_custody(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let expected = crate::facts::operator_crashes::build(
@@ -122,7 +123,7 @@ pub(crate) fn check_operator_invocation_custody(
 }
 
 pub(crate) fn infer_path_conditioned_guard_coverage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
@@ -322,7 +323,7 @@ struct StateGuardClassification {
 /// structural plus transitive integer-order consequences they establish.
 #[allow(clippy::too_many_arguments)]
 fn classify_state_guards(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: symbols::SymbolHandle,
     incoming: &[super::ranges::incoming_guards::IncomingGuard],
@@ -409,7 +410,7 @@ fn classify_state_guards(
 /// already-closed relations are a subset of the recomputed fixpoint, so the
 /// joined consequences equal a from-scratch derivation.
 fn site_path_classification(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     classification: &StateGuardClassification,
     fallthrough: Option<&source_fallthrough::SiteFallthrough>,
     entry_requirements: &entry_requirements::EntryRequirements,
@@ -473,7 +474,7 @@ fn site_path_classification(
 /// own operands and carriers: `validation`'s arithmetic-domain walk rejects a
 /// site whose trap the route complement cannot exclude.
 pub(crate) fn check_published_ceiling_coverage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -587,7 +588,7 @@ fn call_route_guard_covers(
 /// polarity of `x` the edge establishes, including a negated/fallthrough
 /// relation; `apply` receives the compared operand and its polarity.
 pub(super) fn for_each_boolean_literal_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     negated: bool,
     mut apply: impl FnMut(typed_trees::expression::ExpressionHandle, bool),
@@ -612,7 +613,7 @@ pub(super) fn for_each_boolean_literal_operand(
     }
 }
 fn collect_structural_guard_consequences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
@@ -734,7 +735,7 @@ struct IntegerDisequality {
 }
 
 fn collect_integer_order_relations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
@@ -834,7 +835,7 @@ fn collect_integer_order_relations(
 
 /// Both operands' canonical crash identities as one pair.
 fn crash_operand_identities(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
@@ -860,7 +861,7 @@ fn crash_operand_identities(
 }
 
 fn collect_normalized_integer_order_relation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: typed_trees::expression::BinaryOperator,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
@@ -923,7 +924,7 @@ fn collect_normalized_integer_order_relation(
 }
 
 fn push_transitive_integer_order_consequences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     relations: &mut Vec<IntegerOrderRelation>,
     disequalities: &[IntegerDisequality],
     parameter_names: &[String],
@@ -1022,7 +1023,7 @@ fn push_transitive_integer_order_consequences(
 }
 
 fn push_comparison_consequences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     normalized: typed_trees::expression::BinaryOperator,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
@@ -1095,7 +1096,7 @@ fn normalized_comparison(
 }
 
 fn comparison_operands_are_integers(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: typed_trees::expression::ExpressionHandle,
     right: typed_trees::expression::ExpressionHandle,
     integer_types: &IntegerTypeClassification,
@@ -1105,7 +1106,7 @@ fn comparison_operands_are_integers(
 }
 
 fn expression_is_integer_typed(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     integer_types: &IntegerTypeClassification,
 ) -> bool {
@@ -1133,7 +1134,7 @@ fn expression_is_integer_typed(
 }
 
 fn type_reference_is_integer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     program
@@ -1158,7 +1159,7 @@ pub(super) struct IntegerTypeClassification {
 }
 
 impl IntegerTypeClassification {
-    pub(super) fn build(program: &TypedTrees) -> Self {
+    pub(super) fn build(program: &dyn ::validation::CheckingInput) -> Self {
         // Symbol arena indices are one-based, so slot 0 stays unwritten.
         let mut classification = Self {
             slots: vec![(0, false); program.symbols.symbols().len() + 1],
@@ -1199,7 +1200,7 @@ impl IntegerTypeClassification {
     /// replaced scan's early return on the first declaration that named it.
     fn record(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         symbol: symbols::SymbolHandle,
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) {

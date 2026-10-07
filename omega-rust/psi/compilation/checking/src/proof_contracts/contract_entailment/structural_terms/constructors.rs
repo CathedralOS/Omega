@@ -8,7 +8,6 @@
 
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
 use typed_trees::expression::{ExpressionHandle, TableStructLiteral};
 use typed_trees::types::{
@@ -21,7 +20,7 @@ use super::StructuralTerm;
 /// a value equation. Proving the tag fact still requires the exact subject,
 /// carrier and case checks in `has_exact_case_membership_meaning`.
 pub(in super::super) fn is_case_observation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     matches!(program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership)
@@ -40,7 +39,7 @@ pub(in super::super) fn is_case_observation(
 }
 
 pub(in super::super) fn case_guard_classifier<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
@@ -65,7 +64,7 @@ pub(in super::super) fn case_guard_classifier<'program>(
 /// A case classifier is not a value. Arm matching and membership inspect only
 /// these exact declarations; value consumers must instead construct its fields.
 pub(in super::super) fn case_classifier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(&DataDefinition, &DataVariant)> {
     let definition = crate::proof_contracts::bound_expression_meaning::exact_case_reference_owner(
@@ -87,7 +86,7 @@ pub(in super::super) fn case_classifier(
 }
 
 pub(in super::super) fn case_value_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
     let (definition, variant) = case_classifier(program, expression)?;
@@ -113,7 +112,7 @@ pub(in super::super) fn case_value_term(
 }
 
 pub(in super::super) fn constructor_literal_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     mut supplied_term: impl FnMut(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
@@ -182,7 +181,7 @@ pub(in super::super) fn constructor_literal_term(
 }
 
 fn constructor_fields<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &'program DataDefinition,
     variant: Option<&'program DataVariant>,
 ) -> Vec<&'program DataField> {
@@ -220,7 +219,7 @@ fn constructed_term(
 /// Storage zero is not implicit proof inhabitance. Only supported runtime
 /// values whose complete default domain admits zero can enter this route.
 pub(in super::super) fn zero_value_structural_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<StructuralTerm> {
     if !type_reference.is_valid()
@@ -234,7 +233,7 @@ pub(in super::super) fn zero_value_structural_term(
 }
 
 fn zero_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     active: &mut Vec<SymbolHandle>,
 ) -> Option<StructuralTerm> {

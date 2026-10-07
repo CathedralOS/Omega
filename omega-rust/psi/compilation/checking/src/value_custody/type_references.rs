@@ -55,8 +55,9 @@ mod float_ranges;
 pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;
 pub use integer_ranges::{
-    closed_integer_range_bound, closed_integer_range_maximum, declared_integer_range,
-    constrained_range_bounds, is_arithmetic_policy_only_integer, is_plain_scalar_storage, unrestricted_builtin_primitive,
+    closed_integer_range_bound, closed_integer_range_maximum, constrained_range_bounds,
+    declared_integer_range, is_arithmetic_policy_only_integer, is_plain_scalar_storage,
+    unrestricted_builtin_primitive,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 
@@ -64,7 +65,6 @@ use crate::StateSignatureOwner;
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use std::fmt;
-use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -375,7 +375,7 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 /// The callee need not use this type in its body: formation, qualification and
 /// lifetime obligations belong to the caller's authored argument itself.
 pub fn validate_static_type_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: StaticTypeArgumentOwner<'_>,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -406,7 +406,7 @@ pub fn validate_static_type_argument(
 }
 
 pub(crate) fn validate_type_reference_handle_with_type_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -445,7 +445,7 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
 /// binding. Aggregate/generic nesting, reference fields, locals, returns,
 /// traits, requirements, and operators retain their implementation fences.
 fn validate_routed_service_carrier_placement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     owner: TypeReferenceOwner<'_>,
     direct: bool,
@@ -558,7 +558,7 @@ fn validate_routed_service_carrier_placement(
 }
 
 pub(crate) fn validate_generic_instance_argument_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     instance: &typed_trees::data::DataDefinition,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -594,7 +594,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
 }
 
 fn validate_type_reference_handle_with_context(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -954,7 +954,10 @@ impl<'program> TypeParameterScope<'program> {
     }
 }
 
-fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn type_reference_is_named_str(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
@@ -962,7 +965,7 @@ fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferen
 }
 
 pub(crate) fn type_references_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
 ) -> bool {
@@ -978,7 +981,7 @@ pub(crate) fn type_references_match(
 }
 
 pub(crate) fn type_reference_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> String {
     if type_reference.is_valid() {

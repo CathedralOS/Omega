@@ -1,7 +1,7 @@
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
-pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
+pub(crate) fn machine_state_count(program: &dyn ::validation::CheckingInput) -> usize {
     program
         .machines()
         .iter()
@@ -17,14 +17,14 @@ pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
 // a replacement its verdicts.
 
 pub(crate) fn machine_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     program.machine_by_symbol(symbol)
 }
 
 pub(crate) fn state_index_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<usize> {
@@ -32,14 +32,14 @@ pub(crate) fn state_index_by_symbol(
 }
 
 pub(crate) fn data_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     program.data_definition_by_symbol(symbol)
 }
 
 pub(crate) fn state_by_symbol<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<&'program typed_trees::state::State> {
@@ -48,7 +48,7 @@ pub(crate) fn state_by_symbol<'program>(
 }
 
 pub(crate) fn machine_state_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
@@ -58,7 +58,7 @@ pub(crate) fn machine_state_by_symbol(
 }
 
 pub(crate) fn machine_symbol_from_type_reference_handle(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
@@ -133,7 +133,7 @@ pub(crate) fn first_valid_name_path_symbol(
 /// shadow nothing, and a shadowed local re-derives its binding by scope —
 /// the same rule `resolve_runtime_subject` applies during selection.
 pub(crate) fn nearest_scoped_local(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     scope_limit: usize,
     path: &[typed_trees::name::Identifier],
@@ -167,7 +167,7 @@ pub(crate) fn nearest_scoped_local(
 /// spelling `structural_parameter_place` produces, so a transported leaf
 /// resolves to the same canonical storage.
 pub(crate) fn structural_member_identity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<String> {
     program.data_definitions().iter().find_map(|data| {
@@ -194,7 +194,7 @@ pub(crate) fn structural_member_identity(
 /// Data definition a type reference names, through reference and constraint
 /// shells.
 pub(crate) fn declared_data_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -219,7 +219,7 @@ pub(crate) fn declared_data_type(
 /// scope — the scope-roster half of name-path root resolution after direct
 /// path symbols are exhausted.
 pub(crate) fn state_scoped_name_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     name: &str,
     statement_index: usize,

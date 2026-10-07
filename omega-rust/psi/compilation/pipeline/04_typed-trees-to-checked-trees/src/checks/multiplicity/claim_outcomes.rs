@@ -25,7 +25,7 @@ use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn derive_checked_claim_outcome_maps(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
@@ -62,7 +62,7 @@ pub(crate) fn derive_checked_claim_outcome_maps(
 
 #[allow(clippy::too_many_arguments)]
 fn derive_checked_claim_outcome_map(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
     ownership: &checked_trees::FlowOwnershipFacts,
@@ -240,7 +240,7 @@ pub(crate) fn claim_paths_are_case_alternatives(
 }
 
 fn claim_path_is_statically_inactive(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     path: &[facts::PlaceSegment],
     result_expressions: &[(usize, typed_trees::expression::ExpressionHandle)],
     named_transitions: &[(
@@ -267,7 +267,7 @@ fn claim_path_is_statically_inactive(
 }
 
 fn expression_statically_excludes_claim_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     path: &[facts::PlaceSegment],
     known_maps: &[CheckedClaimOutcomeMap],
@@ -337,7 +337,7 @@ fn expression_statically_excludes_claim_path(
 }
 
 fn state_result_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: &[StatementNode],
 ) -> Vec<(usize, typed_trees::expression::ExpressionHandle)> {
     statements
@@ -365,7 +365,7 @@ fn state_result_expressions(
 }
 
 fn state_result_named_transitions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: &[StatementNode],
 ) -> Vec<(
     usize,
@@ -398,7 +398,7 @@ fn state_result_named_transitions(
 
 #[allow(clippy::too_many_arguments)]
 fn claim_outcomes_for_named_transition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     target_symbol: SymbolHandle,
@@ -441,7 +441,7 @@ fn claim_outcomes_for_named_transition(
 
 #[allow(clippy::too_many_arguments)]
 fn claim_outcomes_for_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -681,7 +681,7 @@ fn claim_outcomes_for_expression(
 /// claim-bearing carrier must not silently inherit conservation from the
 /// value it replaced.
 fn cast_conserves_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     cast: &typed_trees::expression::TableCastExpression,
@@ -706,7 +706,7 @@ fn cast_conserves_carrier(
 /// The named declaration a type reference ultimately denotes, unwrapping the
 /// constrained and borrowed spellings a qualification adds.
 fn carrier_declaration(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let mut type_reference = type_reference;
@@ -736,7 +736,7 @@ fn carrier_declaration(
 /// fresh per-edge product establishes its claim inside the selection, so its
 /// origin is intentionally untracked.
 fn claim_outcomes_for_owned_selection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -808,7 +808,7 @@ fn claim_outcomes_for_owned_selection(
 }
 
 fn claim_outcome_source_for_event(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     event: &FlowPermissionEventFact,
     segments: &arena::Arena<facts::PlaceSegment>,
@@ -880,7 +880,7 @@ fn claim_origin_for_source(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_claim_outcome_source_at_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state: &typed_trees::state::State,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -903,7 +903,7 @@ fn bind_claim_outcome_source_at_call(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_claim_outcome_source_at_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state: &typed_trees::state::State,
     statement_index: usize,
     arguments: &[typed_trees::expression::ExpressionHandle],
@@ -975,7 +975,7 @@ fn bind_claim_outcome_source_at_arguments(
 
 /// Resolve `parameter_symbol` to its authored state parameter.
 fn parameter_for_symbol<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter_symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::signature::StateParameter> {
@@ -986,7 +986,7 @@ fn parameter_for_symbol<'a>(
 }
 
 fn argument_for_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     arguments: &[typed_trees::expression::ExpressionHandle],
     target_state: &typed_trees::state::State,
     parameter_symbol: SymbolHandle,
@@ -1002,7 +1002,7 @@ fn argument_for_parameter(
 /// Rejoin a produced value through its actual owner root. Anonymous results
 /// retain their expression identity; named destinations retain their write.
 pub(crate) fn receiving_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     event: &FlowPermissionEventFact,
 ) -> Option<(usize, typed_trees::expression::ExpressionHandle)> {
     let statement_index = super::linear_validation::permission_event_statement_index(event.source)?;
@@ -1025,7 +1025,7 @@ pub(crate) fn receiving_value(
 }
 
 pub(crate) fn call_result_origin_rewrites(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segments: &arena::Arena<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],

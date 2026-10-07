@@ -26,7 +26,7 @@ pub(super) fn project(
             continue;
         }
         let operator = typed_trees::operator::declaration_by_symbol(
-            &compilation.typed,
+            compilation.checking_input,
             demand.requirement_symbol,
         )
         .ok_or_else(|| rejected("a symbolic demand without its operator"))?;

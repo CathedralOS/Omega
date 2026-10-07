@@ -1,12 +1,11 @@
 //! Anonymous numeric formation and typed integer-to-float boundaries.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
 pub(in crate::value_custody::literals) fn validate_numeric_tree_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
     diagnostics: &mut Vec<Diagnostic>,
@@ -42,7 +41,7 @@ pub(in crate::value_custody::literals) fn validate_numeric_tree_destination(
 /// Classify a closed builtin numeric tree. `Some(true)` contains an already
 /// landed integer; typed floats and nonliteral operands decline this check.
 pub(super) fn numeric_literal_tree(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<bool> {
     let mut pending = vec![expression];
@@ -74,7 +73,7 @@ pub(super) fn numeric_literal_tree(
 }
 
 pub(crate) fn validate_anonymous_divisions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Formation applies to retained source expressions, even when their value

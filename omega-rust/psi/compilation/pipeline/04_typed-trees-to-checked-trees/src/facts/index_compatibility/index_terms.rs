@@ -4,7 +4,6 @@
 use super::{BoundIndexArgument, BoundIndexSubstitutions};
 use language_semantics::const_value::boolean_literal_spelling;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -55,7 +54,7 @@ pub(super) fn bound_index(
 }
 
 pub(super) fn index_argument_term<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     argument: TypeReferenceHandle,
     substitutions: &'a BoundIndexSubstitutions,
 ) -> IndexTerm<'a> {
@@ -76,7 +75,7 @@ pub(super) fn index_argument_term<'a>(
 /// symbol, or by its head symbol when unresolved — denotes the bound index;
 /// every other node stays an expression.
 pub(super) fn index_leaf_term<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &'a BoundIndexSubstitutions,
 ) -> IndexTerm<'a> {
@@ -98,7 +97,7 @@ pub(super) fn index_leaf_term<'a>(
 /// Substitute binder positions on both sides, then compare pairwise. `true`
 /// only when every pair denotes the same index after substitution.
 pub(super) fn bound_index_arguments_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     actual: &[TypeReferenceHandle],
     expected: &[TypeReferenceHandle],
     substitutions: &BoundIndexSubstitutions,
@@ -122,7 +121,7 @@ pub(super) fn bound_index_arguments_equal(
 /// Whether two index terms denote the same index. Every pairing of term kinds
 /// has its own row, and each row is symmetric in its sides.
 pub(super) fn index_terms_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: IndexTerm<'_>,
     right: IndexTerm<'_>,
     substitutions: &BoundIndexSubstitutions,
@@ -179,7 +178,7 @@ pub(super) fn index_terms_equal(
 /// leaf's closed value — an integer leaf by value, a name leaf by spelling or
 /// value. A bound literal never matches a Boolean leaf.
 pub(super) fn bound_index_matches_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     bound: &BoundIndexArgument,
     expression: ExpressionHandle,
 ) -> bool {
@@ -218,7 +217,7 @@ pub(super) enum OpenNameMatch {
 /// by symbol or spelling (per `rule`), an integer leaf by value, and a
 /// Boolean leaf by its `true`/`false` spelling.
 pub(super) fn open_index_matches_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     name: &str,
     expression: ExpressionHandle,
@@ -256,7 +255,7 @@ pub(super) fn open_index_matches_expression(
 /// candidate containing a bound key is the callee's own spelling (or another
 /// callee-side site), not the caller's.
 pub(crate) fn expression_uses_binder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &BoundIndexSubstitutions,
 ) -> bool {
@@ -282,7 +281,7 @@ pub(crate) fn expression_uses_binder(
 /// leaf naming a bound binder denotes its bound index, and every other node
 /// must have the same shape over equal children.
 pub(crate) fn bound_index_expressions_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     actual: ExpressionHandle,
     expected: ExpressionHandle,
     substitutions: &BoundIndexSubstitutions,
@@ -345,7 +344,7 @@ pub(crate) fn bound_index_expressions_equal(
 
 /// Whether an established fact's operand, with the fact's own call
 pub(super) fn expression_name_atom<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<&'program str> {
     let [only] = program.expression_table.name_path_members(path.members) else {
@@ -355,7 +354,7 @@ pub(super) fn expression_name_atom<'program>(
 }
 
 pub(super) fn is_closed_index_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: TypeReferenceHandle,
 ) -> bool {
     index_argument_term(program, argument, &Vec::new()).is_closed()
@@ -388,7 +387,7 @@ pub(super) fn named_integer_value(name: &str) -> Option<numerics::bignum::BigInt
 /// same member segments in order — shared by the bound-index and
 /// substituted-expression equality walks.
 pub(super) fn name_paths_equal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &typed_trees::expression::TableNamePath,
     right: &typed_trees::expression::TableNamePath,
 ) -> bool {

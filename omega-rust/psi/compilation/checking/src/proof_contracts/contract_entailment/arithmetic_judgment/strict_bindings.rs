@@ -4,13 +4,13 @@
 use super::super::{
     BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine,
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
-    SymbolHandle, TypedTrees,
+    SymbolHandle,
 };
 use super::{Engine, OpaqueTerm, Polynomial};
 
 impl<'program> Engine<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn strict_with_symbol_bindings(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         bindings: &[StrictArithmeticSymbolBinding],
     ) -> Self {

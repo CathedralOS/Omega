@@ -42,7 +42,6 @@
 
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// The exact boundary requirement a direct call to a bodyless external leaf
@@ -51,7 +50,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 /// the checked interpreter keeps `exact_compiler_intrinsic_boundary_requirement`
 /// because it hosts only the intrinsic catalog.
 pub fn exact_external_leaf_boundary_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     exact_compiler_intrinsic_boundary_requirement(program, target_state_symbol)
@@ -63,7 +62,7 @@ pub fn exact_external_leaf_boundary_requirement(
 /// the requirement is monomorphic and synchronous, owns no private callback
 /// parameters, and publishes the leaf's own runtime signature.
 fn exact_evaluated_binding_boundary_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     let machine = program.machine_holding_state(target_state_symbol)?;
@@ -123,7 +122,7 @@ fn exact_evaluated_binding_boundary_requirement(
 /// The satisfied trait's resolved definition and requirement, or `None`
 /// when the conformance is not a plain trait satisfaction.
 fn satisfied_trait_parts<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     conformance: &'program typed_trees::machine::TraitConformance,
 ) -> Option<(
@@ -145,7 +144,7 @@ fn satisfied_trait_parts<'program>(
 /// then the normalized result identity. A coercible or merely equally shaped
 /// signature does not qualify.
 fn same_runtime_signature(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     (leaf_parameters, leaf_result): (
         &[typed_trees::signature::StateParameter],
         typed_trees::types::TypeReferenceHandle,
@@ -174,7 +173,7 @@ fn same_runtime_signature(
 /// the narrower identity the checked interpreter hosts; checking and lowering
 /// consume `exact_external_leaf_boundary_requirement`.
 pub fn exact_compiler_intrinsic_boundary_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     // State spans are disjoint append-only ranges: at most one machine can
@@ -278,7 +277,7 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
 /// provider nominal, boundary trait) admitted without an authored `via`
 /// binding. `None` when the machine cannot realize an intrinsic boundary.
 fn intrinsic_realization_candidate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<(
     Option<language_semantics::ExternalBindingId>,
@@ -322,7 +321,7 @@ fn intrinsic_realization_candidate(
 /// Linear multiplicity) `CheckedShape` data named `name`. The returned
 /// symbol is the type reference's head, which the declaration resolved to.
 pub fn checked_shape_data_declaration<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
     name: &str,
 ) -> Option<(&'program typed_trees::data::DataDefinition, SymbolHandle)> {
@@ -352,7 +351,7 @@ pub fn checked_shape_data_declaration<'program>(
 /// The supported byte-input result, resolved by declaration identity. This is
 /// typed shape validation, not selected-package or native execution admission.
 pub fn exact_byte_read_result_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     use typed_trees::data::DataMember;
@@ -375,8 +374,7 @@ pub fn exact_byte_read_result_type(
     }
     // Ranges may narrow the carrier but must include every input byte. Other
     // domain/proof promises cannot be established by this host operation.
-    for (minimum, maximum) in
-        crate::constrained_range_bounds(program, field.type_reference, true)?
+    for (minimum, maximum) in crate::constrained_range_bounds(program, field.type_reference, true)?
     {
         if minimum.to_i64()? > 0 || maximum.to_i64()? < 255 {
             return None;
@@ -386,7 +384,7 @@ pub fn exact_byte_read_result_type(
 }
 
 fn exact_direct_intrinsic_signature(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -412,7 +410,7 @@ fn exact_direct_intrinsic_signature(
 /// of the provider selected to realize it. Only the canonical process-exit
 /// requirement and the existing canonical Console adapter end the domain.
 pub fn boundary_requirement_completion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     requirement: SymbolHandle,
 ) -> semantic_vocabulary::BoundaryCompletion {
     use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
@@ -440,7 +438,7 @@ pub fn boundary_requirement_completion(
 
 /// The core terminal-event identity used by both checking and interpretation.
 pub fn is_canonical_process_exit_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_symbol: SymbolHandle,
     requirement: SymbolHandle,
 ) -> bool {
@@ -451,7 +449,7 @@ pub fn is_canonical_process_exit_requirement(
 }
 
 fn exact_process_exit_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
     requirement: SymbolHandle,
     console_adapter: bool,
@@ -517,7 +515,7 @@ fn exact_process_exit_requirement(
 /// Rejoin a semantic-role receipt to the exact package-owned declaration.
 /// Consumer policy supplies the role; declaration spelling alone cannot.
 pub fn valid_boundary_completion_declaration(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declaration: &typed_trees::BoundaryCompletionDeclaration,
 ) -> bool {
     if declaration.completion
@@ -570,7 +568,9 @@ pub fn valid_boundary_completion_declaration(
 
 /// Malformed source-role input must fail admission, never weaken an external
 /// completion promise into an ordinary return by losing its exact join.
-pub fn validate_boundary_completion_declarations(program: &TypedTrees) -> Result<(), &'static str> {
+pub fn validate_boundary_completion_declarations(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), &'static str> {
     let mut requirements = Vec::new();
     for (_, declaration) in program.boundary_completion_declarations.iter() {
         if !valid_boundary_completion_declaration(program, declaration)

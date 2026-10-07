@@ -7,7 +7,6 @@ use crate::declarations::traits::conformance::signature_matching::{
 };
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -16,7 +15,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// use of that trait: machine declaration identities and proposition family
 /// arguments.
 pub(crate) fn validate_trait_application_obligations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
     application_label: &str,
@@ -44,7 +43,7 @@ pub(crate) fn validate_trait_application_obligations(
 }
 
 fn validate_machine_declaration_identity_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
     application_label: &str,
@@ -122,7 +121,7 @@ fn validate_machine_declaration_identity_arguments(
 }
 
 fn validate_proposition_family_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
     application_label: &str,
@@ -261,7 +260,7 @@ fn validate_proposition_family_arguments(
 }
 
 fn indexed_carrier_parameter_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected: TypeReferenceHandle,
     actual: TypeReferenceHandle,
     trait_parameters: &[TypeParameter],

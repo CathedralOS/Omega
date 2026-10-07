@@ -8,7 +8,7 @@ use super::patterns;
 /// decreases proves termination, provided every earlier component is
 /// non-increasing.
 pub(super) fn state_has_proven_self_loop(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
     fields: &[Identifier],
@@ -37,7 +37,7 @@ pub(super) fn state_has_proven_self_loop(
 }
 
 fn argument_decreases_lexicographically(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
     fields: &[Identifier],
@@ -76,7 +76,7 @@ enum Comparison {
 }
 
 fn component_comparison(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
     field: &Identifier,

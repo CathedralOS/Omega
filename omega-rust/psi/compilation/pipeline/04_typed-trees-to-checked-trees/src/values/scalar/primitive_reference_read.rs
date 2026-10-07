@@ -2,14 +2,13 @@
 
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     signature::StateParameter,
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     expected: PrimitiveType,
@@ -22,7 +21,7 @@ pub(super) fn lower(
 /// Their declared referee supplies both carrier and arithmetic semantics; an
 /// enclosing expression's expected result must not invent either property.
 pub(super) fn declared(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(
@@ -75,7 +74,7 @@ pub(super) fn declared(
 /// whether its producer was a borrow, recast, call, or transferred reference.
 /// Access and live custody are independently checked when that read is lowered.
 pub(super) fn local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<super::expression_plans::ScalarLocal> {
     let (primitive_type, arithmetic_domain) = readable_type(program, local.type_reference)?;
@@ -90,7 +89,7 @@ pub(super) fn local(
 }
 
 fn readable_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, numerics::arithmetic::ArithmeticDomain)> {
     let TypeReferenceNode::Reference {

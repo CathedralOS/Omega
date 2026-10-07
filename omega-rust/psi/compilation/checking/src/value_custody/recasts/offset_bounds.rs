@@ -1,4 +1,3 @@
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -10,7 +9,7 @@ enum BoundSide {
 /// Bounds that hold at every read, independently of arrival and prefix
 /// effects — the declared-range or standing-interval bound for `side`.
 fn standing_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     name: ExpressionHandle,
@@ -29,7 +28,9 @@ fn standing_bound(
                 }
             });
     match side {
-        BoundSide::Upper => declared.or_else(|| standing_place_high(program, machine, source, name)),
+        BoundSide::Upper => {
+            declared.or_else(|| standing_place_high(program, machine, source, name))
+        }
         BoundSide::Lower => declared
             .or_else(|| standing_place_low(program, machine, source, name))
             .or_else(|| unsigned_place_floor(program, machine, source, name)),
@@ -43,7 +44,7 @@ fn standing_bound(
 /// spelled on the type, which is where `data Main where k <= 3` lives now
 /// that a data `where` is the canonical spelling for a field relationship.
 fn standing_place_high(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     name: ExpressionHandle,
@@ -55,7 +56,7 @@ fn standing_place_high(
 }
 
 fn standing_place_low(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     name: ExpressionHandle,
@@ -65,8 +66,6 @@ fn standing_place_low(
     )?
     .low()
 }
-
-
 
 /// An EXACT unsigned place's floor is 0 by its carrier, with no range,
 /// `requires` or `where` needed. The composite walk asks for a floor before it
@@ -80,7 +79,7 @@ fn standing_place_low(
 /// floor of 0 admits the drifted stride walk that
 /// `a_drifted_stride_witness_refuses_the_dependent_view` pins as refused.
 fn unsigned_place_floor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     name: ExpressionHandle,
@@ -105,7 +104,7 @@ fn unsigned_place_floor(
 }
 
 fn standing_expression_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -121,7 +120,7 @@ fn standing_expression_bound(
 /// standing declaration facts, or (for the upper side) recursively composed
 /// arithmetic. Arrival facts belong to the exact-occurrence query instead.
 fn offset_operand_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     operand: ExpressionHandle,
@@ -150,7 +149,7 @@ fn offset_operand_bound(
 /// the left floor to dominate the right ceiling so wrapping underflow
 /// cannot produce a value above the bound. Anything else stays unproven.
 pub(super) fn composite_offset_upper_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -234,7 +233,7 @@ pub(super) fn composite_offset_upper_bound(
 /// enough that no operand can wrap past it -- the residue arithmetic is
 /// exact, not modular.
 pub(super) fn offset_expression_is_multiple_of(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,

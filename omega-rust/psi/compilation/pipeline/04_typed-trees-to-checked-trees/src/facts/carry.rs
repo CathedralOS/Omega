@@ -1,7 +1,6 @@
 use checked_trees::{CarryFacts, DataCarryFact};
-use typed_trees::TypedTrees;
 
-pub(super) fn build_carry_facts(program: &TypedTrees) -> CarryFacts {
+pub(super) fn build_carry_facts(program: &dyn ::validation::CheckingInput) -> CarryFacts {
     let data = program
         .data_definitions()
         .iter()

@@ -25,7 +25,7 @@ use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_state_statement_flow_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,

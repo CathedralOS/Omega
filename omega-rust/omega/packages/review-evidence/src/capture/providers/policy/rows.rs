@@ -132,7 +132,7 @@ fn validate_lifetime_partition(
     };
     let application = provider_planning::provider_trait_application(
         provider_planning::ProviderPlanningContext::new(
-            &compilation.typed,
+            compilation.checking_input,
             source::DependencyScope::Product,
         ),
         plan,

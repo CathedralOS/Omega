@@ -20,7 +20,6 @@ use crate::semantic::calls::{CallSite, find_call_site, find_state_in_machine};
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct HeldAccesses<Access> {
@@ -29,7 +28,7 @@ pub(super) struct HeldAccesses<Access> {
 }
 
 pub(super) fn held_accesses<Access: Clone>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     direct: &[Access],
 ) -> Vec<HeldAccesses<Access>> {
@@ -42,7 +41,7 @@ pub(super) fn held_accesses<Access: Clone>(
 }
 
 fn loan_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> impl Iterator<Item = SymbolHandle> + 'program {
     program
@@ -73,7 +72,7 @@ pub(super) struct ParameterLoanSources {
 impl TargetRun {
     pub(super) fn accesses<'access, Access>(
         &'access self,
-        program: &'access TypedTrees,
+        program: &'access dyn ::validation::CheckingInput,
         whole: &'access [Access],
         held: &'access [HeldAccesses<Access>],
         loan: Option<&'access CanonicalPlace>,
@@ -92,7 +91,7 @@ impl TargetRun {
 
     fn forwards(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         parameter: SymbolHandle,
         loan: &CanonicalPlace,
     ) -> bool {
@@ -142,7 +141,7 @@ impl TargetRun {
 }
 
 pub(super) fn target_run(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     borrow: &BorrowFacts,

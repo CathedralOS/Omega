@@ -24,7 +24,7 @@ impl RemainingCustody {
     /// Reserve a deferred owned local without inventing a valid whole value.
     pub(super) fn reserve(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         statement: &typed_trees::statement::StatementNode,
     ) {
         let typed_trees::statement::StatementNode::LocalData(local) = statement else {
@@ -80,7 +80,7 @@ impl RemainingCustody {
 
     pub(super) fn advance(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         events: &[FlowPermissionEventFact],
         segments: &Arena<PlaceSegment>,
     ) {
@@ -110,7 +110,7 @@ impl RemainingCustody {
 
     pub(super) fn observe(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         events: &[FlowPermissionEventFact],
         segments: &Arena<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
@@ -151,7 +151,7 @@ impl RemainingCustody {
 
     fn apply(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         event: &FlowPermissionEventFact,
         path: &[PlaceSegment],
     ) {

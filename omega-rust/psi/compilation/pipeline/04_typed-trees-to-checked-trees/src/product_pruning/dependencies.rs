@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::StaticMachineArgument, statement::StatementHandle};
+use typed_trees::{expression::StaticMachineArgument, statement::StatementHandle};
 
 /// Exact declaration indices used to resolve machine references and to key
 /// machine-owner lookups without scanning the declaration table.
@@ -18,7 +18,7 @@ pub(super) struct MachineIndex {
 }
 
 impl MachineIndex {
-    pub(super) fn build(program: &TypedTrees) -> Self {
+    pub(super) fn build(program: &dyn ::validation::CheckingInput) -> Self {
         let mut machine_symbols = HashSet::new();
         let mut state_machine = HashMap::new();
         let mut statement_machine = HashMap::new();
@@ -62,7 +62,7 @@ impl MachineIndex {
 /// non-`CheckedBody` supply mode plus the provider/authority surface whose
 /// machine references no root can bound.
 pub(super) fn interface_retention_set(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     index: &MachineIndex,
 ) -> HashSet<SymbolHandle> {
@@ -168,7 +168,7 @@ pub(super) fn interface_retention_set(
 
 /// Extract exact machine edges from typed references and checked facts.
 pub(super) fn collect_machine_edges(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     index: &MachineIndex,
 ) -> HashMap<SymbolHandle, Vec<SymbolHandle>> {
@@ -327,14 +327,14 @@ impl<Output: Extend<SymbolHandle>> typed_trees::references::TypedReferences
 }
 
 fn retain_declaration_surface_machines(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     index: &MachineIndex,
     output: &mut impl Extend<SymbolHandle>,
 ) {
     typed_trees::references::visit_declarations(program, &mut MachineReferences { index, output });
 }
 fn retain_machine_references(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     index: &MachineIndex,
     output: &mut impl Extend<SymbolHandle>,
     machine: &typed_trees::machine::Machine,
@@ -346,7 +346,7 @@ fn retain_machine_references(
     );
 }
 fn retain_static_machine_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     output: &mut impl Extend<SymbolHandle>,
     index: &MachineIndex,
     argument: &StaticMachineArgument,
@@ -358,7 +358,7 @@ fn retain_static_machine_argument(
     );
 }
 fn retain_machine_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     index: &MachineIndex,
     output: &mut impl Extend<SymbolHandle>,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,

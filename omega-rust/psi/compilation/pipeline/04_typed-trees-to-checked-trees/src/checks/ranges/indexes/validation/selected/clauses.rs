@@ -1,7 +1,6 @@
 use language_core::operator_spelling::OperatorSpelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::OperatorDefinition;
@@ -22,7 +21,7 @@ pub(super) struct SelectedClauses {
 }
 
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &OperatorDefinition,
     spelling: OperatorSpelling,
 ) -> Result<SelectedClauses, &'static str> {
@@ -78,7 +77,7 @@ pub(super) fn validate(
 }
 
 fn clause(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[SymbolHandle; 3],
     spelling: OperatorSpelling,
@@ -137,7 +136,7 @@ fn clause(
 }
 
 fn operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[SymbolHandle; 3],
     depth: usize,

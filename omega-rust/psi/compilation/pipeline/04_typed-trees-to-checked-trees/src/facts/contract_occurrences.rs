@@ -7,7 +7,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// select which place the fact describes and must therefore participate in
 /// revision invalidation too.
 pub(crate) fn fact_referenced_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> Vec<ExpressionHandle> {
     let mut occurrences = Vec::new();
@@ -33,7 +33,7 @@ pub(crate) fn fact_referenced_occurrences(
 }
 
 pub(crate) fn append_expression_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
 ) {
@@ -133,7 +133,7 @@ pub(crate) fn append_expression_occurrences(
 /// A selected field remains one complete storage dependency, but selectors
 /// beneath its receiver are independent values that can redirect the read.
 fn append_selector_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     occurrences: &mut Vec<ExpressionHandle>,
 ) {

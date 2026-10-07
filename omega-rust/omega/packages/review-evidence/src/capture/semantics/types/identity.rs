@@ -12,7 +12,7 @@ pub(crate) fn review_type_identity_with_binders(
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
+    validate_package_type_identity_input(compilation.checking_input, type_reference, binders)?;
     let identity = compilation
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
@@ -32,7 +32,7 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
+    validate_package_type_identity_input(compilation.checking_input, type_reference, binders)?;
     let identity = compilation
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
@@ -92,7 +92,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     signature_type_identity(
-        &compilation.typed,
+        compilation.checking_input,
         compilation.custody.sources().exact_toolchain_sources(),
         type_reference,
         binders,
@@ -110,7 +110,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
 /// A const-argument root is permitted only after the caller establishes its
 /// exact declared const telescope slot.
 pub(crate) fn signature_type_identity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],

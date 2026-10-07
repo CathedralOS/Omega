@@ -10,7 +10,6 @@
 use diagnostics::Diagnostic;
 use flow_effects::OperationalPlan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 
 /// Original finite reach dependency followed by the exact binder contracts.
@@ -18,7 +17,7 @@ use typed_trees::data::TypeParameterKind;
 /// Service declarations use package-qualified identity; variables use positions
 /// in the full telescope, including non-machine and unused binders.
 pub fn static_machine_template_reach_contract_bytes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     inferred: &flow_effects::ServiceReachInferencePlan,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -108,7 +107,7 @@ pub fn static_machine_template_reach_contract_bytes(
 /// Parameter types specialize in private instances; callable kind, service identity,
 /// and fixed acknowledgement envelopes must not narrow with them.
 pub fn static_machine_parameter_contract_bytes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[typed_trees::data::TypeParameter],
 ) -> Vec<u8> {
     let mut bytes = b"omega.static-machine-operational-contracts.v1\0".to_vec();
@@ -188,7 +187,11 @@ pub fn static_machine_parameter_contract_bytes(
     bytes
 }
 
-fn encode_declaration(program: &TypedTrees, symbol: SymbolHandle, bytes: &mut Vec<u8>) {
+fn encode_declaration(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+    bytes: &mut Vec<u8>,
+) {
     if let Some(package) = program.symbols.symbol_package_identity(symbol) {
         bytes.push(1);
         bytes.extend(package.digest());
@@ -204,7 +207,7 @@ fn encode_declaration(program: &TypedTrees, symbol: SymbolHandle, bytes: &mut Ve
 /// dependency. Removing a retained binder changes the application commitment
 /// even when the remaining calls still form individually valid joins.
 pub fn static_machine_call_binding_bytes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
 ) -> Result<Vec<u8>, Diagnostic> {

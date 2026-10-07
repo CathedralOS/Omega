@@ -10,7 +10,6 @@ use super::type_instantiation::{
 };
 use crate::value_custody::struct_literals::construction_field_type;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::declaration_index::IsolationVerdicts;
 use typed_trees::expression::TableStructLiteral;
@@ -34,14 +33,14 @@ pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeId
 /// fingerprint is the revision key it rebuilds against — every table, root
 /// roster, and planning Vec joins the key, so any mutation reopens it.
 pub(super) fn with_isolation_cache<R>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     run: impl FnOnce(&mut IsolationVerdicts) -> R,
 ) -> R {
     program.with_isolation_verdicts(program.structural_fingerprint(), run)
 }
 
 pub(super) fn definitions_for_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Vec<&typed_trees::data::DataDefinition> {
     program
@@ -52,7 +51,7 @@ pub(super) fn definitions_for_symbol(
 }
 
 pub(super) fn definitions_for_name<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     name: &str,
 ) -> Vec<&'p typed_trees::data::DataDefinition> {
     program
@@ -63,7 +62,7 @@ pub(super) fn definitions_for_name<'p>(
 }
 
 fn type_identities_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
     identities: &mut TypeIdentityMemo,
@@ -106,7 +105,7 @@ pub(super) fn concrete_nominal_type(
 /// have the same fields; actual type arguments and constraints still require
 /// their existing exact type identity. Lifetime validation remains separate.
 pub(super) fn aggregate_storage_types_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
@@ -128,7 +127,7 @@ pub(super) fn aggregate_storage_types_match(
 /// actual and two applications of the same generic base match when every
 /// argument matches. Anything else keeps the nominal-identity rule.
 pub(super) fn aggregate_storage_types_match_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
@@ -190,7 +189,7 @@ pub(super) fn aggregate_storage_types_match_in(
 }
 
 pub(super) fn struct_literal_field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -206,7 +205,7 @@ pub(super) fn struct_literal_field_type(
 }
 
 pub(super) fn struct_literal_matches_expected_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     expected_type: TypeReferenceHandle,
 ) -> bool {
@@ -234,7 +233,7 @@ pub(super) fn struct_literal_matches_expected_type(
 }
 
 pub(super) fn type_is_caller_isolated_local(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
     if let Some(verdict) = with_isolation_cache(program, |cache| {
@@ -262,7 +261,7 @@ pub(super) fn type_is_caller_isolated_local(
 /// definition's `Type` parameters. An unbound parameter keeps the named
 /// leaf and stays opaque.
 pub(super) fn type_is_caller_isolated_local_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -281,7 +280,7 @@ pub(super) fn type_is_caller_isolated_local_in(
 /// runtime layout. Follow the same storage-shape law as ordinary isolation,
 /// but an inline back-edge is not an alias. References still fail closed.
 pub(super) fn type_is_caller_isolated_proof_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
     if let Some(verdict) = with_isolation_cache(program, |cache| {
@@ -308,7 +307,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
 /// `Wrap<Wrap<u64>>` is finite while a genuinely recursive instantiation
 /// re-encounters an equal container.
 fn type_is_caller_isolated_local_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     visiting: &mut Vec<TypeReferenceHandle>,
     proof_values: bool,
@@ -480,7 +479,7 @@ fn type_is_caller_isolated_local_inner(
 }
 
 pub(super) fn struct_literal_type_is_caller_isolated(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
 ) -> bool {
     let mut definitions = definitions_for_name(program, literal.type_name.as_str()).into_iter();
@@ -522,7 +521,7 @@ pub(super) fn struct_literal_type_is_caller_isolated(
 /// nested application at different arguments is a distinct finite shape. A
 /// definition-level entry has no spelling, so it cannot seed the guard.
 fn data_definition_is_caller_isolated(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     container: Option<TypeReferenceHandle>,
     visiting: &mut Vec<TypeReferenceHandle>,

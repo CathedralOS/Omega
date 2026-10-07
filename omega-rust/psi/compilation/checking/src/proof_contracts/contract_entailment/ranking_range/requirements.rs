@@ -2,16 +2,15 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, ProofFact, RankingRangeMeasure, RankingRangeState, SignatureContractKind, State,
-    StrictArithmeticBindingValue, TypedTrees, calls, collect_guard, comparison_proven,
-    field_coordinates, fields, inductive_judgment, integer_bindings, lengths, meanings,
-    saved_arguments,
+    StrictArithmeticBindingValue, calls, collect_guard, comparison_proven, field_coordinates,
+    fields, inductive_judgment, integer_bindings, lengths, meanings, saved_arguments,
 };
 use field_coordinates::FieldCoordinates;
 
 /// The EntryInvariant graph tier re-establishes every readable scalar/length
 /// comparison. Its ignored Boolean or nominal facts confer no such guarantee.
 pub fn arithmetic_entry_requirement_is_covered(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     goal: ExpressionHandle,
 ) -> bool {
@@ -46,7 +45,7 @@ pub fn arithmetic_entry_requirement_is_covered(
 /// formal must not rewrite the hypotheses or recursively substitute an actual.
 /// This proves arithmetic implication, not operand execution or type formation.
 pub fn prove_arithmetic_call_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     caller_state: &State,
     callee: &Machine,
@@ -67,7 +66,7 @@ pub fn prove_arithmetic_call_requirement(
 }
 
 fn prove(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     caller_state: &State,
     callee: &Machine,

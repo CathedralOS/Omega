@@ -2,7 +2,7 @@
 //! rebuilding bodies or rechecking unaffected callers after each removal.
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
+    CheckedUnitEffectOperationPlan, SymbolHandle,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
@@ -218,7 +218,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 /// not an operation in the synthetic body, so the closure needs the edge named
 /// here: a dropped hook body drops the consuming machine with it.
 pub(super) fn retain_available(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     boundary_symbols: &[SymbolHandle],

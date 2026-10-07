@@ -2,7 +2,7 @@
 //! observation's value epoch; these queries never select or merge epochs.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use typed_trees::{TypedTrees, expression::ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 
 pub(in crate::checks::contracts) enum PlacePredicate {
     Bytes(crate::facts::field_domain::ByteSequencePredicate),
@@ -10,7 +10,7 @@ pub(in crate::checks::contracts) enum PlacePredicate {
 }
 
 pub(in crate::checks::contracts) fn place_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(PlacePredicate, ExpressionHandle)> {
     if let Some((predicate, subject)) =
@@ -25,7 +25,7 @@ pub(in crate::checks::contracts) fn place_predicate(
 impl PlacePredicate {
     pub(in crate::checks::contracts) fn proven(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         state: &FlowStateFact,
         call: &FlowCallFact,

@@ -22,7 +22,6 @@ use crate::typed_expressions::{
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -57,7 +56,7 @@ fn sibling_argument_for<'plan>(
     ExpressionHandle::invalid()
 }
 
-pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
+pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<'_> {
     let mut proof_plan = ProofPlan::new(program);
     let call_frames = validation::CallFrameResolver::new(program);
 
@@ -220,7 +219,9 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
     proof_plan
 }
 
-pub(crate) fn estimated_proof_obligation_capacity(program: &TypedTrees) -> usize {
+pub(crate) fn estimated_proof_obligation_capacity(
+    program: &dyn ::validation::CheckingInput,
+) -> usize {
     let mut capacity = 0usize;
 
     for machine in program.machines() {
@@ -267,7 +268,7 @@ pub(crate) fn estimated_proof_obligation_capacity(program: &TypedTrees) -> usize
 }
 
 fn collect_bounded_value_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: ProofObligationOwner,
     type_reference: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
@@ -309,7 +310,7 @@ fn collect_bounded_value_obligation(
 }
 
 fn collect_bounded_initializer_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: ProofObligationOwner,
     type_reference: TypeReferenceHandle,
     value: ExpressionHandle,
@@ -374,7 +375,7 @@ fn collect_bounded_initializer_obligation(
 }
 
 fn collect_bounded_assignment_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -459,7 +460,7 @@ fn collect_bounded_assignment_obligation(
 }
 
 fn binary_value_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -491,7 +492,7 @@ fn binary_value_operands(
 /// operands, so both read from this one provider rather than reopening
 /// `expression_constraints` at the decision site.
 pub(crate) fn declared_integer_range(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -508,7 +509,7 @@ pub(crate) fn declared_integer_range(
 /// `typed_trees::boundary::called_boundary_signature` -- validation's
 /// stays cache-based because it also covers `contains`-clause receivers.)
 pub(crate) fn ensures_witness_bounds_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     statements: &[StatementNode],
     upto: usize,
@@ -575,7 +576,7 @@ pub(crate) fn ensures_witness_bounds_at(
 }
 
 fn collect_witness_conjunct(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[&StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,
@@ -628,7 +629,7 @@ fn collect_witness_conjunct(
 }
 
 fn collect_bounded_transition_argument_obligations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     transition_guard: TransitionGuardNode,
@@ -749,7 +750,7 @@ fn collect_bounded_transition_argument_obligations(
 /// Only reached for CALL-FREE transition arguments, where the co-located guard
 /// soundly narrows the argument places.
 fn guarded_argument_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     argument: ExpressionHandle,
@@ -786,7 +787,7 @@ fn guarded_argument_constraints(
 /// feeds DIRECT payload access outside a case-arm (which carries no such guard
 /// and stays correctly unproven).
 fn payload_field_constraints_under_case_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
     guard: &TransitionGuardNode,
 ) -> Option<ConstraintBuffer> {
@@ -814,7 +815,7 @@ fn payload_field_constraints_under_case_guard(
 /// reference a `Name` whose `.symbol` is the variant symbol (see
 /// `03_symbol-resolved-trees-to-typed-trees/src/domain_membership.rs`).
 fn case_guard_proven_variant(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     condition: ExpressionHandle,
     receiver: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -859,7 +860,7 @@ fn case_guard_proven_variant(
 /// payload field. Searches ONLY `DataMember::Variant` payloads -- the
 /// complement of `data_field_in_definition`, which searches plain fields.
 fn variant_payload_field_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     variant_symbol: SymbolHandle,
     member_symbol: SymbolHandle,
     member_name: &Identifier,
@@ -894,7 +895,7 @@ struct CallOccurrence<'program> {
 }
 
 fn collect_nested_receiving_obligations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -966,7 +967,7 @@ fn collect_nested_receiving_obligations(
 }
 
 fn collect_bounded_call_argument_obligations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -1020,7 +1021,7 @@ fn collect_bounded_call_argument_obligations(
 /// are owed exactly as an assignment's are. A reference binding stores the
 /// reference, not a value of the referee, so it owes the referee nothing here.
 fn collect_bounded_local_initializer_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -1061,7 +1062,7 @@ fn collect_bounded_local_initializer_obligation(
 /// not mint finiteness or a range. The ordinary checker consumes the exact
 /// owner/operand coordinate and proves the complete receiving constraint.
 fn collect_receiving_initializer_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -1087,7 +1088,7 @@ fn collect_receiving_initializer_obligation(
 }
 
 fn collect_bounded_state_return_obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     return_type: TypeReferenceHandle,
@@ -1130,7 +1131,7 @@ fn collect_bounded_state_return_obligation(
 }
 
 fn call_target_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<&[StateParameter]> {
     // A machine target enters at its first state.
@@ -1160,12 +1161,15 @@ fn display_name_path(path: &[Identifier]) -> Identifier {
 }
 
 /// Resolve a stored state without depending on the checking transformation.
-fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
+fn state_by_symbol(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&State> {
     program.state_by_symbol(symbol)
 }
 
 fn incoming_state_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     target_state: &State,
 ) -> Option<(TransitionGuardNode, SymbolHandle)> {
@@ -1217,7 +1221,7 @@ fn incoming_state_guard(
 }
 
 fn table_transition_target_state_and_arguments<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program State,
     target: TransitionTargetHandle,
 ) -> Option<(
@@ -1243,7 +1247,7 @@ fn table_transition_target_state_and_arguments<'program>(
 }
 
 fn guards_equivalent_for_precondition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &TransitionGuardNode,
     right: &TransitionGuardNode,
 ) -> bool {
@@ -1257,7 +1261,7 @@ fn guards_equivalent_for_precondition(
 }
 
 fn expressions_equivalent_for_precondition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -1330,7 +1334,7 @@ fn expressions_equivalent_for_precondition(
 }
 
 fn callable_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program State,
 ) -> impl Iterator<Item = &'program StateParameter> {
     program.state_parameters(state).iter()

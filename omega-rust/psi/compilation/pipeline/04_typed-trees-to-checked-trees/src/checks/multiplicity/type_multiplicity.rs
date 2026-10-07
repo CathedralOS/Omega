@@ -8,14 +8,14 @@ use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn type_carries_linear_obligation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     !linear_claim_frontier(program, type_reference).is_empty()
 }
 
 pub(crate) fn expression_establishes_obligation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -122,14 +122,14 @@ pub(crate) fn expression_establishes_obligation(
 }
 
 pub(crate) fn type_multiplicity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {
     program.type_multiplicity(type_reference)
 }
 
 pub(crate) fn find_data_definition<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -139,7 +139,7 @@ pub(crate) fn find_data_definition<'program>(
 }
 
 pub(crate) fn literal_variant<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     literal: &typed_trees::expression::TableStructLiteral,
 ) -> Option<&'program typed_trees::data::DataVariant> {
     let case_name = literal.case_name.as_ref()?;
@@ -156,7 +156,7 @@ pub(crate) fn literal_variant<'program>(
 }
 
 pub(crate) fn data_field_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     field_symbol: SymbolHandle,
 ) -> Option<&str> {
     program.data_definitions().iter().find_map(|definition| {

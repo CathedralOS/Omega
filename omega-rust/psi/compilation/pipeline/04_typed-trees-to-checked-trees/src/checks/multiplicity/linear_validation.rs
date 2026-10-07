@@ -37,7 +37,7 @@ use language_semantics::{
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_linear_permission_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -308,7 +308,7 @@ pub(crate) fn validate_linear_permission_events(
 }
 
 fn append_unresolved_state_result_mapping_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     events: &[&FlowPermissionEventFact],
     ownership: &checked_trees::FlowOwnershipFacts,

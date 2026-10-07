@@ -68,7 +68,7 @@ pub(crate) struct CheckedMathematics {
 /// consumer refuses the records with a named diagnostic until the evidence
 /// encoding lands (PROOF-CONTRACT-MIGRATION).
 pub(crate) fn check_mathematical_declarations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<CheckedMathematics, Vec<diagnostics::Diagnostic>> {
     if program.mathematical_definitions().is_empty() {
         return Ok(CheckedMathematics::default());
@@ -82,7 +82,7 @@ pub(crate) fn check_mathematical_declarations(
 }
 
 pub(crate) fn build_proof_facts_with_operators(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof_plan: &proof::obligations::ProofPlan,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,

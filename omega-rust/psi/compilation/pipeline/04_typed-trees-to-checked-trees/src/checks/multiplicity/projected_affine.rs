@@ -16,7 +16,7 @@ use typed_trees::types::TypeReferenceNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -113,7 +113,7 @@ pub(super) fn append_transfer(
 /// while unresolved derived observations retain their existing owning checks.
 /// Loan exclusion and borrowed-window opening must use the same judgment.
 pub(in crate::checks) fn transfers_owned_storage(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     event: &crate::flow::DiscoveredMoveEvent,
@@ -140,7 +140,7 @@ pub(in crate::checks) fn transfers_owned_storage(
 /// referent. Pattern payloads and ordinary fields obey the same reference-prefix
 /// checks; moving a reference carrier itself does not move its referent.
 pub(super) fn is_borrowed_place_transfer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: SymbolHandle,
     state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
@@ -167,7 +167,7 @@ pub(super) fn is_borrowed_place_transfer(
 /// consume the containing root's linear/affine claim.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_replacement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

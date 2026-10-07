@@ -4,7 +4,7 @@
 use super::*;
 
 pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -34,7 +34,7 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
 }
 
 pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract_supported(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     contract: &typed_trees::signature::SignatureContract,
@@ -112,7 +112,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
 /// Reconstruct the exact pair set from both surfaces so an omitted or extra
 /// membership cannot be hidden by lowering.
 pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_parameter_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
 ) -> bool {
@@ -254,7 +254,7 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
 }
 
 pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -354,7 +354,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
 }
 
 pub(in crate::execution::terminal_unit) fn parameter_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     mut type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -410,7 +410,7 @@ pub(in crate::execution::terminal_unit) fn parameter_qualifications(
 /// structural domain qualification, so folding onto one refuses the plan
 /// rather than silently dropping the authored custody.
 pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     owner_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
@@ -500,7 +500,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
 /// membership and its proof; a structural request would duplicate that owner.
 /// This query assigns ownership only and establishes no membership evidence.
 pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
 ) -> Vec<SemanticDomainId> {
@@ -554,13 +554,13 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
 /// as root qualifications. Fixed-array indexes are the canonical source path
 /// for each occurrence; unsupported dynamic shapes remain absent from plans.
 pub(in crate::execution::terminal_unit) fn projected_parameter_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<CheckedStructuralPathQualification>> {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         type_reference: TypeReferenceHandle,
         shapes: &mut ShapeCollector<'_>,
         binders: &[(SymbolHandle, String)],
@@ -611,12 +611,12 @@ pub(in crate::execution::terminal_unit) fn projected_parameter_qualifications(
 }
 
 pub(super) fn type_domain_semantic_id(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     domain: SymbolHandle,
 ) -> Option<SemanticDomainId> {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         type_reference: TypeReferenceHandle,
         domain: SymbolHandle,
         matches: &mut Vec<SemanticDomainId>,
@@ -665,12 +665,12 @@ pub(super) fn type_domain_semantic_id(
 }
 
 pub(super) fn type_domain_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     domain: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         type_reference: TypeReferenceHandle,
         domain: SymbolHandle,
         matches: &mut Vec<TypeReferenceHandle>,

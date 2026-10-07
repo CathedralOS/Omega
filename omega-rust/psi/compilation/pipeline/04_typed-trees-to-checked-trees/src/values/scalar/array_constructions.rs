@@ -3,7 +3,6 @@
 //! computed leaves share this roster after flow capture, while statement-owned
 //! arrays retain their existing pre-flow value production.
 use checked_trees::{CheckedArrayConstructionSource, FlowFacts, FlowStateFact};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -34,7 +33,7 @@ pub(crate) fn unique_state_flow<'flow>(
 /// Array arguments discovered within the unique flow fact already resolved
 /// by the caller.
 pub(crate) fn call_array_constructions_in(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     captured: &FlowStateFact,
     machine: &typed_trees::machine::Machine,

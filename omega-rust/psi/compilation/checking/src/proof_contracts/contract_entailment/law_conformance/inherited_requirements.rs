@@ -2,7 +2,7 @@
 //! parameters.
 
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::synthesize_indexed_law_binder_labels;
-use crate::proof_contracts::contract_entailment::{StateSignature, TraitDefinition, TypedTrees};
+use crate::proof_contracts::contract_entailment::{StateSignature, TraitDefinition};
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// The proposition endpoint one requirement contract application carries once
@@ -24,7 +24,7 @@ pub struct InheritedRequirementApplication {
 /// so the migrated row keeps its authored schema identity rather than
 /// publishing a partial substitution.
 pub fn inherited_requirement_proposition_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
     satisfier_state: &typed_trees::state::State,
@@ -77,7 +77,7 @@ pub fn inherited_requirement_proposition_application(
 /// `None` fails closed -- the migrated fact keeps its authored schema identity
 /// rather than publishing a partial substitution.
 pub fn inherited_requirement_proposition_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
     satisfier_state: &typed_trees::state::State,
@@ -132,7 +132,7 @@ pub fn inherited_requirement_proposition_label(
 /// the adapter forwards to. `None` on arity drift keeps the migrated fact at
 /// its authored schema identity.
 pub fn inherited_satisfier_parameters<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
     satisfier_state: &'a typed_trees::state::State,

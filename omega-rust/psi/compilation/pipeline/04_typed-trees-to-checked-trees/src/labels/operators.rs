@@ -1,4 +1,3 @@
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
@@ -10,7 +9,7 @@ use typed_trees::signature::StateParameter;
 /// spelled use renders its operands as written, while a named call names the
 /// referent under a reference formal.
 pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operand_labels: &[String],
     expression: ExpressionHandle,
@@ -172,7 +171,7 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
 /// operator-use discharge and the statement-entry discharge decompose the
 /// clause tree identically before judging a leaf.
 pub(crate) fn boolean_expression_has_polarity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     polarity: bool,
     leaf: &mut impl FnMut(ExpressionHandle, bool) -> bool,

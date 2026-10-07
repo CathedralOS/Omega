@@ -7,7 +7,6 @@
 //! storage convert only the final value, without changing its denotation.
 
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -18,7 +17,10 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// evidence: a bare named type, a runtime selector (`dyn Trait<Args>`, one
 /// opaque word), or an integer qualified only by an arithmetic policy, which
 /// changes later operations rather than the stored payload.
-pub fn is_plain_scalar_storage(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub fn is_plain_scalar_storage(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     program
         .type_reference_table
         .contains_type_reference(reference)
@@ -33,7 +35,7 @@ pub fn is_plain_scalar_storage(program: &TypedTrees, reference: TypeReferenceHan
 /// aborts the walk (true) or is skipped (false); a bound that does not close
 /// aborts either way.
 pub fn constrained_range_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: typed_trees::types::TypeReferenceHandle,
     strict: bool,
 ) -> Option<Vec<(BigInt, BigInt)>> {
@@ -43,11 +45,9 @@ pub fn constrained_range_bounds(
     }
     let mut bounds = Vec::new();
     for (minimum, maximum, end_inclusive) in ranges {
-        bounds.push(
-            closed_integer_range_bound(program, minimum).zip(
-                closed_integer_range_maximum(program, maximum, end_inclusive),
-            )?,
-        );
+        bounds.push(closed_integer_range_bound(program, minimum).zip(
+            closed_integer_range_maximum(program, maximum, end_inclusive),
+        )?);
     }
     Some(bounds)
 }
@@ -57,7 +57,7 @@ pub fn constrained_range_bounds(
 /// reports whether any constraint node was not a Range — strict walkers
 /// reject on it, others skip the node.
 pub fn constrained_range_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut carrier: TypeReferenceHandle,
 ) -> (Vec<(ExpressionHandle, ExpressionHandle, bool)>, bool) {
     let mut ranges = Vec::new();
@@ -83,7 +83,7 @@ pub fn constrained_range_constraints(
 }
 
 pub fn is_arithmetic_policy_only_integer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     let table = &program.type_reference_table;
@@ -119,7 +119,7 @@ pub fn is_arithmetic_policy_only_integer(
 /// arithmetic policy (`i32 in Wrapping`), which governs later operations on
 /// the payload rather than which payloads it holds.
 pub fn unrestricted_builtin_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     let table = &program.type_reference_table;
@@ -143,7 +143,7 @@ pub fn unrestricted_builtin_primitive(
 /// The exact integer carrier and single authored range, without intersecting
 /// multiple declarations or converting symbolic endpoints to guessed values.
 pub fn declared_integer_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2], bool)> {
     if program.arithmetic_domain_for_type_reference(type_reference)
@@ -198,7 +198,7 @@ pub fn declared_integer_range(
 /// computations as anonymous arithmetic. Unknown, fractional and invalid
 /// expressions supply no bound, including when an authored operator is selected.
 pub fn closed_integer_range_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {
     program.closed_integer_expression_value(expression)
@@ -207,7 +207,7 @@ pub fn closed_integer_range_bound(
 /// Check the authored upper endpoint before normalizing its boundary kind.
 /// Exclusive predecessor arithmetic never executes in the endpoint's carrier.
 pub fn closed_integer_range_maximum(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     end_inclusive: bool,
 ) -> Option<BigInt> {

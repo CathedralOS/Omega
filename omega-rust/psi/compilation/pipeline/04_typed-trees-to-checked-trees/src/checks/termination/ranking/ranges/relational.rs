@@ -5,14 +5,13 @@ use crate::checks::termination::ranking::DecreaseMeasure;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 mod state_edges;
 
 pub(super) fn prove(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
@@ -22,7 +21,7 @@ pub(super) fn prove(
 }
 
 pub(super) fn prove_with_entry_requirements(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
@@ -143,7 +142,7 @@ pub(super) fn prove_with_entry_requirements(
 /// into the edge is read live. `None` for `entry_parameters` is the root's
 /// identity telescope.
 pub(super) fn protected_input_paths<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &State,
     entry_parameters: Option<&[SymbolHandle]>,
     premise_inputs: &[SymbolHandle],
@@ -163,7 +162,7 @@ pub(super) fn protected_input_paths<'program>(
 }
 
 fn prove_edges<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     range: ExpressionHandle,
     measure: validation::RankingRangeMeasure,
@@ -226,7 +225,7 @@ fn prove_edges<'program>(
 }
 
 fn preserved_entry_prefix<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     frames: Option<&validation::CallFrameResolver<'program>>,
@@ -383,7 +382,7 @@ fn preserved_entry_prefix<'program>(
 /// The binding writes a fresh local, so nothing else in the statement can
 /// disturb the entry telescope.
 fn call_tree_initializer_preserves_entry<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &State,
     initial_value: ExpressionHandle,
@@ -412,7 +411,7 @@ fn call_tree_initializer_preserves_entry<'program>(
 /// meaning deliberately treats calls as symbolic leaves, so
 /// `entries[next()]` would otherwise pass `place_has_builtin_coordinates`.
 fn inert_store_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -449,7 +448,7 @@ fn inert_store_target(
 /// value forms are write-free by construction. Meaning and membership of an
 /// admitted expression are still proved separately by the range owner.
 fn pure_guard(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -464,7 +463,7 @@ fn pure_guard(
 /// covered, while every subterm that is not a call must still be pure the
 /// way it would be with no call present.
 fn pure_guard_or_calls(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
     expression: ExpressionHandle,

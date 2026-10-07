@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
-    SymbolHandle, TypedTrees, proof_integer_expression, proof_nat_cast,
+    SymbolHandle, proof_integer_expression, proof_nat_cast,
 };
 mod difference_matrix;
 mod intervals;
@@ -234,7 +234,7 @@ pub(super) enum OpaqueTerm {
 }
 
 pub(super) struct Engine<'program> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn crate::CheckingInput,
     /// The machine this engine judges (entry-range hypotheses resolve
     /// through it).
     machine_symbol: SymbolHandle,
@@ -292,7 +292,7 @@ const ZERO_ATOM: &str = "\u{0}zero";
 const SUBSTITUTION_ROUNDS: usize = 8;
 
 impl<'program> Engine<'program> {
-    pub(super) fn new(program: &'program TypedTrees, machine: &Machine) -> Self {
+    pub(super) fn new(program: &'program dyn crate::CheckingInput, machine: &Machine) -> Self {
         let mut parameter_atoms = Vec::new();
         let mut unsigned_atoms = Vec::new();
         for state in program.machine_states(machine) {
@@ -495,7 +495,7 @@ impl<'program> Engine<'program> {
         }
     }
 
-    pub(super) fn for_proof_integer_formation(program: &'program TypedTrees) -> Self {
+    pub(super) fn for_proof_integer_formation(program: &'program dyn crate::CheckingInput) -> Self {
         let mut bindings = Vec::new();
         for (handle, expression) in program.expression_table.iter_expressions() {
             let ExpressionNode::Name(path) = expression else {
@@ -540,7 +540,7 @@ impl<'program> Engine<'program> {
     /// the call-site binder rule). Used by the inductive transition path,
     /// where each arm binds or shares `result`.
     pub(super) fn with_result_atom(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         root: &typed_trees::state::State,
     ) -> Self {
@@ -1261,7 +1261,7 @@ impl<'program> Engine<'program> {
 /// The declaration symbol a member chain bottoms out on, or None when the
 /// receiver is not a name place (a literal, a call result, a projection).
 fn member_receiver_root_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut handle = expression;
@@ -1280,7 +1280,10 @@ fn member_receiver_root_symbol(
 /// A transient normalization key, never artifact identity. Resolved source
 /// symbols, selected casts and operator structure remain distinct. Unsupported
 /// source forms use occurrence identity rather than guessing equivalence.
-fn integer_source_identity(program: &TypedTrees, expression: ExpressionHandle) -> String {
+fn integer_source_identity(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> String {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
         ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
@@ -1328,7 +1331,7 @@ fn integer_source_identity(program: &TypedTrees, expression: ExpressionHandle) -
 /// exact transient identity as arithmetic normalization. No display label or
 /// bare call spelling can establish equality.
 pub fn integer_embedding_sources_equal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -1346,7 +1349,7 @@ pub fn integer_embedding_sources_equal(
         && integer_source_identity(program, left) == integer_source_identity(program, right)
 }
 
-fn exact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn exact_integer_source(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     use numerics::arithmetic::ArithmeticDomain;
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal
@@ -1368,7 +1371,10 @@ fn exact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> b
     }
 }
 
-fn nonexact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn nonexact_integer_source(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     use numerics::arithmetic::ArithmeticDomain;
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal

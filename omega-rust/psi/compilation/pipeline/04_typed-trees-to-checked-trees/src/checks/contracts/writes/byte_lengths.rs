@@ -22,7 +22,7 @@ use typed_trees::statement::StatementNode;
 /// bound. Thus in-place append uses the proven current length when one reaches
 /// the statement, never merely the storage capacity.
 pub(super) fn static_max_byte_length(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -107,7 +107,7 @@ pub(super) struct KnownByteLength {
 /// place. Ordinary assignments retain disjoint facts, invalidate overlapping
 /// places, and publish the assigned value's new maximum length.
 pub(super) fn known_byte_lengths_before(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -177,7 +177,7 @@ pub(super) fn known_byte_lengths_before(
 }
 
 fn forget_overlapping_lengths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     known: &mut Vec<KnownByteLength>,
     written: &crate::flow::CanonicalPlace,
 ) {
@@ -192,7 +192,7 @@ fn forget_overlapping_lengths(
 }
 
 fn expression_contains_value_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {

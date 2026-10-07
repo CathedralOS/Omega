@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use flow_effects::{CallOperational, OperationalPlan};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
@@ -8,7 +7,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// normalized by `flow-effects`, and reject suspension in a nested expression
 /// before continuation planning sees it.
 pub(crate) fn validate_call_acknowledgements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operational: &OperationalPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -50,7 +49,7 @@ pub(crate) fn validate_call_acknowledgements(
 }
 
 fn validate_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
     statement_index: usize,
     terminal: bool,
@@ -201,7 +200,7 @@ fn validate_statement(
 
 /// Every recursive child walk spells non-direct position identically.
 fn validate_child(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     statement_index: usize,
     operational_calls: &[CallOperational],
@@ -220,7 +219,7 @@ fn validate_child(
 }
 
 fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     statement_index: usize,
     direct_position: bool,

@@ -29,7 +29,7 @@ pub(in crate::checks::contracts) use scalar_exits::{
 mod field_domains;
 
 fn exact_integer_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     program
@@ -45,7 +45,7 @@ fn exact_integer_reference(
 /// establishes meaning and exact self occurrences; the shared evaluator and
 /// implication engine, rather than this code, judge predicate truth.
 fn domain_predicate_meaning(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     expression: typed_trees::expression::ExpressionHandle,
     subjects: &mut Vec<typed_trees::expression::ExpressionHandle>,

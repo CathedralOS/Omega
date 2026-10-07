@@ -332,7 +332,7 @@ fn validate_runtime_rank(
     graph: &CheckedScalarMachineGraph,
     rank: &CheckedStructuralRankedSccPlan,
 ) -> Result<(), LoweringError> {
-    let components = validation::validated_runtime_natural_components(checked);
+    let components = validation::validated_runtime_natural_components(&checked.typed);
     let mut matching = components.iter().filter(|component| {
         component
             .states
@@ -528,7 +528,7 @@ fn resolve_member<'a>(
         // a matching spelling nor the retained plan's index proves this join.
         let required_roles = match custody.rank_range {
             Some(range) => validation::ranking_range_required_symbols(
-                checked,
+                &checked.typed,
                 machine,
                 range,
                 validation::RankingRangeMeasure::Single(*subject),
@@ -540,7 +540,7 @@ fn resolve_member<'a>(
             None => vec![name.symbol],
         };
         let mappings = validation::discover_state_entry_mappings(
-            checked,
+            &checked.typed,
             machine,
             name.symbol,
             &required_roles,

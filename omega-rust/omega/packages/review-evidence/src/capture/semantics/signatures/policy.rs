@@ -20,7 +20,7 @@ use typed_trees::{
 /// Project the prepared signature but obtain semantic absence and proof-source
 /// associations from the original checked telescope, never a dummy type string.
 pub(crate) fn project_type_parameters(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     checked_source: &PackageReviewInput<'_>,
     parameters: &[TypeParameter],
     source_parameters: &[TypeParameter],

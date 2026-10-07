@@ -3,7 +3,6 @@
 
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
@@ -21,7 +20,7 @@ pub(in crate::checks::borrows) use footprint::{
 /// source machine. Retained alias ancestry supplies authority, not competing
 /// loans; every other live overlapping loan must remain excluded.
 pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement: &checked_trees::FlowStatementFact,
@@ -150,7 +149,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
 }
 
 fn receiver_is_writable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,

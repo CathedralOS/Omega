@@ -12,7 +12,6 @@ use crate::expression_traversal::children;
 use crate::machine_calls::calls::machine_state_by_symbol;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
@@ -22,7 +21,7 @@ use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignatu
 use typed_trees::state::State;
 
 pub(crate) fn validate_specification_call_requirements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     fact: &ProofFact,
@@ -49,7 +48,7 @@ pub(crate) fn validate_specification_call_requirements(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -212,7 +211,7 @@ enum RequirementOwner<'program> {
 }
 
 fn requirement_owner<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<RequirementOwner<'program>> {
     if let Some(dispatch) = &call.static_requirement_dispatch {
@@ -233,7 +232,10 @@ fn requirement_owner<'program>(
         })
 }
 
-fn signature_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {
+fn signature_by_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&StateSignature> {
     program.traits().iter().find_map(|definition| {
         program
             .trait_machine_signatures(definition)
@@ -259,7 +261,7 @@ fn owner_name<'program>(
 }
 
 fn owner_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     owner: &RequirementOwner<'program>,
 ) -> &'program [StateParameter] {
     match owner {
@@ -269,7 +271,7 @@ fn owner_parameters<'program>(
 }
 
 fn applicable_requirements_of<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     owner: &RequirementOwner<'program>,
 ) -> Vec<(&'program ProofFact, bool)> {
     match owner {
@@ -292,7 +294,7 @@ fn applicable_requirements_of<'program>(
 }
 
 fn applicable_requirements<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> impl Iterator<Item = (&'program ProofFact, bool)> {
@@ -315,7 +317,10 @@ fn applicable_requirements<'program>(
         })
 }
 
-fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn structurally_substitutable_fact(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
@@ -341,7 +346,10 @@ fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionH
 /// Only fully substituted concrete free applications cross this boundary.
 /// Their exact entry identity survives shared normalization. Receiver calls,
 /// static applications and opaque display text remain unsupported here.
-fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -> bool {
+fn term_has_complete_substitution(
+    program: &dyn crate::CheckingInput,
+    term: &StructuralTerm,
+) -> bool {
     match term {
         StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
@@ -418,7 +426,7 @@ fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -
 }
 
 fn constructor_fields_are_complete(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &str,
     case: &str,
     fields: &[(String, StructuralTerm)],
@@ -473,7 +481,11 @@ fn constructor_fields_are_complete(
             .all(|name| fields.iter().filter(|(field, _)| field == name).count() == 1)
 }
 
-fn fact_roots(program: &TypedTrees, fact: &ProofFact, roots: &mut Vec<ExpressionHandle>) {
+fn fact_roots(
+    program: &dyn crate::CheckingInput,
+    fact: &ProofFact,
+    roots: &mut Vec<ExpressionHandle>,
+) {
     match fact {
         ProofFact::Expression(expression) => roots.push(*expression),
         ProofFact::Membership(membership) => roots.push(membership.value),
@@ -489,7 +501,7 @@ fn fact_roots(program: &TypedTrees, fact: &ProofFact, roots: &mut Vec<Expression
 /// cannot justify a cycle of mutually dependent contracts. Check just those
 /// dependencies, not body recursion (whose well-foundedness has another owner).
 fn requirements_are_acyclic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &RequirementOwner<'_>,
     active: &mut Vec<SymbolHandle>,
     complete: &mut Vec<SymbolHandle>,
@@ -527,7 +539,7 @@ fn requirements_are_acyclic(
 }
 
 fn requirement_parameters_are_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
 ) -> bool {
@@ -555,7 +567,10 @@ fn requirement_parameters_are_bound(
     true
 }
 
-fn selected_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(&Machine, &State)> {
+fn selected_machine(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Option<(&Machine, &State)> {
     machine_state_by_symbol(program, target).or_else(|| {
         let machine = program
             .machines()
@@ -566,7 +581,7 @@ fn selected_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(&Mach
 }
 
 fn arithmetic_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     callee_parameters: &[StateParameter],
@@ -647,7 +662,7 @@ fn arithmetic_requirement(
 }
 
 fn names_are_unambiguous(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     hypotheses: &[ExpressionHandle],
     arguments: &[ExpressionHandle],
 ) -> bool {

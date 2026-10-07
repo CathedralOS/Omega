@@ -1,7 +1,6 @@
 //! A bound established by the remainder value captured at this statement.
 
 use checked_trees::CheckedOperatorResolutionStatus;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -10,7 +9,7 @@ use typed_trees::types::PrimitiveType;
 use super::RangeFacts;
 
 pub(super) fn seed(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &mut RangeFacts<'_>,
@@ -29,7 +28,7 @@ pub(super) fn seed(
 }
 
 fn unsigned_remainder_upper_bound(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

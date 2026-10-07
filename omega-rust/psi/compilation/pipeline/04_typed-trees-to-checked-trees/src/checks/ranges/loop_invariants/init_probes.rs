@@ -10,7 +10,7 @@ use typed_trees::statement::StatementNode;
 /// G2 + G4: every loop-ENTRY edge must assign `counter = K` for a constant
 /// integer literal `K`. Returns `(min, max)` over the entry inits.
 pub(super) fn entry_constant_init_range(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
@@ -69,7 +69,7 @@ pub(super) enum InitProbe {
 /// predecessor that DOES set the counter is classified exactly as before; only the previously
 /// dead "predecessor does not set it" case now walks further back.
 pub(super) fn counter_entry_init(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
@@ -108,7 +108,7 @@ pub(super) fn counter_entry_init(
 
 /// Classify a state's net effect on `counter` (last write wins), for `counter_entry_init`.
 pub(super) fn probe_state_init(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     state: &State,
@@ -184,7 +184,7 @@ pub(super) fn probe_state_init(
 /// `main.i` against a canonical `self.i` as plain text would report no overlap
 /// and call a written path preserved.
 pub(super) fn statement_may_write_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call_frames: &validation::CallFrameResolver<'_>,
@@ -219,7 +219,7 @@ pub(super) fn statement_may_write_path(
 /// receiver-rooted whatever the writing state spells, because the invariant it
 /// keys is carried to other states and compared against their paths.
 pub(super) fn counter_display_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     loop_states: &[SymbolHandle],

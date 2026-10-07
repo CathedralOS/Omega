@@ -9,11 +9,13 @@
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use symbols::BuiltinTypeAtom;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn validate_constants(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_constants(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for declaration in program.const_declarations() {
         if !eligible(program, declaration.declared_type, &mut Vec::new()) {
             diagnostics.push(Diagnostic::error(
@@ -24,7 +26,7 @@ pub(crate) fn validate_constants(program: &TypedTrees, diagnostics: &mut Vec<Dia
 }
 
 fn eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
@@ -42,7 +44,7 @@ fn eligible(
 }
 
 fn eligible_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {

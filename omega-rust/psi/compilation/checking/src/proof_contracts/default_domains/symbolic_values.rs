@@ -1,7 +1,6 @@
 //! Conservative symbolic evaluation for default-domain invariant checks.
 
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 /// The transported value is its landed representation, not host arithmetic
@@ -40,7 +39,7 @@ impl LiteralValue {
 }
 
 pub(super) fn literal_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<LiteralValue> {
     match program.expression_table.expression(expression) {
@@ -68,7 +67,7 @@ pub(super) fn literal_value(
 /// Distinguish IEEE predicates before the integer symbolic shortcut sees
 /// them. In particular `value == value` is not true for an unknown float.
 pub(super) fn mentions_float(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     expression: ExpressionHandle,
 ) -> bool {
@@ -116,7 +115,7 @@ pub(super) enum SymbolicValue {
 }
 
 pub(super) fn integer_literal_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<i128> {
     match program.expression_table.expression(expression) {
@@ -130,7 +129,7 @@ pub(super) fn integer_literal_value(
 /// value (a non-literal write poisons), untracked fields read the ZII zero
 /// (machine-owned data is born zeroed).
 pub(super) fn fold_with_valuation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     valuation: &[(&str, Option<LiteralValue>)],
     symbols: &[(String, SymbolicValue)],
@@ -263,7 +262,7 @@ pub(super) fn fold_with_valuation(
 }
 
 pub(super) fn expression_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -273,7 +272,7 @@ pub(super) fn expression_symbol(
 }
 
 pub(super) fn expression_symbolic_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
     match program.expression_table.expression(expression) {
@@ -342,7 +341,7 @@ fn symbolic_sort_key(value: &SymbolicValue) -> String {
 }
 
 fn symbolic_operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &[(String, SymbolicValue)],
     expression: ExpressionHandle,
 ) -> Option<SymbolicValue> {
@@ -376,7 +375,7 @@ fn symbolic_operand(
 }
 
 pub(super) fn expression_sequence_measures(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(Option<i128>, Option<i128>)> {
     match program.expression_table.expression(expression) {
@@ -393,7 +392,10 @@ pub(super) fn expression_sequence_measures(
 /// every expression shape that can carry one -- casts, unary operands,
 /// indices, literals' elements and fields, match subjects and arms, ranges,
 /// and atomic value/result -- not merely the binary/member/breadth spine.
-pub(super) fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(super) fn expression_contains_call(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     if !expression.is_valid() {
         return false;
     }
@@ -460,9 +462,7 @@ fn symbolic_binary_shape(
     match binary.operator {
         BinaryOperator::Add => Some(commutative_symbolic_value(true, left, right)),
         BinaryOperator::Multiply => Some(commutative_symbolic_value(false, left, right)),
-        BinaryOperator::Subtract => {
-            Some(SymbolicValue::Subtract(Box::new(left), Box::new(right)))
-        }
+        BinaryOperator::Subtract => Some(SymbolicValue::Subtract(Box::new(left), Box::new(right))),
         _ => None,
     }
 }

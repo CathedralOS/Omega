@@ -1,9 +1,7 @@
 //! Operand and place reads: the per-operand dispatch and the captured
 //! read each place contributes.
 
-use super::super::{
-    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees,
-};
+use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use super::collect_reads;
 use super::members::{collect_selector_reads, selected_operator_operands};
 use super::root_currency::root_is_current;
@@ -44,7 +42,7 @@ use symbols::SymbolHandle;
 /// authored comparison, an unresolved selection — stays incomplete rather
 /// than pretending only its visible places were read.
 pub(super) fn collect_operand_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -194,7 +192,7 @@ pub(super) fn collect_operand_reads<'a, 'b>(
 /// whatever the selected declaration produces, and the read set would
 /// claim disjointness the declaration never established.
 pub(super) fn collect_selected_arithmetic_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -252,7 +250,7 @@ pub(super) fn collect_selected_arithmetic_reads<'a, 'b>(
 /// The returned symbol is the pre-normalization root for callers that
 /// distinguish a place's own root from a rebased copy identity.
 pub(super) fn validate_place_read(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -295,7 +293,7 @@ pub(super) fn validate_place_read(
 /// A name, member, or builtin-indexed expression contributes its own storage
 /// place plus the selector reads needed to address it.
 pub(super) fn collect_place_read<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -352,7 +350,7 @@ pub(super) fn collect_place_read<'a, 'b>(
 /// place they already resolved for their root-kind gate, so the read is
 /// canonicalized once instead of twice.
 pub(super) fn capture_place_read<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,

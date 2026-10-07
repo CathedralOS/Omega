@@ -1,4 +1,3 @@
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 pub(super) mod denotations;
@@ -6,7 +5,7 @@ pub(super) mod denotations;
 /// Branch truth is structural evidence, not a display-label substitution. This
 /// deliberately shares the expression table's symbol-aware equality relation.
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     guard_value: bool,
     required: ExpressionHandle,
@@ -27,7 +26,7 @@ pub(super) fn proves(
 }
 
 pub(in crate::checks::contracts) fn proves_with(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     guard_value: bool,
     required: ExpressionHandle,
@@ -128,7 +127,7 @@ pub(in crate::checks::contracts) fn proves_with(
 }
 
 fn boolean_comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     value: bool,
 ) -> Option<(ExpressionHandle, bool)> {

@@ -12,11 +12,10 @@ use crate::authored_selections::operator_targets::{
 use crate::semantic::calls::MeasureReceiver;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn checked_member_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -70,7 +69,10 @@ pub(crate) fn checked_member_target(
 /// expressions keep the instantiated field and its substituted type. Rejoin
 /// only through the exact instance's retained generic origin and member slot;
 /// same-spelled fields belonging to other declarations remain distinct.
-pub(super) fn authored_data_member(program: &TypedTrees, symbol: SymbolHandle) -> SymbolHandle {
+pub(super) fn authored_data_member(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> SymbolHandle {
     let owner = program.symbols.get(symbol).parent;
     let Some(instance) = program.data_definition_by_symbol(owner) else {
         return symbol;
@@ -105,7 +107,7 @@ pub(super) fn authored_data_member(program: &TypedTrees, symbol: SymbolHandle) -
 }
 
 fn checked_value_member_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
@@ -133,7 +135,7 @@ fn checked_value_member_target(
 }
 
 fn authored_member_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let receiver_type = authored_operand_type(program, member.receiver)?;
@@ -145,7 +147,7 @@ fn authored_member_target(
 /// Run `visit` on every `(state, statement_index, statement)` whose
 /// statement expression tree contains `needle`; `None` aborts the walk.
 pub(super) fn for_each_statement_containing(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     needle: typed_trees::expression::ExpressionHandle,
     mut visit: impl FnMut(
         &typed_trees::machine::Machine,
@@ -179,7 +181,7 @@ pub(super) fn for_each_statement_containing(
 }
 
 fn contextual_statement_member_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
@@ -205,7 +207,7 @@ fn contextual_statement_member_target(
 }
 
 fn member_symbol_from_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -257,7 +259,7 @@ fn member_symbol_from_type_reference(
 /// compiler-owned standing measure of that name; neither is a package
 /// declaration. Anything else yields no intrinsic target.
 fn collection_measure_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
@@ -274,7 +276,7 @@ fn collection_measure_target(
 /// (every containing statement types the operand as a primitive, and one
 /// exists) does not depend on the order they are visited in.
 pub(crate) fn expression_is_contextual_statement_primitive(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
@@ -327,7 +329,7 @@ pub(crate) fn expression_is_contextual_statement_primitive(
 
 /// Whether the containment walk from `root` reaches `target`.
 pub(crate) fn expression_contains(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -343,7 +345,7 @@ pub(crate) fn expression_contains(
 /// the same containment question of many targets indexes this once instead
 /// of rewalking `root` per target.
 pub(crate) fn reachable_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: typed_trees::expression::ExpressionHandle,
 ) -> HashSet<typed_trees::expression::ExpressionHandle> {
     let mut reached = HashSet::default();
@@ -361,7 +363,7 @@ pub(crate) fn reachable_expressions(
 /// The shared walk: a membership set, never an ordered history, so an
 /// expression reached twice through different parents is entered once.
 fn reaches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
     visited: &mut HashSet<typed_trees::expression::ExpressionHandle>,
@@ -433,7 +435,7 @@ fn reaches(
 /// `program_owners`, when a walk supplies one, is its index over no checked
 /// facts (`OwnerEnvironmentIndex::program_only`).
 pub(crate) fn expression_is_intrinsic_primitive_without_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     program_owners: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> bool {
@@ -538,7 +540,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
 /// operands are all anonymous. Such an expression carries no type of its own
 /// until it lands, so no authored operator spelling applies to it.
 fn expression_is_anonymous_arithmetic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     use typed_trees::expression::BinaryOperator;

@@ -80,7 +80,7 @@ enum PremiseScope<'program> {
 impl PremiseScope<'_> {
     fn has_builtin_meaning(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
         match self {
@@ -109,7 +109,7 @@ impl PremiseScope<'_> {
 
     fn bound(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         lookup: &validation::ImmutableBoundLookup<'_>,
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
@@ -311,7 +311,7 @@ impl PremiseScope<'_> {
 /// no version pin for — the same contract `normalized_bound` already
 /// applies to whole mutable names.
 fn projected_immutable_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
@@ -338,7 +338,7 @@ pub struct StatedOrderingPremise {
 /// Facts that do not decompose into builtin integer comparisons over immutable
 /// bounds contribute no premise; mutable storage needs version evidence first.
 pub fn stated_ordering_premises<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     state: &State,
@@ -433,7 +433,7 @@ pub fn stated_ordering_premises<'p>(
 /// Extend entry premises at the exact statement entry. Later calls and
 /// invalidated captures cannot license earlier loan formation or mutation.
 pub(in crate::checks::borrows) fn append_call_premises<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     state_flow: &checked_trees::FlowStateFact,
     statement: usize,
@@ -496,7 +496,7 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
 /// node is gated by its scope's builtin-meaning reader, so an overloaded
 /// comparison cannot masquerade as integer ordering.
 fn decompose_premise_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     scope: PremiseScope<'_>,
     expression: ExpressionHandle,

@@ -14,7 +14,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetHandle};
 
 pub(super) fn check_statement<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
@@ -29,7 +29,7 @@ pub(super) fn check_statement<'program>(
     /// its diagnostic still lands after the value's checks, matching the
     /// original statement order.
     struct CheckSink<'a, 'program> {
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
         state: &'program State,
         call_frames: Option<&'a validation::CallFrameResolver<'program>>,
@@ -137,7 +137,7 @@ pub(super) struct ReferentExtent {
 /// truncated place names a container OF the referent, whose extent is not the
 /// bound slice's length, and multiple referents cannot pin one extent.
 pub(super) fn bound_reference_referent_extent(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -200,7 +200,7 @@ pub(super) fn bound_reference_referent_extent(
 /// earlier `let` in this state — the same declared-type recovery
 /// `bound_reference_referent_place` performs for `StatementNode::Assignment`.
 pub(super) fn assigned_local_declared_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     statement_index: usize,
     local_symbol: symbols::SymbolHandle,
@@ -212,7 +212,7 @@ pub(super) fn assigned_local_declared_type(
 }
 
 pub(super) fn expression_member_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, Option<&str>)> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
@@ -236,7 +236,7 @@ pub(super) fn expression_member_name(
 /// normal completion, so only Exact and Trapping stores carry it: a wrapped
 /// `0 - 1` is the maximum and a saturated one stays at the old bound.
 pub(super) fn offset_index_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -260,7 +260,7 @@ pub(super) fn offset_index_bound(
 /// Recognize `field + c` (either operand order) or `field - c` for a positive
 /// constant `c`, returning the field's display name and the signed offset.
 fn field_plus_constant(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<(String, i64)> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(value) else {
@@ -294,7 +294,7 @@ fn field_plus_constant(
 /// argument places. Prior bounds for every `&mut`-written place are
 /// forgotten regardless, ensures or not.
 pub(super) fn seed_boundary_call_ensures_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call: &typed_trees::statement::TableCall,
     facts: &mut RangeFacts<'_>,
@@ -331,7 +331,7 @@ pub(super) fn seed_boundary_call_ensures_facts(
 }
 
 fn seed_ensures_bound_conjunct(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[&typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,

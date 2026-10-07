@@ -9,17 +9,18 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     known_u64_value, primitive_range,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// Record a successfully checked literal store at its statement point. Cast
 /// predicates read this live fact; searching declarations later would ignore
 /// intervening writes and permit forward-reference or cross-state assumptions.
 pub(crate) fn record_float_literal_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &mut ValueEnvironment,
     path: Option<String>,
     destination: Option<PrimitiveType>,
@@ -58,7 +59,7 @@ pub(crate) fn record_float_literal_assignment(
 /// an executing cast. Arithmetic analysis owns the proof from the current live
 /// environment; a target annotation never substitutes for that analysis.
 pub(crate) fn validate_range_cast_at_use(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -123,7 +124,7 @@ pub(crate) fn validate_range_cast_at_use(
 }
 
 pub(super) fn validate_target_ranges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     cast: &TableCastExpression,
@@ -209,7 +210,7 @@ pub(super) fn validate_target_ranges(
 }
 
 fn float_membership(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     cast: &TableCastExpression,
@@ -251,7 +252,7 @@ fn float_membership(
 }
 
 fn integer_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<i128> {
     let value = crate::closed_integer_range_bound(program, expression)?;
@@ -264,7 +265,7 @@ fn integer_bound(
 /// Walk the `Constrained` base chain once: `visit` sees each level's
 /// constraint roster until a non-Constrained reference or a revisit.
 fn walk_constrained_bases(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     mut visit: impl FnMut(&[TypeConstraintNode]),
 ) {

@@ -8,7 +8,7 @@ pub(crate) fn validate_machine_invocations(
     machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
-    let declared = validation::declared_machine_invocations(compilation, machine);
+    let declared = validation::declared_machine_invocations(compilation.checking_input, machine);
     if declared.len() != declarations.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",

@@ -11,13 +11,12 @@ use checked_trees::{
     CheckedScalarExpression as Scalar,
 };
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub(super) fn type_excludes_integer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     value: i64,
 ) -> bool {

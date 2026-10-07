@@ -16,12 +16,12 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, StatementNode, TypedTrees,
+    CheckedUnitPartialAffineDiscardPlan, StatementNode,
 };
 
 /// Build the ordinary explicit-parameter machine, retaining construction diagnostics.
 pub(crate) fn build_checked_machine_traced(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -51,7 +51,7 @@ pub(crate) fn build_checked_machine_traced(
 /// `ReturnUnitPartialAffine` and fully consumed roots keep `ReturnUnit`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_checked_machine_residual_parts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,

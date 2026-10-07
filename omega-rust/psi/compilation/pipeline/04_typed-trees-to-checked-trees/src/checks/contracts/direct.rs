@@ -11,7 +11,7 @@ mod match_patterns;
 pub(super) use guard_values::proves_with as guard_value_proves_with;
 
 pub(super) fn direct_context_proves_boolean_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     expression: typed_trees::expression::ExpressionHandle,
@@ -54,7 +54,7 @@ pub(super) fn direct_context_proves_boolean_expression(
 }
 
 pub(super) fn direct_context_proves_instantiated_boolean_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
@@ -177,7 +177,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
 
 #[allow(clippy::too_many_arguments)]
 fn instantiated_live_value_proves(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
@@ -268,7 +268,7 @@ fn instantiated_live_value_proves(
 /// narrows to its currently recorded element or the read refuses.
 #[allow(clippy::too_many_arguments)]
 fn projected_formal_leaf_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
@@ -356,7 +356,7 @@ fn projected_formal_leaf_value(
 /// literal extent resolves; a slice or const-parameter length stays runtime
 /// evidence this route does not own.
 fn projected_collection_extent(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {

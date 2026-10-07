@@ -1,5 +1,4 @@
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// A plain scalar declaration supports a reference view without contextual
@@ -7,7 +6,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// declaration. This deliberately omits current requires/where refinements:
 /// those authorize individual observations, not an unconditional carrier.
 pub(crate) fn declaration_scalar_view_is_total(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: TypeReferenceHandle,
     target: TypeReferenceHandle,
 ) -> bool {
@@ -123,7 +122,7 @@ impl FloatEndpoint {
 /// remain fenced because numeric ranges do not enumerate IEEE representations.
 /// Legacy named constraints remain fenced.
 pub(super) fn mutable_scalar_representation_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<MutableScalarRepresentationFacts> {
     let mut domains = Vec::new();
@@ -332,7 +331,7 @@ fn narrow_to_float_interval(
 /// strict float bound has no closed endpoint in this vocabulary. `None` when a
 /// bound cannot be stated exactly, which keeps the record fenced.
 pub(super) fn narrow_by_field_literal_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     facts: &mut MutableScalarRepresentationFacts,
     primitive: PrimitiveType,
@@ -457,7 +456,7 @@ fn normalize_bit_pattern_intervals(mut intervals: Vec<(u64, u64)>) -> Vec<(u64, 
 /// must be identical. The normalized domain graph already accounts for shared
 /// semantic identities and explicit membership chains.
 pub(super) fn mutable_scalar_representation_facts_equivalent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &MutableScalarRepresentationFacts,
     target: &MutableScalarRepresentationFacts,
 ) -> bool {
@@ -475,7 +474,7 @@ pub(super) fn mutable_scalar_representation_facts_equivalent(
 }
 
 pub(super) fn scalar_representation_facts_imply(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &MutableScalarRepresentationFacts,
     target: &MutableScalarRepresentationFacts,
 ) -> bool {

@@ -9,7 +9,6 @@
 use super::super::{Engine, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
@@ -94,7 +93,7 @@ pub struct ComputationBodyShape {
 /// Classify a computation body; `None` for a forward, a projection, or any
 /// other body (`measure_body_shape` owns the first two).
 pub fn computation_body_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<ComputationBodyShape> {
     let [body] = program.expression_table.expression_handles(measure.body) else {
@@ -136,7 +135,7 @@ pub fn computation_body_shape(
 /// -- a subtraction, a constant body, a non-builtin operator, an uncovered
 /// domain -- is `None`.
 pub fn declared_scalar_view(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     subject: ExpressionHandle,
     view_path: &str,
@@ -219,7 +218,7 @@ pub fn declared_scalar_view(
 /// builtin in `machine`'s scope. Returns the subterm's carrier the way
 /// `meanings::builtin` does (literals stay wildcard operands).
 fn computation_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     parameter: SymbolHandle,
     parameter_type: TypeReferenceHandle,
@@ -288,7 +287,7 @@ fn computation_meaning(
 
 /// Classify only bodies whose projection is justified by resolved declarations.
 pub fn measure_body_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     measure: &MeasureDefinition,
 ) -> Option<MeasureBodyShape> {
     let [body] = program.expression_table.expression_handles(measure.body) else {
@@ -398,7 +397,7 @@ pub fn measure_body_shape(
 /// The unique field `symbol` named `name` declared by the exact record
 /// `owner`; a same-named field of another record is not a projection of it.
 fn exact_record_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     owner: SymbolHandle,
     symbol: SymbolHandle,
     name: &Identifier,
@@ -424,7 +423,7 @@ fn exact_record_field<'program>(
 
 /// The unique declared measure spelled by `order` (`["Owner", "Name"]`).
 pub fn find_declared_measure<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     order: &[&str],
 ) -> Option<&'program MeasureDefinition> {
     let mut matching = program.measures().iter().filter(|measure| {
@@ -446,7 +445,7 @@ pub fn find_declared_measure<'program>(
 /// together. Declared endpoints must be exact integers — an approximate bound
 /// cannot promise a fixed domain.
 pub fn measure_constraints_cover_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     subject: ExpressionHandle,
     constraints: &[(ExpressionHandle, ExpressionHandle, bool)],
@@ -487,7 +486,7 @@ pub fn measure_constraints_cover_subject(
 
 /// The subject's exact carrier under range shells equals the view's carrier.
 pub fn identity_subject_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     subject: ExpressionHandle,
     carrier: BuiltinTypeAtom,
@@ -526,7 +525,7 @@ pub fn identity_subject_matches(
 
 /// Strip every `Constrained` shell down to the carrier reference.
 pub fn unwrap_constraint_shells(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut handle: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -538,7 +537,7 @@ pub fn unwrap_constraint_shells(
 }
 
 fn owning_machine<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &State,
 ) -> Option<&'program typed_trees::machine::Machine> {
     program.machines().iter().find(|machine| {
@@ -554,7 +553,7 @@ fn owning_machine<'program>(
 /// here. Returns the carrier and the collected `(minimum, maximum,
 /// end_inclusive)` constraints for the caller to prove against the subject.
 fn unsigned_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(
     BuiltinTypeAtom,
@@ -596,13 +595,13 @@ fn unsigned_carrier(
 /// `+`/`*` trees over the parameter and integer literals, mentioning the
 /// parameter at least once. Meaning and monotonicity are judged separately.
 fn computation_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     binder: SymbolHandle,
     depth: usize,
 ) -> bool {
     fn shape(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         binder: SymbolHandle,
         depth: usize,
@@ -641,7 +640,11 @@ fn computation_shape(
         && mentions
 }
 
-fn is_parameter(program: &TypedTrees, expression: ExpressionHandle, binder: SymbolHandle) -> bool {
+fn is_parameter(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    binder: SymbolHandle,
+) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
     };

@@ -6,7 +6,6 @@
 //! execution model.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataMember, DataShapeKind};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -14,7 +13,7 @@ use typed_trees::proposition::{PropositionBody, PropositionFormula};
 use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_fact_call_projections(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedFactCallProjection> {
     let mut roots = Vec::new();
@@ -107,7 +106,7 @@ pub(crate) fn validate_fact_call_projections(
 }
 
 fn substituted_projection_requests(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
     let Some(declaration) = program
@@ -141,7 +140,7 @@ fn substituted_projection_requests(
 }
 
 fn append_substituted_projection_requests(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     bindings: &[(symbols::SymbolHandle, ExpressionHandle)],
     requests: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
@@ -182,7 +181,7 @@ pub struct ValidatedFactCallProjection {
 }
 
 fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -240,7 +239,7 @@ fn validate_expression(
 }
 
 fn validate_direct_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     projection_expression: ExpressionHandle,
     call_expression: ExpressionHandle,
     call: &TableCallExpression,
@@ -347,7 +346,7 @@ fn validate_direct_projection(
 /// consumers still owe their independent termination and result-shape checks.
 /// Runtime callers use it only after both actual evaluations have completed.
 pub fn has_checked_denotational_call_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -366,7 +365,7 @@ pub fn has_checked_denotational_call_identity(
 /// Shared source admission for denotational calls. Final checked termination
 /// remains mandatory for every candidate, including integer embeddings.
 pub(crate) fn validate_checked_call_candidate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -474,7 +473,7 @@ pub(crate) fn validate_checked_call_candidate<'program>(
 }
 
 pub(crate) fn expression_contains_call_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
@@ -520,7 +519,10 @@ pub(crate) fn expression_contains_call_projection(
     }
 }
 
-fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn expression_contains_call(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     if !expression.is_valid() {
         return false;
     }

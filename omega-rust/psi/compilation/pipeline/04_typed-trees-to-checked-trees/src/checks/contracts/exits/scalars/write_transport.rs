@@ -389,7 +389,7 @@ fn places_overlap(a: &CanonicalPlace, b: &CanonicalPlace) -> bool {
 /// values, or aggregate structure that `expressions_structurally_equal` does
 /// not decompose stay out of its language entirely.
 fn transport_expression_is_pure(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     let mut nodes = Vec::new();
@@ -412,7 +412,7 @@ fn transport_expression_is_pure(
 
 /// `A && B` asserts both conjuncts; each `==` conjunct supplies an edge.
 fn equality_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
     match program.expression_table.expression(expression) {

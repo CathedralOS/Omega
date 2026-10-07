@@ -23,7 +23,7 @@ impl ClaimCarryContext<'_> {
     /// permissive axis from a sibling.
     fn effective_policy(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         value_name: &str,
         structural: CarryPolicy,
         claim_identities: &[language_semantics::PermissionClaimIdentity],
@@ -98,7 +98,7 @@ impl ClaimCarryContext<'_> {
 
     fn live_claim_identities(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         value_name: &str,
     ) -> Vec<language_semantics::PermissionClaimIdentity> {
         let mut latest_by_path = Vec::<(
@@ -216,7 +216,7 @@ impl Default for CrossingAccumulator {
 /// here. The independent activation-wide analysis derives CPU/thread
 /// preservation obligations without publishing a provider preemption mode.
 pub(super) fn check_suspension_carry(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     facts.carry.claim_policies = derive_claim_carry_policies(facts);
@@ -429,7 +429,7 @@ fn derive_claim_carry_policies(
 }
 
 fn append_call_carried_argument_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &checked_trees::BorrowCallFact,
     call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
@@ -463,7 +463,7 @@ fn append_call_carried_argument_diagnostics(
 }
 
 fn append_live_parameter_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
@@ -510,7 +510,7 @@ fn append_live_parameter_diagnostics(
 }
 
 fn append_live_local_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
@@ -573,7 +573,7 @@ fn append_live_local_diagnostics(
 }
 
 fn append_if_suspension_forbidden(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     type_reference: typed_trees::types::TypeReferenceHandle,
     value_name: &str,
@@ -599,7 +599,7 @@ fn append_if_suspension_forbidden(
 }
 
 fn append_if_suspension_forbidden_with_type_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_parameters: &[typed_trees::data::TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
     value_name: &str,

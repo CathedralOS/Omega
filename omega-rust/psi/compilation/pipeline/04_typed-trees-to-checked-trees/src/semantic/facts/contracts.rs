@@ -20,7 +20,7 @@ use payload::semantic_contract_payload;
 use points::{contract_fact_origin, contract_fact_point};
 
 pub(super) fn append_contract_semantic_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
 ) {
@@ -304,7 +304,7 @@ pub(super) fn append_contract_semantic_facts(
 /// fact is owned by. `None` fails closed -- the fact keeps its authored schema
 /// identity rather than publishing a partial substitution.
 fn inherited_contract_scope_parts<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     proof: &'program ProofFacts,
     contract: &ContractProofFact,
 ) -> Option<(
@@ -341,7 +341,7 @@ fn inherited_contract_scope_parts<'program>(
 /// obligation kind; only the endpoint family and the argument labels move from
 /// the requirement's schema onto the satisfying state's own terms.
 fn instantiate_inherited_contract_payload(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     contract: &ContractProofFact,
@@ -382,7 +382,7 @@ fn instantiate_inherited_contract_payload(
 /// substituted identity was never interned), keep the declared identity and
 /// let the ordinary entailment checks decide.
 fn instantiate_call_domain_membership_instance(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &ContractCallFact,
     contract: &ContractProofFact,
     payload: &mut FactPayload,
@@ -518,7 +518,7 @@ fn instantiate_call_domain_membership_instance(
 /// reference (the same node the caller's declared `Coordinate<N>` used), or a
 /// named literal node spelling the bound literal's canonical or authored text.
 fn bound_index_argument_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     bound: &crate::facts::index_compatibility::BoundIndexArgument,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     program
@@ -538,7 +538,7 @@ fn bound_index_argument_reference(
 }
 
 fn instantiate_call_contract_payload(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
@@ -715,7 +715,7 @@ fn instantiate_call_contract_payload(
 }
 
 fn append_call_semantic_contract_refs(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
@@ -799,7 +799,7 @@ fn append_call_semantic_contract_refs(
 }
 
 fn admitted_resource_carry_origin(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
     evidence: QualificationEvidence,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
@@ -845,7 +845,7 @@ fn append_semantic_contract_refs(
 /// authored contracts. They carry no proof evidence and never become entry
 /// premises merely because a caller selected a qualified type.
 fn append_parameter_domain_requirements(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     refs: &mut HandleSpan<FactRef>,

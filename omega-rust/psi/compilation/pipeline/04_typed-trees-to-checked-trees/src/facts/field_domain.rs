@@ -29,7 +29,7 @@ pub(crate) use declared_fields::{
 /// parameter/local places share the same write-establishment rule; only the
 /// lookup route differs.
 pub(crate) fn assignment_target_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
@@ -44,7 +44,7 @@ pub(crate) fn assignment_target_type_reference(
 /// assigned value was checked against every predicate declaration in the
 /// conjunction.
 pub(crate) fn assignment_target_domain_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
@@ -58,7 +58,7 @@ pub(crate) fn assignment_target_domain_symbols(
 /// [`assignment_target_domain_symbols`] paired with each constraint's interned
 /// identity, for producers that seed provable membership facts.
 pub(crate) fn assignment_target_domain_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
@@ -72,7 +72,7 @@ pub(crate) fn assignment_target_domain_identities(
 /// Retain the complete declared application when proving a write. A symbol
 /// alone loses the normalized instance and any selected static arguments.
 pub(crate) fn assignment_target_domain_constraints<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
@@ -96,7 +96,7 @@ pub(crate) fn assignment_target_domain_constraints<'program>(
 /// [`attached_data_field_type`]: the root type comes from the parameter/local,
 /// then each member descends through the ordinary data declaration.
 pub(crate) fn direct_state_place_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -125,7 +125,7 @@ pub(crate) fn direct_state_place_type_reference(
 }
 
 fn state_place_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<String>)> {
@@ -183,7 +183,7 @@ fn state_place_path(
 /// intact) via the machine's attached data. Mirrors proof
 /// `obligations::attached_data_field_type` (#63).
 pub(crate) fn attached_data_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -215,7 +215,7 @@ pub(crate) fn attached_data_field_type(
 /// `self`-rooted field access. Handles both the nested `Member` chain and a flat
 /// `Name` path the parser may produce.
 fn self_field_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<String>> {
     match program.expression_table.expression(expression) {
@@ -239,7 +239,7 @@ fn self_field_path(
 }
 
 fn data_field_type_by_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -263,7 +263,7 @@ fn data_field_type_by_name(
 /// resolved against the peeled reference. Callers that need the declared
 /// surface (`&[u8] in Utf8`) keep the original handle.
 pub(crate) fn readable_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while reference.is_valid() {
@@ -283,7 +283,7 @@ pub(crate) fn readable_type_reference(
 /// `&`/`&mut`/mut-access and domain-constraint shells. Non-literal lengths are
 /// lowered before checking; anything unresolved fails closed (`None`).
 pub(crate) fn readable_fixed_array_elements(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, usize)> {
     let reference = readable_type_reference(program, reference)?;
@@ -301,7 +301,7 @@ pub(crate) fn readable_fixed_array_elements(
 /// storage. Generic substitutions need their own structural evidence rather
 /// than a nominal-name guess.
 pub(crate) fn readable_nominal_definition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let reference = readable_type_reference(program, reference)?;
@@ -313,7 +313,7 @@ pub(crate) fn readable_nominal_definition(
 /// NOT peel reference shells: `-> &mut Room` returns a borrow, not owned `Room`
 /// storage, so result-field obligations must not be synthesized for it.
 pub(crate) fn owned_nominal_data_definition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let symbol = match program.type_reference_table.type_reference(type_reference) {
@@ -354,7 +354,7 @@ pub(crate) fn owned_nominal_data_definition(
 /// and returns no paths -- borrowed fields stay proven through their source
 /// places so a later source write still invalidates them.
 pub(crate) fn declared_result_field_domain_paths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainIdentity> {
     let mut reference = type_reference;
@@ -399,7 +399,7 @@ type OwnedFieldDomainIdentities = Vec<FieldDomainIdentity>;
 /// counter a recycled `TypedTrees` can never inherit) plus the summed
 /// revisions of every arena the walk reads. The program address is never
 /// consulted, and a mutated table cannot keep a stale revision.
-fn field_domain_freshness(program: &typed_trees::TypedTrees) -> (u64, u64) {
+fn field_domain_freshness(program: &dyn ::validation::CheckingInput) -> (u64, u64) {
     let tables = &program.tables;
     let revision = program
         .type_reference_table
@@ -465,7 +465,7 @@ pub(crate) fn enter_field_domain_scope() -> FieldDomainScopeGuard {
 /// result claims. Inside a field-domain scope each distinct type reference
 /// walks once; outside it every call walks.
 pub(crate) fn declared_owned_field_domain_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> OwnedFieldDomainIdentities {
     enum SlotState {
@@ -520,11 +520,11 @@ pub(crate) fn declared_owned_field_domain_identities(
 }
 
 fn declared_owned_field_domain_identities_uncached(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> OwnedFieldDomainIdentities {
     fn visit(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         reference: TypeReferenceHandle,
         prefix: &mut Vec<facts::PlaceSegment>,
         ancestors: &mut Vec<SymbolHandle>,
@@ -624,7 +624,7 @@ fn declared_owned_field_domain_identities_uncached(
 // rebuilds on any mutation of the domain arena, so no per-caller freshness
 // key is needed.
 fn domain_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
     typed_trees::domain::domain_by_symbol(program, symbol)
@@ -633,11 +633,11 @@ fn domain_by_symbol(
 /// Transparent aliases retain their constituents' provenance requirement;
 /// testing only the alias's own route list would permit predicate-only minting.
 pub(crate) fn domain_requires_provenance(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> bool {
     fn visit(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         symbol: SymbolHandle,
         ancestors: &mut Vec<SymbolHandle>,
     ) -> bool {
@@ -670,7 +670,7 @@ pub(crate) fn domain_requires_provenance(
 /// exact `Case` segments; transporting them does not select a case. Fixed-array
 /// rollup rows are evidence only, while a slice's whole extent is an obligation.
 pub(crate) fn declared_field_domain_paths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> Vec<FieldDomainIdentity> {
     declared_data_field_domain_rows(program, data)
@@ -688,7 +688,7 @@ pub(crate) fn declared_field_domain_paths(
 /// domain `Constrained` wrapper), for descending a nested field path into the
 /// next data definition.
 fn type_reference_data_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -707,7 +707,7 @@ fn type_reference_data_name(
 /// borrow here only finds its referent: store callers separately reject
 /// reference crossings and establish exclusive authority.
 pub(crate) fn data_definition_for_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     while let TypeReferenceNode::Reference { referee, .. }
@@ -725,7 +725,7 @@ pub(crate) fn data_definition_for_field_type(
 /// distinct node and are deliberately absent. This never re-resolves a short
 /// name globally.
 pub(crate) fn domain_constraint_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     domain_constraint_identities(program, type_reference)
@@ -741,7 +741,7 @@ pub(crate) fn domain_constraint_symbols(
 /// definition symbol alone proves atomic domains only. For an atomic domain
 /// the identity is the definition's own.
 pub(crate) fn domain_constraint_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     declared_domain_constraints(program, type_reference)
@@ -751,7 +751,7 @@ pub(crate) fn domain_constraint_identities(
 }
 
 fn declared_domain_constraints(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<&typed_trees::types::DomainConstraint> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -775,7 +775,7 @@ fn declared_domain_constraints(
 /// domains are binding qualifications whose facts must come from retained
 /// establishment evidence, not from predicate proof.
 pub(crate) fn predicate_domain_constraint_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     predicate_domain_constraint_identities(program, type_reference)
@@ -786,7 +786,7 @@ pub(crate) fn predicate_domain_constraint_symbols(
 
 /// The predicate-bearing subset of [`domain_constraint_identities`].
 pub(crate) fn predicate_domain_constraint_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     domain_constraint_identities(program, type_reference)
@@ -813,7 +813,7 @@ pub(crate) fn predicate_domain_constraint_identities(
 /// carrier. Comparing only symbols would make the documented
 /// `[u8; N]::Utf8` family fracture at every borrow, concat, or call boundary.
 pub(crate) fn declared_domain_implies(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
@@ -833,7 +833,7 @@ pub(crate) fn declared_domain_implies(
 /// by the view satisfy precisely the required theory without conflating the two
 /// carrier identities or blessing unrelated cross-carrier recasts.
 pub(crate) fn domain_membership_implies(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source_domain: SymbolHandle,
     target_domain: SymbolHandle,
 ) -> bool {
@@ -880,7 +880,7 @@ pub(crate) fn domain_membership_implies(
 }
 
 fn is_fixed_byte_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -897,7 +897,7 @@ fn is_fixed_byte_carrier(
 }
 
 fn is_byte_slice_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -921,7 +921,7 @@ fn is_byte_slice_carrier(
 /// `expression` is not a string literal, or the domain has no recognized
 /// comptime byte-predicate fact.
 pub(crate) fn string_literal_expression_grants_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -943,7 +943,7 @@ pub(crate) fn string_literal_expression_grants_domain(
 /// grant. A literal view establishes nothing, so the octets are the whole
 /// evidence; Terminal replays the same judgment from them.
 pub(crate) fn string_literal_grants_view_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -979,7 +979,7 @@ pub(crate) fn string_literal_grants_view_domains(
 /// the empty sequence; a `len > 0`-style domain (e.g. `non_empty`) does not, so
 /// its entry-invariant must be withheld.
 pub(crate) fn domain_admits_empty_byte_sequence(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol).is_some_and(|predicate| predicate.holds_for(&[]))
@@ -990,7 +990,7 @@ pub(crate) fn domain_admits_empty_byte_sequence(
 /// are each in the domain is itself in the domain. Underwrites the concat-domain
 /// law in `checks::contracts::writes::value_proves_domain`.
 pub(crate) fn domain_is_concat_preserving(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol)
@@ -1003,7 +1003,7 @@ pub(crate) fn domain_is_concat_preserving(
 /// `checks::contracts::calls::subslice_grants_domain`. True only for per-byte
 /// facts (`no_nul`, `ascii_only`); `false` for `valid_utf8`/`non_empty`.
 pub(crate) fn domain_is_subslice_preserving(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_byte_predicate(program, domain_symbol)
@@ -1018,7 +1018,7 @@ pub(crate) fn domain_is_subslice_preserving(
 /// `None`. Used by the length-fits check to bound writes into a bounded text
 /// carrier.
 pub(crate) fn type_reference_fixed_array_capacity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match program.type_reference_table.type_reference(type_reference) {

@@ -1,9 +1,7 @@
 //! Carrier slot bindings, slot application rewrites and diagnostic
 //! shapes.
 
-use crate::proof_contracts::contract_entailment::{
-    Diagnostic, StructuralTerm, TraitDefinition, TypedTrees,
-};
+use crate::proof_contracts::contract_entailment::{Diagnostic, StructuralTerm, TraitDefinition};
 
 /// The CARRIER's op-slot bindings: for each requirement of the trait, the
 /// machine conforming to it whose carrier type matches. Alias preference
@@ -11,7 +9,7 @@ use crate::proof_contracts::contract_entailment::{
 /// wins; otherwise unaliased bindings win; a remaining tie is ambiguous and
 /// reported.
 pub(crate) fn carrier_slot_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     carrier: typed_trees::types::TypeReferenceHandle,
     prefer_alias: Option<&str>,
@@ -185,11 +183,9 @@ pub(crate) fn rewrite_slot_applications(
                 })
                 .collect(),
         },
-        StructuralTerm::CallProjection { .. } => {
-            term.clone().map_argument_terms(|argument| {
-                rewrite_slot_applications(&argument, slot_names, slot_bindings, missing)
-            })
-        }
+        StructuralTerm::CallProjection { .. } => term.clone().map_argument_terms(|argument| {
+            rewrite_slot_applications(&argument, slot_names, slot_bindings, missing)
+        }),
         StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
             subject: Box::new(rewrite_slot_applications(
                 subject,

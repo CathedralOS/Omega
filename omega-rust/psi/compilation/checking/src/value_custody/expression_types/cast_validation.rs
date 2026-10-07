@@ -3,7 +3,6 @@ use super::shape_validation::value_shape_is_array;
 use super::value_classification::{ValueClass, value_class, value_concrete_data_name};
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -14,7 +13,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// as bool` (which yields a non-`{0, 1}` bool) and no text / struct / array source
 /// for a numeric/address target (which reinterprets bytes to garbage).
 pub(crate) fn validate_cast_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     cast: &TableCastExpression,
@@ -130,7 +129,7 @@ pub(crate) fn validate_cast_types(
 }
 
 fn validate_quotient_mint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     cast: &TableCastExpression,
@@ -162,7 +161,7 @@ fn validate_quotient_mint(
 }
 
 fn base_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     if !type_reference.is_valid() {
@@ -177,7 +176,7 @@ fn base_data_symbol(
 }
 
 fn expression_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
@@ -218,7 +217,7 @@ fn expression_data_symbol(
 /// a `bool` source is allowed, so `(a == 1) as bool` and `b as bool` stay fine.
 /// (Same no-int-in-bool principle as `report_non_bool_logical_not`.)
 fn report_number_to_bool_cast(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -247,7 +246,7 @@ fn report_number_to_bool_cast(
 /// source (a call) classifies as scalar/unknown and is left alone. (`as bool` targets
 /// are handled by `report_number_to_bool_cast`; this covers the numeric/addr targets.)
 fn report_invalid_numeric_cast_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     source: ExpressionHandle,

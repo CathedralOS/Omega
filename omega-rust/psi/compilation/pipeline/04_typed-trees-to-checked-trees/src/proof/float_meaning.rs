@@ -24,7 +24,6 @@ use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics_catalog::{FloatSemanticContractIdentity, FloatSemanticValueKind};
 use semantic_vocabulary::IeeeFloatFormat;
 use std::collections::{HashMap, HashSet};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
 use typed_trees::types::PrimitiveType;
@@ -83,7 +82,7 @@ enum CheckedFloatProjectionSourceKey {
 }
 
 fn projection_source_key(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
@@ -168,7 +167,7 @@ struct ContractCarriers {
 
 impl ContractCarriers {
     fn new(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         proof: &ProofFacts,
         facts: &[ValidatedFloatMeaningProjectionInvocation],
     ) -> Self {
@@ -238,7 +237,7 @@ fn direct_machine_contract_owner(
 }
 
 fn direct_structural_float_leaf_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(
@@ -293,7 +292,7 @@ fn direct_structural_float_leaf_source(
 }
 
 fn direct_machine_result_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<symbols::SymbolHandle> {
@@ -335,7 +334,7 @@ fn direct_machine_result_source(
 }
 
 fn direct_machine_parameter_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
@@ -374,7 +373,7 @@ fn direct_machine_parameter_source(
 /// machine-parameter class. States admit arrival `requires` only, so no
 /// result carrier exists here.
 fn direct_block_parameter_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(
@@ -421,7 +420,7 @@ fn direct_block_parameter_source(
 }
 
 fn proof_fact_roots(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> &[ExpressionHandle] {
     match program.proof_facts.get(fact) {
@@ -436,7 +435,7 @@ fn proof_fact_roots(
 }
 
 fn expression_children(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
@@ -449,7 +448,7 @@ fn expression_children(
 }
 
 fn replay_invocation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Result<numerics::float_projection::FloatProjectionContractIdentity, Diagnostic> {
     let ExpressionNode::Call(call) = program.expression_table.expression(fact.invocation) else {
@@ -712,7 +711,7 @@ fn push_float_meaning_projection(
 /// the site, and the `result` operand names the scalar the call itself
 /// produces there.
 fn imported_call_operand_key(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &ValidatedFloatMeaningProjectionInvocation,
     use_site: CheckedFloatUseSite,
     target_parameters: Option<&[typed_trees::signature::StateParameter]>,
@@ -751,7 +750,7 @@ fn imported_call_operand_key(
 /// operation use: the `result` operand names the scalar the selected
 /// operation produces there.
 fn imported_operation_operand_key(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &ValidatedFloatMeaningProjectionInvocation,
     use_site: CheckedFloatUseSite,
     use_expression: typed_trees::expression::ExpressionHandle,
@@ -852,7 +851,7 @@ fn instantiate_equalities_at_use(
 /// checked contract expression; the use-site coordinate joins each
 /// instantiation to the exact producer the verifier rejoins.
 fn instantiate_transported_ensures(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &[ValidatedFloatMeaningProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
@@ -1105,7 +1104,7 @@ fn semantic_meaning_operand(
 /// bound invocation or nested application; unrepresentable operands bind no
 /// row rather than approximating.
 fn bind_semantic_application_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     site: &SemanticOperandSite<'_>,
@@ -1258,7 +1257,7 @@ fn bind_semantic_application_equality(
 /// each `==` proposition with an application operand emits its equality at
 /// the given use-site coordinate (`None` at the declaration).
 fn bind_semantic_applications_in_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     site: &SemanticOperandSite<'_>,
     use_site: Option<CheckedFloatUseSite>,
@@ -1299,7 +1298,7 @@ fn bind_semantic_applications_in_expression(
 /// declaration-level rows a transported `ensures` shares before it
 /// instantiates at a use site.
 fn bind_declaration_semantic_applications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation_values: &[(
         typed_trees::expression::ExpressionHandle,
         CheckedProofValueId,
@@ -1335,7 +1334,7 @@ fn bind_declaration_semantic_applications(
 }
 
 pub(crate) fn bind_float_meaning_projection_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
     facts: &[ValidatedFloatMeaningProjectionInvocation],
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],

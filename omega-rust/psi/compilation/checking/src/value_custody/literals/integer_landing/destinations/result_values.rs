@@ -1,4 +1,3 @@
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -8,7 +7,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// runtime length. Reject a statically impossible footprint here, but leave
 /// dynamic footprint and write-permission checks to their assignment owners.
 pub(super) fn admit_assignment_value<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -19,7 +18,6 @@ pub(super) fn admit_assignment_value<'p>(
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
     >,
 ) -> bool {
-
     if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target)
         && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
     {
@@ -128,7 +126,7 @@ impl WindowBound {
 }
 
 fn static_window_bound<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     bound_lookup: &mut Option<
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
     >,
@@ -153,7 +151,7 @@ fn static_window_bound<'p>(
 }
 
 fn has_scalar_array_element_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut element_type: TypeReferenceHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
@@ -182,7 +180,7 @@ fn has_scalar_array_element_shape(
 /// Each array element and match arm retains its own landing obligation. Failed
 /// children remain exclusion roots even when their enclosing value is admitted.
 pub(super) fn admit_result_values(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     destination: TypeReferenceHandle,
@@ -203,7 +201,7 @@ pub(super) fn admit_result_values(
 }
 
 fn admit_result_values_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     destination: TypeReferenceHandle,

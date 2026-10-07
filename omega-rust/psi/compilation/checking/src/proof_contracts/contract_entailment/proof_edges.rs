@@ -18,7 +18,6 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_term, structural_term_in_scope,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -31,7 +30,7 @@ use typed_trees::types::TypeReferenceNode;
 /// premises prove. The selected monus obligation
 /// `saturating_sub(Succ(ARG), MEASURE) == Zero` must then follow from those facts.
 pub(crate) fn proof_edge_strict_decrease_judged(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     edge_argument: ExpressionHandle,
@@ -299,7 +298,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
 /// declaration or rescue a missing symbol. Multiple occurrences of one selected
 /// relation agree; conflicting relations remain unsupported.
 fn selected_decrease_relation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     measure: &typed_trees::signature::StateParameter,

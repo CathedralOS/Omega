@@ -12,7 +12,6 @@ mod callable_parameters;
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
@@ -30,7 +29,7 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// or a tail that cannot be realized subjects: callers then apply the
 /// ordinary strict arity check.
 fn specialized_instance_realized_tail(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> usize {
@@ -136,7 +135,7 @@ pub(crate) fn satisfier_parameter_correspondence(
 /// carrier at runtime rather than declaring a new callable argument, so they
 /// are sliced off before arity and positional correspondence.
 pub(crate) fn authored_satisfier_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> &'program [StateParameter] {
@@ -146,7 +145,7 @@ pub(crate) fn authored_satisfier_parameters<'program>(
 }
 
 pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     state: &State,
@@ -466,7 +465,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 }
 
 fn validate_trait_effect_ceiling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     state: &State,
@@ -500,7 +499,7 @@ fn validate_trait_effect_ceiling(
 }
 
 fn validate_trait_parameter_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     trait_name: &str,
@@ -552,7 +551,7 @@ fn validate_trait_parameter_match(
 /// parameter the edge has bound reads as its argument (`&mut Counter`, not
 /// the declaration's `&mut T`). Diagnostic text only.
 fn bound_type_reference_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[TraitTypeBinding],
 ) -> String {
@@ -602,7 +601,7 @@ pub(crate) enum TraitTypeBindingTarget {
 }
 
 pub(crate) fn type_references_match_with_trait_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     trait_type_parameters: &[TypeParameter],
@@ -777,7 +776,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
 /// the realizing machine's lifetime ordinal. Lifetimes outside
 /// `target_lifetimes` are callable-local and keep their existing owner.
 pub(crate) fn type_reference_lifetimes_match_requirement_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     target_lifetimes: &[typed_trees::name::Identifier],
@@ -938,7 +937,7 @@ fn requirement_lifetime_matches(
 }
 
 fn fixed_array_lengths_match_with_trait_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: &FixedArrayLength,
     required: &FixedArrayLength,
     bindings: &[TraitTypeBinding],
@@ -976,7 +975,7 @@ fn fixed_array_lengths_match_with_trait_bindings(
 }
 
 fn binding_matches_actual(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     binding: &TraitTypeBinding,
     actual: TypeReferenceHandle,
 ) -> bool {
@@ -1014,7 +1013,7 @@ fn binding_matches_actual(
 }
 
 fn type_reference_is_instance_of_family(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     family: TypeReferenceHandle,
 ) -> bool {
@@ -1040,7 +1039,7 @@ fn type_reference_is_instance_of_family(
 }
 
 fn indexed_law_callable_telescope_groups<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
     explicit_type_arguments: &[TypeReferenceHandle],
@@ -1088,7 +1087,7 @@ fn indexed_law_callable_telescope_groups<'program>(
 }
 
 pub(crate) fn required_trait_type_parameter<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     required: TypeReferenceHandle,
     trait_type_parameters: &'program [TypeParameter],
 ) -> Option<&'program TypeParameter> {
@@ -1104,7 +1103,10 @@ pub(crate) fn required_trait_type_parameter<'program>(
         .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == *symbol)
 }
 
-pub(crate) fn parameter_shape_label(program: &TypedTrees, parameter: &StateParameter) -> String {
+pub(crate) fn parameter_shape_label(
+    program: &dyn crate::CheckingInput,
+    parameter: &StateParameter,
+) -> String {
     format!(
         "{}: {}",
         parameter.name,

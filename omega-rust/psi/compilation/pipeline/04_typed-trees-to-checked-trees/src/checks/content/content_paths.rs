@@ -10,7 +10,6 @@ use language_semantics::{
     SemanticDomainId,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
@@ -88,7 +87,7 @@ pub(crate) fn unique_entry_claim_identity(
 }
 
 pub(crate) fn applicable_projection_plans<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -120,7 +119,7 @@ pub(crate) fn applicable_projection_plans<'facts>(
 }
 
 fn unwrapped_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     if !type_reference.is_valid() {
@@ -136,7 +135,7 @@ fn unwrapped_type_reference(
 }
 
 fn type_has_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     domain: SemanticDomainId,
 ) -> bool {
@@ -165,7 +164,7 @@ fn type_has_domain(
 }
 
 fn contracts_establish_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     subject: &ContentStructuralPlace,
@@ -217,7 +216,7 @@ fn contracts_establish_domain(
 }
 
 fn contract_place_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     expected: &ContentStructuralPlace,
 ) -> bool {
@@ -235,7 +234,7 @@ fn contract_place_matches(
 }
 
 fn contract_structural_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(String, SymbolHandle, Vec<ContentPlaceSegment>)> {
     match program.expression_table.expression(expression) {
@@ -292,7 +291,7 @@ fn contract_structural_place(
 }
 
 fn push_contract_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segments: &mut Vec<ContentPlaceSegment>,
     field_symbol: SymbolHandle,
     field_name: &str,
@@ -337,7 +336,7 @@ fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegmen
 }
 
 pub(crate) fn content_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     path: &[facts::PlaceSegment],
 ) -> Option<Vec<ContentPlaceSegment>> {
     path.iter()
@@ -363,7 +362,10 @@ pub(crate) fn content_path(
         .collect()
 }
 
-fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Option<&str> {
+fn data_variant_name(
+    program: &dyn ::validation::CheckingInput,
+    variant_symbol: SymbolHandle,
+) -> Option<&str> {
     program.data_definitions().iter().find_map(|definition| {
         program
             .data_members(definition)

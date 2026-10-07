@@ -13,7 +13,6 @@ use crate::semantic::calls::find_state_with_machine;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::reference_result_custody::mutable_borrowed_parts;
 
@@ -23,7 +22,7 @@ use validation::reference_result_custody::mutable_borrowed_parts;
 /// resolve to exactly one caller-side source — a minted-but-wrong loan is
 /// worse than none, because downstream custody only admits exact matches.
 pub(crate) fn mutable_view_call_loan_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -52,7 +51,7 @@ pub(crate) fn mutable_view_call_loan_place(
 /// source: one `&mut` parameter position. Returns resolving to callee-owned storage —
 /// or to different sources — have no single caller loan to mint.
 fn mutable_view_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     callee_machine: &typed_trees::machine::Machine,
     callee_state: &typed_trees::state::State,
 ) -> Option<usize> {
@@ -119,7 +118,7 @@ fn mutable_view_source(
 /// source — the same loan replay the tracker performs, kept syntactic so
 /// this helper stays usable where no `CheckFacts` exist.
 fn mutable_view_caller_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
@@ -159,7 +158,7 @@ fn mutable_view_caller_root(
 /// `as_mut_slice`-shape collection views answer themselves), explicit
 /// `&mut` reborrows and named places resolve through `borrow_access_place`.
 fn initializer_borrow_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -197,7 +196,7 @@ fn initializer_borrow_place(
 
 /// Caller-frame roots for the tail walk: a `&mut` parameter of the callee state.
 fn view_source_root_is_caller_storage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     root: SymbolHandle,
 ) -> bool {

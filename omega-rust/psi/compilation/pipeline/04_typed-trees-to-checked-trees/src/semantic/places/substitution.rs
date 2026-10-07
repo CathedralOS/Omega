@@ -10,7 +10,7 @@ pub(crate) struct ContractPlaceSubstitution {
 }
 
 pub(crate) fn call_contract_place_substitution(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     original_place_handle: facts::PlaceHandle,

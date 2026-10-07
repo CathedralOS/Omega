@@ -1,13 +1,11 @@
 //! Array operands use the same checked pure values and computations as calls.
 //! Each element retains a statement-local role and exact primitive destination;
 //! selected constant projections still retain every indexing selection.
-use super::{
-    CheckFacts, CheckedScalarExpressionRole, SymbolHandle, TypeReferenceHandle, TypedTrees,
-};
+use super::{CheckFacts, CheckedScalarExpressionRole, SymbolHandle, TypeReferenceHandle};
 use typed_trees::expression::ExpressionHandle;
 
 pub(in crate::execution::terminal_unit) fn elements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

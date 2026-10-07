@@ -39,7 +39,7 @@ pub(crate) fn rederive_selections(
     // Use the independently retained selected build even when the selection
     // collection is empty: otherwise omission of an unused choice is invisible.
     let derived = representation_planning::rederive_opaque_representation_selections(
-        &compilation.typed,
+        compilation.checking_input,
         selected,
         compilation
             .custody

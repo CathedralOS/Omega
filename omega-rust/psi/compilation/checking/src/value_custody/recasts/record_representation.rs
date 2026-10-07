@@ -4,7 +4,6 @@ use super::scalar_representation::{
     scalar_representation_facts_imply,
 };
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 type SymbolIdentity = (u32, u32);
@@ -63,7 +62,9 @@ fn expand_replicated_leaves(
     stride: usize,
 ) -> Option<Vec<MutableRecordLeaf>> {
     let mut leaves = Vec::new();
-    leaves.try_reserve_exact(element.leaves.len().checked_mul(count)?).ok()?;
+    leaves
+        .try_reserve_exact(element.leaves.len().checked_mul(count)?)
+        .ok()?;
     for index in 0..count {
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
@@ -212,7 +213,7 @@ impl RecastScalarLayout {
 /// derived from each normalized leaf's exact owning declaration and symbol;
 /// this publishes geometry only, never backing custody or write permission.
 pub fn recast_scalar_layout(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
 ) -> Option<RecastScalarLayout> {
     let representation = shared_projection_type_representation(program, root)?;
@@ -235,7 +236,7 @@ pub fn recast_scalar_layout(
 }
 
 fn checked_projection_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     path: &[RepresentationSegment],
 ) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
@@ -295,7 +296,7 @@ fn checked_projection_path(
 /// select its normalized leaf. Keeping field identities on normalization leaves
 /// avoids another layout calculator in source-to-Terminal projection lowering.
 pub fn recast_scalar_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
     field: symbols::SymbolHandle,
@@ -311,7 +312,7 @@ pub fn recast_scalar_projection(
 /// the normalized recast geometry. Runtime selectors require separately
 /// retained values and are not geometry supplied by this query.
 pub fn recast_scalar_path_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     scalar_path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<RecastScalarProjection> {
@@ -322,7 +323,7 @@ pub fn recast_scalar_path_projection(
 /// One-shot counterpart of the prepared layout query. Retained selectors remain
 /// caller-owned; this reconstructs only the exact declaration's geometry.
 pub fn recast_scalar_path_geometry(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     scalar_path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<RecastScalarGeometry> {
@@ -330,7 +331,7 @@ pub fn recast_scalar_path_geometry(
 }
 
 fn recast_projection_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RepresentationSegment>> {
@@ -386,7 +387,7 @@ fn recast_projection_path(
 }
 
 fn normalized_scalar_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     path: &[RepresentationSegment],
 ) -> Option<RecastScalarProjection> {
@@ -451,7 +452,7 @@ pub struct RecastRecordSourceLeaf {
 /// representation, the field is not a direct scalar leaf of the target, or no
 /// single source leaf matches; the caller then keeps its refusal.
 pub fn recast_record_source_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: TypeReferenceHandle,
     target: TypeReferenceHandle,
     target_field: symbols::SymbolHandle,
@@ -490,21 +491,21 @@ pub fn recast_record_source_leaf(
 }
 
 pub(super) fn mutable_type_representation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<MutableRecordRepresentation> {
     type_representation(program, type_reference, false)
 }
 
 pub(super) fn shared_projection_type_representation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<MutableRecordRepresentation> {
     type_representation(program, type_reference, true)
 }
 
 fn type_representation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     allow_stored_integer_projection: bool,
 ) -> Option<MutableRecordRepresentation> {
@@ -563,7 +564,7 @@ fn type_representation(
 /// nested aggregate and zero gating from any other fact remain fenced: a
 /// leaf-wise comparison cannot preserve them.
 fn mutable_record_representation_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
@@ -584,7 +585,7 @@ fn mutable_record_representation_inner(
 }
 
 fn mutable_record_representation_inner_body(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
@@ -780,7 +781,7 @@ fn mutable_record_representation_inner_body(
 }
 
 fn mutable_record_type_representation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
@@ -801,7 +802,7 @@ fn mutable_record_type_representation(
 }
 
 fn mutable_record_type_representation_body(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
@@ -903,10 +904,14 @@ fn checked_align_up(value: usize, alignment: usize) -> Option<usize> {
 /// same size/alignment and positionally equal leaves, with the caller's
 /// facts predicate applied per leaf pair.
 fn record_layouts_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
-    leaf_facts: impl Fn(&TypedTrees, &MutableScalarRepresentationFacts, &MutableScalarRepresentationFacts) -> bool,
+    leaf_facts: impl Fn(
+        &dyn crate::CheckingInput,
+        &MutableScalarRepresentationFacts,
+        &MutableScalarRepresentationFacts,
+    ) -> bool,
 ) -> bool {
     source.size == target.size
         && source.align == target.align
@@ -923,11 +928,16 @@ fn record_layouts_match(
 }
 
 pub(super) fn mutable_record_representations_equivalent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    record_layouts_match(program, source, target, mutable_scalar_representation_facts_equivalent)
+    record_layouts_match(
+        program,
+        source,
+        target,
+        mutable_scalar_representation_facts_equivalent,
+    )
 }
 
 pub(super) fn repeat_representation(
@@ -978,7 +988,7 @@ pub(super) fn representation_is_exactly_tiled(
 }
 
 pub(super) fn record_representation_implies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {

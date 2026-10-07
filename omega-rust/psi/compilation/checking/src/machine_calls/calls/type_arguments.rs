@@ -11,7 +11,7 @@ use typed_trees::expression::StaticMachineArgument;
 
 #[allow(clippy::too_many_arguments)]
 pub fn call_type_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,
     callee: &Machine,
@@ -103,7 +103,7 @@ pub fn call_type_arguments(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_resolved_call_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,

@@ -10,7 +10,7 @@ use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::{data::TypeParameterKind, name::Identifier, types::TypeReferenceHandle};
 
 pub(super) fn project(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     compilation: &PackageReviewInput<'_>,
     owner: &TraitDefinition,
     arguments: &[TypeReferenceHandle],

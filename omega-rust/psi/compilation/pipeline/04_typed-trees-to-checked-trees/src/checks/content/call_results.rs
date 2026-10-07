@@ -17,7 +17,6 @@ use language_semantics::{
     PermissionEventSource, QualificationEvidenceOrigin,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
@@ -32,7 +31,7 @@ struct Invocation<'program> {
 }
 
 pub(super) fn check_call_result_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -311,7 +310,7 @@ pub(super) fn check_call_result_qualifications(
 /// caller premises, so no boundary route may establish into them.
 #[allow(clippy::too_many_arguments)]
 fn call_parameter_qualification_join(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     evidence: &facts::QualificationEvidence,
     root: PlaceRoot,
@@ -406,7 +405,7 @@ fn call_parameter_qualification_join(
 
 #[allow(clippy::too_many_arguments)]
 fn replay_equation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     parameters: &[StateParameter],
@@ -480,7 +479,7 @@ fn replay_equation(
 /// The signature `state_symbol` on the `owner_symbol` trait carries `ensures`
 /// authorization for `fact`, when the owner and its requirement exist.
 fn authorized_ensures_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
@@ -511,7 +510,7 @@ fn authorized_ensures_signature(
 /// only when one of `domain`'s `established by` routes names that trait and
 /// requirement as the issuance witness.
 fn boundary_requirement_signature<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<&'a typed_trees::signature::StateSignature> {
@@ -548,7 +547,7 @@ fn boundary_requirement_signature<'a>(
 /// issuance witness — the bare-result and freshness gates above still
 /// apply, so transferred custody cannot mint supply here either.
 fn result_type_issuance_route(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
@@ -570,7 +569,7 @@ fn result_type_issuance_route(
 /// type — a payload that wears the constraint on an unrelated carrier cannot
 /// mint here.
 fn case_payload_issuance_route(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     domain: &typed_trees::domain::DomainDefinition,
     path: &[PlaceSegment],
@@ -592,7 +591,7 @@ fn case_payload_issuance_route(
 /// resolves in, `Field` descends record storage, `FixedIndex` descends an
 /// element. Anything else has no declared carrier to compare.
 fn qualified_leaf_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -690,7 +689,7 @@ fn projection_places<'term>(
 
 /// The actual argument expression bound to one authored formal position.
 fn input_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     parameters: &[StateParameter],
     position: usize,
@@ -707,7 +706,7 @@ fn input_argument(
 /// argument, transferred into the call. Issuance must not be credited for
 /// such a call — its result is at most a transfer.
 fn consumes_qualified_input(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     parameters: &[StateParameter],
@@ -791,7 +790,7 @@ fn consumes_qualified_input(
 }
 
 fn input_claim(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     parameters: &[StateParameter],
@@ -873,7 +872,7 @@ fn input_claim(
 }
 
 fn result_claim(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
     path: &[PlaceSegment],

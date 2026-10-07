@@ -20,7 +20,7 @@ use typed_trees::types::TypeReferenceNode;
 /// declared fields through the reference, and a source write that retired
 /// them must have been repaired before the return.
 pub(in crate::checks::contracts) fn check_result_field_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -195,7 +195,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
 /// itself, or the referent behind a readable reference return. A write-only
 /// reference exposes no readable storage and owes nothing.
 pub(crate) fn result_domain_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> typed_trees::types::TypeReferenceHandle {
     let mut reference = return_type;
@@ -218,7 +218,7 @@ pub(crate) fn result_domain_type(
 /// close from predicates alone. Routed return obligations instead consume
 /// exact live membership; predicate-only call reseeding must exclude them.
 pub(crate) fn value_provable_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: symbols::SymbolHandle,
 ) -> bool {
     !crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
@@ -229,7 +229,7 @@ pub(crate) fn value_provable_domain(
 /// parameters die with the machine and write-only views expose no readable
 /// referent, so neither owes anything here.
 pub(crate) fn is_readable_mutable_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut reference = type_reference;
@@ -250,7 +250,7 @@ pub(crate) fn is_readable_mutable_reference(
 /// These are exactly the rows the state-transition arrival check re-proves
 /// (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
 pub(crate) fn mutable_referent_field_requirements(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
@@ -302,7 +302,7 @@ pub(crate) fn mutable_referent_field_requirements(
 /// without repairing it rejects here with the exact place, the same way a
 /// call or transition would refuse the corrupted referent.
 pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,

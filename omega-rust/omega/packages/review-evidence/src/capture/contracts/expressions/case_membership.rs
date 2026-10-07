@@ -89,7 +89,7 @@ pub(super) fn checked_case_classifier(
             })
             .transpose()?;
         validation::has_exact_case_membership_meaning(
-            &compilation.typed,
+            compilation.checking_input,
             machine,
             state,
             expression,
@@ -105,7 +105,7 @@ pub(super) fn checked_case_classifier(
             "case-membership domain owner",
         )?;
         validation::has_exact_domain_case_membership_meaning(
-            &compilation.typed,
+            compilation.checking_input,
             domain,
             expression,
             binary,
@@ -120,14 +120,14 @@ pub(super) fn checked_case_classifier(
             "case-membership data owner",
         )?;
         validation::has_exact_data_case_membership_meaning(
-            &compilation.typed,
+            compilation.checking_input,
             data,
             expression,
             binary,
         )
     } else {
         validation::has_exact_parameter_case_membership_meaning(
-            &compilation.typed,
+            compilation.checking_input,
             context.parameters,
             expression,
             binary,
@@ -159,7 +159,7 @@ pub(super) fn checked_case_classifier(
     let ExpressionNode::Name(case) = compilation.expression_table.expression(binary.right) else {
         return Err(rejected());
     };
-    let carrier = validation::exact_case_reference_owner(&compilation.typed, binary.right)
+    let carrier = validation::exact_case_reference_owner(compilation.checking_input, binary.right)
         .ok_or_else(rejected)?;
     if context.requires_public_nominals() && !carrier.is_public {
         return Err(vec![Diagnostic::error(format!(

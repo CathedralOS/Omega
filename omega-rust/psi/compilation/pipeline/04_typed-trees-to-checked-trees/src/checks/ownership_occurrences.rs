@@ -49,7 +49,7 @@ pub(super) enum StatementStep {
 }
 
 pub(super) fn statement_steps(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -160,7 +160,7 @@ pub(super) fn statement_steps(
 }
 
 struct StatementOrder<'a> {
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
     statement_index: usize,
     operators: &'a checked_trees::CheckedOperatorFacts,

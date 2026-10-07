@@ -7,7 +7,6 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionViewOperation;
-use typed_trees::TypedTrees;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -19,7 +18,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// constraint shells to the Named/Generic/DynamicTrait head. `None` for
 /// primitives, arrays, slices, and unknown names.
 fn receiver_declared_type_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     receiver: &str,
@@ -29,7 +28,7 @@ fn receiver_declared_type_name<'program>(
 }
 
 pub(crate) fn declared_receiver_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     receiver: &str,
@@ -70,7 +69,7 @@ pub(crate) fn declared_receiver_type_reference(
 }
 
 pub(super) fn named_type_reference_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<&str> {
     if let Some(requirement) =
@@ -103,7 +102,7 @@ pub(super) fn named_type_reference_name(
 /// signature or a machine's entry. Attached calls use their selected entry
 /// and exact receiver type before this unresolved-call diagnostic.
 fn type_name_resolves_value_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     type_name: &str,
     target: &str,
@@ -135,7 +134,7 @@ fn type_name_resolves_value_call(
 /// bind a ZII 0 at runtime, so it is a compile error.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn report_unresolved_value_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
     symbols: &TopLevelSymbols<'_>,

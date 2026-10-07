@@ -8,7 +8,6 @@ use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
     DataShapeKind, ExpressionNode, Multiplicity, StatementNode, SymbolHandle, TypeReferenceNode,
-    TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
@@ -107,7 +106,7 @@ pub(super) struct StorageProjection<'a> {
 
 /// Resolve the authored target, its root and the root's write authority.
 pub(super) fn resolve<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,
@@ -279,7 +278,7 @@ pub(super) fn resolve<'a>(
 /// A store rooted at a declared local: the unique `LocalData` symbol names
 /// the root and its declared type fixes the owner and projection base.
 fn local_destination<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     operators: &'a checked_trees::CheckedOperatorFacts,
     root_symbol: SymbolHandle,
     root_type: typed_trees::types::TypeReferenceHandle,
@@ -308,7 +307,7 @@ fn local_destination<'a>(
 /// disposition row — the attached lane's emission writes through the live
 /// home place directly rather than rebuilding the local's scalar ledger.
 fn owned_local_root<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     operators: &'a checked_trees::CheckedOperatorFacts,
     state: &'a typed_trees::state::State,
     root_symbol: SymbolHandle,
@@ -383,7 +382,10 @@ fn owned_local_root<'a>(
 impl<'a> Destination<'a> {
     /// The full projection includes the outer selector split off for byte-view
     /// operations. All other stores consume this same root and selector roster.
-    pub(super) fn full_segments(&self, program: &TypedTrees) -> Option<Vec<facts::PlaceSegment>> {
+    pub(super) fn full_segments(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<Vec<facts::PlaceSegment>> {
         let mut segments = self.place.segments.clone();
         if let Some(index) = self.dynamic_index {
             segments.push(
@@ -405,7 +407,7 @@ impl<'a> Destination<'a> {
     /// supplies its own authority.
     pub(super) fn exclusive_authority(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         roots: StoreRoots<'_>,
         trace: &LocalConstructionTrace,
@@ -478,7 +480,7 @@ impl<'a> Destination<'a> {
     /// so a mixed shape is only ever the last owner, never an intermediate hop.
     pub(super) fn leaf_carrier(
         &self,
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         segments: &[facts::PlaceSegment],
     ) -> Option<Carrier<'a>> {
         let projection = self.walk(program, segments)?;
@@ -496,14 +498,14 @@ impl<'a> Destination<'a> {
 
     pub(super) fn storage_projection(
         &self,
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
     ) -> Option<StorageProjection<'a>> {
         self.walk(program, &self.full_segments(program)?)
     }
 
     fn walk(
         &self,
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         segments: &[facts::PlaceSegment],
     ) -> Option<StorageProjection<'a>> {
         let operators = self.operators;
@@ -628,7 +630,7 @@ impl<'a> Destination<'a> {
 /// excluded by the type-parameter and owner-application tests below.
 pub(super) fn plain_record(
     data: &typed_trees::data::DataDefinition,
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> bool {
     plain_checked_shape(data, program, operators)
@@ -640,7 +642,7 @@ pub(super) fn plain_record(
 /// supply, generic and fact conditions as [`plain_record`].
 fn plain_mixed(
     data: &typed_trees::data::DataDefinition,
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> bool {
     plain_checked_shape(data, program, operators)
@@ -650,7 +652,7 @@ fn plain_mixed(
 
 fn plain_checked_shape(
     data: &typed_trees::data::DataDefinition,
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
@@ -670,7 +672,7 @@ fn plain_checked_shape(
 
 fn retained_record_owner_application(
     data: &typed_trees::data::DataDefinition,
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> bool {
     let Some(application) = data.generic_instance else {
         return true;
@@ -717,7 +719,7 @@ fn retained_record_owner_application(
 /// step and checks the reference leaf's authority separately. Consumers that
 /// build canonical field facts use this query to exclude that crossing.
 pub(super) fn crosses_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -728,7 +730,7 @@ pub(super) fn crosses_reference(
 }
 
 pub(super) fn exact_relevant_field<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     owner: &'a typed_trees::data::DataDefinition,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::data::DataField> {
@@ -756,7 +758,7 @@ pub(super) fn exact_relevant_field<'a>(
 ///
 /// A place that is not rooted at such a local is returned unchanged.
 fn rejoin_loan_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     ordinal: usize,
@@ -867,7 +869,7 @@ fn rejoin_loan_local(
 /// place followed by the leaf's own segments, and the view's carrier when it
 /// differs from the leaf's. Only a direct field of the view rejoins.
 fn record_view_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     ordinal: usize,
@@ -909,7 +911,7 @@ fn record_view_leaf(
 /// loan on the binding is the write authority this arm re-reads; formation,
 /// exclusivity and lifetime were all admitted by the loan itself.
 fn borrowed_view_local_root<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,

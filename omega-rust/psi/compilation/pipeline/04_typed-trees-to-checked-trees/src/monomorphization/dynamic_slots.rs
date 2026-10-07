@@ -258,7 +258,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
 }
 
 fn slot_for(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     demand: Option<validation::DynamicSlotDemand>,
 ) -> Option<(SymbolHandle, Identifier)> {
     let demand = demand?;

@@ -46,7 +46,7 @@ enum BooleanExpressionOwner {
 }
 
 pub(super) fn call_site_proves_boolean_contract_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -74,7 +74,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
 /// invocation's concrete arguments. `None` is deliberately distinct from
 /// `false`: crash refinement may discard a route only when false is proved.
 pub(crate) fn call_site_boolean_contract_expression_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
@@ -98,7 +98,7 @@ pub(crate) fn call_site_boolean_contract_expression_value(
 
 #[allow(clippy::too_many_arguments)]
 fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -132,7 +132,7 @@ fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
 }
 
 pub(super) struct ContractExpressionEvaluator<'program, 'call> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     // Source call checking has selected operator facts. Earlier crash-fact
     // construction does not, and cannot gain Boolean equality authority here.
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,

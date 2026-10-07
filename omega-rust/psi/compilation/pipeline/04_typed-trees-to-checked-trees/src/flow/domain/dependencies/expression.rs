@@ -6,7 +6,7 @@ mod relative;
 pub(crate) use relative::relative_place_segments_from_expression;
 
 pub(super) fn collect_dependency_paths_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     domain: &typed_trees::domain::DomainDefinition,
     dependencies: &mut Vec<Vec<facts::PlaceSegment>>,
@@ -147,7 +147,7 @@ pub(super) fn collect_dependency_paths_from_expression(
 }
 
 pub(super) fn dedupe_dependency_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     dependencies: &mut Vec<Vec<facts::PlaceSegment>>,
 ) {
     let mut unique: Vec<Vec<facts::PlaceSegment>> = Vec::with_capacity(dependencies.len());

@@ -4,13 +4,10 @@
 use arena::HandleSpan;
 use checked_trees::{FlowConstraintRef, FlowFacts, FlowOperandFact};
 use facts::{FactContextHandle, FactPlan};
-use typed_trees::{
-    TypedTrees,
-    types::{TypeReferenceHandle, TypeReferenceNode},
-};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn operand_contexts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &FactPlan,
     operand: &FlowOperandFact,
@@ -35,7 +32,7 @@ pub(crate) fn operand_contexts(
 }
 
 fn invocation_contexts_at_referents(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &FactPlan,
     operand: &FlowOperandFact,
@@ -82,7 +79,7 @@ fn invocation_contexts_at_referents(
 /// referent merely because its contents cannot be proved stable. Constraints
 /// preserve the carrier's reference or slice identity.
 pub(crate) fn operand_binds_live_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> bool {
     if !reference.is_valid() {
@@ -108,7 +105,7 @@ pub(crate) fn operand_binds_live_view(
 /// the contents classifier cannot prove stable, or whose referent could not
 /// be resolved exactly, keeps the capture ∩ invocation intersection.
 pub(crate) fn operand_binds_stable_copy(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -138,7 +135,7 @@ pub(crate) fn operand_binds_stable_copy(
 /// already-evaluated operand write overlaps it. This prefix excludes later
 /// operands and shares the flow producer's canonical overlap law.
 pub(crate) fn operand_entry_origin_is_stable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     operand: &FlowOperandFact,
     place: &crate::flow::CanonicalPlace,
@@ -153,7 +150,7 @@ pub(crate) fn operand_entry_origin_is_stable(
 }
 
 pub(crate) fn entry_origin_is_stable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     control: &checked_trees::FlowControlFacts,
     writes: HandleSpan<checked_trees::FlowOperandReferent>,
     unknown: bool,
@@ -182,7 +179,7 @@ pub(crate) fn entry_origin_is_stable(
 /// compare their exact rows, then inspect intervening writes. Final values and
 /// equal rendered paths cannot erase an intermediate write.
 pub(crate) fn operand_observations_agree(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     first: &FlowOperandFact,
     second: &FlowOperandFact,
@@ -261,7 +258,7 @@ pub(crate) fn operand_observations_agree(
 }
 
 fn prefixes_agree(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     control: &checked_trees::FlowControlFacts,
     first: HandleSpan<checked_trees::FlowOperandReferent>,
     second: HandleSpan<checked_trees::FlowOperandReferent>,

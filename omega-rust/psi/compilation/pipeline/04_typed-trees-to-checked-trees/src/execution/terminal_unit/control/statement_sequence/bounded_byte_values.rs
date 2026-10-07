@@ -7,7 +7,7 @@
 //! The declaration's mutability affects subsequent writes, not construction.
 //! Each write must preserve its predicates; initializer contents are not
 //! immutable facts about the resulting storage.
-use super::{CheckedStructuralAccess, Multiplicity, TypedTrees};
+use super::{CheckedStructuralAccess, Multiplicity};
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference,
 };
@@ -16,7 +16,7 @@ use checked_trees::CheckedByteSequenceCarrier;
 /// Plan the initializer under the declaration's capacity and byte predicates.
 /// The caller owns the result binding and publishes ordinary establishment.
 pub(in crate::execution::terminal_unit) fn value_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     state: &typed_trees::state::State,
     statement_index: u32,
@@ -74,7 +74,7 @@ pub(in crate::execution::terminal_unit) fn value_plan(
 /// Literal construction is shared by local establishment and a selected
 /// normal result. Neither site gains a view or infers an encoding domain.
 pub(in crate::execution::terminal_unit) fn expression_octets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<u8>> {

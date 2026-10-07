@@ -139,7 +139,7 @@ pub(crate) fn plan_reborrow_containment_certificates(
 }
 
 fn exact_shared_cohort_observation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
     flow_state: &checked_trees::FlowStateFact,
@@ -245,7 +245,7 @@ fn exact_shared_cohort_observation(
 /// authority.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_reborrow_restored_call_uses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
     direct: &[CheckedDirectBorrowLoanResource],

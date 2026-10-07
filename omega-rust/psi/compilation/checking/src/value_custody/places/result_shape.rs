@@ -8,7 +8,6 @@ use super::{
     data_definition_for_type, data_field_or_payload_type, declared_place_type_raw,
     unwrapped_type_reference,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -20,7 +19,7 @@ enum Projection<'expression> {
 }
 
 pub(crate) fn expression_result_is_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -132,7 +131,7 @@ pub(crate) fn expression_result_is_reference(
 }
 
 fn projected_type_is_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     projections: &[Projection<'_>],
 ) -> Option<bool> {

@@ -110,7 +110,10 @@ pub(crate) fn route_explicit_requirement_calls(
     Ok(())
 }
 
-fn names_implementation(program: &TypedTrees, argument: &StaticMachineArgument) -> bool {
+fn names_implementation(
+    program: &dyn ::validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> bool {
     matches!(
         program.symbols.get(argument.symbol).kind,
         SymbolKind::Conformance | SymbolKind::ConformanceParameter
@@ -120,7 +123,7 @@ fn names_implementation(program: &TypedTrees, argument: &StaticMachineArgument) 
 /// The implementation is the last static argument; every argument before it
 /// is the trait's application, in the trait's declaration order.
 fn explicit_requirement_rewrite(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: ExpressionHandle,
     requirement: SymbolHandle,
     declaring_trait: SymbolHandle,
@@ -156,7 +159,7 @@ fn explicit_requirement_rewrite(
 }
 
 struct ExplicitApplication<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     call: ExpressionHandle,
     requirement: SymbolHandle,
     requirement_name: String,

@@ -11,12 +11,11 @@ use crate::proof_contracts::quotients::equivalence_selection::{
 use crate::proof_contracts::quotients::relation_plan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::proof_only::ProofOnlyClassification;
 
 pub(crate) fn collect_validated_quotient_formations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedQuotientFormation> {
@@ -125,7 +124,7 @@ pub(crate) fn collect_validated_quotient_formations(
 /// deriving `RA`/`RR` here does not admit execution or create a checked-tree
 /// operation.
 pub(crate) fn reject_quotient_operation_requests(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     termination: &dyn super::CheckedTerminationOracle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

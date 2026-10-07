@@ -37,14 +37,16 @@ use language_semantics::content::{
     ContentPlaceRoot, ContentPlaceVersion, ContentStructuralPlace, conservation_report_fingerprint,
     content_conservation_plan_bytes,
 };
-use typed_trees::TypedTrees;
 
 /// Derive the content equality attached to every exact input-relative claim
 /// outcome. These are deliberately individual rewrite rows: distinct linear
 /// claims do not imply that their projected content is disjoint, so this pass
 /// never manufactures a `separate(...)` term. The later frontier theorem may
 /// compose rows only when it also has the required partition evidence.
-pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn infer_identity_preserving_reshuffles(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) {
     let outcomes = facts
         .flow
         .ownership
@@ -206,7 +208,10 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
 /// call-established claim identity into a unique callable-result path. When
 /// several staged calls independently contribute to one returned aggregate,
 /// each call retains its own authored theorem and exact structural rewrite row.
-pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn compose_partition_wrappers(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) {
     let mut available = facts
         .qualifications
         .content
@@ -303,7 +308,7 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
 }
 
 pub(crate) fn check_retained_content_custody(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

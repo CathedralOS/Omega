@@ -7,7 +7,6 @@ use facts::FloatPredicate;
 use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
@@ -21,7 +20,7 @@ use typed_trees::types::{
 /// result with no storage identity. Publish them after evaluation; callers can
 /// then use the ordinary operand snapshot rather than reconstructing a callee.
 pub(crate) fn declared_type_predicates(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     predicates: &mut Vec<FloatPredicate>,
 ) {
@@ -87,7 +86,7 @@ pub(crate) fn declared_type_predicates(
 }
 
 pub(crate) fn collect_true(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -208,7 +207,7 @@ pub(crate) fn collect_true(
 }
 
 pub(crate) fn literal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     format: FloatFormat,
 ) -> Option<ExactFloat> {
@@ -234,7 +233,7 @@ pub(crate) fn literal(
 }
 
 pub(crate) fn has_ieee_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: SymbolHandle,
     expression: ExpressionHandle,
     operator: BinaryOperator,
@@ -253,7 +252,7 @@ pub(crate) fn has_ieee_meaning(
 /// Reading a token-lowered call's operation does not authorize its laws.
 /// Consumers must check the exact selection with `has_ieee_meaning`.
 pub(crate) fn comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TableBinaryExpression> {
     match program.expression_table.expression(expression) {

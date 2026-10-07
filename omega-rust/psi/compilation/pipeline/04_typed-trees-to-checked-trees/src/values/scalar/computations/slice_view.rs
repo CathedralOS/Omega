@@ -13,7 +13,7 @@
 //! Reinterpreting the entire buffer before slicing is not equivalent: the
 //! suffix can tile even when the whole source cannot.
 use super::{
-    Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode, TypedTrees,
+    Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode,
     structural_values::canonical_place_is_borrowable,
 };
 use checked_trees::{CheckedStructuralAccess, CheckedStructuralValueKind};
@@ -300,7 +300,7 @@ impl Builder<'_, '_> {
 /// A fixed array declares its extent and a slice carries a stored one; both
 /// lend the same elements, so both can back a view.
 fn lent_collection_element(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     loop {

@@ -11,13 +11,13 @@
 //! form.
 use super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, LocalConstructionTrace,
-    SymbolHandle, TypedTrees, checked_boolean_contains_short_circuit,
+    SymbolHandle, checked_boolean_contains_short_circuit,
 };
 use checked_trees::CheckedCallScalarArgument;
 use typed_trees::types::PrimitiveType;
 
 pub(super) fn value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

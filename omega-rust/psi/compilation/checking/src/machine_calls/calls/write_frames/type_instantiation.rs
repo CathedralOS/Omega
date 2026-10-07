@@ -8,7 +8,6 @@
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -26,7 +25,7 @@ pub(super) type TypeBindings = Vec<(SymbolHandle, TypeReferenceHandle)>;
 /// parameters, but a transitive binding chain still terminates within the
 /// environment's own length.
 pub(super) fn substituted_head(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
@@ -54,7 +53,7 @@ pub(super) fn substituted_head(
 /// The unique data definition behind a nominal symbol. Type parameters,
 /// builtins, and ambiguous spellings leave the carrier opaque.
 pub(super) fn unique_data_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
     if !symbol.is_valid() {
@@ -74,7 +73,7 @@ pub(super) fn unique_data_definition(
 /// bindings are pushed. Callers record `bindings.len()` beforehand and
 /// truncate afterward so the entries cannot leak into a sibling walk.
 pub(super) fn push_generic_application_bindings<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     base_symbol: SymbolHandle,
     arguments: &[TypeReferenceHandle],
     bindings: &mut TypeBindings,
@@ -107,7 +106,7 @@ pub(super) fn push_generic_application_bindings<'program>(
 /// Bind the declaring trait only from its exact receiver application. Call
 /// arguments cannot supply a missing owner tuple or change an owner binding.
 pub(super) fn trait_receiver_type_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeBindings> {
@@ -162,7 +161,7 @@ pub(super) fn trait_receiver_type_bindings(
 }
 
 pub(super) fn signature_call_type_bindings_seeded(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     signature: &StateSignature,
     site: CallerWriteSite<'_>,
@@ -180,7 +179,7 @@ pub(super) fn signature_call_type_bindings_seeded(
 }
 
 fn signature_call_type_bindings_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     signature: &StateSignature,
     site: CallerWriteSite<'_>,
@@ -243,7 +242,7 @@ fn signature_call_type_bindings_in(
 /// parameter left unbound. `false` reports a conflicting second binding for
 /// the same parameter, which invalidates the whole instantiation.
 pub(super) fn bind_formal_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut formal: TypeReferenceHandle,
     mut actual: TypeReferenceHandle,
     parameters: &[TypeParameter],

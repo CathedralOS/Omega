@@ -3,7 +3,7 @@ use facts::{Fact, FactPayload, FactPlan};
 use super::names::symbol_name;
 
 pub(crate) fn borrow_access_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     access: &checked_trees::BorrowArgumentAccessFact,
 ) -> String {
@@ -15,7 +15,7 @@ pub(crate) fn borrow_access_label(
 }
 
 pub(crate) fn semantic_fact_requirement_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     fact: &Fact,
 ) -> String {
@@ -76,7 +76,7 @@ pub(crate) fn semantic_fact_requirement_label(
 /// render their typed expression directly; flow-instantiated operator/call
 /// facts use the substitution record owned by the fact plan.
 pub(crate) fn semantic_boolean_fact_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     fact: &Fact,
 ) -> Option<String> {
@@ -84,7 +84,7 @@ pub(crate) fn semantic_boolean_fact_label(
 }
 
 pub(crate) fn joined_place_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     place: &facts::Place,
     extra_segments: &[facts::PlaceSegment],

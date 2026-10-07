@@ -18,7 +18,7 @@ struct StateParameterLineage {
 
 impl StateParameterLineage {
     fn derive(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         flow: &FlowFacts,
         machine: &typed_trees::machine::Machine,
         demand: &ProgressSubject,
@@ -132,7 +132,7 @@ impl StateParameterLineage {
 /// Discovery and resolution share one demand. A partial catalogue must never
 /// answer a different subject by falling back to an undiscovered ancestor.
 pub(super) fn resolve(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &typed_trees::machine::Machine,
     premise: ProgressPremise,

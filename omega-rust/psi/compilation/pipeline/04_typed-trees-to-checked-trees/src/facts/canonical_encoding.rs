@@ -2,7 +2,6 @@
 
 use crate::facts::crash_plan_facts::{encode_signature_contract_kind, is_true_crash_route};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::proposition::PropositionLabels;
 
 /// Encode contracts as semantic sets. Crash clauses are first merged by cause:
@@ -11,7 +10,7 @@ use typed_trees::proposition::PropositionLabels;
 /// This keeps public contract identity independent of clause grouping while
 /// preserving the bucket itself as identity-bearing material.
 pub(crate) fn encode_contract_set_canonical(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -96,7 +95,7 @@ pub(crate) fn encode_contract_set_canonical(
 }
 
 pub(crate) fn encode_contract_fact_canonical(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -189,7 +188,7 @@ pub(crate) fn encode_type_spelling(text: &str, binders: &[(String, String)], out
 /// The same declaration rule governs retained qualification uses and scalar
 /// computation eligibility. Alias atoms must all be predicate- and route-free.
 pub(crate) fn domain_is_vacuous(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
     stack: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -223,7 +222,7 @@ pub(crate) fn domain_is_vacuous(
 /// literals as text (exact at any magnitude). Deterministic across
 /// programs for the same declared clause.
 fn encode_expression_canonical(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     out: &mut Vec<u8>,
@@ -332,7 +331,7 @@ fn encode_expression_canonical(
 }
 
 fn encode_proposition_application_canonical(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
     parameter_names: &[String],
     out: &mut Vec<u8>,
@@ -372,7 +371,7 @@ fn encode_proposition_application_canonical(
 }
 
 pub(crate) fn encode_contract_expression_canonical(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],

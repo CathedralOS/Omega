@@ -3,7 +3,6 @@
 use super::{declared_indexed_projection_type, declared_place_type_raw};
 use language_core::OperatorSpelling;
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -11,7 +10,7 @@ use typed_trees::state::State;
 /// Recognize collection metadata through the receiver's structural type, not
 /// through a same-spelled nominal field or accessor.
 pub fn collection_length_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -43,7 +42,7 @@ pub fn collection_length_receiver(
 /// observation symbolic — callers then discharge the bound through the
 /// carried-fact channels as before.
 pub fn declared_collection_extent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     receiver: ExpressionHandle,
@@ -67,7 +66,7 @@ pub fn declared_collection_extent(
 /// checks its access against the requested view and source loan. Write-only
 /// borrowing cannot supply the length observation required by narrowing.
 pub fn subslice_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let operation = match program.expression_table.expression(expression) {
@@ -95,7 +94,7 @@ pub fn subslice_expression(
 /// Recognize builtin subslicing without granting bounds, source
 /// custody, or permission to use the resulting view.
 pub fn has_builtin_subslice_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -135,7 +134,7 @@ pub fn has_builtin_subslice_meaning(
 /// that step, before its value; producers and consumers of those rows share
 /// this one walk.
 pub fn assignment_target_selectors(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     assignment_target_indexes(&program.expression_table, target)
@@ -185,7 +184,7 @@ pub fn assignment_target_indexes(
 /// establish declaration identity, reference origins, bounds, and authority.
 /// A dynamic builtin selector may pass without establishing a fixed index.
 pub fn place_has_builtin_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -194,7 +193,7 @@ pub fn place_has_builtin_coordinates(
 }
 
 fn builtin_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,

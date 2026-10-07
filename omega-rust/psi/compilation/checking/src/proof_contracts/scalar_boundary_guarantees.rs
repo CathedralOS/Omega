@@ -11,10 +11,10 @@ use checked_trees::{
     ClosedScalarContractValue,
 };
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
-use typed_trees::{TypedTrees, machine::Machine, types::PrimitiveType};
+use typed_trees::{machine::Machine, types::PrimitiveType};
 
 pub fn derive_scalar_boundary_guarantees(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     contract: &checked_trees::MachineContractPlan,
@@ -41,7 +41,7 @@ pub fn derive_scalar_boundary_guarantees(
 }
 
 fn meaning_consequence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     expression: typed_trees::expression::ExpressionHandle,
@@ -179,7 +179,7 @@ fn meaning_consequence(
 /// equation. Changing both the retained consequence and its plan must not
 /// replace the mathematical producer, operand order, or result source.
 fn source_equation_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     expression: typed_trees::expression::ExpressionHandle,

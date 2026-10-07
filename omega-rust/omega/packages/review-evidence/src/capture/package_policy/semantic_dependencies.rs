@@ -18,7 +18,7 @@ pub(super) fn project(
     callables: &PackagePolicyCallables,
 ) -> Result<Vec<PackagePolicySemanticDependency>, Vec<Diagnostic>> {
     let derived = typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
-        &compilation.typed,
+        compilation.checking_input,
         &compilation.facts,
     );
     if derived != compilation.facts.flow.semantic_dependencies {

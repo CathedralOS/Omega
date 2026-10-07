@@ -8,12 +8,12 @@ use crate::monomorphization::selection::static_bindings::same_type_identity;
 use crate::monomorphization::{
     CallSelection, CallSite, CalleeState, Candidate, ExpressionHandle, SpecializationKey,
     StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selection_for_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     candidates: &[Candidate],
@@ -72,7 +72,7 @@ pub(crate) fn selection_for_call(
 }
 
 pub(crate) fn selection_from_proposals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     site: CallSite,
     callee: &CalleeState,
     candidate: &Candidate,
@@ -162,7 +162,7 @@ pub(crate) fn selection_from_proposals(
 }
 
 pub(crate) fn type_reference_is_any_generic_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binding: TypeReferenceHandle,
 ) -> bool {
     let TypeReferenceNode::Named { symbol, name } =
@@ -248,7 +248,7 @@ pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: C
 }
 
 pub(crate) fn unique_complete_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selections: &[CallSelection],
     candidate_index: usize,
 ) -> Vec<(SpecializationKey, Vec<usize>)> {

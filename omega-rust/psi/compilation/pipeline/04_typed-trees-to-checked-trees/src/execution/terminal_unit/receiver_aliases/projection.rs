@@ -1,8 +1,8 @@
 //! Join source coordinates to checked capture and normalized receiver paths.
 
-use super::{ExpressionHandle, ExpressionNode, TypedTrees};
+use super::{ExpressionHandle, ExpressionNode};
 pub(super) fn formation_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

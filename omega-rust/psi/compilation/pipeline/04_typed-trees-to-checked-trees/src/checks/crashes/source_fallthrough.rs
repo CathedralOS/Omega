@@ -14,7 +14,6 @@
 
 use checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
@@ -25,7 +24,7 @@ pub(super) struct SiteFallthrough {
 }
 
 pub(super) fn collect(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
@@ -96,7 +95,7 @@ pub(super) fn collect(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_stable_consequences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     evaluated_at: usize,
@@ -201,7 +200,7 @@ fn collect_stable_consequences(
 /// a machine root, a call — stays opaque rather than launder current storage
 /// into an entry snapshot.
 fn holds_entry_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     evaluated_at: usize,

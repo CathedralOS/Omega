@@ -26,7 +26,6 @@ use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
-use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, byte_sequence_carrier, byte_sequence_type_identity,
     structural_access_for_type_reference,
@@ -138,7 +137,7 @@ impl ViewSubslice {
 /// Admit an exact builtin exclusive range at `site`, vetoing any range whose
 /// operator use did not resolve to the builtin meaning.
 pub(in crate::execution) fn admit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -178,7 +177,7 @@ pub(crate) fn is_view_subslice(argument: &CheckedUnitStructuralArgumentPlan) -> 
 /// is assembled. Operator meaning and source-bound endpoint facts are both
 /// required; a range with omitted endpoints still needs the operator veto.
 pub(crate) fn admit_resolved(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -255,7 +254,7 @@ pub(crate) fn admit_resolved(
 /// the authored spelling, is what keeps the array unwritten while it lives.
 #[allow(clippy::too_many_arguments)]
 fn lends_collection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -311,7 +310,7 @@ fn lends_collection(
 /// endpoint bindings inherit that veto through the bindings' presence: no
 /// builtin range means no endpoints to rebind.
 pub(in crate::execution) fn admit_replayed(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     machine: &typed_trees::machine::Machine,
@@ -391,7 +390,7 @@ pub(in crate::execution) fn admit_replayed(
 /// collection either holds an established view of the same kind and identity
 /// or names readable array storage with exactly the view's element type.
 pub(in crate::execution) fn shape(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -419,7 +418,7 @@ pub(in crate::execution) fn shape(
 /// `shape` for a target of the view family `kind`.
 #[allow(clippy::too_many_arguments)]
 fn shape_of_kind(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -531,7 +530,7 @@ fn shape_of_kind(
 /// families retain the local's exact checked loan and endpoint evidence.
 #[allow(clippy::too_many_arguments)]
 fn array_collection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -643,7 +642,7 @@ fn array_collection(
 /// spelled, so its endpoints stay omitted and the backing's own extent
 /// names the end.
 pub(in crate::execution) fn whole_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -695,7 +694,7 @@ pub(in crate::execution) fn whole_extent(
 /// earlier statement of `state`. Parameters and later or mutable locals are
 /// not established view places at `statement_index`.
 pub(in crate::execution) fn view_local_before<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     symbol: symbols::SymbolHandle,
@@ -712,7 +711,10 @@ pub(in crate::execution) fn view_local_before<'a>(
 /// Whether `reference` is an immutable byte view under domain constraints
 /// only (`&[u8] in Path`): an exact shared `&[u8]` whose reference or slice
 /// carries one or more constraint shells, each naming only domains.
-fn domain_qualified_byte_view(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn domain_qualified_byte_view(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     let mut constrained = false;
     let mut peel = |mut reference: TypeReferenceHandle| {
         while let TypeReferenceNode::Constrained {
@@ -761,7 +763,7 @@ fn domain_qualified_byte_view(program: &TypedTrees, reference: TypeReferenceHand
 
 /// The borrowed view family of an exact shared or mutable slice type.
 pub(in crate::execution) fn view_kind(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<ViewKind> {
     if domain_qualified_byte_view(program, reference) {
@@ -795,7 +797,7 @@ pub(in crate::execution) fn view_kind(
 
 /// The type identity of a view of `kind`, as the view's own family spells it.
 pub(in crate::execution) fn view_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     kind: ViewKind,
     reference: TypeReferenceHandle,
 ) -> Option<String> {
@@ -814,7 +816,7 @@ pub(in crate::execution) fn view_identity(
 /// expression is spelled `&`/`&mut` its authored flavor must match exactly —
 /// a mismatched spelling selects no subslice.
 fn borrowed_view_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Option<CheckedStructuralAccess> {

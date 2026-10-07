@@ -13,9 +13,8 @@
 
 use super::super::TypeReferenceHandle;
 use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, Interval, PrimitiveType, TypedTrees,
-    ValueEnvironment, comparison_interval, literal_i64, ordered_values, primitive_range,
-    range_constraint_interval,
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, Interval, PrimitiveType, ValueEnvironment,
+    comparison_interval, literal_i64, ordered_values, primitive_range, range_constraint_interval,
 };
 
 /// One side of a projected comparison. `operand` is the symbol-exact
@@ -45,7 +44,7 @@ impl ProjectedOperand {
 /// Contribute `left <operator> right`. `left_expression`/`right_expression`
 /// are the fact's own side expressions; only their literal values are read.
 pub(super) fn contribute_projected_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &mut ValueEnvironment,
     operator: BinaryOperator,
     (left, left_expression): (&ProjectedOperand, ExpressionHandle),
@@ -160,7 +159,7 @@ fn push_order(
 /// A literal side narrows the place side's interval, intersected with the
 /// place's type and declared ranges exactly like a guard leaf.
 fn narrow_literal_sides(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &mut ValueEnvironment,
     operator: BinaryOperator,
     (left, left_expression): (&ProjectedOperand, ExpressionHandle),
@@ -202,7 +201,7 @@ fn narrow_literal_sides(
 /// Whether a projected side may join ordered relations: its declared type is
 /// a fixed-width integer, so a strict order is a gap of at least one.
 pub(super) fn has_fixed_integer_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     crate::value_custody::places::unwrapped_type_reference(program, type_reference)

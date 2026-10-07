@@ -5,12 +5,11 @@ use crate::value_custody::type_references::{
     validate_generic_instance_argument_bounds, validate_type_reference_handle_with_type_parameters,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataMember, DataShapeKind};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_data_field_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -96,7 +95,7 @@ pub(crate) fn validate_data_field_types(
 /// An `[erased]` field is proof-only and keeps no representation, so it may
 /// name either type.
 fn validate_stored_field_has_a_representation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &typed_trees::data::DataDefinition,
     field: &typed_trees::data::DataField,
     diagnostics: &mut Vec<Diagnostic>,
@@ -132,7 +131,7 @@ fn validate_stored_field_has_a_representation(
 /// The check composes through record fields, arrays, and the payload of the
 /// zero-tag (first) sum case. Later cases do not inhabit zero storage.
 pub fn type_requires_establishment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     type_requires_establishment_inner(program, type_reference, &mut EstablishmentIndex::new())
@@ -165,7 +164,7 @@ impl EstablishmentIndex {
 }
 
 fn validate_data_default_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     members: &[DataMember],
     diagnostics: &mut Vec<Diagnostic>,
@@ -230,7 +229,7 @@ fn validate_data_default_domain(
 }
 
 fn type_requires_establishment_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     index: &mut EstablishmentIndex,
 ) -> bool {
@@ -277,7 +276,7 @@ fn type_requires_establishment_inner(
 }
 
 pub fn data_requires_establishment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
     // Build/entry selection asks on typed trees before checked-tree zero
@@ -297,7 +296,7 @@ pub fn data_requires_establishment(
 }
 
 fn data_requires_establishment_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     index: &mut EstablishmentIndex,
 ) -> bool {
@@ -341,7 +340,7 @@ fn data_requires_establishment_inner(
 fn validate_payload_field_names(
     data_definition: &typed_trees::data::DataDefinition,
     variant: &typed_trees::data::DataVariant,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let data_members = program.data_members(data_definition);
@@ -388,7 +387,7 @@ fn validate_payload_field_names(
 /// Payload-field/common-field name collisions are rejected separately in
 /// `validate_payload_field_names` (member access searches both namespaces).
 fn validate_data_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &typed_trees::data::DataDefinition,
     data_members: &[DataMember],
     diagnostics: &mut Vec<Diagnostic>,

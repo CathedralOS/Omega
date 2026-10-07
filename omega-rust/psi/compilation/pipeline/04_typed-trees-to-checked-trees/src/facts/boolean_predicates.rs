@@ -13,10 +13,7 @@ pub(crate) use paths::{
     EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
 };
 use symbols::SymbolHandle;
-use typed_trees::{
-    TypedTrees,
-    types::{PrimitiveType, TypeReferenceHandle},
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BoundPredicate {
@@ -37,7 +34,7 @@ pub(crate) struct BoundObservation {
 /// Every observation must survive the same write boundary; one stable field
 /// cannot authorize a clause whose other observation was changed or is local.
 pub(crate) fn entry_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -66,7 +63,7 @@ pub(crate) fn entry_expression(
 /// entry telescope. Preserve that distinction when publishing a transported
 /// observation rather than treating a structural index as a scalar index.
 pub(crate) fn entry_scalar(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     position: u32,
     path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
@@ -106,7 +103,7 @@ pub(crate) fn entry_scalar(
 /// Bind an invocation formula once. Dense primitive positions and authored
 /// structural positions deliberately use separate lookups.
 pub(crate) fn bind_entry(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     expression: Boolean,
 ) -> Option<BoundPredicate> {
@@ -126,7 +123,7 @@ pub(crate) fn bind_entry(
 /// Bind checked scalar coordinates against the exact supplied telescope. The
 /// caller retains declaration ownership separately from actual call positions.
 pub(crate) fn bind_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
@@ -205,7 +202,7 @@ pub(crate) fn bind_parameters(
 /// The leaf bindings name current storage, including named-state parameters
 /// and saved locals; they make no claim about invocation-entry identity.
 pub(crate) fn bind_current_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -348,7 +345,7 @@ pub(crate) fn seed(
 }
 
 pub(crate) fn retained(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
 ) -> Vec<BoundPredicate> {

@@ -3,12 +3,14 @@
 
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic> {
+pub(super) fn check(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -174,7 +176,7 @@ fn positional_operator_parameters(
 }
 
 fn check_destination(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
@@ -277,7 +279,7 @@ fn check_destination(
 }
 
 fn result_primitive(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     state: symbols::SymbolHandle,
@@ -360,7 +362,10 @@ fn result_primitive(
     }
 }
 
-fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+fn primitive(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained { base_type, .. } => primitive(program, *base_type),
         _ => program.primitive_type_reference(reference),

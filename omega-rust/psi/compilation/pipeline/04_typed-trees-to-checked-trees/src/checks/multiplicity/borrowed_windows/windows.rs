@@ -39,7 +39,7 @@ impl BorrowedStorageWindows {
     /// window state that checks reads, moves, invocations and restoration.
     pub(in crate::checks::multiplicity) fn replacement_death(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -138,7 +138,7 @@ impl BorrowedStorageWindows {
     /// recorded.
     pub(in crate::checks::multiplicity) fn open(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -227,7 +227,7 @@ impl BorrowedStorageWindows {
     /// whole-owner moves (empty paths) the borrowed gate never sees.
     pub(in crate::checks::multiplicity) fn refuse_move_over_open(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -295,7 +295,7 @@ impl BorrowedStorageWindows {
 
     pub(in crate::checks::multiplicity) fn check_use(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -338,7 +338,7 @@ impl BorrowedStorageWindows {
     /// exact type. Any other overlapping store touches absent storage.
     pub(in crate::checks::multiplicity) fn check_repair(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],

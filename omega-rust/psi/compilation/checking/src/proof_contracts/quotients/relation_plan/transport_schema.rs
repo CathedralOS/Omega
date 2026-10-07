@@ -23,7 +23,6 @@ use super::theorem_schema::{
 use super::theorem_schema_verification::{VerifiedTheoremParameter, verify_parameters};
 use super::{DirectLiftRuntimeCorrespondence, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -50,7 +49,7 @@ pub(in crate::proof_contracts::quotients) struct VerifiedForwardPreconditionTran
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn verify_forward_precondition_transport_schema(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     representative: &RepresentativeTelescope,
@@ -216,7 +215,7 @@ pub(super) fn verify_forward_precondition_transport_schema(
 }
 
 fn exact_theorem_state<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     theorem: &SelectedTheoremTelescope,
 ) -> Result<&'a State, RelationPlanError> {
     let mut matches = program

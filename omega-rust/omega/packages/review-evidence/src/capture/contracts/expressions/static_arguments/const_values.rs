@@ -29,7 +29,7 @@ pub(super) fn project_named_const_static_argument(
         return Err(rejected("with a malformed canonical value encoding"));
     };
     validation::validate_exact_const_value_encoding(
-        &compilation.typed,
+        compilation.checking_input,
         declaration.declared_type,
         encoding,
     )

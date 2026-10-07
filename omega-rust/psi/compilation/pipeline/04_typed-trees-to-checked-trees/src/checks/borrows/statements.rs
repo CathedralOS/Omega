@@ -13,7 +13,7 @@ use super::overlap::{
 };
 
 pub(super) fn check_statement_borrows<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     stated_premises: &[StatedOrderingPremise],
@@ -282,7 +282,7 @@ pub(super) fn check_statement_borrows<'p>(
 /// unclosed or stored carriers retain the full run; a syntactic jump alone is
 /// not release evidence.
 fn check_call_mutation_borrows<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
@@ -421,7 +421,7 @@ fn check_call_mutation_borrows<'p>(
 /// call belongs to, less the local observations a named jump's source-state
 /// exit closes before its successor runs.
 fn loans_live_at_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &checked_trees::BorrowCallFact,
@@ -463,7 +463,7 @@ pub(super) struct LocalJump<'program> {
 }
 
 pub(super) fn local_jump<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
 ) -> Option<LocalJump<'program>> {
@@ -488,7 +488,7 @@ pub(super) fn local_jump<'program>(
 /// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
 /// loans out of this judgment: their successor use needs its own correspondence.
 pub(super) fn source_exiting_without_local_loan_carriers<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
 ) -> Option<&'program typed_trees::state::State> {
@@ -583,7 +583,7 @@ pub(super) fn carried_authority(
 }
 
 pub(super) fn local_loan_ends_before_successor(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     flow: &FlowStateFact,
     source: &typed_trees::state::State,

@@ -4,14 +4,13 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
 };
 
 pub(crate) struct StateValueScope<'program, 'symbols> {
-    pub(crate) program: &'program TypedTrees,
+    pub(crate) program: &'program dyn crate::CheckingInput,
     pub(crate) machine: &'program Machine,
     pub(crate) state: &'program State,
     pub(crate) symbols: &'symbols TopLevelSymbols<'program>,

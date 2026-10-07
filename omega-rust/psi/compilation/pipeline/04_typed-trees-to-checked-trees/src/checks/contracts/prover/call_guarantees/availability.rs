@@ -11,7 +11,6 @@ use crate::semantic::calls::CallSite;
 use checked_trees::FlowStateFact;
 use facts::{ContractFactKind, FactOrigin, FactPayload, FactPlan, PlaceRoot, ProgramPoint};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::state::State;
 
@@ -28,7 +27,7 @@ impl AvailableGuarantee<'_> {
 
     pub(in crate::checks) fn has_builtin_meaning(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
         self.invocation
@@ -51,7 +50,7 @@ impl AvailableGuarantee<'_> {
     /// A projection rooted at a different callable's result does not qualify.
     pub(in crate::checks) fn result_segments(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<Vec<facts::PlaceSegment>> {
         let result = validation::reserved_result_place(program, expression)?;
@@ -65,7 +64,7 @@ impl AvailableGuarantee<'_> {
     /// operands carry no projection.
     pub(in crate::checks) fn actual_projection(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
         if matches!(
@@ -86,7 +85,7 @@ impl AvailableGuarantee<'_> {
     /// Returns the binding symbol and whether that storage is mutable.
     pub(in crate::checks) fn result_binding(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: &[facts::FactContextHandle],
         state: &State,
@@ -122,7 +121,7 @@ impl AvailableGuarantee<'_> {
 }
 
 pub(in crate::checks) fn available<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
@@ -208,7 +207,7 @@ pub(in crate::checks) fn available<'program>(
 }
 
 fn owns_guarantee(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     supplied: &Invocation<'_>,
     source: arena::Handle<typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,

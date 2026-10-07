@@ -9,6 +9,13 @@ Capture consumes the immutable `CheckedCompilation` product directly from
 coordinator or Build evaluator; compiler execution is a test-only dependency for
 constructing fixtures.
 
+Aggregate policy capture borrows the supplied semantic program in one
+`CheckingContext`, carried through `PackageReviewInput` into its read-only
+queries. Standalone projections use the bare program; neither path discovers
+memos through a thread-local scope. The context owns scratch only: it does not
+assert that the supplied candidate matches compiler custody or authorize it.
+Candidate/custody joins and projection checks keep their original owners.
+
 Start at [`src/lib.rs`](src/lib.rs), then follow the question you are asking:
 
 ```text

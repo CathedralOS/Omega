@@ -10,7 +10,7 @@ use super::guards::seed_guard_facts;
 /// their own declared preconditions and facts transported by incoming edges,
 /// never a replay of a different state's same-spelled parameter expressions.
 pub(super) fn seed_state_requires(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     machine: &Machine,
     state: &State,
@@ -40,7 +40,7 @@ pub(super) fn seed_state_requires(
 /// by range seeding and borrow evidence. Inherited or foreign-state facts
 /// are not implicitly re-established here.
 pub(in crate::checks) fn state_requires_facts<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
 ) -> impl Iterator<Item = arena::Handle<typed_trees::domain::ProofFact>> + 'program {
@@ -81,7 +81,7 @@ pub(in crate::checks) fn state_requires_facts<'program>(
 /// Exclusive ranges carry no such guarantee (`a..a` is empty), so nothing is
 /// seeded for them here.
 fn seed_subslice_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
@@ -102,7 +102,7 @@ fn seed_subslice_facts(
 }
 
 fn seed_index_proofs_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     expression: ExpressionHandle,
 ) {

@@ -6,7 +6,6 @@
 //! Keeping separate walkers previously lost match guards in both consumers
 //! and short-circuit guards in call-argument collection.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableCallExpression,
     TableIndexedExpression,
@@ -31,7 +30,7 @@ pub(super) trait ExpressionTransferSink {
 }
 
 pub(super) struct ExpressionTransfer<'program, 'frames> {
-    pub program: &'program TypedTrees,
+    pub program: &'program dyn ::validation::CheckingInput,
     pub machine: &'program Machine,
     pub state: &'frames State,
     pub call_frames: Option<&'frames CallFrameResolver<'program>>,

@@ -2,11 +2,11 @@
 //! constraint and payload sensitivity, and schema marking.
 
 use super::proof_obligation_key;
-use crate::test_program::bounded_value;
 use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, GuardedTransitionObligation, IntegerRange,
     ProofConstraint, ProofObligation, ProofPlan,
 };
+use crate::test_program::bounded_value;
 use numerics::bignum::BigInt;
 use numerics::literals::IntegerLiteral;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};

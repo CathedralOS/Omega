@@ -11,12 +11,11 @@ use checked_trees::{
 };
 use facts::PlaceRoot;
 use language_semantics::ReferenceAccess;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 pub(in crate::checks::borrows) fn resolve(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement: &FlowStatementFact,

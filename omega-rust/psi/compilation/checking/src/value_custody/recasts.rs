@@ -76,7 +76,6 @@ pub use literal_indexed_footprints::{
 pub(crate) use representation_types::{exact_primitive_type, exact_scalar_representation_type};
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
@@ -85,7 +84,10 @@ use crate::value_custody::recasts::recast_judgments::{
     judge_scalar_recast, report_unspelled_reference_pun, strip_mutable,
 };
 
-pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_recasts(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     // The blessed positions: direct initializers of reference-typed lets
     // (mirrors the D14 literal gate's shape -- collect the legal roots,
     // then sweep the whole expression table for strays).
@@ -233,7 +235,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
 /// stays outside the walk: a recast there produces no runtime borrow, so the
 /// positional sweep below keeps it fenced.
 fn statement_expression_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     roots: &mut Vec<ExpressionHandle>,
 ) {

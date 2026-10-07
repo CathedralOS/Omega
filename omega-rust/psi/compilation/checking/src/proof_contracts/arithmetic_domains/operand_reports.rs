@@ -4,7 +4,6 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_literal_value, primitive_range,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -18,7 +17,7 @@ use typed_trees::state::State;
 /// is an integer literal outside its range; two-place, float/bool/text, and in-range
 /// pairings are skipped. Sibling of the decision-17 narrowing obligation for stores.
 pub(crate) fn report_out_of_range_comparison_literal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     operator: BinaryOperator,
@@ -79,7 +78,7 @@ pub(crate) fn report_out_of_range_comparison_literal(
 /// carriers, shifts take an independent count, and anonymous values land at
 /// their typed peer. None of these type checks supplies a range fact.
 pub(crate) fn report_mismatched_integer_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     operator: BinaryOperator,

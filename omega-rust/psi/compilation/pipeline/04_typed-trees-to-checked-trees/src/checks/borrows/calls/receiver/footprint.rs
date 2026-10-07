@@ -5,7 +5,6 @@
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
-use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
 use super::super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
@@ -20,7 +19,7 @@ pub(in crate::checks::borrows) struct ReceiverSummaries<'cache> {
 }
 
 pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loans<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
@@ -146,7 +145,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
 /// and independent replay. Only one exact retained parent access can use this
 /// judgment, and ordinary returning calls retain their operand exclusivity.
 pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
@@ -159,7 +158,7 @@ pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
 /// The one RETAINED mutable access naming `call`'s subject parent, if exactly
 /// one does. A completed access is never it: the filter below drops them.
 fn retained_subject_access(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
@@ -203,7 +202,7 @@ fn retained_subject_access(
 /// Only a local state jump transfers the current activation's data parent.
 /// Returning calls establish ordinary loans, independent of callee footprints.
 fn whole_mutable_jump_machine<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
 ) -> Option<&'p typed_trees::machine::Machine> {
@@ -262,7 +261,7 @@ fn captured_places(places: Vec<CanonicalPlace>) -> Vec<CapturedPlace> {
         .collect()
 }
 
-fn place_label(program: &TypedTrees, place: &CapturedPlace) -> String {
+fn place_label(program: &dyn ::validation::CheckingInput, place: &CapturedPlace) -> String {
     facts::canonical_place_label_from_parts(
         program,
         facts::PlaceRoot::Symbol(place.root_symbol),

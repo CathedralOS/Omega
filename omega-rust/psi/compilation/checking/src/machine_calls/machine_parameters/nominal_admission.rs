@@ -2,7 +2,6 @@ use super::type_refinement::{TypeBinding, required_type_matches_exact};
 use super::{MachineStateIndex, machine_and_state, machine_parameter_contract_definition};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{MachineParameterContract, TypeParameter};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +14,7 @@ pub(super) struct AdmittedNominalSelection {
 }
 
 pub(super) fn validate_nominal_machine_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
     generic_owner: &str,
     parameter: &TypeParameter,

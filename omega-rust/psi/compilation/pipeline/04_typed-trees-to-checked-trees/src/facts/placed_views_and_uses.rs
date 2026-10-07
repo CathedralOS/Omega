@@ -1,9 +1,7 @@
 //! Checked placed view inputs and nominal machine use facts.
 
-use typed_trees::TypedTrees;
-
 pub(crate) fn build_checked_placed_view_inputs(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<checked_trees::CheckedPlacedViewInput> {
     let mut inputs = Vec::new();
     for machine in program.machines() {
@@ -51,7 +49,7 @@ pub(crate) fn build_checked_placed_view_inputs(
 }
 
 pub(crate) fn build_nominal_machine_use_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     nominal_machine_uses: Vec<validation::ValidatedNominalMachineUse>,
     contract_plans: &checked_trees::MachineContractPlans,
 ) -> Result<checked_trees::NominalMachineUseFacts, Vec<diagnostics::Diagnostic>> {

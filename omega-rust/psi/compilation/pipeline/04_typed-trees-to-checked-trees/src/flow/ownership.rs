@@ -34,7 +34,7 @@ pub(crate) use place_types::{
 use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -202,7 +202,7 @@ pub(super) fn append_statement_ownership_events(
 /// producer. The discovered vocabulary is private to checked lowering; only
 /// normalized permission events are published.
 pub(crate) fn discover_state_move_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     operators: &checked_trees::CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,

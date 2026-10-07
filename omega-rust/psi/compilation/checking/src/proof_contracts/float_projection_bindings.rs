@@ -13,20 +13,18 @@ mod conversion_contracts;
 pub(crate) mod semantic_operations;
 pub(crate) mod semantic_values;
 pub use conversion_contracts::{
-    float_format_conversion_contract,
-    float_integer_conversion_bounds, float_integer_conversion_contract,
-    numeric_float_conversion_contract,
+    float_format_conversion_contract, float_integer_conversion_bounds,
+    float_integer_conversion_contract, numeric_float_conversion_contract,
 };
 
 use diagnostics::Diagnostic;
 use numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};
 use numerics::float_semantics::FloatFormat;
-use typed_trees::TypedTrees;
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
 fn has_exact_toolchain_float_projection_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     projection: FloatProjectionOperation,
 ) -> bool {
@@ -54,7 +52,7 @@ fn has_exact_toolchain_float_projection_owner(
 /// identity and source ownership. Callers must not grant D40 semantics from a
 /// local same-named data declaration.
 pub fn is_exact_toolchain_float_meaning_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
@@ -82,7 +80,7 @@ pub fn is_exact_toolchain_float_meaning_type(
 }
 
 fn has_exact_toolchain_float_meaning_result(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> bool {
     is_exact_toolchain_float_meaning_type(program, operator.return_type)
@@ -93,7 +91,7 @@ fn has_exact_toolchain_float_meaning_result(
 /// signature shape, and the toolchain-owned `FloatMeaning` result all bind as
 /// one closed catalog row.
 pub fn exact_toolchain_float_projection_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
     projection: FloatProjectionOperation,
 ) -> Option<PrimitiveType> {
@@ -104,7 +102,7 @@ pub fn exact_toolchain_float_projection_primitive(
 /// Recognize the same sealed declaration while retaining the exact rooted-
 /// checker contract/catalog tuple which must survive into the artifact.
 pub fn exact_toolchain_float_projection_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
     projection: FloatProjectionOperation,
 ) -> Option<(PrimitiveType, FloatProjectionContractIdentity)> {
@@ -134,7 +132,7 @@ pub fn exact_toolchain_float_projection_contract(
 }
 
 pub(crate) fn validate_float_projection_operator_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     semantic_operations::validate_float_semantic_operation_bindings(program, diagnostics);
@@ -181,13 +179,11 @@ pub(crate) fn validate_float_projection_operator_bindings(
 /// `symbol` resolves to a declaration inside a toolchain-owned source file at
 /// `relative` — the source-ownership half of the sealed-type recognizers.
 fn symbol_in_toolchain_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     relative: &std::path::Path,
 ) -> bool {
-    relative
-        .to_str()
-        .is_some_and(|relative| {
-            semantic_operations::symbol_is_declared_in_sealed_source(program, symbol, relative)
-        })
+    relative.to_str().is_some_and(|relative| {
+        semantic_operations::symbol_is_declared_in_sealed_source(program, symbol, relative)
+    })
 }

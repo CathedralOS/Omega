@@ -40,12 +40,12 @@ use super::{
     CheckedStructuralUnitControlPlans, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, MachineSupplyMode, Multiplicity,
-    PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle, TypedTrees,
+    PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 pub(crate) fn build_checked_structural_unit_control_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedStructuralUnitControlPlans {

@@ -6,7 +6,7 @@
 
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment,
+    PrimitiveType, ProofFact, SignatureContractKind, State, ValueEnvironment,
     declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
@@ -35,7 +35,7 @@ use projected_facts::ProjectedOperand;
 // Sibling Requires readers must recover the comparison from the same exact
 // expression whose declaration occurrence is checked by the meaning owner.
 pub(super) fn has_builtin_ordering(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -49,7 +49,7 @@ pub(super) fn has_builtin_ordering(
 }
 
 pub(super) fn has_builtin_equality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -63,7 +63,7 @@ pub(super) fn has_builtin_equality(
 }
 
 pub(super) fn has_builtin_bound_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -79,7 +79,7 @@ pub(super) fn has_builtin_bound_arithmetic(
 /// relations additionally seed their existing proof carriers. Other shapes are
 /// ignored (sound -- a missing bound just falls back to the type width).
 pub(crate) fn requires_value_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry_state: &State,
 ) -> ValueEnvironment {
@@ -123,97 +123,96 @@ pub(crate) fn requires_value_environment(
         }
     };
     each_available_comparison(&mut |expression| {
-            if let Some((name, low, high)) = comparison_bound(program, expression) {
-                let entry = bounds.entry(name).or_insert((None, None));
-                // Intersect across facts: tightest lower (max) and upper (min).
-                if let Some(low) = low {
-                    entry.0 = Some(entry.0.map_or(low, |existing| existing.max(low)));
-                }
-                if let Some(high) = high {
-                    entry.1 = Some(entry.1.map_or(high, |existing| existing.min(high)));
-                }
+        if let Some((name, low, high)) = comparison_bound(program, expression) {
+            let entry = bounds.entry(name).or_insert((None, None));
+            // Intersect across facts: tightest lower (max) and upper (min).
+            if let Some(low) = low {
+                entry.0 = Some(entry.0.map_or(low, |existing| existing.max(low)));
             }
+            if let Some(high) = high {
+                entry.1 = Some(entry.1.map_or(high, |existing| existing.min(high)));
+            }
+        }
     });
     let mut environment = ValueEnvironment::new();
     for (name, (low, high)) in bounds {
         environment.set(name, Interval { low, high });
     }
     each_available_comparison(&mut |expression| {
-            let ExpressionNode::Binary(comparison) =
-                program.expression_table.expression(expression)
-            else {
-                return;
-            };
-            if let Some((left, right)) = joint_add_upper_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-            ) {
-                environment.mark_joint_add_upper_bound(left, right);
-            }
-            if let Some((left, right)) = joint_add_lower_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-            ) {
-                environment.mark_joint_add_lower_bound(left, right);
-            }
-            if let Some((left, right)) =
-                joint_subtract_guard(program, machine, Some(entry_state), comparison)
-            {
-                environment.mark_joint_subtract_bound(left, right);
-            }
-            if let Some((left, right)) = signed_joint_subtract_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-                true,
-            ) {
-                environment.mark_signed_joint_subtract_lower_bound(left, right);
-            }
-            if let Some((left, right)) = signed_joint_subtract_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-                false,
-            ) {
-                environment.mark_signed_joint_subtract_upper_bound(left, right);
-            }
-            if let Some((left, right)) = joint_multiply_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-            ) {
-                environment.mark_joint_multiply_bound(left, right);
-            }
-            if let Some((left, right)) = signed_joint_multiply_lower_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-            ) {
-                environment.mark_signed_joint_multiply_lower_bound(left, right);
-            }
-            if let Some((left, right)) = signed_joint_multiply_upper_guard(
-                program,
-                machine,
-                Some(entry_state),
-                &environment,
-                comparison,
-            ) {
-                environment.mark_signed_joint_multiply_upper_bound(left, right);
-            }
+        let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
+        else {
+            return;
+        };
+        if let Some((left, right)) = joint_add_upper_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+        ) {
+            environment.mark_joint_add_upper_bound(left, right);
+        }
+        if let Some((left, right)) = joint_add_lower_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+        ) {
+            environment.mark_joint_add_lower_bound(left, right);
+        }
+        if let Some((left, right)) =
+            joint_subtract_guard(program, machine, Some(entry_state), comparison)
+        {
+            environment.mark_joint_subtract_bound(left, right);
+        }
+        if let Some((left, right)) = signed_joint_subtract_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+            true,
+        ) {
+            environment.mark_signed_joint_subtract_lower_bound(left, right);
+        }
+        if let Some((left, right)) = signed_joint_subtract_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+            false,
+        ) {
+            environment.mark_signed_joint_subtract_upper_bound(left, right);
+        }
+        if let Some((left, right)) = joint_multiply_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+        ) {
+            environment.mark_joint_multiply_bound(left, right);
+        }
+        if let Some((left, right)) = signed_joint_multiply_lower_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+        ) {
+            environment.mark_signed_joint_multiply_lower_bound(left, right);
+        }
+        if let Some((left, right)) = signed_joint_multiply_upper_guard(
+            program,
+            machine,
+            Some(entry_state),
+            &environment,
+            comparison,
+        ) {
+            environment.mark_signed_joint_multiply_upper_bound(left, right);
+        }
     });
     arrivals::seed_state_requirements(program, machine, entry_state, None, &mut environment);
     environment
@@ -223,7 +222,7 @@ pub(crate) fn requires_value_environment(
 /// bounds is `None` (open). `None` when the fact is not a simple
 /// `name <OP> literal` / `literal <OP> name` integer comparison.
 pub(super) fn comparison_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(String, Option<i64>, Option<i64>)> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -312,7 +311,7 @@ fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
 /// expression. The operator's selected meaning, not its spelling, establishes
 /// short-circuit execution. The returned environment never escapes that operand.
 pub(crate) fn short_circuit_operand_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -355,7 +354,7 @@ pub(crate) fn short_circuit_operand_environment(
 /// condition analysis retains polarity, selected operator meaning, and the
 /// intersection with existing bounds. Unknown conditions contribute no facts.
 pub(crate) fn guard_narrowed_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     guard: &typed_trees::statement::TransitionGuardNode,
@@ -377,7 +376,7 @@ pub(crate) fn guard_narrowed_environment(
 /// `-> countdown(n - 1)` may assume n >= 1). Returns `base` refined by the
 /// negated guard; same simple-comparison leaves as the arm narrowing.
 pub(crate) fn fall_through_narrowed_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     guard: &typed_trees::statement::TransitionGuardNode,
@@ -428,7 +427,7 @@ pub(crate) fn fall_through_narrowed_environment(
 /// attribute which side holds, so it leaves the environment unchanged (sound). Leaves
 /// are the existing simple `place <OP> literal` comparisons.
 pub(super) fn narrow_environment_by_condition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -470,7 +469,7 @@ pub(super) fn narrow_environment_by_condition(
 /// actual operation and operands, including equality against a saved subject.
 /// Callers still invalidate facts across writes after that subject was saved.
 pub(super) fn narrow_environment_by_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -780,7 +779,7 @@ pub(super) fn narrow_environment_by_comparison(
 /// declared `[a..=b]` range constraint, retaining the bounds the guard
 /// leaves open.
 fn intersect_declared_place_ranges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     place_expr: ExpressionHandle,
@@ -803,7 +802,7 @@ fn intersect_declared_place_ranges(
 /// Both declared operand types of a guard pair must name the same primitive
 /// with Exact arithmetic; yields that primitive.
 fn shared_exact_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -825,7 +824,7 @@ fn shared_exact_primitive(
 /// right operand shares `left`'s declared primitive; yields the binary node
 /// and that primitive.
 fn exact_bound_binary<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -849,7 +848,7 @@ fn exact_bound_binary<'program>(
 /// operand shares `left`'s declared primitive; yields the subtraction node,
 /// the shared primitive, and the right operand's place path.
 fn exact_place_subtract<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -859,8 +858,14 @@ fn exact_place_subtract<'program>(
     PrimitiveType,
     String,
 )> {
-    let (subtract, left_primitive) =
-        exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Subtract)?;
+    let (subtract, left_primitive) = exact_bound_binary(
+        program,
+        machine,
+        state,
+        left,
+        bound,
+        BinaryOperator::Subtract,
+    )?;
     let right_path = place_path(program, subtract.right)?;
     Some((subtract, left_primitive, right_path))
 }
@@ -873,7 +878,7 @@ fn exact_place_subtract<'program>(
 /// An Exact unsigned ceiling below MAX also suffices when prior facts prove
 /// that its subtraction of `right` is total.
 fn joint_add_upper_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -940,7 +945,7 @@ fn joint_add_upper_guard(
 /// the bound subtraction total, and the comparison is exactly the lower
 /// no-underflow condition for `left + right`.
 fn joint_add_lower_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -970,7 +975,7 @@ fn joint_add_lower_guard(
 /// This ordered relation is exactly the no-underflow condition for
 /// `left - right`; unlike addition bounds, its operand order is significant.
 fn joint_subtract_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     comparison: &typed_trees::expression::TableBinaryExpression,
@@ -999,7 +1004,7 @@ fn joint_subtract_guard(
 /// The sign fact makes the bound addition total, and the comparison is
 /// exactly that side's representability condition for the subtraction.
 fn signed_joint_subtract_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1050,7 +1055,7 @@ fn signed_joint_subtract_guard(
 /// fact makes the bound division defined, and the comparison is exactly the
 /// no-overflow condition for `left * right`.
 fn joint_multiply_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1090,7 +1095,7 @@ fn joint_multiply_guard(
 /// A positive factor uses `MIN / right <= left`; a factor at most `-2` uses
 /// `MAX / right <= left` because dividing reverses the product inequalities.
 fn signed_joint_multiply_lower_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1108,7 +1113,7 @@ fn signed_joint_multiply_lower_guard(
 /// A positive factor uses `left <= MAX / right`; a factor at most `-2` uses
 /// `left <= MIN / right`.
 fn signed_joint_multiply_upper_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1123,7 +1128,7 @@ fn signed_joint_multiply_upper_guard(
 }
 
 fn signed_joint_multiply_quotient_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1169,7 +1174,7 @@ fn signed_primitive_bound(primitive: PrimitiveType, minimum: bool) -> Option<i64
 }
 
 fn signed_joint_multiply_negation_guard(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     comparison: &typed_trees::expression::TableBinaryExpression,
@@ -1208,7 +1213,7 @@ fn signed_joint_multiply_negation_guard(
 /// argument places and bounds the second. Anything else is skipped (sound --
 /// fewer facts).
 pub(crate) fn seed_out_param_ensures(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     call: &typed_trees::statement::TableCall,
@@ -1247,7 +1252,7 @@ pub(crate) fn seed_out_param_ensures(
 
 /// A boundary call's formals mapped onto its caller's arguments.
 struct EnsuresProjection<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine: &'a Machine,
     state: Option<&'a State>,
     parameters: &'a [&'a typed_trees::signature::StateParameter],
@@ -1335,7 +1340,7 @@ impl EnsuresProjection<'_> {
 /// program-wide resolver: building one costs a symbol table per machine, so a
 /// resolver per queried machine made validation quadratic in machine count.
 pub(crate) fn incoming_guard_environments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&crate::CallFrameResolver>,
 ) -> Vec<(symbols::SymbolHandle, ValueEnvironment)> {
@@ -1352,7 +1357,7 @@ pub(crate) fn incoming_guard_environments(
 
 /// Query one state without retaining a whole-machine validation batch.
 pub(crate) fn incoming_guard_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     frames: Option<&crate::CallFrameResolver>,

@@ -12,7 +12,7 @@ use self::matching::matching_mutation_for_fact_place;
 /// Query the same storage/dependent-domain invalidation law without publishing
 /// a second flow trace. Cleanup selections carry existing context identities.
 pub(crate) fn context_survives_place_mutations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
     context: facts::FactContextHandle,
@@ -29,7 +29,7 @@ pub(crate) fn context_survives_place_mutations(
 }
 
 fn visit_context_invalidations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
     context: facts::FactContextHandle,
@@ -67,7 +67,7 @@ fn visit_context_invalidations(
 }
 
 pub(crate) fn filter_contexts_after_place_mutations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
     semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,

@@ -8,13 +8,13 @@
 //! the entry-relative ranking.
 use super::{
     ExpressionHandle, ExpressionNode, Machine, RankingRangeMeasure, RankingRangePremises,
-    TypedTrees, exact_integer_parameter,
+    exact_integer_parameter,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::TableRangeExpression;
 
 pub(super) fn required_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     range: &TableRangeExpression,
     measure: RankingRangeMeasure,
@@ -45,7 +45,7 @@ pub(super) fn required_symbols(
 /// slot still denotes the arrival value. An absent range contributes no
 /// endpoint; the caller decides whether the whole judgment is then supported.
 pub(super) fn premise_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     range: Option<&TableRangeExpression>,
     measure: RankingRangeMeasure,
@@ -77,7 +77,7 @@ pub(super) fn premise_symbols(
 }
 
 fn collect(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbols: &mut Vec<SymbolHandle>,
     depth: usize,

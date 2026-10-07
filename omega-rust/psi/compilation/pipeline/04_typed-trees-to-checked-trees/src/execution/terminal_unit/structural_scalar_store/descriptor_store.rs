@@ -9,7 +9,7 @@
 //! by comparisons and predicate scans. This operation retains the exact source
 //! expression; source loans and Terminal replay prove backing lifetime, while
 //! a separate current-value obligation proves the slot's byte predicates.
-use super::super::{CheckFacts, TypedTrees};
+use super::super::CheckFacts;
 use super::destination::{Destination, StoreRoots};
 use super::value::AssignmentSource;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -27,7 +27,7 @@ pub(in crate::execution::terminal_unit) struct DescriptorSlot<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -75,7 +75,7 @@ pub(super) fn store(
 /// for an authored parameter position the source reads.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn descriptor_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

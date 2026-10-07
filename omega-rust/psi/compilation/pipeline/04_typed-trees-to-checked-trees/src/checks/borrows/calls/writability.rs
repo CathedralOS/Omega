@@ -7,7 +7,7 @@ use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
 
 pub(super) fn check_mutable_argument_writability(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,

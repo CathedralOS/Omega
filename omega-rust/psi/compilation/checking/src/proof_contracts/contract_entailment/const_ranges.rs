@@ -5,7 +5,6 @@
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
-    TypedTrees,
 };
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
@@ -16,7 +15,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// The `[low..=high]` premise pair `identity`'s declared integer bounds
 /// carry, when the type reference enforces a closed integer range.
 fn push_enforced_type_bound_premises(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     identity: &str,
     premises: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
@@ -42,12 +41,11 @@ fn push_enforced_type_bound_premises(
 }
 
 fn binder<'program>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &'program [TypeParameter],
     expression: ExpressionHandle,
 ) -> Option<&'program TypeParameter> {
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
     else {
         return None;
     };
@@ -61,7 +59,7 @@ fn binder<'program>(
 }
 
 pub(crate) fn const_range_bound_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) -> bool {
@@ -80,12 +78,12 @@ pub(crate) fn const_range_bound_is_supported(
 /// The endpoint binds as a whole against `0..=N` inference; no operand shape
 /// beyond these forms is const-bound.
 fn const_bound_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) -> bool {
     fn leaves_are_static(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         parameters: &[TypeParameter],
         expression: ExpressionHandle,
     ) -> bool {
@@ -107,7 +105,7 @@ fn const_bound_expression(
         }
     }
     fn contains_binder(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         parameters: &[TypeParameter],
         expression: ExpressionHandle,
     ) -> bool {
@@ -129,7 +127,7 @@ fn const_bound_expression(
 }
 
 fn term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     _parameters: &[TypeParameter],
     engine: &mut Engine<'_>,
     expression: ExpressionHandle,
@@ -156,7 +154,7 @@ fn inclusive_maximum(value: Polynomial, end_inclusive: bool) -> Polynomial {
 /// Unsupported values are not interpreted mathematically: executable formation
 /// and ordinary narrowing remain the arithmetic-domain owner's responsibility.
 pub(crate) fn symbolic_range_contains(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     return_type: TypeReferenceHandle,
@@ -243,7 +241,7 @@ pub(crate) fn symbolic_range_contains(
 /// from the ordinary write-invalidated environment, never reread entry contracts
 /// as though their subjects could not have changed.
 fn scope_engine<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: Option<&ValueEnvironment>,
@@ -336,7 +334,7 @@ fn contains(engine: &Engine<'_>, required: &[Polynomial; 2], actual: &[Polynomia
 }
 
 fn value_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -344,7 +342,10 @@ fn value_type(
     crate::value_custody::places::declared_place_type_raw(program, machine, state, value)
 }
 
-fn unreferenced(program: &TypedTrees, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
+fn unreferenced(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
     while let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     {
@@ -354,7 +355,7 @@ fn unreferenced(program: &TypedTrees, mut reference: TypeReferenceHandle) -> Typ
 }
 
 fn scoped_value_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: Option<&State>,
     endpoint: ExpressionHandle,
 ) -> bool {
@@ -377,7 +378,7 @@ fn scoped_value_bound(
 }
 
 fn has_const_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     entry: Option<&State>,
     reference: TypeReferenceHandle,
@@ -399,7 +400,7 @@ fn has_const_range(
 }
 
 fn value_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     engine: &mut Engine<'_>,
@@ -510,7 +511,7 @@ fn value_bounds(
 /// A call's own selected const tuple closes its declared bounds. Destination
 /// annotations never supply a missing argument or improve the returned range.
 pub(crate) fn selected_const_call_result_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -542,7 +543,7 @@ pub(crate) fn selected_const_call_result_bounds(
 }
 
 fn selected_term(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     engine: &mut Engine<'_>,
     caller: &Machine,
     expression: ExpressionHandle,
@@ -569,7 +570,7 @@ fn selected_term(
 }
 
 fn static_const_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     argument: &StaticMachineArgument,
 ) -> Option<Option<Polynomial>> {
@@ -670,7 +671,7 @@ fn static_const_value(
 
 #[allow(clippy::too_many_arguments)]
 fn call_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,
     engine: &mut Engine<'_>,
@@ -890,7 +891,7 @@ fn call_bindings(
 /// declaration-envelope behavior.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_const_range_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,
     target: SymbolHandle,
@@ -916,7 +917,7 @@ pub(crate) fn validate_const_range_call(
 /// the realized argument at this exact call.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_const_range_call_in_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: Option<&State>,
     target: SymbolHandle,

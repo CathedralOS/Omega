@@ -4,7 +4,7 @@
 use super::*;
 
 pub(super) fn projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
@@ -82,7 +82,7 @@ pub(super) fn projection(
 }
 
 pub(super) fn predecessor_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     recast: &crate::RecastSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {

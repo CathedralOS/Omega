@@ -59,7 +59,7 @@ fn same_place_set(
 /// (`let s = r`), recast chains, and later reassignments of the reference
 /// local to the source the route currently captures.
 fn resolve_storage_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
@@ -108,7 +108,7 @@ fn resolve_storage_place(
 
 /// The access of a possibly-constrained reference type.
 fn reference_access(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -124,7 +124,7 @@ fn reference_access(
 /// local the window resolved through). Shared or write-only links cannot
 /// carry a restoration window.
 fn exclusive_storage_chain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -149,7 +149,7 @@ fn exclusive_storage_chain(
 /// storage spells through the receiver, other roots spell their own symbol,
 /// and segments spell as field/index/case projections.
 pub(super) fn place_spelling(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: &typed_trees::machine::Machine,
     _state: &typed_trees::state::State,
     root: facts::PlaceRoot,

@@ -19,14 +19,13 @@ use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
-use crate::execution::terminal_unit::TypedTrees;
 
 use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_identity};
 
 pub(crate) fn structural_computation_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -176,7 +175,7 @@ pub(crate) fn structural_computation_argument(
 /// equal-typed view expression. Its bounds use dense explicit structural
 /// ordinals, which exclude the implicit receiver.
 pub(crate) fn subslice_computation_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -260,7 +259,7 @@ pub(crate) fn subslice_computation_argument(
 }
 
 fn exact_actual(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
@@ -290,7 +289,7 @@ fn exact_actual(
 /// home. Initializer spelling does not select custody; publication independently
 /// rejoins this symbol to its dominating structural establishment.
 pub(crate) fn borrowed_storage_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -572,7 +571,7 @@ pub(crate) fn borrowed_storage_argument(
 /// view's established home. Source and access rules are identical for both
 /// view families; only the carrier test and the type identity differ.
 pub(in crate::execution) fn borrowed_view_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -695,7 +694,7 @@ pub(in crate::execution) fn borrowed_view_argument(
 /// from structural values (`strips_erased_parameter`), and stage 05 replays
 /// that roster, so an erased proof formal occupies no structural slot here.
 fn dense_structural_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     position: usize,
 ) -> Option<u32> {
@@ -715,7 +714,7 @@ fn dense_structural_index(
 /// Copying snapshots contents; affine arguments move at the exact call occurrence.
 /// Neither operation acquires disposal authority from its storage classification.
 fn owned_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     source_symbol: SymbolHandle,
@@ -794,7 +793,7 @@ fn owned_argument(
 /// Borrow rows are an ordered observation roster, not a set of roots. Rebuild
 /// with the existing collector so scalar reads occupy their actual positions.
 fn rejoin_computation_accesses(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -834,7 +833,7 @@ fn rejoin_computation_accesses(
 }
 
 fn plain_primitive_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let TypeReferenceNode::Reference { referee, .. } =
@@ -852,7 +851,7 @@ fn plain_primitive_referent(
 }
 
 pub(super) fn primitive_local_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

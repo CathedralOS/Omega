@@ -2,10 +2,9 @@
 
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, ProofFact,
-    TypedTrees,
 };
 fn proof_builtin_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
     builtin: symbols::BuiltinType,
 ) -> bool {
@@ -23,7 +22,7 @@ fn proof_builtin_type(
 }
 
 fn proof_nat_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
@@ -65,7 +64,10 @@ fn proof_nat_type(
 
 /// Recognize mathematical Int terms without borrowing a machine integer's
 /// carrier or accidentally classifying a comparison as its operand type.
-pub fn proof_integer_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub fn proof_integer_expression(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call)
             if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) =>
@@ -100,7 +102,7 @@ pub fn proof_integer_expression(program: &TypedTrees, expression: ExpressionHand
 /// Land the complete anonymous peer to unbounded Int. Fractional intermediate
 /// values remain exact; a fractional final value cannot become an integer.
 pub(super) fn anonymous_integer_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {
     crate::value_custody::literals::anonymous_numeric_value(
@@ -115,7 +117,7 @@ pub(super) fn anonymous_integer_value(
 }
 
 pub(crate) fn proof_nat_cast(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> bool {
     !cast.form.is_recast()
@@ -129,7 +131,7 @@ pub(crate) fn proof_nat_cast(
 /// Formation is deliberately stricter than ordinary theorem validation:
 /// unknown is not proof, and callers supply only facts preceding this term.
 pub(crate) fn proof_integer_nonnegative(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
 ) -> bool {
@@ -148,7 +150,7 @@ pub(crate) fn proof_integer_nonnegative(
 }
 
 pub(crate) fn validate_proof_integer_casts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -204,7 +206,7 @@ pub(crate) fn validate_proof_integer_casts(
 /// casts need formation checking even though the fact is not an arithmetic
 /// hypothesis understood by this producer.
 pub(crate) fn validate_proof_fact_integer_casts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: &ProofFact,
     hypotheses: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -231,7 +233,7 @@ pub(crate) fn validate_proof_fact_integer_casts(
 /// evaluated by the same exact anonymous-number owner as proof admission;
 /// the portable literal representation retains a canonical sign and magnitude.
 pub fn anonymous_integer_math_literal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<semantic_vocabulary::IntegerMathLiteral> {
     let value = anonymous_integer_value(program, expression)?;

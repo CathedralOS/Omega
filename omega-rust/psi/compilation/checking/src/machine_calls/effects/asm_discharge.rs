@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use language_core::inline_assembly::AsmAuthorityRequirement;
-use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
 /// The privileged-service authority classes an evaluated build supplies to the
@@ -118,7 +117,7 @@ fn authored_admission_fix(requirement: AsmAuthorityRequirement) -> &'static str 
 /// pass unconditionally. A build supplying no class rejects each
 /// authority-bearing emission with its exact missing class.
 pub fn validate_asm_discharge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     admission: AsmAuthorityAdmission,
 ) -> Result<(), Vec<Diagnostic>> {
     if admission == AsmAuthorityAdmission::MACHINE_OWNER {
@@ -157,7 +156,7 @@ pub fn validate_asm_discharge(
 /// owner. Ordinary checked callers propagate that reach through the shared
 /// fixed point; propagation does not discharge instruction authority.
 pub(super) fn validate_asm_intrinsic_declarations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -227,7 +226,7 @@ pub(super) fn validate_asm_intrinsic_declarations(
 /// asm intrinsic answers, including the authority-free hints (`nop`, `pause`,
 /// `wfe`, ...) whose contract admits unconditionally and reaches no service.
 fn statement_asm_intrinsic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Option<(
     &'static str,

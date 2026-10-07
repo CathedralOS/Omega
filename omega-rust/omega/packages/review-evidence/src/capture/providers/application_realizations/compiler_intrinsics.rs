@@ -85,7 +85,7 @@ pub(super) fn project(
         let selection_target = match actual_use.kind {
             selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
                 provider_planning::IntrinsicRequirement::by_symbol(
-                    &compilation.typed,
+                    compilation.checking_input,
                     application.requirement_symbol,
                 )
                 .map_or(application.requirement_symbol, |requirement| {
@@ -128,11 +128,13 @@ pub(super) fn project(
                             "implicit application lost its exact source use",
                         )]
                     })?;
-                source_use.operands(&compilation.typed).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "implicit application has invalid Match arm custody",
-                    )]
-                })?;
+                source_use
+                    .operands(compilation.checking_input)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "implicit application has invalid Match arm custody",
+                        )]
+                    })?;
                 let typed_trees::expression::ExpressionNode::Match(dispatch) =
                     compilation.typed.expression_table.expression(expression)
                 else {
@@ -305,7 +307,7 @@ pub(super) fn project(
         // requirement; the review row keys on the same overload coordinate
         // for either species.
         let requirement_identity = provider_planning::IntrinsicRequirement::by_symbol(
-            &compilation.typed,
+            compilation.checking_input,
             application.requirement_symbol,
         )
         .or_else(|| {
@@ -313,7 +315,7 @@ pub(super) fn project(
                 .typed
                 .symbols
                 .authored_origin(application.requirement_symbol);
-            provider_planning::IntrinsicRequirement::by_symbol(&compilation.typed, origin)
+            provider_planning::IntrinsicRequirement::by_symbol(compilation.checking_input, origin)
         })
         .map(|requirement| requirement.requirement_identity)
         .ok_or_else(|| {
@@ -401,7 +403,8 @@ fn exact_application_uses(
     // Implicit Match equality keeps its operator occurrence even when the
     // requirement is authored as a token-bearing machine. Rejoin its exact
     // declaration view, not just the legacy operator declaration collection.
-    let operator = typed_trees::operator::declaration_by_symbol(&compilation.typed, requirement);
+    let operator =
+        typed_trees::operator::declaration_by_symbol(compilation.checking_input, requirement);
     compilation
         .facts
         .operators

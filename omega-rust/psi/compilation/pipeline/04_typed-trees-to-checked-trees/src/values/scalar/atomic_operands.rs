@@ -12,7 +12,6 @@
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{CheckedOperatorFacts, CheckedScalarExpression, CheckedScalarExpressionRole};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -23,7 +22,7 @@ use typed_trees::types::PrimitiveType;
 /// the event when one is missing.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

@@ -23,7 +23,6 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -31,7 +30,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::ScopedArithmeticValue;
 
 pub(super) fn component_decreases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     component: &[usize],
     measure: DecreaseMeasure,
@@ -73,7 +72,7 @@ pub(super) fn component_decreases(
 }
 
 pub(super) fn edge_decreases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     target: &State,
@@ -126,7 +125,7 @@ fn same_measure(source: CheckedNaturalRankMeasure, target: CheckedNaturalRankMea
 }
 
 fn scalar_rank(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     measure: DecreaseMeasure,
     entries: Option<&[SymbolHandle]>,
@@ -158,7 +157,7 @@ fn scalar_rank(
 }
 
 fn prove_edge(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     source_rank: &CheckedStateNaturalRank,
@@ -261,7 +260,7 @@ fn prove_edge(
 
 /// Whether `argument` is exactly the parameter `symbol`, unprojected.
 fn forwards_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     argument: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {

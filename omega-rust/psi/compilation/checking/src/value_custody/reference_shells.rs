@@ -11,7 +11,6 @@
 
 use language_semantics::ReferenceAccess;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -41,7 +40,7 @@ pub struct SliceViewShell {
 /// The borrow `reference` spells beneath its constraint shells. `None` when
 /// the first node beneath them is not a `Reference`.
 pub fn reference_shell(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<ReferenceShell> {
     let shell = peel_carrier_shells(program, reference, &[])?;
@@ -63,7 +62,7 @@ pub fn reference_shell(
 /// and after the one reference shell; a second shell is a reference to a
 /// reference, not a view.
 pub fn slice_view_shell(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<SliceViewShell> {
@@ -92,7 +91,7 @@ pub fn slice_view_shell(
 /// for, and a walk longer than the table has nodes has revisited one and
 /// would never end; both answer `None`.
 fn peel_carrier_shells(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<TypeReferenceHandle> {
@@ -126,7 +125,7 @@ fn peel_carrier_shells(
 /// it and bound type parameters stand for their actuals; a plain owned array
 /// is scalar storage and names no carrier.
 pub fn byte_sequence_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {

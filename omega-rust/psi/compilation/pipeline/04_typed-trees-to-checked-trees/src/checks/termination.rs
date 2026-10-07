@@ -63,7 +63,7 @@ use crate::labels::machine_name;
 use diagnostics::Diagnostic;
 
 pub(crate) fn check_machine_termination_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -164,7 +164,7 @@ pub(crate) fn check_machine_termination_with_call_frames(
 }
 
 pub(crate) fn build_checked_termination_plan_with_summary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     checked_summary: language_semantics::TerminationGuarantee,
 ) -> language_semantics::MachineTerminationPlan {
@@ -185,14 +185,14 @@ pub(crate) use progress::analyze_checked_progress_with_call_frames;
 /// need the judgment before they can materialize constants into the typed
 /// program; they must not grow a second approximation of termination.
 pub(crate) fn infer_machine_checked_summary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> language_semantics::TerminationGuarantee {
     infer_machine_checked_summary_with_call_frames(program, machine, None)
 }
 
 pub(crate) fn infer_machine_checked_summary_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> language_semantics::TerminationGuarantee {

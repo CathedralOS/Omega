@@ -2,14 +2,13 @@
 //! operator owner rules out authored and selected-trait interpretations.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn binary_is_builtin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
@@ -27,8 +26,7 @@ pub(super) fn binary_is_builtin(
                 });
         }
         operator => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(operator)
-            else {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(operator) else {
                 // These have no authored OperatorSpelling. Their operands
                 // still traverse the same inert-expression check.
                 return true;
@@ -48,7 +46,10 @@ pub(super) fn binary_is_builtin(
     )
 }
 
-fn operand_type(program: &TypedTrees, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
+fn operand_type(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
     match program
         .expression_table
         .expression(super::projection::unwrapped(program, expression))

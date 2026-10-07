@@ -216,9 +216,9 @@ pub fn lower_typed_trees_reusing(
     // Package authority is invocation-owned, not part of the language
     // judgment: admit the returned selections under the caller's authority.
     if let Some(authority) = request.declaration_authority {
-        let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked);
+        let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked.typed);
         sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
-            &checked,
+            &checked.typed,
         ));
         validation::validate_authored_declaration_selections(
             &checked,
@@ -372,11 +372,11 @@ fn check_program(
     let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     let _root_currency_scope = checks::enter_root_currency_scope();
-    // Consumers below share one set of write-frame memos and one proof-only
-    // classification. The only mutation in the scope, contract-identity
-    // binding, rewrites specialization fingerprints neither reads; the scope
-    // closes before authored-selection finalization rewrites call targets.
-    let frozen_program_scope = validation::enter_frozen_program_scope(&program);
+    // Borrow the prepared program with invocation-owned query state. Read-only inputs
+    // carry this context through the checking flow; no consumer discovers it
+    // by thread or address. Metadata publication waits until checking ends.
+    let typed_program = program;
+    let program = validation::CheckingContext::new(&typed_program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let mut validated =
         prepare_typed_program(&program, opaque_property_receipts, admits_pending_inputs)?;
@@ -419,14 +419,14 @@ fn check_program(
             .map(|plan| plan.checked_summary.clone())
     })?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
-    // MP5: specialization selection happens before checked contract plans
-    // exist. Bind the selected machines' normalized contract identities now
-    // and make them part of the instance fingerprint used by caches and
-    // artifacts.
-    crate::monomorphization::bind_specialization_contract_identities(
-        &mut program,
-        &facts.contract_plans,
-    )?;
+    // Compute at the original failure boundary, preserving diagnostic order.
+    // Nothing below consumes the specialization's commitment fields; retain
+    // these metadata updates until the immutable checking input is released.
+    let specialization_identities =
+        crate::monomorphization::prepare_specialization_contract_identities(
+            &program,
+            &facts.contract_plans,
+        )?;
 
     checks::check_checked_facts_recording_with_mutation_summaries(
         &program,
@@ -445,7 +445,9 @@ fn check_program(
 
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
-    drop(frozen_program_scope);
+    drop(program);
+    let mut program = typed_program;
+    specialization_identities.publish(&mut program);
     crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
         .map_err(|diagnostic| vec![diagnostic])?;
     validation::validate_reserved_cleanup_selections(&program)?;

@@ -5,13 +5,12 @@
 
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
 use arena::Handle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::{ProofFact, ProofMembershipFact};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 pub(super) fn append_membership_premises(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,

@@ -3,7 +3,6 @@
 //! Each conjunct may use a different existing proof route. No child is installed
 //! as a premise: all queries keep the same substituted operands and live context.
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::super::places::expression_is_boolean_place_like;
@@ -16,7 +15,7 @@ use super::{incoming_guard_proves_requires, transition_guard_proves_boolean_requ
 /// place is the same fact the place's data states in `where`; it stands at
 /// every call because calls are consumption points for invariant windows.
 fn standing_domain_fact_proves_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
@@ -70,7 +69,7 @@ fn standing_domain_fact_proves_requirement(
 /// slice, a non-length member, or no literal side — stays undecided and falls
 /// through to the bound, guard, and entailment channels unchanged.
 fn constant_extent_requirement_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -93,7 +92,7 @@ fn constant_extent_requirement_value(
 /// call site, any callee state, guarded or not; receiver-form calls
 /// bind `self` implicitly and never reach full arity here.
 fn explicit_subject_call_requirement_proven(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
@@ -137,7 +136,7 @@ fn explicit_subject_call_requirement_proven(
 }
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,

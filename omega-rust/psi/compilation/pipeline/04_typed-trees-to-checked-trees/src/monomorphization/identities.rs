@@ -10,7 +10,7 @@ use typed_trees::type_identity::TypeIdentityRequest;
 /// This encoding is binder-positional:
 /// renaming a type, machine, or value parameter does not change the identity.
 pub(super) fn canonical_template_contract_bytes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_index: usize,
     reach_inference: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -270,7 +270,7 @@ pub(super) fn machine_template_commitment(
 /// compilation caches use this same identity; callers cannot substitute the
 /// identity of one concrete instance for the universal template grant.
 pub fn generic_machine_template_report_fingerprint(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<u64> {
     let machine_index = generic_machine_index(program, machine_symbol)?;
@@ -282,7 +282,10 @@ pub fn generic_machine_template_report_fingerprint(
 
 /// Index of `machine_symbol` when the machine declares type parameters —
 /// a parameterless machine carries no template to commit.
-fn generic_machine_index(program: &TypedTrees, machine_symbol: SymbolHandle) -> Option<usize> {
+fn generic_machine_index(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+) -> Option<usize> {
     let machine_index = program
         .machines()
         .iter()
@@ -296,7 +299,7 @@ fn generic_machine_index(program: &TypedTrees, machine_symbol: SymbolHandle) -> 
 /// Domain-separated strong commitment to the exact canonical universal
 /// template captured before monomorphization consumes its binders.
 pub fn generic_machine_template_commitment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
     let machine_index = generic_machine_index(program, machine_symbol)?;
@@ -307,7 +310,7 @@ pub fn generic_machine_template_commitment(
 }
 
 pub(super) fn accepted_template_commitment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_index: usize,
 ) -> Option<String> {
     let machine = &program.machines()[machine_index];
@@ -321,10 +324,10 @@ pub(super) fn accepted_template_commitment(
 /// selected contracts from the plans and fold them, with the identities
 /// specialization recorded, into the commitment Terminal Psi and package
 /// review carry.
-pub(crate) fn bind_specialization_contract_identities(
-    program: &mut TypedTrees,
+pub(crate) fn prepare_specialization_contract_identities(
+    program: &dyn ::validation::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PreparedSpecializationIdentities, Vec<Diagnostic>> {
     let operational = validation::infer_operational_may(program);
     let identities: Result<Vec<_>, _> = program
         .machine_specializations
@@ -333,13 +336,23 @@ pub(crate) fn bind_specialization_contract_identities(
             machine_specialization_identity(program, contracts, specialization, &operational)
         })
         .collect();
-    let identities = identities.map_err(|diagnostic| vec![diagnostic])?;
-    for (specialization, identity) in program.machine_specializations.iter_mut().zip(identities) {
-        specialization.machine_argument_contract_commitments =
-            identity.machine_contract_commitments;
-        specialization.commitment = identity.commitment;
+    identities
+        .map(PreparedSpecializationIdentities)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
+/// Prepared over the final specialization roster. Checking reads none of the
+/// published metadata and cannot mutate that roster while it owns the context.
+pub(crate) struct PreparedSpecializationIdentities(Vec<MachineSpecializationIdentity>);
+
+impl PreparedSpecializationIdentities {
+    pub(crate) fn publish(self, program: &mut TypedTrees) {
+        for (specialization, identity) in program.machine_specializations.iter_mut().zip(self.0) {
+            specialization.machine_argument_contract_commitments =
+                identity.machine_contract_commitments;
+            specialization.commitment = identity.commitment;
+        }
     }
-    Ok(())
 }
 
 struct MachineSpecializationIdentity {
@@ -353,7 +366,7 @@ struct MachineSpecializationIdentity {
 /// the accepted-template custody and the closed conformance applications it
 /// recorded; this reads them as given.
 fn machine_specialization_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
@@ -481,7 +494,7 @@ pub(super) fn encode_data_properties(
 }
 
 pub(super) fn encode_state_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
@@ -579,7 +592,7 @@ pub(super) fn encode_progress_premises(
 }
 
 pub(crate) fn canonical_state_signature_bytes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
@@ -588,7 +601,7 @@ pub(crate) fn canonical_state_signature_bytes(
 }
 
 pub(super) fn encode_state_shape(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
@@ -623,7 +636,7 @@ pub(super) fn encode_state_shape(
 }
 
 pub(super) fn encode_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
     binders: &[(String, String)],
     type_binders: &[(SymbolHandle, String)],
@@ -644,7 +657,7 @@ pub(super) fn encode_parameter(
 }
 
 pub(super) fn encode_contract(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract: &typed_trees::signature::SignatureContract,
     binders: &[(String, String)],
     output: &mut Vec<u8>,
@@ -690,7 +703,7 @@ pub(super) fn encode_contract_kind(
 }
 
 pub(super) fn contract_fact_text(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
 ) -> String {
     match fact {
@@ -741,7 +754,7 @@ pub(super) fn contract_fact_text(
 /// as public contract plans: route clauses merge by cause, routes form a set,
 /// and an unconditional route subsumes guarded alternatives.
 pub(super) fn encode_contract_set(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     binders: &[(String, String)],
 ) -> Vec<Vec<u8>> {

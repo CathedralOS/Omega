@@ -12,7 +12,7 @@ struct Arrival {
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     statement_index: usize,
@@ -164,7 +164,7 @@ fn prefix_carries(prefix: &CollectedStatementPrefix, slots: &[FrameSourcePlace])
 }
 
 fn check_exit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     stored: &[StoredLocalOrigins],
     slots: &[FrameSourcePlace],
@@ -189,7 +189,7 @@ fn check_exit(
 }
 
 fn transferred_slots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     target: &State,
     arguments: &[ExpressionHandle],

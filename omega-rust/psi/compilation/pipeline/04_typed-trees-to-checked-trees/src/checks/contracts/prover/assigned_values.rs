@@ -6,7 +6,6 @@ use crate::flow::{
 };
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
 
@@ -15,7 +14,7 @@ use crate::values::literal_at_place;
 pub(in crate::checks::contracts) use crate::values::scalar_value_at_place;
 
 pub(super) fn prove_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     place: PlaceHandle,
@@ -40,7 +39,7 @@ pub(super) fn prove_domain(
 /// machinery before it can be consulted, so coverage cannot outlive its
 /// evidence.
 pub(in crate::checks::contracts) fn segments_cover_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &[facts::PlaceSegment],
     subject: &[facts::PlaceSegment],
 ) -> bool {
@@ -55,7 +54,7 @@ pub(in crate::checks::contracts) fn segments_cover_subject(
 }
 
 fn segment_covers_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: facts::PlaceSegment,
     subject: facts::PlaceSegment,
 ) -> bool {
@@ -99,7 +98,7 @@ fn segment_covers_subject(
 /// proved on its own evidence: the entry row where still live, or the
 /// write's re-establishment where the write was domain-carrying.
 fn prove_domain_by_extent_enumeration(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
@@ -135,7 +134,7 @@ fn prove_domain_by_extent_enumeration(
 /// whole extent; a gap means the coordinates came from elsewhere and are not
 /// a whole-extent claim. Never confuses a partial record with coverage.
 fn recorded_element_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     subject: &CanonicalPlace,
     position: usize,
@@ -186,7 +185,7 @@ fn recorded_element_extent(
 /// `ensures`/`in`-constrained declarations answer membership questions that
 /// predicate discharge cannot reach.
 fn carried_domain_membership_at_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
@@ -224,7 +223,7 @@ fn carried_domain_membership_at_place(
 }
 
 pub(in crate::checks::contracts) fn prove_domain_at_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
@@ -241,7 +240,7 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
 }
 
 struct AssignedValues<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     semantic: &'a FactPlan,
     contexts: &'a [FactContextHandle],
 }
@@ -266,7 +265,7 @@ impl AssignedValues<'_> {
 /// `pred(self)` initializer obligation discharges against it — identical
 /// place-equality plus `implies` semantics in every consumer.
 pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,

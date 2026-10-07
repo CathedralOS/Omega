@@ -7,7 +7,7 @@ use typed_trees::{TypedTrees, statement::StatementNode};
 mod projections;
 
 pub(crate) fn projected_statement_receiver_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     before: usize,
     call: &typed_trees::statement::TableCall,
@@ -138,7 +138,7 @@ pub(crate) fn resolve_projected_receiver_calls(
 }
 
 fn declared_receiver_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     target: SymbolHandle,
     name: &typed_trees::name::Identifier,

@@ -34,7 +34,6 @@
 use checked_trees::FlowFacts;
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
@@ -57,7 +56,7 @@ use crate::labels::{
 /// every incoming path must satisfy.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn named_route_is_false(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &FactPlan,
     named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
@@ -106,7 +105,7 @@ pub(super) fn named_route_is_false(
 /// cannot make an old entry premise describe a new value.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn statement_entry_route_is_false(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &FactPlan,
     machine_symbol: SymbolHandle,
@@ -174,7 +173,7 @@ fn statement_entry_context_rows(
 
 #[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context_rows: &[Vec<FactContextHandle>],
     machine_symbol: SymbolHandle,
@@ -209,7 +208,7 @@ fn expression_has_polarity(
 }
 
 fn leaf_has_polarity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context_rows: &[Vec<FactContextHandle>],
     machine_symbol: SymbolHandle,
@@ -268,7 +267,7 @@ fn leaf_has_polarity(
 /// constant, a `self` field with unknown receiver provenance, or a binding
 /// whose projection was disturbed fails this gate and retains the guard.
 fn leaf_reads_only_entry_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -304,7 +303,10 @@ fn leaf_reads_only_entry_operands(
 /// so it must be a pure read of the proven storages. A nested call or atomic
 /// could observe storage beyond the operand occurrences — state a matching
 /// fact snapshot does not transport — and is kept conservative instead.
-fn expression_evaluates_effects(program: &TypedTrees, root: ExpressionHandle) -> bool {
+fn expression_evaluates_effects(
+    program: &dyn ::validation::CheckingInput,
+    root: ExpressionHandle,
+) -> bool {
     let mut pending = vec![root];
     while let Some(expression) = pending.pop() {
         if !program.expression_table.expression_is_valid(expression) {
@@ -330,7 +332,10 @@ fn expression_evaluates_effects(program: &TypedTrees, root: ExpressionHandle) ->
 
 /// Port of the requires prover's occurrence rooting: a place occurrence roots
 /// at the symbol its member/index/borrow selectors descend to.
-fn occurrence_root_symbol(program: &TypedTrees, mut expression: ExpressionHandle) -> SymbolHandle {
+fn occurrence_root_symbol(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> SymbolHandle {
     loop {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => return path.symbol,

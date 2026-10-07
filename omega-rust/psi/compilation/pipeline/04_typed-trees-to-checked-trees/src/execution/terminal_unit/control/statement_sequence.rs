@@ -22,7 +22,7 @@ use super::{
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StatementNode,
-    SymbolHandle, TypedTrees,
+    SymbolHandle,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
@@ -82,7 +82,7 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
 }
 
 pub(super) fn has_structural_result(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
@@ -161,7 +161,7 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
 /// sequence admits by kind can still decline while planning; this names
 /// only the kind refusal, with its index for the construction trace.
 pub(super) fn first_unsupported_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -261,7 +261,7 @@ pub(super) fn first_unsupported_statement(
 /// transfers need its descriptor identity, even if the borrow also admits an
 /// alias of the backing storage.
 fn erased_alias_locals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -310,7 +310,7 @@ fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> b
 
 /// The machine an assignment's right-hand side calls, when it is a direct call.
 fn statement_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
@@ -321,7 +321,7 @@ fn statement_call_target(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -750,7 +750,7 @@ pub(in crate::execution::terminal_unit) fn build(
 /// structural result machines ask the predicate directly so a transition-only
 /// body counts as producing its result at the terminator.
 pub(in crate::execution::terminal_unit) fn returning_terminator(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -847,7 +847,7 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
 }
 
 pub(in crate::execution::terminal_unit) fn scalar_control(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -864,7 +864,7 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
 }
 
 fn scalar_computation_local_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

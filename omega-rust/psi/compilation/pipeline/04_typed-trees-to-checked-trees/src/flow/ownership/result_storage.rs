@@ -7,7 +7,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn is_private_result_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place: &CanonicalPlace,
 ) -> bool {
     let facts::PlaceRoot::Expression(expression) = place.root else {
@@ -123,7 +123,7 @@ pub(super) fn is_private_result_place(
 }
 
 fn unconstrained_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while let TypeReferenceNode::Constrained { base_type, .. } =

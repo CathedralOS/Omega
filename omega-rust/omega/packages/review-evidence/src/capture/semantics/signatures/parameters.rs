@@ -43,7 +43,7 @@ pub(crate) struct CallingContractScope {
 impl Projection<'_> {
     fn value_type(
         self,
-        typed: &typed_trees::TypedTrees,
+        typed: &dyn ::validation::CheckingInput,
         compilation: &PackageReviewInput<'_>,
         reference: typed_trees::types::TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -92,7 +92,7 @@ pub(crate) fn project_type_parameters_after(
     depth: usize,
 ) -> Result<(Vec<(SymbolHandle, String)>, Vec<PackageReviewTypeParameter>), Vec<Diagnostic>> {
     project_type_parameters_inner(
-        &compilation.typed,
+        compilation.checking_input,
         compilation,
         parameters,
         declaration_kind,
@@ -113,7 +113,7 @@ pub(crate) fn project_type_parameters_after(
 
 #[allow(clippy::too_many_arguments)]
 fn project_type_parameters_inner(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     compilation: &PackageReviewInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
@@ -205,7 +205,7 @@ fn project_type_parameters_inner(
 
 #[allow(clippy::too_many_arguments)]
 fn project_machine_parameter_contract_inner(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     compilation: &PackageReviewInput<'_>,
     parameter_symbol: SymbolHandle,
     contract: &typed_trees::data::MachineParameterContract,
@@ -339,7 +339,10 @@ fn project_machine_parameter_contract_inner(
                         .service_reach_is_installation_bound,
                     synchronous_invocations: project_synchronous_invocations(
                         compilation,
-                        &validation::declared_signature_invocations(compilation, source_signature),
+                        &validation::declared_signature_invocations(
+                            compilation.checking_input,
+                            source_signature,
+                        ),
                     )?,
                     suspends: source_signature.suspends,
                     blocks: source_signature.blocks,

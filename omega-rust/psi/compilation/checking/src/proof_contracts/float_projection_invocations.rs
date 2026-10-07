@@ -8,7 +8,6 @@ use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionContractIdentity;
 use numerics::float_projection::FloatProjectionOperation;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
@@ -35,7 +34,7 @@ pub struct ValidatedFloatMeaningEqualityProposition {
 }
 
 pub(crate) fn exact_projection_operation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<(
     SymbolHandle,
@@ -57,7 +56,7 @@ pub(crate) fn exact_projection_operation(
 }
 
 fn requested_projection_operation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<FloatProjectionOperation> {
     let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
@@ -70,7 +69,7 @@ fn requested_projection_operation(
 }
 
 fn resolve_projection_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     resolve_named_expression_call(program, call).or_else(|| {
@@ -99,7 +98,7 @@ fn resolve_projection_call<'program>(
 }
 
 fn walk_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
     projections: &mut Vec<ValidatedFloatMeaningProjectionInvocation>,
@@ -241,7 +240,7 @@ fn walk_expression(
 }
 
 pub(crate) fn collect_float_meaning_projection_invocations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<
     (
         Vec<ValidatedFloatMeaningProjectionInvocation>,

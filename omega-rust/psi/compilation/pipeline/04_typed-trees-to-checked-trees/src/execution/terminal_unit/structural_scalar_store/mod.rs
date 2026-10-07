@@ -34,7 +34,7 @@ use super::{
     CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
-    PrimitiveType, StatementNode, TypeReferenceNode, TypedTrees,
+    PrimitiveType, StatementNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
@@ -60,7 +60,7 @@ mod view_stores;
 
 /// The scalar-graph lane's field store into one of its own record locals.
 pub(in crate::execution) fn build_local_scalar_field_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -90,7 +90,7 @@ pub(in crate::execution) fn build_local_scalar_field_store(
 /// The state's complete write frame is replayed once here; each assignment
 /// then composes its destination and value.
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -190,7 +190,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
 /// The store consuming the scalar result of the call this same statement
 /// performs: the same composition, with the call's SSA result as the value.
 pub(super) fn build_structural_call_result_field_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -222,7 +222,7 @@ pub(super) fn build_structural_call_result_field_store(
 /// owned contents copy bytes and length; shared fields copy the descriptor.
 /// Destination selection is independent of how the RHS value was produced.
 pub(super) fn build_byte_call_result_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -258,7 +258,7 @@ pub(super) fn build_byte_call_result_store(
 /// keeps its bound row, a parameter or local its dense position's declared
 /// type, and a field snapshot its leaf type below the declared root.
 fn runtime_index_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement_index: u32,
@@ -331,7 +331,7 @@ fn runtime_index_expression(
 /// Compose one assignment: resolve the destination, then let the leaf's
 /// declared type select the store its value joins.
 fn plan_assignment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -672,7 +672,7 @@ fn plan_assignment(
 /// of whether the destination is a parameter or an owned local. Atomic storage
 /// retains a different access contract and cannot become an ordinary store.
 fn scalar_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(field.type_reference)?;
@@ -698,7 +698,7 @@ fn scalar_leaf(
 /// carrier borrow window -- call results, payload sums, records and affine
 /// carriers keep declining.
 fn case_field_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     roots: StoreRoots<'_>,
     destination: &Destination<'_>,
@@ -800,7 +800,7 @@ fn case_field_store(
 /// whole-place store proves; only the source's shape differs — construction
 /// operands where a copy named a structural place.
 fn case_literal_field_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     destination: &Destination<'_>,
@@ -904,7 +904,10 @@ fn case_literal_field_store(
 /// multiplicity, and every member a payload-free case. Copying a whole owned
 /// place into such a field moves nothing, so the store needs no carrier
 /// borrow window.
-fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+fn unrestricted_sum(
+    data: &typed_trees::data::DataDefinition,
+    program: &dyn ::validation::CheckingInput,
+) -> bool {
     closed_sum(data, program)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Enum
@@ -919,7 +922,10 @@ fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTre
 /// The closed Unrestricted family both sum stores share: CheckedShape supply,
 /// no lifetimes or type parameters, no quotient or where facts, and no zero
 /// gate — the whole-place arm adds its payload-free Enum shape on top.
-fn closed_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+fn closed_sum(
+    data: &typed_trees::data::DataDefinition,
+    program: &dyn ::validation::CheckingInput,
+) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && data.lifetime_parameters.is_empty()
         && program.data_type_parameters(data).is_empty()
@@ -933,7 +939,7 @@ fn closed_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) ->
 /// same state: no scalar store row exists for it, so the statement sequence
 /// decides whether it repairs an open borrowed-storage window.
 fn restores_structural_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> bool {
@@ -961,7 +967,7 @@ fn restores_structural_local(
 /// The value is an owned structural parameter read whole: no scalar store
 /// decomposes it — the sequence's bound-value field store plans the move.
 fn bound_structural_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
@@ -1005,7 +1011,7 @@ fn bound_structural_parameter(
 /// Whether a declared slot type is a shared `&[u8]` view, through any domain
 /// constraint shells: the slot stores a relocatable descriptor.
 pub(in crate::execution::terminal_unit) fn is_shared_view_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     matches!(
@@ -1019,7 +1025,7 @@ pub(in crate::execution::terminal_unit) fn is_shared_view_field(
 /// byte lane further narrows the produced plan kind.
 #[allow(clippy::too_many_arguments)]
 fn single_parameter_store(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

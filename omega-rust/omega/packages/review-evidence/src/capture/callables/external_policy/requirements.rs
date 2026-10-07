@@ -25,7 +25,7 @@ pub(super) fn project(
     binding: &PackageReviewExternalBinding,
 ) -> Result<PackagePolicyExternalRequirement, Vec<Diagnostic>> {
     let declaration = typed_trees::machine::resolve_satisfied_declaration(
-        &compilation.typed,
+        compilation.checking_input,
         machine,
         conformance,
     )
@@ -94,7 +94,7 @@ pub(super) fn project(
                 ));
             }
             validation::revalidate_top_level_requirement_realization(
-                &compilation.typed,
+                compilation.checking_input,
                 machine,
                 requirement,
                 conformance,
@@ -131,10 +131,12 @@ pub(super) fn project(
             if operator.spelling.is_some()
                 && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
                     || provider_planning::IntrinsicRequirement::from_operator(
-                        &compilation.typed,
+                        compilation.checking_input,
                         operator,
                     )
-                    .and_then(|requirement| requirement.closed_float_execution(&compilation.typed))
+                    .and_then(|requirement| {
+                        requirement.closed_float_execution(compilation.checking_input)
+                    })
                     .is_none())
             {
                 return Err(rejected(

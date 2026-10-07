@@ -20,7 +20,6 @@ use super::type_capabilities::parameter_may_carry_write;
 use crate::declarations::symbols::TopLevelSymbols;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Root {
@@ -89,7 +88,7 @@ impl Substitutions {
 /// omitted roots are harmless for this may-write union; their borrow legality
 /// is decided independently, not granted by this finiteness proof.
 pub(super) fn substitutions_are_finite(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     equations: &[CycleFrameEquation<'_>],
     symbols: &TopLevelSymbols<'_>,
     outer_inference: &FrameInference,

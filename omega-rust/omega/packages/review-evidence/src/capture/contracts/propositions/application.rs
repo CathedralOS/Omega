@@ -23,7 +23,7 @@ fn require_exact_reference_argument(
         compilation.expression_table.expression(argument),
         typed_trees::expression::ExpressionNode::Borrow(_)
     ) && !validation::checked_argument_matches_type_reference(
-        &compilation.typed,
+        compilation.checking_input,
         argument,
         expected_type,
     ) {

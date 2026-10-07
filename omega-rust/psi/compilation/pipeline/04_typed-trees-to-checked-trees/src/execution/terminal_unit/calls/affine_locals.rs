@@ -8,11 +8,11 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitStructuralTypeShape, ExpressionNode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
-    SymbolHandle, TypeReferenceNode, TypedTrees,
+    SymbolHandle, TypeReferenceNode,
 };
 
 pub(crate) fn build_unit_trivial_affine_locals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -137,7 +137,7 @@ pub(crate) fn build_unit_trivial_affine_locals(
 }
 
 pub(crate) fn build_affine_array_construction_prefix(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

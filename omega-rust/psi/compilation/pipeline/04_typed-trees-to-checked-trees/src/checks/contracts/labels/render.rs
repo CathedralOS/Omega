@@ -4,7 +4,6 @@
 //! `result` binder) stay with their own match.
 
 use arena::HandleSpan;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, MatchPattern, TableAtomicExpression, TableBinaryExpression,
     TableBorrowExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
@@ -13,7 +12,7 @@ use typed_trees::expression::{
 };
 
 pub(super) fn match_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     dispatch: &TableMatchExpression,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
@@ -41,7 +40,7 @@ pub(super) fn atomic_label(
 }
 
 pub(super) fn array_literal_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     values: HandleSpan<ExpressionHandle>,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
@@ -68,7 +67,7 @@ pub(super) fn binary_label(
 }
 
 pub(super) fn cast_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     cast: &TableCastExpression,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
@@ -85,7 +84,7 @@ pub(super) fn cast_label(
 }
 
 pub(super) fn call_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
@@ -152,7 +151,7 @@ pub(super) fn unary_label(
 /// share: every arm renders identically except `Name` (whose binder rules
 /// differ by caller) and `StructLiteral`, which the caller closures supply.
 pub(super) fn expression_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     node: &typed_trees::expression::ExpressionNode,
     render: &dyn Fn(ExpressionHandle) -> String,
     name_label: &dyn Fn(&typed_trees::expression::TableNamePath) -> String,

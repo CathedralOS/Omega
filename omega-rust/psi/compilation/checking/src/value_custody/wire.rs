@@ -17,7 +17,6 @@
 //! and repeated field checks both call validators share.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 mod decode_call;
 mod encode_call;
@@ -39,7 +38,7 @@ pub(crate) use schema_validation::validate_wire_schemas;
 /// reaches here and same-named schemas in sibling modules cannot be
 /// confused by the receiver's leaf spelling.
 pub(crate) fn validate_wire_schema_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
@@ -96,7 +95,7 @@ pub(crate) fn validate_wire_schema_call(
 /// the ambiguity rather than silently binding the first declaration or
 /// reporting the receiver as undeclared state storage.
 fn ambiguous_schema_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {

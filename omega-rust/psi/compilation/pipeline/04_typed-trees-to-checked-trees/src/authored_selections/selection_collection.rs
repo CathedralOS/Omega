@@ -14,10 +14,9 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
 };
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 
 pub(crate) fn checked_struct_literal_type_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     literal: &typed_trees::expression::TableStructLiteral,
     source_span: source::SourceSpan,
 ) -> SymbolHandle {
@@ -40,7 +39,7 @@ pub(crate) fn checked_struct_literal_type_symbol(
 }
 
 pub(crate) fn collect_checked_proof_membership_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     resolutions: &mut Vec<CheckedResolution>,
 ) -> Result<(), Diagnostic> {
@@ -127,7 +126,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
 /// `unoccurred_view_calls` so finalization can mint a finalized ProofView row
 /// directly and attach it to the call expression.
 pub(crate) fn collect_checked_proof_view_call_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     resolutions: &mut Vec<CheckedResolution>,
     unoccurred_view_calls: &mut Vec<(
         source::SourceSpan,
@@ -263,7 +262,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
 }
 
 pub(crate) fn collect_checked_statement_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     resolutions: &mut Vec<CheckedResolution>,
 ) -> Result<(), Diagnostic> {
@@ -349,7 +348,7 @@ pub(crate) fn collect_checked_statement_selections(
 }
 
 pub(crate) fn collect_checked_transition_target_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     resolutions: &mut Vec<CheckedResolution>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {

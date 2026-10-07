@@ -5,7 +5,11 @@ use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::typed_trees::MachineSpecialization;
 
-pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Machine) {
+pub(super) fn replay(
+    source: &mut TypedTrees,
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+) {
     let candidates = super::candidate::collect(source);
     let callees = super::candidate::callees(source, &candidates);
     let contracts = crate::monomorphization::selection::contract_expression_handles(source);
@@ -78,8 +82,8 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
 }
 
 pub(super) fn selected_instance<'program>(
-    source: &TypedTrees,
-    program: &'program TypedTrees,
+    source: &dyn ::validation::CheckingInput,
+    program: &'program dyn ::validation::CheckingInput,
     candidate: &Candidate,
     selection: &CallSelection,
 ) -> Option<&'program MachineSpecialization> {

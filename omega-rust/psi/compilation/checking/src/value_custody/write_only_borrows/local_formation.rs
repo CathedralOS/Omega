@@ -1,12 +1,12 @@
 //! Non-observing projected captures; later uses retain ordinary borrow checks.
 use super::{
     ExpressionNode, Machine, ReferenceAccess, State, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, WriteOnlyRoot, receiver,
+    WriteOnlyRoot, receiver,
 };
 use typed_trees::statement::TableLocalData;
 
 pub(super) fn admitted(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     local: &TableLocalData,
@@ -25,7 +25,7 @@ pub(super) fn admitted(
 /// capture. Returns `true` once a diagnostic is emitted so the statement is
 /// resolved; places that never resolve keep the ordinary walk.
 pub(super) fn reject_mismatched_capture(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     local: &TableLocalData,
@@ -58,7 +58,7 @@ pub(super) fn reject_mismatched_capture(
 /// `&write` borrow of a place with builtin coordinates. Returns the captured
 /// place's exact type and the local's declared referee once that shape holds.
 fn capture(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     local: &TableLocalData,

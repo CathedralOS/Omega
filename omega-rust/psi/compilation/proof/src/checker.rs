@@ -42,10 +42,13 @@ pub use measurement::ProofPlanMeasurements;
 /// name, or `None` — every bounded-obligation walker opens with this same
 /// lookup pair before it reads the obligation's own anchors.
 fn machine_and_state<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-) -> Option<(&'p typed_trees::machine::Machine, &'p typed_trees::state::State)> {
+) -> Option<(
+    &'p typed_trees::machine::Machine,
+    &'p typed_trees::state::State,
+)> {
     let machine = program
         .machines()
         .iter()
@@ -56,7 +59,6 @@ fn machine_and_state<'p>(
         .find(|state| state.symbol == state_symbol)?;
     Some((machine, state))
 }
-
 
 use crate::checker::bounded_checks::{
     check_bounded_assignment, check_bounded_call_argument, check_bounded_initializer,

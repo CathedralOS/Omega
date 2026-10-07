@@ -26,7 +26,7 @@ pub(crate) struct SharedTemporaryOwner {
 }
 
 pub(crate) fn shared_temporary_owners(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -177,7 +177,7 @@ pub(crate) fn shared_temporary_owners(
 }
 
 pub(in crate::checks::multiplicity) fn append_shared_borrow(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,

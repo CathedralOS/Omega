@@ -22,7 +22,6 @@ use checked_trees::{
     FlowOperatorInvocationFact,
 };
 use facts::{FactContextHandle, FactPlan};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
@@ -103,7 +102,7 @@ impl<'facts> InvocationContexts<'facts> {
 
     pub(super) fn for_expressions(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         parameters: &[StateParameter],
         expressions: impl IntoIterator<Item = ExpressionHandle>,
     ) -> Vec<FactContextHandle> {
@@ -172,7 +171,7 @@ fn operand_expressions_match(
 }
 
 fn occurrence_root_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> symbols::SymbolHandle {
     loop {

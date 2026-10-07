@@ -13,7 +13,7 @@ use super::facts::RangeFacts;
 /// when `b` is a valid index, so it reuses the same index proofs rather than
 /// duplicating bound logic.
 fn range_end_within_unknown_length_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     collection_label: &str,
     end: ExpressionHandle,
@@ -39,7 +39,7 @@ fn range_end_within_unknown_length_is_proven(
 /// hop out. The non-negative half a signed result still owes stays with the
 /// lower-bound lane.
 fn index_is_within_unknown_length_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     collection_label: &str,
     index: ExpressionHandle,
@@ -56,7 +56,7 @@ fn index_is_within_unknown_length_proven(
 }
 
 pub(super) fn unknown_length_index_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
@@ -73,7 +73,7 @@ pub(super) fn unknown_length_index_is_proven(
 /// trivial zero, when both bounds fold to constants that compare, or when
 /// the ordering was established as a carried fact.
 fn start_at_most_end_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
 ) -> bool {
@@ -89,7 +89,7 @@ fn start_at_most_end_proven(
 }
 
 pub(super) fn unknown_length_range_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -161,7 +161,7 @@ pub(super) fn unknown_length_range_is_proven(
 /// when it is spelled like one (a container's binder its machine never
 /// declares).
 fn symbolic_extent_is_named(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     collection: ExpressionHandle,
@@ -180,7 +180,7 @@ fn symbolic_extent_is_named(
 /// Proves `index < N` for a symbolic extent `N`. The strict form is owed:
 /// `index <= N` alone admits the one-past-end read.
 fn symbolic_extent_index_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -222,7 +222,7 @@ fn symbolic_extent_index_is_proven(
 /// open-start obligation, one step weaker than the strict index bound: the
 /// end may equal the extent.
 fn symbolic_extent_range_bound_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -262,7 +262,7 @@ fn symbolic_extent_range_bound_is_proven(
 /// an exclusive end owes `end <= N`; an inclusive end is itself an index and
 /// owes `end < N`.
 fn symbolic_extent_range_end_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -283,7 +283,7 @@ fn symbolic_extent_range_end_is_proven(
 /// Mirrors `unknown_length_range_is_proven` with the extent name `N` in place
 /// of the unknown slice length.
 pub(super) fn symbolic_extent_range_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -365,7 +365,7 @@ pub(super) fn symbolic_extent_range_is_proven(
 /// Proves a scalar index is `< N` for a symbolic const-parameter extent — the
 /// entry point the dispatcher calls for `items[index]` on `items: [T; N]`.
 pub(super) fn symbolic_extent_scalar_index_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -380,7 +380,7 @@ pub(super) fn symbolic_extent_scalar_index_is_proven(
 /// extent produces a value in 0..=extent. Prove the offset's bounds first so
 /// wrapping subtraction cannot manufacture a false upper-bound fact.
 pub(in crate::checks::ranges) fn length_difference_is_within_collection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
@@ -435,7 +435,7 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
 /// The current builtin extent of the exact place, never a same-spelled field,
 /// another descriptor, or a saved scalar observation from a previous snapshot.
 pub(super) fn is_exact_collection_length(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     collection: ExpressionHandle,
@@ -474,7 +474,7 @@ pub(super) fn is_exact_collection_length(
 /// `K <= floor <= len` — the same contract the index lane reads, one step
 /// weaker because the exclusive end may equal the length.
 fn range_bound_is_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     collection_label: &str,
     bound: ExpressionHandle,

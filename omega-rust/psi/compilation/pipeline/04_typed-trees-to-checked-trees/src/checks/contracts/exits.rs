@@ -70,7 +70,7 @@ fn direct_result_float_meaning_reflexivity_proves_exit(
 /// checked body, prove the `ensures` expression at an exit that cannot have
 /// changed any parameter.
 fn collection_premises_prove_exit(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     fact: &facts::Fact,
 ) -> bool {
@@ -91,7 +91,7 @@ fn collection_premises_prove_exit(
 /// induction. Callers must establish exact invocation origins before using this
 /// helper; it grants no assumption, entailment or invariant authority.
 pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit_flow: &checked_trees::FlowExitFact,
     entry_contexts: &[facts::FactContextHandle],
@@ -107,7 +107,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
 }
 
 pub(super) fn check_exit_ensures(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     exit_flow: &checked_trees::FlowExitFact,

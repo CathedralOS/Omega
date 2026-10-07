@@ -7,7 +7,7 @@ use super::super::{
 };
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment, declared_place_type_raw,
+    ProofFact, SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
     incoming_guard_environment, literal_i64, narrow_environment_by_condition, ordered_values,
     place_path,
 };
@@ -24,7 +24,7 @@ mod transition_arguments;
 /// Authored requirements are assumptions of body checking;
 /// call/transition validation must independently discharge those requirements.
 pub fn arrival_integer_expression_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -64,7 +64,7 @@ pub fn arrival_integer_expression_bounds(
 /// the requirement itself. Transition-argument admission keeps its separate
 /// declaration-only premise discipline above.
 pub fn occurrence_integer_expression_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -87,7 +87,7 @@ pub fn occurrence_integer_expression_bounds(
 /// ordered-value judgment retains those relations across the same effects and
 /// all-arrival joins as ordinary arithmetic checking.
 pub fn occurrence_integer_expression_fits_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -149,7 +149,7 @@ pub fn occurrence_integer_expression_fits_range(
 /// as a nonzero divisor. An unbounded result is not failed arithmetic: callers
 /// validate under this environment rather than requiring finite endpoints.
 pub(crate) fn occurrence_value_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
@@ -158,7 +158,7 @@ pub(crate) fn occurrence_value_environment(
 }
 
 fn expression_observation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: Option<usize>,
@@ -202,7 +202,7 @@ fn expression_observation(
 }
 
 pub(super) fn seed_state_requirements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     frames: Option<&CallFrameResolver>,
@@ -230,7 +230,7 @@ pub(super) fn seed_state_requirements(
 /// `None` when a frame is opaque. Only a machine-level `requires` condition
 /// reads it, so a machine without one never infers its frames here.
 fn machine_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&CallFrameResolver>,
 ) -> Option<Vec<String>> {
@@ -262,7 +262,7 @@ pub(super) struct RequirementSeeds {
 
 impl RequirementSeeds {
     pub(super) fn new(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         frames: Option<&CallFrameResolver>,
@@ -327,7 +327,7 @@ impl RequirementSeeds {
 
     pub(super) fn apply(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         environment: &mut ValueEnvironment,
@@ -364,7 +364,7 @@ impl RequirementSeeds {
 /// would use, `.len` operands included. An opaque write frame or any dropped
 /// fact fails closed: the fact stays entry-only, as before.
 fn machine_requires_survives(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     machine_written: Option<&[String]>,
@@ -381,7 +381,7 @@ fn machine_requires_survives(
 }
 
 fn condition_belongs_to_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -446,7 +446,7 @@ fn condition_belongs_to_state(
 }
 
 pub(super) fn incoming_environments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&CallFrameResolver>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
@@ -545,7 +545,7 @@ struct ExpressionObservation {
 }
 
 struct ArrivalWalk<'program, 'frames> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     frames: Option<&'frames CallFrameResolver<'program>>,
     /// Each arrival this walk delivers, by target state position, in order.
@@ -1076,7 +1076,7 @@ impl ArrivalWalk<'_, '_> {
     }
 }
 
-fn is_reference(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn is_reference(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { .. } => true,
         TypeReferenceNode::Constrained { base_type, .. } => is_reference(program, *base_type),

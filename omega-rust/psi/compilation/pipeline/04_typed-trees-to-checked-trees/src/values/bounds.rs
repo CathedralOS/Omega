@@ -338,7 +338,7 @@ fn binary(
 /// reference supplies no declared bound and the caller keeps the raw carrier.
 /// `None` also means "no tightening available"; it is never an error.
 pub(crate) fn declared_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
     primitive_type: PrimitiveType,
 ) -> Option<IntegerRange> {

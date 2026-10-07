@@ -224,7 +224,7 @@ pub(crate) fn seed_entry_paths(
 /// Capture when the guard runs: later writes do not revise this historical
 /// proposition, and it never supplies a present-storage observation.
 pub(crate) fn capture_entry_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &mut FactPlan,
     state: SymbolHandle,

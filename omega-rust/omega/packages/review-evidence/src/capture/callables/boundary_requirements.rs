@@ -30,7 +30,7 @@ pub(super) fn project_checked_requirement_realization(
         ))]);
     }
     validation::revalidate_top_level_requirement_realization(
-        &compilation.typed,
+        compilation.checking_input,
         machine,
         requirement,
         conformance,
@@ -106,7 +106,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
     }
     let Some(expected_schema) = provider_planning::service_schema::from_typed_boundary_requirement(
         provider_planning::ProviderPlanningContext::new(
-            &compilation.typed,
+            compilation.checking_input,
             source::DependencyScope::Product,
         ),
         requirement,

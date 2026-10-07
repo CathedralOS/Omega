@@ -5,11 +5,10 @@
 //! or resolve call frames.
 
 use super::transparent_effects::expression_is_effectful_for_transparent_result;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn expression_is_effectful_indexed_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {

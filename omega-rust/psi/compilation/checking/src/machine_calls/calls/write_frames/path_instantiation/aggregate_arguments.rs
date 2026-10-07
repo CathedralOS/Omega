@@ -15,14 +15,13 @@ use crate::machine_calls::calls::write_frames::stored_origins::{
     demand_is_declared, place_suffix, symbolic_reference_leaves,
 };
 use facts::PlaceSegment;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     argument: ExpressionHandle,
     expected_type: TypeReferenceHandle,
@@ -93,7 +92,7 @@ pub(in crate::machine_calls::calls::write_frames) type AggregateResolver<'resolv
         + 'resolver;
 
 pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     argument: ExpressionHandle,
     expected_type: TypeReferenceHandle,
@@ -122,7 +121,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
 /// The caller supplies frozen or symbolic leaf evidence; the shared walker
 /// filters demand and attaches it beneath the current literal's prefix.
 pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     argument: ExpressionHandle,
     expected_type: TypeReferenceHandle,

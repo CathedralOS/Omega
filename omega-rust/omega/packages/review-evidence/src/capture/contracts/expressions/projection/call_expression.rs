@@ -29,7 +29,7 @@ pub(super) fn project_call_expression(
     let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
     let resolved_symbol = resolved_contract_call_symbol(compilation, call).or_else(|| {
         typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-            &compilation.typed,
+            compilation.checking_input,
             &compilation.facts,
             expression,
         )

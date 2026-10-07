@@ -14,7 +14,6 @@ use checked_trees::{
 };
 use numerics::float_semantics::FloatFormat;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::types::PrimitiveType;
 
@@ -26,7 +25,7 @@ use typed_trees::types::PrimitiveType;
 /// Lexical resolution owns visibility; a private same-package requirement
 /// uses the same selected-provider route as a public one.
 fn directly_callable_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     entry_symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     if !entry_symbol.is_valid() {
@@ -44,7 +43,7 @@ fn directly_callable_requirement(
 }
 
 pub(crate) fn collect_named_requirement_uses(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     values: &CheckedValueFacts,
 ) -> Arena<CheckedNamedRequirementUseFact> {
     let mut uses = Arena::default();
@@ -65,7 +64,7 @@ pub(crate) fn collect_named_requirement_uses(
 }
 
 fn collect(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
@@ -109,7 +108,7 @@ fn collect(
 }
 
 fn named_requirement_use_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     call: &TableCallExpression,

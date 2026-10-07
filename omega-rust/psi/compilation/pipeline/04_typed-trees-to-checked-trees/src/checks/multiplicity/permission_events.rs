@@ -53,7 +53,7 @@ pub(crate) fn owned_permission_events(
 /// Prepare source custody without inspecting derived callable contracts. Crash
 /// frontier projection belongs after those contracts have been constructed.
 pub(crate) fn prepare_permission_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut cleanup_dispositions = ContextualCleanupFacts::default();
@@ -330,7 +330,7 @@ struct DerivedCrashFrontier {
 /// payload is omitted until active-case proof can make its liveness definite.
 /// Crash abandons these claims; it does not synthesize cleanup or consumption.
 pub(crate) fn record_crash_frontier_lower_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) {
@@ -460,7 +460,7 @@ struct ProvenCaseMembership {
 /// cannot accidentally inherit it. A nested claim enters the lower bound only
 /// when membership evidence covers every case segment.
 fn proven_conditional_entry_claims(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     places: &[LinearPlace],
@@ -526,7 +526,7 @@ fn proven_conditional_entry_claims(
 /// a predicate as `predicate == true`; unwrap that shell but deliberately do
 /// not infer through negation or disjunction here.
 pub(crate) fn collect_positive_case_tests(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     tests: &mut Vec<(typed_trees::expression::ExpressionHandle, SymbolHandle)>,
 ) {
@@ -583,7 +583,7 @@ pub(crate) fn collect_positive_case_tests(
 }
 
 pub(crate) fn exact_positive_case_test(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -615,7 +615,7 @@ pub(crate) fn exact_positive_case_test(
 }
 
 pub(crate) fn case_transition_run_is_exhaustive(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: &[StatementNode],
     arm_indices: &[usize],
 ) -> bool {
@@ -664,7 +664,7 @@ pub(crate) fn case_transition_run_is_exhaustive(
 /// The symbol-rooted canonical path a guard `subject` resolves to — the
 /// shared peel both case-alternative guards apply before their path tests.
 fn guarded_case_subject(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     subject: typed_trees::expression::ExpressionHandle,
@@ -682,7 +682,7 @@ fn guarded_case_subject(
 }
 
 pub(crate) fn select_case_alternative_from_guard(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     subject: typed_trees::expression::ExpressionHandle,
@@ -699,7 +699,7 @@ pub(crate) fn select_case_alternative_from_guard(
 }
 
 pub(crate) fn exclude_case_alternative(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     subject: typed_trees::expression::ExpressionHandle,
@@ -734,7 +734,7 @@ pub(crate) fn exclude_case_alternative(
 /// path-aligned results publish structural output paths; opaque multi-output
 /// calls remain conservative until they publish an explicit result mapping.
 fn reconcile_state_call_result_origins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &mut [FlowPermissionEventFact],
 ) -> Vec<CheckedClaimOutcomeMap> {
@@ -754,7 +754,7 @@ fn reconcile_state_call_result_origins(
 }
 
 fn apply_statically_inactive_call_results(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segments: &arena::Arena<facts::PlaceSegment>,
     permission_events: &mut [FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],

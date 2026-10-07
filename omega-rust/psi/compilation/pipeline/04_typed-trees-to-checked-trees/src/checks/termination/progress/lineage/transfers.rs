@@ -11,7 +11,7 @@ pub(super) struct ParameterTransfer {
 }
 
 pub(super) fn collect(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &typed_trees::machine::Machine,
     subjects: &[ProgressSubject],

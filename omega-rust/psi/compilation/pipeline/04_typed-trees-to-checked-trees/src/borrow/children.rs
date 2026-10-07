@@ -3,14 +3,13 @@
 //! classifies it under its own rules.
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::TypedTrees;
 
 /// Recurse `visit` over the child expressions the borrow walks share:
 /// match subjects/patterns/values, atomics, array/range/unary operands,
 /// binary operands, cast values, and struct-literal fields. Returns
 /// `false` for nodes the walks classify differently.
 pub(super) fn recurse_shared_children(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     visit: &mut dyn FnMut(ExpressionHandle),
 ) -> bool {

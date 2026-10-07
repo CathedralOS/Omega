@@ -1,9 +1,7 @@
 //! Dynamic conformance facts and normalized dynamic row identities.
 
-use typed_trees::TypedTrees;
-
 pub(crate) fn build_dynamic_conformance_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<checked_trees::DynamicConformanceFacts, Vec<diagnostics::Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
@@ -78,7 +76,7 @@ pub(crate) fn build_dynamic_conformance_facts(
 }
 
 pub(crate) fn normalized_dynamic_row_identities(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     row: &typed_trees::trait_definition::ConformanceRow,
 ) -> Result<(String, String), diagnostics::Diagnostic> {
     let mut declaring_traits = program

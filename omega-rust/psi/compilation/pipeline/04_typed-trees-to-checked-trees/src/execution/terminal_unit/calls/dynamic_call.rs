@@ -28,7 +28,7 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, PrimitiveType,
-    SymbolHandle, TypedTrees, strips_erased_parameter,
+    SymbolHandle, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -37,7 +37,7 @@ use checked_trees::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleePlans<'_>>,
     machine: &typed_trees::machine::Machine,

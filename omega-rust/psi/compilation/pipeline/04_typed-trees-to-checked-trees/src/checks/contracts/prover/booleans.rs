@@ -11,7 +11,7 @@ use super::super::domains::{
 };
 
 pub(super) fn semantic_context_proves_boolean_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     context: &facts::FactContext,
     expression: typed_trees::expression::ExpressionHandle,
@@ -54,7 +54,7 @@ pub(super) fn semantic_context_proves_boolean_expression(
 }
 
 pub(super) fn semantic_context_proves_instantiated_boolean_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,

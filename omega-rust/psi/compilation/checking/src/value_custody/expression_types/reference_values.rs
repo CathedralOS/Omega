@@ -4,7 +4,7 @@
 //! the current-state binding and checks every enclosing reference permission;
 //! a mutable leaf behind shared storage cannot authorize an exclusive call.
 use super::{
-    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
     named_value_type_reference,
 };
 use language_semantics::ReferenceAccess;
@@ -17,7 +17,7 @@ use typed_trees::types::{FixedArrayLength, TypeConstraintNode};
 /// retains element identity and readable access; callers still establish the
 /// original backing, extent and permission. Write-only attenuation is explicit.
 pub(super) fn reference_type_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -120,7 +120,7 @@ pub(super) fn reference_type_matches(
 /// consumer. Ordinary calls prove qualifications from flow facts; logical
 /// formation and post-check consumers retain declaration correspondence.
 pub(super) type ReferenceCorrespondence = fn(
-    &TypedTrees,
+    &dyn crate::CheckingInput,
     TypeReferenceHandle,
     TypeReferenceHandle,
     &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -131,7 +131,7 @@ pub(super) type ReferenceCorrespondence = fn(
 /// checking. Shared views can use live qualification evidence even when their
 /// declaration is bare; mutable invariants keep declaration correspondence.
 pub(super) fn value_carrier_matches_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -181,7 +181,7 @@ pub(super) fn value_carrier_matches_reference(
 /// weakening, carry and loan checks separately retain semantic and ownership
 /// obligations. This relation supplies neither membership nor a loan.
 fn shared_referee_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -258,7 +258,7 @@ fn shared_referee_matches(
 /// shells: a `([u8; N] in Domain)` parameter cannot be satisfied by shape
 /// alone.
 fn fixed_array_binds_open_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -325,7 +325,7 @@ fn fixed_array_binds_open_length(
 /// operators, conformances and signatures, so a symbol lookup finds the exact
 /// declaring telescope without knowing the call's owner.
 fn const_length_declared_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if !symbol.is_valid() {
@@ -348,7 +348,7 @@ fn const_length_declared_type(
 /// non-integer) supplies no provable bound, so the match refuses rather than
 /// inferring a length the declared carrier might exclude.
 fn literal_satisfies_declared_const(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     length: usize,
     declared: TypeReferenceHandle,
 ) -> bool {
@@ -384,7 +384,7 @@ fn literal_satisfies_declared_const(
 /// range — and `reference_type_matches` keeps the access direction honest:
 /// a shared source cannot authorize a mutable subslice.
 pub(super) fn subslice_view_matches_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     indexed: &typed_trees::expression::TableIndexedExpression,
     required: TypeReferenceHandle,
     correspondence: ReferenceCorrespondence,
@@ -412,7 +412,7 @@ pub(super) fn subslice_view_matches_reference(
 }
 
 pub(super) fn projected_matches_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     required: TypeReferenceHandle,
     correspondence: ReferenceCorrespondence,
@@ -435,7 +435,7 @@ pub(super) fn projected_matches_reference(
 }
 
 pub(super) fn declared_value_matches_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -504,7 +504,7 @@ pub(super) fn declared_value_matches_reference(
 /// Carrier qualifications may be forgotten by a plain view; element identities
 /// and qualifications are unchanged, and no required view constraint is inferred.
 fn owned_array_projects_to_slice(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -552,7 +552,7 @@ fn owned_array_projects_to_slice(
 /// constraints takes the plain shape correspondence; a required constraint
 /// that is not a domain, or one no actual domain implies, still rejects.
 fn owned_array_satisfies_constrained_referee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -646,7 +646,7 @@ fn owned_array_satisfies_constrained_referee(
 /// byte-carrier bridge that lets `[u8; N]::D` evidence satisfy `[u8]::D`
 /// only when both declarations name the same recognized byte predicate.
 fn domain_membership_implies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source_domain: symbols::SymbolHandle,
     target_domain: symbols::SymbolHandle,
 ) -> bool {
@@ -687,7 +687,10 @@ fn domain_membership_implies(
     )
 }
 
-fn is_fixed_byte_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_fixed_byte_carrier(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
@@ -701,7 +704,10 @@ fn is_fixed_byte_carrier(program: &TypedTrees, type_reference: TypeReferenceHand
     }
 }
 
-fn is_byte_slice_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_byte_slice_carrier(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. }
         | TypeReferenceNode::Reference {
@@ -722,7 +728,7 @@ fn is_byte_slice_carrier(program: &TypedTrees, type_reference: TypeReferenceHand
 /// the actual side strips — the required referee's own constraints remain the
 /// callee's claim, so an unqualified view still cannot satisfy `&[u8] in D`.
 fn constrained_referee_forgets_qualification(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -748,7 +754,7 @@ fn constrained_referee_forgets_qualification(
 }
 
 pub(super) fn substituted_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> Option<TypeReferenceHandle> {
@@ -770,7 +776,7 @@ pub(super) fn substituted_reference(
 }
 
 fn declared_value_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
 ) -> Option<TypeReferenceHandle> {
@@ -780,7 +786,7 @@ fn declared_value_type(
 /// A known current-state root supplies identity, not a new loan. Intermediate
 /// reference permissions constrain forwarding independently of the leaf type.
 pub(crate) fn place_forwards_mutable_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
@@ -813,7 +819,7 @@ pub(crate) fn place_forwards_mutable_reference(
 }
 
 pub(crate) fn declared_reference_access(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -832,7 +838,7 @@ pub(crate) fn declared_reference_access(
 /// its owned storage is writable; a mutable reference leaf can lend its
 /// referent without making the containing owned binding mutable.
 pub(crate) fn place_permits_reference_borrow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
@@ -893,7 +899,7 @@ fn reference_access_permits(source: ReferenceAccess, required: ReferenceAccess) 
 }
 
 fn projection_receiver_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     required_access: Option<ReferenceAccess>,
@@ -919,7 +925,7 @@ fn projection_receiver_type(
 }
 
 fn selected_value_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
@@ -1158,7 +1164,7 @@ fn selected_value_type(
 /// named root still identifies the selection telescope for ordinary builtin
 /// meaning reconstruction; no spelling lookup or default machine is allowed.
 fn place_machine_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     for _ in 0..128 {
@@ -1194,7 +1200,7 @@ fn place_machine_symbol(
 /// A call's formal-to-actual environment is simultaneous: the replacement
 /// already belongs to the caller, including when caller and callee coincide.
 pub(super) fn substituted_required_reference<'bindings>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &'bindings [(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> (

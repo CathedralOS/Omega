@@ -14,7 +14,7 @@ use super::*;
 /// `&mut [T]` view share this carrier, and each consumer admits the loan
 /// its own custody needs.
 pub(crate) fn element_view_shell(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<validation::SliceViewShell> {
@@ -24,7 +24,7 @@ pub(crate) fn element_view_shell(
 
 /// The element of a borrowed `[T]` element view under any access.
 pub(crate) fn borrowed_slice_view_element(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<TypeReferenceHandle> {
@@ -36,7 +36,7 @@ pub(crate) fn borrowed_slice_view_element(
 /// reference-peeling shape; an owned-view `&mut` result stays with the
 /// primitive reference-result custody family instead.
 pub(crate) fn borrowed_slice_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     structural_access_for_type_reference(program, type_reference)
@@ -47,7 +47,7 @@ pub(crate) fn borrowed_slice_view(
 /// A `&[T]` or `&[u8]` descriptor carrier under either loan access; the
 /// reference shell's access is the loan's, not the carrier's.
 pub(crate) fn slice_view_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     borrowed_slice_view_element(program, type_reference, &[]).is_some()
@@ -62,7 +62,7 @@ pub(crate) fn slice_view_carrier(
 /// lives in the caller's frame, so the owned-contents custody clause does not
 /// apply. `&mut`/`&write` named results stay with their own custody families.
 pub(crate) fn borrowed_named_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     borrowed_view_referent(
@@ -78,7 +78,7 @@ pub(crate) fn borrowed_named_view(
 /// storage lives in the caller's frame the same way, but writes flow
 /// through the loan — `parts` keeps the primitive-referent case.
 pub(crate) fn mutable_borrowed_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     borrowed_view_referent(
@@ -96,7 +96,7 @@ pub(crate) fn mutable_borrowed_view(
 /// a non-primitive named referent or a `[T]` slice, while primitive
 /// referents stay with `parts`. Write-only shells lend no structural view.
 pub(crate) fn borrowed_view_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     access: language_semantics::ReferenceAccess,
 ) -> Option<TypeReferenceHandle> {
@@ -124,7 +124,7 @@ pub(crate) fn borrowed_view_referent(
 /// result: the structural identity of the storage the view lends, exactly as
 /// `ShapeCollector::add_type` registers it.
 pub(crate) fn borrowed_view_result_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
     (borrowed_view_referent(
@@ -141,7 +141,7 @@ pub(crate) fn borrowed_view_result_identity(
 /// shared borrowed view — the record owns its scalars while each `&` field
 /// keeps its own statically named loan.
 pub(crate) fn record_with_owned_or_shared_view_fields(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     validation::has_owned_or_shared_view_fields(program, type_reference)

@@ -11,7 +11,7 @@ use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
 
 pub(super) fn bind_contract_expression_evidence_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -167,7 +167,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
 }
 
 fn proof_fact_expression_roots(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: Handle<typed_trees::domain::ProofFact>,
     expressions: &mut Vec<typed_trees::expression::ExpressionHandle>,
 ) {
@@ -187,7 +187,7 @@ fn proof_fact_expression_roots(
 }
 
 fn append_expression_children(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: &typed_trees::expression::ExpressionNode,
     children: &mut Vec<typed_trees::expression::ExpressionHandle>,
 ) {
@@ -253,7 +253,7 @@ pub(crate) fn exact_target_evidence_parameters(
 }
 
 pub(crate) fn instantiate_contract_expression_evidence_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     target_state_symbol: symbols::SymbolHandle,
@@ -317,7 +317,7 @@ fn evidence_term_visible_from_owner(
 }
 
 fn instantiate_proof_expression_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_parameters: &[typed_trees::signature::StateParameter],
@@ -366,7 +366,7 @@ fn instantiate_proof_expression_parameter(
 }
 
 pub(super) fn bind_call_evidence_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -509,7 +509,7 @@ fn source_term_by_name(
 }
 
 fn instantiated_parameter_proposition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     call: &checked_trees::ContractCallFact,
     call_site: &crate::semantic::calls::CallSite<'_>,
@@ -563,6 +563,9 @@ fn instantiated_parameter_proposition(
     Some(proposition)
 }
 
-fn call_target_name(program: &typed_trees::TypedTrees, target: symbols::SymbolHandle) -> String {
+fn call_target_name(
+    program: &dyn ::validation::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> String {
     crate::labels::call_target_label(program, target)
 }

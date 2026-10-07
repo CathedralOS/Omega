@@ -13,7 +13,10 @@ pub(super) struct Edge {
 
 /// Build the directed state-transition edges, restricted to edges whose target
 /// is a state of `machine`.
-pub(super) fn build_edges(program: &typed_trees::TypedTrees, machine: &Machine) -> Vec<Edge> {
+pub(super) fn build_edges(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+) -> Vec<Edge> {
     let mut edges = Vec::new();
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
@@ -40,7 +43,7 @@ pub(super) fn build_edges(program: &typed_trees::TypedTrees, machine: &Machine) 
 }
 
 pub(super) fn push_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     edges: &mut Vec<Edge>,
     source: SymbolHandle,

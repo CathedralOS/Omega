@@ -2,7 +2,6 @@
 //! Integer embeddings and nominal tag predicates need the same result scope:
 //! spelling or an equal carrier on another machine cannot authorize a result.
 
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -23,7 +22,7 @@ pub struct ReservedResultPlace {
 /// Resolve ordinary field projections rooted at the reserved contract result.
 /// Both the root and complete projection must occur in the same owning ensures.
 pub fn reserved_result_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ReservedResultPlace> {
     let mut root = expression;
@@ -100,7 +99,7 @@ pub fn reserved_result_place(
 }
 
 pub(crate) fn type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     reserved_result_owner(program, expression).map(|(_, type_reference)| type_reference)
@@ -110,7 +109,7 @@ pub(crate) fn type_reference(
 /// carrier types do not establish ownership, and an authored parameter named
 /// `result` takes precedence over the reserved contract form.
 pub fn reserved_result_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
     if !program.expression_table.names_reserved_result(expression) {
@@ -121,7 +120,7 @@ pub fn reserved_result_owner(
 }
 
 fn contract_occurrence_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
@@ -160,7 +159,7 @@ fn contract_occurrence_owner(
 /// symbol cannot distinguish sibling requirements, and manufacturing a machine
 /// for a bodyless signature would give it the wrong result owner.
 fn callable_contracts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> impl Iterator<
     Item = (
         symbols::SymbolHandle,
@@ -210,7 +209,7 @@ fn callable_contracts(
 
 /// Every expression node one contract's facts reach.
 fn contract_nodes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contract: &SignatureContract,
 ) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut nodes = Vec::new();
@@ -249,7 +248,7 @@ fn contract_nodes(
 /// `ensures` of a valid callable with a result type and no parameter that
 /// shadows the reserved name.
 fn owns_result(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callable: symbols::SymbolHandle,
     return_type: TypeReferenceHandle,
     parameters: &[StateParameter],
@@ -274,7 +273,7 @@ pub(crate) struct ContractOccurrenceIndex {
 }
 
 impl ContractOccurrenceIndex {
-    fn of(program: &TypedTrees) -> Self {
+    fn of(program: &dyn crate::CheckingInput) -> Self {
         let mut contracts = Vec::new();
         let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
         for (callable, return_type, parameters, contract) in callable_contracts(program) {

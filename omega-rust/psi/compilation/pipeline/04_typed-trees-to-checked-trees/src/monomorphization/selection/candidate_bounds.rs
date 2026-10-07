@@ -1,8 +1,11 @@
 //! Approved type bounds and candidate evidence binder validation.
 
-use crate::monomorphization::{Candidate, Diagnostic, SymbolHandle, TypedTrees};
+use crate::monomorphization::{Candidate, Diagnostic, SymbolHandle};
 
-pub(crate) fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<bool> {
+pub(crate) fn approved_type_bounds(
+    program: &dyn ::validation::CheckingInput,
+    candidates: &[Candidate],
+) -> Vec<bool> {
     let mut symbol_diagnostics = Vec::new();
     let symbols = validation::TopLevelSymbols::build(program, &mut symbol_diagnostics);
     candidates
@@ -40,7 +43,7 @@ pub(crate) fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate
 /// bindings. The data types live in those trait arguments; no binding is a
 /// subject that the conformance must belong to.
 pub(crate) fn validate_candidate_conformance_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -125,7 +128,7 @@ pub(crate) fn validate_candidate_conformance_bounds(
 }
 
 pub(crate) fn conformance_application_arguments_match_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
     bound: &typed_trees::machine::GenericConformanceBound,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,

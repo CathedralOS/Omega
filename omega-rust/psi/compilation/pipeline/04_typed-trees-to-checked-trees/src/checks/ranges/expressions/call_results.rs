@@ -14,7 +14,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 /// interface), unresolved targets, a `result`-shadowed signature, or a
 /// contract with no literal `result` comparison.
 pub(in crate::checks::ranges) fn ensured_call_result_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(Option<i64>, Option<i64>)> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -82,7 +82,11 @@ impl EnsuredResultBounds {
     /// <literal>` contributes (mirroring `seed_ensures_bound_conjunct`), and a
     /// conjunct that cannot name a literal bound is skipped rather than
     /// poisoning the interval its sibling conjuncts still prove.
-    fn fold_conjunct(&mut self, program: &typed_trees::TypedTrees, conjunct: ExpressionHandle) {
+    fn fold_conjunct(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        conjunct: ExpressionHandle,
+    ) {
         if let ExpressionNode::Atomic(atomic) = program.expression_table.expression(conjunct) {
             self.fold_conjunct(program, atomic.value);
             return;
@@ -143,7 +147,10 @@ impl EnsuredResultBounds {
 
 /// Whether `expression` is exactly the reserved `result` binder — a
 /// single-member `result` name, mirroring the contract-label convention.
-fn is_result_binder(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_result_binder(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
     };

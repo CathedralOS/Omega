@@ -7,7 +7,6 @@ use diagnostics::Diagnostic;
 use facts::ProgramPoint;
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -48,7 +47,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// qualification-carrier route, the only establishment is refusal.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_unevidenced_establishment_diagnostics(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
     point: ProgramPoint,
@@ -116,7 +115,7 @@ pub(super) fn append_unevidenced_establishment_diagnostics(
 /// surface; on a custody-managed carrier the vacuous member's qualification
 /// names custody state, so the write must refuse the value the cast minted.
 pub(super) fn append_unevidenced_cast_mint_diagnostic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
@@ -190,7 +189,7 @@ pub(super) fn append_unevidenced_cast_mint_diagnostic(
 /// siblings at all is [`linear-carrier-vacuous-qualification`](../../../../../../OWNER_QUESTIONS.md) (Q8).
 /// Constrained or borrowed spellings unwrap to the named root.
 pub(super) fn domain_target_is_custody_marked(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> bool {
     let mut type_reference = target_type;
@@ -219,7 +218,7 @@ pub(super) fn domain_target_is_custody_marked(
 /// The named carrier symbol a domain declaration attaches to, unwrapping
 /// constrained or borrowed spellings.
 pub(super) fn domain_carrier_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let mut type_reference = target_type;
@@ -236,7 +235,10 @@ pub(super) fn domain_carrier_symbol(
 /// Display spelling of a domain's declared carrier for the mint diagnostic.
 /// is not treated as bodyless: only a found declaration states that membership
 /// has no predicates a write could prove.
-pub(super) fn is_bodyless_domain_family(program: &TypedTrees, family: SymbolHandle) -> bool {
+pub(super) fn is_bodyless_domain_family(
+    program: &dyn ::validation::CheckingInput,
+    family: SymbolHandle,
+) -> bool {
     program
         .domain_definitions()
         .iter()

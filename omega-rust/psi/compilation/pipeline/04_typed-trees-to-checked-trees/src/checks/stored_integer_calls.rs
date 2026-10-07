@@ -8,7 +8,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
+use typed_trees::{machine::Machine, state::State, statement::StatementNode};
 use validation::{CallFrameResolver, CallWriteOrigins, LocalWriteSource};
 
 struct Invocation<'a> {
@@ -19,7 +19,7 @@ struct Invocation<'a> {
 }
 
 struct Admission<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     frames: &'a CallFrameResolver<'a>,
     entry_origins: &'a [(SymbolHandle, crate::flow::MachineParameterOrigins)],
@@ -32,7 +32,7 @@ struct Admission<'a> {
 }
 
 pub(super) fn check(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -99,7 +99,11 @@ pub(super) fn check(
     }
 }
 
-fn internal_state_call(program: &TypedTrees, state: &FlowStateFact, call: &FlowCallFact) -> bool {
+fn internal_state_call(
+    program: &dyn ::validation::CheckingInput,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+) -> bool {
     call_values::target_machine(program, call).is_none()
         && crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
             .is_some_and(|(machine, _)| machine.symbol == state.machine_symbol)
@@ -813,7 +817,7 @@ fn actual_origins<'a>(
 }
 
 fn is_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     loop {

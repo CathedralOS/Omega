@@ -10,7 +10,6 @@ use super::local_aliases::expression_may_rebind_mutable_alias;
 use super::place_paths::{FramePlaceOrigin, coarse_place_path, split_place_root};
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
 use language_core::is_self_receiver;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -21,7 +20,7 @@ use typed_trees::types::TypeReferenceNode;
 /// it cannot replace the destination's reference carrier. Explicit reference
 /// construction and reference-valued calls retain their separate opacity rules.
 fn assignment_copies_primitive_referent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -84,7 +83,7 @@ fn assignment_copies_primitive_referent(
 /// Whole-reference transport across a named edge requires the original input
 /// binding, not merely a source expression with the same parameter symbol.
 pub fn state_reference_parameter_binding_is_stable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     parameter: symbols::SymbolHandle,
@@ -130,7 +129,7 @@ pub fn state_reference_parameter_binding_is_stable(
 /// replace a binding. Calls inside the result still need the ordinary exposure
 /// fence, and stored/discarded expressions are not admitted by this rule.
 pub(super) fn statement_returns_reference_without_effects(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     statement: &typed_trees::statement::StatementNode,
 ) -> bool {
@@ -151,7 +150,7 @@ pub(super) fn statement_returns_reference_without_effects(
 /// field or carrier does not yet: changing it before a later write invalidates
 /// every original argument-leaf substitution, so the body must stay opaque.
 pub(super) fn assignment_replaces_untracked_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -211,7 +210,7 @@ pub(super) fn assignment_replaces_untracked_reference(
 /// canonicalized origins, so rebinding an upstream local never redirects a
 /// previously established reborrow.
 pub(super) fn rebind_stable_local_mutable_alias_origin<ResolveOrigin>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: &str,
@@ -233,14 +232,13 @@ where
     Some(true)
 }
 
-
 /// The shared direct-place mutable-alias rebind used by the assignment
 /// walks: `Some(Some(relative))` means the stable alias record replaced the
 /// write and carries the rebound relative path (callers may still record
 /// it); `Some(None)` leaves the ordinary target path to resolve; `None`
 /// fails the walk closed.
 pub(super) fn rebind_direct_assignment_target<ResolveOrigin>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -269,7 +267,7 @@ where
 /// without mutating it. The origin callback runs only after exact target and
 /// reference-shaped replacement admission, preserving fail-closed ordering.
 pub(super) fn stable_local_mutable_alias_rebinding_is_representable<ResolveOrigin>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: &str,
@@ -289,7 +287,7 @@ where
 /// alias may rebind to; `resolve_origin` supplies the alias's initializer
 /// origin from the established alias table.
 pub(super) fn representable_assignment_alias_rebinding<ResolveOrigin>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,

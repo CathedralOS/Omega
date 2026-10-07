@@ -5,10 +5,10 @@
 
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
-use super::{CheckFacts, ScalarCalleePlans, TypedTrees};
+use super::{CheckFacts, ScalarCalleePlans};
 use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
 
-pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn retain(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
     let mut shapes = ShapeCollector::new(program);
     let mut schedules = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {
@@ -95,7 +95,7 @@ pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
 /// producer's disposal debt belongs to its enclosing checked operation body.
 /// Rejoin that shared namespace at publication using ordinary transfer rules.
 fn consume_caller_results<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     operations: &mut [CheckedUnitEffectOperationPlan],
@@ -248,7 +248,7 @@ fn caller_operations(
 }
 
 fn schedule(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     root: &CheckedStructuralValueRoot,

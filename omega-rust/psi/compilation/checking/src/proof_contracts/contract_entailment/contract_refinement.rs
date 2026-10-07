@@ -29,7 +29,7 @@
 
 use super::law_conformance::term_mentions_variable;
 use super::structural_terms::structural_term;
-use super::{RESULT_BINDER, StateSignature, TraitDefinition, TypedTrees};
+use super::{RESULT_BINDER, StateSignature, TraitDefinition};
 use diagnostics::Diagnostic;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -40,7 +40,7 @@ use typed_trees::signature::{SignatureContract, SignatureContractKind, StatePara
 /// Validate that `machine`, realizing `requirement` through a closed row,
 /// refines the requirement's contract.
 pub(crate) fn check_contract_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
@@ -125,7 +125,7 @@ struct Conjunct {
 
 impl Conjuncts {
     fn collect<'a>(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         contracts: impl Iterator<Item = &'a SignatureContract>,
         parameters: &[StateParameter],
     ) -> Self {
@@ -213,7 +213,7 @@ impl Conjuncts {
 }
 
 fn split_conjuncts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     out: &mut Vec<ExpressionHandle>,
 ) {
@@ -229,7 +229,7 @@ fn split_conjuncts(
 
 /// The law judgment enforces an equality whose sides both read as structural
 /// terms and neither names the result.
-fn is_law_conjunct(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
@@ -250,7 +250,7 @@ fn is_law_conjunct(program: &TypedTrees, expression: ExpressionHandle) -> bool {
 
 /// Spell a conjunct in the member's formal names.
 fn render(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     conjunct: &Conjunct,
     authored: &[StateParameter],
     member: &[StateParameter],

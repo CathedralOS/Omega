@@ -8,7 +8,6 @@ use crate::proof_contracts::arithmetic_domains::value_environment::{
     FloatInterval, ValueEnvironment,
 };
 use crate::value_custody::places::declared_place_type_raw;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -18,7 +17,10 @@ use typed_trees::types::{
 
 /// The float value of a literal operand (through a `Mutable` wrapper), read at
 /// its landed format, or `None` when the operand is not a plain float literal.
-pub(crate) fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<f64> {
+pub(crate) fn float_literal_value(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+) -> Option<f64> {
     let mut node = program.expression_table.expression(value);
     while let ExpressionNode::Borrow(inner) = node {
         node = program.expression_table.expression(inner.target);
@@ -30,7 +32,7 @@ pub(crate) fn float_literal_value(program: &TypedTrees, value: ExpressionHandle)
 }
 
 pub(crate) fn float_source_proves_integer_conversion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -77,7 +79,7 @@ impl FloatSourceBounds {
 }
 
 pub(crate) fn float_source_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -127,7 +129,7 @@ pub(crate) fn float_source_bounds(
 /// enclosure. IEEE format conversion is monotone on ordered values, so its
 /// endpoint images enclose every result; no target predicate supplies a bound.
 fn selected_format_conversion_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -179,7 +181,7 @@ pub(crate) fn float_interval_fits_integer(low: f64, high: f64, target: Primitive
 }
 
 pub(crate) fn float_range_constraint_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<FloatInterval> {
     match program.type_reference_table.type_reference(handle) {

@@ -38,7 +38,7 @@ use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -123,7 +123,7 @@ pub(crate) fn check_flow_call_borrows(
 }
 
 pub(super) fn initialize_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {

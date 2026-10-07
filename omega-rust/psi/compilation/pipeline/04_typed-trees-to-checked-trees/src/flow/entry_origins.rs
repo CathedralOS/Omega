@@ -12,7 +12,7 @@ use validation::{CallFrameResolver, LocalWriteSource};
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 fn reference_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
@@ -25,7 +25,7 @@ fn reference_type(
 }
 
 fn immutable_scalar(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     (!parameter.is_mutable)
@@ -36,14 +36,14 @@ fn immutable_scalar(
 }
 
 fn tracked_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     reference_type(program, parameter.type_reference) || immutable_scalar(program, parameter)
 }
 
 fn stable_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     symbol: SymbolHandle,
@@ -84,7 +84,7 @@ struct ParameterEdge {
 /// before the transition). Locals shadow same-named parameters, and each
 /// local's initializer only sees bindings that precede it.
 fn tracked_source_parameter<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     source: &'a typed_trees::state::State,
     locals: &[(
         SymbolHandle,
@@ -133,7 +133,7 @@ fn tracked_source_parameter<'a>(
 }
 
 fn parameter_edges<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     frames: Option<&CallFrameResolver<'program>>,
 ) -> Vec<ParameterEdge> {
@@ -242,7 +242,7 @@ impl MachineParameterOrigins {
     /// machine that gained states since must be solved again.
     pub(super) fn covers(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
     ) -> bool {
         self.rows.len() == program.machine_states(machine).len()
@@ -250,7 +250,7 @@ impl MachineParameterOrigins {
 }
 
 pub(crate) fn machine_parameter_origins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
     solve_parameter_origins(program, machine, None)
@@ -260,7 +260,7 @@ pub(crate) fn machine_parameter_origins(
 /// share the same named edges and fixed point, but retain distinct transfer
 /// semantics: changing referent contents never changes address provenance.
 pub(crate) fn machine_storage_origins<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     frames: &CallFrameResolver<'program>,
     machine: &'program typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
@@ -268,7 +268,7 @@ pub(crate) fn machine_storage_origins<'program>(
 }
 
 fn solve_parameter_origins<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     frames: Option<&CallFrameResolver<'program>>,
 ) -> MachineParameterOrigins {
@@ -391,7 +391,7 @@ fn solve_parameter_origins<'program>(
     }
 }
 
-fn root_storage(program: &typed_trees::TypedTrees, root: SymbolHandle) -> LocalWriteSource {
+fn root_storage(program: &dyn ::validation::CheckingInput, root: SymbolHandle) -> LocalWriteSource {
     LocalWriteSource {
         recasts: Vec::new(),
         root,
@@ -403,7 +403,7 @@ fn root_storage(program: &typed_trees::TypedTrees, root: SymbolHandle) -> LocalW
 }
 
 fn transport_storage(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     rows: &[ParameterOrigins],
     source: &LocalWriteSource,
@@ -445,7 +445,7 @@ fn transport_storage(
 /// distinct from an unreachable empty set. Private owned allocations retain
 /// their exact roots; no caller origin is invented for an unresolved alias.
 pub(crate) fn entry_storage_origins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     solved: &MachineParameterOrigins,
@@ -466,7 +466,7 @@ pub(crate) fn entry_storage_origins(
 /// The entry-parameter identities `state`'s stable parameters carry on every
 /// incoming path, read from its machine's solved origins.
 pub(crate) fn state_origins(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     solved: &MachineParameterOrigins,
@@ -492,7 +492,7 @@ pub(crate) fn state_origins(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn rebase_contexts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,

@@ -123,7 +123,7 @@ pub(crate) fn permission_event_statement_index(source: PermissionEventSource) ->
 }
 
 pub(crate) fn append_borrow_permission_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
@@ -206,7 +206,7 @@ pub(crate) fn append_borrow_permission_events(
 }
 
 fn append_borrow_permission_event(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     machine_symbol: SymbolHandle,

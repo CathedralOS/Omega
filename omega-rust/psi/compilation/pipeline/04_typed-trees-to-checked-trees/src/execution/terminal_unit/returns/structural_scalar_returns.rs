@@ -28,12 +28,12 @@ use crate::execution::terminal_unit::{
     CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan, Diagnostic,
     ExpressionNode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-    PrimitiveType, StatementNode, TypedTrees, checked_shared_boolean_convergence, is_reference,
+    PrimitiveType, StatementNode, checked_shared_boolean_convergence, is_reference,
     shared_convergence,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -209,7 +209,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
 }
 
 pub(crate) fn build_structural_scalar_return_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: Option<&CheckedUnitEffectPlans>,
     shapes: &mut ShapeCollector<'_>,

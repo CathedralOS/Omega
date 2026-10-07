@@ -24,7 +24,7 @@ pub(in crate::borrow) enum BorrowedInitializerKind {
 /// source, together with its projection within the aggregate owner. Aggregate
 /// sources are expanded later from call-return or transferred-local loan facts.
 pub(super) fn borrowed_initializers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
@@ -150,7 +150,7 @@ pub(super) fn borrowed_initializers(
 }
 
 fn aggregate_value_initializer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
@@ -176,7 +176,7 @@ fn aggregate_value_initializer(
 }
 
 fn borrowed_data_literal_initializers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     expression: ExpressionHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],

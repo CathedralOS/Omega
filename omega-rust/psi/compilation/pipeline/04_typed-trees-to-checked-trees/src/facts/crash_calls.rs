@@ -26,10 +26,9 @@ use crate::facts::crash_calls::summary_predicates::{
 };
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(super) fn crash_predicate_from_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     parameter_names: &[String],
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
@@ -181,7 +180,7 @@ pub(super) fn crash_predicate_from_expression(
 /// propagation can distinguish a proved-crash-free call from an unexamined call
 /// without reopening source trees.
 pub(super) fn attach_checked_crash_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     semantic: &facts::FactPlan,
@@ -438,7 +437,7 @@ pub(super) fn attach_checked_crash_calls(
 }
 
 pub(crate) fn infer_checked_machine_crash_causes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
 ) -> Option<Vec<checked_trees::CrashCause>> {
@@ -450,7 +449,7 @@ pub(crate) fn infer_checked_machine_crash_causes(
 }
 
 pub(crate) fn infer_checked_crash_causes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
     let content_conservation = validation::content_conservation_plans(program);

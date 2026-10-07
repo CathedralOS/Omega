@@ -17,13 +17,14 @@ pub(crate) fn policy_provider_requirement_identity(
     if !matches!(declaration, ProviderSchemaDeclaration::BoundaryOperator(_)) {
         return provider_requirement_identity(compilation, declaration, requirement);
     }
-    let operator = typed_trees::operator::declaration_by_symbol(&compilation.typed, requirement)
-        .filter(|operator| operator.is_boundary)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "operator policy has no exact boundary declaration",
-            )]
-        })?;
+    let operator =
+        typed_trees::operator::declaration_by_symbol(compilation.checking_input, requirement)
+            .filter(|operator| operator.is_boundary)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "operator policy has no exact boundary declaration",
+                )]
+            })?;
     let coordinate = project_operator_coordinate(compilation, operator)?;
     Ok(coordinate.policy_requirement_identity())
 }

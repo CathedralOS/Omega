@@ -10,14 +10,14 @@ pub(crate) const RESULT_BINDER: &str = "result";
 pub(crate) trait ContractTargetParameters {
     fn contract_parameters<'program>(
         &'program self,
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
     ) -> &'program [typed_trees::signature::StateParameter];
 }
 
 impl ContractTargetParameters for typed_trees::state::State {
     fn contract_parameters<'program>(
         &'program self,
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
     ) -> &'program [typed_trees::signature::StateParameter] {
         program.state_parameters(self)
     }
@@ -26,7 +26,7 @@ impl ContractTargetParameters for typed_trees::state::State {
 impl ContractTargetParameters for [typed_trees::signature::StateParameter] {
     fn contract_parameters<'program>(
         &'program self,
-        _program: &'program typed_trees::TypedTrees,
+        _program: &'program dyn ::validation::CheckingInput,
     ) -> &'program [typed_trees::signature::StateParameter] {
         self
     }
@@ -38,7 +38,7 @@ impl ContractTargetParameters for [typed_trees::signature::StateParameter] {
 /// fact like `ensures result in String::Utf8` becomes a domain fact on the
 /// concrete call result at the call site.
 fn call_result_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> String {
     let argument_list = |arguments| {
@@ -86,7 +86,7 @@ fn call_result_label(
     reason = "call-site coordinates are deliberately threaded through recursive label rendering"
 )]
 pub(crate) fn instantiate_call_contract_expression_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,

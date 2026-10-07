@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 /// view its initializer's own result type names, lending the range
 /// read-only exactly as its `&[u8]` spelling does.
 pub(super) fn element_view_local_binding(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
@@ -35,7 +35,7 @@ pub(super) fn element_view_local_binding(
 }
 
 pub(super) fn reference_local_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -274,7 +274,7 @@ pub(super) fn reference_local_borrow_loans(
 /// A match arm is not an explicit reborrow, so direct sources keep
 /// `DirectRoot` lineage and rebased sources stay deliberately unretained.
 pub(super) fn selected_arm_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -332,7 +332,7 @@ pub(super) fn selected_arm_borrow_loans(
 }
 
 pub(super) fn literal_indexed_recast_borrow_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -371,7 +371,7 @@ pub(super) fn literal_indexed_recast_borrow_place(
 /// Unadmitted recast sources mint no loan, restoring the fence the
 /// broader recast vocabulary kept before this arm existed.
 pub(super) fn runtime_indexed_recast_borrow_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -403,7 +403,7 @@ pub(super) fn runtime_indexed_recast_borrow_place(
 /// of a semantic-domain retag. Numeric/domain casts and helper-returned views
 /// remain derived and unretained.
 pub(super) fn direct_reborrow_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match program.expression_table.expression(expression) {
@@ -418,7 +418,7 @@ pub(super) fn direct_reborrow_target(
 }
 
 pub(super) fn whole_place_recast_borrow_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,

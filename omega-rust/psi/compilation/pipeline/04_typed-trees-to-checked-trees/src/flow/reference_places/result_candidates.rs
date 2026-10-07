@@ -25,7 +25,6 @@
 use crate::flow::CanonicalPlace;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
@@ -33,7 +32,7 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode
 /// `statement_index`, when it was bound from a checked reference result and
 /// has not been rebound since. `None` keeps the conservative treatment.
 pub(crate) fn reference_result_candidates_before_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     local_symbol: SymbolHandle,
@@ -69,7 +68,7 @@ pub(crate) fn reference_result_candidates_before_statement(
 }
 
 fn call_result_candidates(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &TableCallExpression,
@@ -97,7 +96,7 @@ fn call_result_candidates(
 /// This is not loan authority: a borrow consumer must also establish the live
 /// source loan and parent relationship before granting exclusive access.
 pub(crate) fn reference_expression_storage_places(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -158,7 +157,7 @@ pub(crate) struct ReferenceResultSource {
 }
 
 pub(crate) fn call_result_sources(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
@@ -238,7 +237,7 @@ pub(crate) fn call_result_sources(
 /// expression. A route into another state, a self-loop, or a terminal exit
 /// cannot be enumerated here.
 fn callee_returned_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<(usize, ExpressionHandle)>> {
     let statements = program.statement_table.statements(state.statement_nodes);

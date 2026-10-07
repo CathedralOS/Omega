@@ -14,7 +14,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode};
 /// Each back edge guarantees only its own `i < B_edge`, so the MAX over edges is the bound that
 /// holds on every incoming loop path.
 pub(super) fn back_edge_counter_upper_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     back_sources: &[SymbolHandle],
@@ -37,7 +37,7 @@ pub(super) fn back_edge_counter_upper_bound(
 /// states have different expression handles even when they name the same
 /// machine place.
 pub(super) fn loop_head_index_collection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -57,7 +57,7 @@ pub(super) fn loop_head_index_collection(
 /// The stable machine place `B` for a relational loop-head invariant
 /// `counter < B`, under the same all-entry/all-back-edge rule.
 pub(super) fn loop_head_upper_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -78,7 +78,7 @@ pub(super) fn loop_head_upper_place(
 }
 
 pub(super) fn loop_head_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     edges: &[Edge],
@@ -121,11 +121,16 @@ pub(super) fn loop_head_relational_upper(
 /// over its guard. More than one head edge, a continuation-to-head, or an
 /// unguarded/invalid guard all return `None`.
 pub(super) fn single_head_bound_edge<T>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
-    mut parse: impl FnMut(&typed_trees::TypedTrees, &Machine, &State, ExpressionHandle) -> Option<T>,
+    mut parse: impl FnMut(
+        &dyn ::validation::CheckingInput,
+        &Machine,
+        &State,
+        ExpressionHandle,
+    ) -> Option<T>,
 ) -> Option<T> {
     let mut found = None;
     for statement in program.statement_table.statements(source.statement_nodes) {
@@ -160,7 +165,7 @@ pub(super) fn single_head_bound_edge<T>(
 }
 
 pub(super) fn source_arm_to_head_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
@@ -185,7 +190,7 @@ pub(super) fn source_arm_to_head_relational_upper(
 /// the term it yields is canonical so edges parsed in states that spell their
 /// root differently still compare as the one place they name.
 pub(super) fn parse_counter_relational_upper(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
     guard: ExpressionHandle,
@@ -267,7 +272,7 @@ pub(super) fn parse_counter_relational_upper(
 /// already assumed machine contract facts. The caller separately proves every
 /// named place frame-stable before using the chain as a loop invariant.
 pub(super) fn machine_bound_collection_chains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     bound: &str,
@@ -341,7 +346,7 @@ pub(super) fn machine_bound_collection_chains(
 }
 
 pub(super) fn collect_authored_upper_relations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     arrival: &State,
     expression: ExpressionHandle,
@@ -404,7 +409,7 @@ pub(super) fn collect_authored_upper_relations(
 }
 
 pub(super) fn authored_upper_term(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     arrival: &State,
     expression: ExpressionHandle,

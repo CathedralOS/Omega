@@ -2,7 +2,6 @@
 //! supplied by the caller; this module does not replay initializers or choose
 //! an arithmetic domain for runtime operations.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 pub(in crate::checks::contracts) use facts::ScalarValue;
@@ -10,7 +9,7 @@ pub(in crate::checks::contracts) use facts::ScalarValue;
 /// Closed Boolean facts need no state-entry premise. Resolve no names or
 /// runtime leaves, and use only the independently selected builtin meanings.
 pub(in crate::checks::contracts) fn closed_boolean_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -24,7 +23,7 @@ pub(in crate::checks::contracts) fn closed_boolean_value(
 }
 
 pub(in crate::checks::contracts) fn has_builtin_operators(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
@@ -46,7 +45,10 @@ pub(in crate::checks::contracts) fn has_builtin_operators(
     }
 }
 
-pub(super) fn literal(program: &TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
+pub(super) fn literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -58,7 +60,7 @@ pub(super) fn literal(program: &TypedTrees, expression: ExpressionHandle) -> Opt
 }
 
 pub(in crate::checks::contracts) fn evaluate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
 ) -> Option<ScalarValue> {
@@ -69,7 +71,7 @@ pub(in crate::checks::contracts) fn evaluate(
 /// values. In particular, the domain prover has no selected-operator evidence
 /// for Boolean equality merely because both operands have Boolean values.
 pub(super) fn evaluate_with_comparisons(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
@@ -87,7 +89,7 @@ pub(super) fn evaluate_with_comparisons(
 /// syntax is decomposed. The observation owns its meaning and subject custody;
 /// ordinary scalar comparisons keep their independent admission check.
 pub(in crate::checks::contracts) fn evaluate_with_atoms(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,

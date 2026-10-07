@@ -1,10 +1,10 @@
 //! Preserve authored state arrival predicates in their scalar parameter namespace.
 
 use checked_trees::{CheckedOperatorFacts, ClosedScalarContractValue};
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     state: &State,

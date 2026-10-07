@@ -1,7 +1,6 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
 
@@ -11,7 +10,7 @@ use typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVer
 /// against its successor (v1 against v2, the newest era against the current
 /// schema body).
 pub(crate) fn validate_wire_schemas(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -43,7 +42,7 @@ pub(crate) fn validate_wire_schemas(
 /// snapshot history and erased fields retain semantic identity, but neither
 /// is encoded by the current encoder.
 pub(super) fn validate_nested_schema_cycles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     schema: &WireSchema,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -57,7 +56,7 @@ pub(super) fn validate_nested_schema_cycles(
 }
 
 fn nested_references_reach<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     from: &WireSchema,
     target: &str,
     visited: &mut Vec<&'program str>,
@@ -97,7 +96,7 @@ struct WireScope<'program> {
 }
 
 fn collect_scope<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     version: Option<&'program str>,
     members: HandleSpan<WireMember>,
 ) -> WireScope<'program> {
@@ -129,7 +128,7 @@ fn scope_label(schema: &WireSchema, scope: &WireScope<'_>) -> String {
 }
 
 fn validate_schema(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     schema: &WireSchema,
     diagnostics: &mut Vec<Diagnostic>,
@@ -225,7 +224,7 @@ fn validate_scope_numbering(
 }
 
 fn validate_scope_field_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     schema: &WireSchema,
     scope: &WireScope<'_>,
@@ -270,7 +269,7 @@ fn validate_scope_field_types(
 }
 
 fn validate_field_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     schema: &WireSchema,
     scope: &WireScope<'_>,
@@ -352,7 +351,7 @@ fn validate_field_type_reference(
 /// Wire fields may reference any resolvable program type plus sibling wire
 /// schemas (a wire message embedding another wire message).
 fn wire_type_resolves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     symbol: symbols::SymbolHandle,
     name: &str,

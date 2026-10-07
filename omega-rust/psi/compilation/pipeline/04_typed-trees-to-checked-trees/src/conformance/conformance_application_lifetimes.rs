@@ -248,7 +248,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     }
 }
 
-fn collect_elision_calls(program: &TypedTrees) -> Vec<ElisionCall> {
+fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<ElisionCall> {
     let mut calls = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -326,7 +326,7 @@ fn collect_elision_calls(program: &TypedTrees) -> Vec<ElisionCall> {
 }
 
 fn collect_expression_elision_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     expression: ExpressionHandle,
@@ -543,7 +543,7 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
 }
 
 fn collect_lifetime_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
     parameters: &[Identifier],
@@ -654,7 +654,7 @@ fn collect_lifetime_bindings(
 }
 
 fn collect_conformance_lifetime_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     declared: TypeReferenceHandle,
     expected: TypeReferenceHandle,
     parameters: &[Identifier],
@@ -789,7 +789,7 @@ fn collect_conformance_lifetime_bindings(
 }
 
 fn machine_static_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {
@@ -798,7 +798,7 @@ fn machine_static_substitutions(
 }
 
 fn conformance_static_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     conformance: &typed_trees::trait_definition::Conformance,
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {
@@ -810,7 +810,7 @@ fn conformance_static_substitutions(
 }
 
 fn static_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, String)> {

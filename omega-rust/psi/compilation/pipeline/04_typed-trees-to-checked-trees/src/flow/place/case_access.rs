@@ -8,16 +8,13 @@ use super::{
 };
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 /// `place_case_has_value` for the Case segment at `position`, evaluated on
 /// the subject truncated just before that segment.
 #[allow(clippy::too_many_arguments)]
 fn case_segment_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     machine_symbol: SymbolHandle,
@@ -45,7 +42,7 @@ fn case_segment_value(
 }
 
 pub(crate) fn place_cases_are_selected(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     machine_symbol: SymbolHandle,
@@ -81,7 +78,7 @@ pub(crate) fn place_cases_are_selected(
 /// from a missing payload fact. This grants no permission to read the payload:
 /// reads still require every enclosing case to be positively selected.
 pub(crate) fn place_case_path_is_inactive(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     machine_symbol: SymbolHandle,
@@ -114,7 +111,7 @@ pub(crate) fn place_case_path_is_inactive(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn place_case_has_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     machine_symbol: SymbolHandle,
@@ -187,7 +184,7 @@ fn stable_subject(subject: &CanonicalPlace) -> bool {
 }
 
 struct CaseAccess<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     state: &'program typed_trees::state::State,
     statement_index: usize,

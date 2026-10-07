@@ -37,7 +37,7 @@ pub(super) enum MemberPosition {
 /// generic applications name their retained instance, not the open template;
 /// other positions retain the ordinary `type_symbol` mapping.
 pub(super) fn position_leaf_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     position: MemberPosition,
 ) -> SymbolHandle {
     match position {
@@ -52,7 +52,7 @@ pub(super) fn position_leaf_symbol(
 }
 
 fn closed_generic_owner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     while let typed_trees::types::TypeReferenceNode::Reference { referee, .. }
@@ -71,7 +71,7 @@ fn closed_generic_owner(
 /// validated member correspondence; a foreign or sibling-instance symbol
 /// remains unresolved. `None` leaves the existing open-generic route intact.
 pub(super) fn closed_generic_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     position: Option<MemberPosition>,
     member_name: &str,
     retained: SymbolHandle,
@@ -96,7 +96,7 @@ pub(super) fn closed_generic_member_symbol(
 /// receiver's already-resolved position: a member chain recomputing it here
 /// would re-walk the whole receiver expression once per hop.
 fn member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver_position: Option<MemberPosition>,
     member_symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
@@ -142,7 +142,7 @@ enum ContainerOutcome {
 /// trait signatures, operators, machines themselves) are `Unmapped` and the
 /// caller scans.
 fn container_member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parent: SymbolHandle,
     symbol: SymbolHandle,
 ) -> ContainerOutcome {
@@ -332,7 +332,7 @@ fn container_member_type_position(
 /// `symbol_type_symbol`, this retains the type reference so a generic
 /// application's arguments remain bound for the next member hop.
 pub(super) fn symbol_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     if !symbol.is_valid() {
@@ -387,7 +387,7 @@ pub(super) fn symbol_type_position(
 /// The original whole-program member scan: machines and their states, trait
 /// signatures, operators, and data rows, first match wins.
 fn whole_program_member_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     for machine in program.machines() {
@@ -481,7 +481,7 @@ fn whole_program_member_type_position(
 /// arguments bound through member hops so `b.item` under `b: &Box<Context>`
 /// stands on `Context`, not on `Box`'s unbound `T`.
 pub(super) fn expression_type_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<MemberPosition> {
     if !expression.is_valid() {
@@ -585,7 +585,7 @@ pub(super) fn expression_type_position(
 /// a declaration leaf, another window — carry no element handle the window
 /// could reuse, so the literal keeps no position there either.
 fn array_literal_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     elements: &[ExpressionHandle],
 ) -> Option<MemberPosition> {
     let mut positions = elements
@@ -637,7 +637,7 @@ fn array_literal_position(
 /// slice declares no fields to answer it with. Re-windowing a window keeps
 /// its element.
 pub(super) fn member_position_after_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     position: MemberPosition,
     segments: &[facts::PlaceSegment],
 ) -> Option<MemberPosition> {
@@ -697,7 +697,7 @@ pub(super) fn member_position_after_segments(
 /// typing does. An absent declaration row or a sliced position cannot mint a
 /// type reference from a same-shaped row or an enclosing expected type.
 pub(crate) fn expression_place_type_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -718,7 +718,7 @@ pub(crate) fn expression_place_type_reference(
 /// an arm spelled through a distinct handle to an equal type is that same
 /// disagreement, not a join.
 fn match_result_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     dispatch: &typed_trees::expression::TableMatchExpression,
 ) -> Option<MemberPosition> {
     let mut positions = program
@@ -735,7 +735,7 @@ fn match_result_position(
 }
 
 pub(crate) fn effective_member_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
@@ -751,7 +751,7 @@ pub(crate) fn effective_member_symbol(
 /// owner, preserving the same case and retained-symbol checks as expression
 /// type resolution.
 pub(crate) fn effective_member_symbol_from_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
     type_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -768,7 +768,7 @@ pub(crate) fn effective_member_symbol_from_type_symbol(
 /// resolved — member-chain walks share one receiver walk between the symbol
 /// answer and the position hop instead of resolving it once per use.
 pub(crate) fn effective_member_symbol_from_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
@@ -845,7 +845,7 @@ pub(crate) fn effective_member_symbol_from_position(
 /// known; a variant that is absent or declares no such payload field yields
 /// no symbol rather than borrowing a same-shaped row.
 pub(super) fn resolve_case_member_symbol_from_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: &str,
     member_name: &str,
@@ -870,7 +870,7 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
 }
 
 pub(crate) fn resolve_member_symbol_from_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -897,7 +897,7 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
 }
 
 fn resolve_member_symbol_from_position(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver_position: Option<MemberPosition>,
     member_name: &str,
 ) -> Option<SymbolHandle> {
@@ -906,7 +906,7 @@ fn resolve_member_symbol_from_position(
 }
 
 pub(crate) fn expression_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     expression_type_position(program, expression)
@@ -914,7 +914,7 @@ pub(crate) fn expression_type_symbol(
 }
 
 pub(crate) fn symbol_type_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     symbol_type_position(program, symbol).map(|position| position_leaf_symbol(program, position))
@@ -923,7 +923,7 @@ pub(crate) fn symbol_type_symbol(
 /// Member or payload field a name resolves to inside a data definition —
 /// fields and variants share the namespace.
 fn data_member_symbol_by_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     member_name: &str,
 ) -> Option<SymbolHandle> {

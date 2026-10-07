@@ -169,7 +169,7 @@ pub(super) fn project(
     {
         return Err(rejected("service requirement repeats a lifetime binder"));
     }
-    let mut projected = Cow::Borrowed(&compilation.typed);
+    let mut projected = Cow::Borrowed(compilation.checking_input.typed_program());
     let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
@@ -192,7 +192,7 @@ pub(super) fn project(
         )?;
     }
     let (binders, static_parameters) = project_type_parameters(
-        &projected,
+        projected.as_ref(),
         compilation,
         &parameters,
         source_parameters,

@@ -2,14 +2,13 @@ use std::collections::BTreeSet;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::statement::{StatementNode, TableCall};
 
 pub(crate) fn validate_proposition_entailment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
@@ -114,7 +113,7 @@ pub(crate) fn validate_proposition_entailment(
 }
 
 fn intake_proof_output_propositions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
@@ -151,7 +150,7 @@ fn intake_proof_output_propositions(
 }
 
 fn produced_evidence_labels(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<String> {
@@ -226,7 +225,7 @@ fn produced_evidence_labels(
 }
 
 pub fn select_named_evidence_implementation<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     conformance_symbol: symbols::SymbolHandle,
     source_name: &str,
     expected_interface: &typed_trees::proposition::NormalizedEvidenceInterfaceIdentity,
@@ -259,7 +258,7 @@ pub fn select_named_evidence_implementation<'program>(
 }
 
 fn intake_call_propositions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     call: &TableCall,
     known: &mut BTreeSet<String>,
@@ -294,7 +293,7 @@ fn intake_call_propositions(
 }
 
 fn call_target<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     call: &TableCall,
 ) -> Option<(&'a Machine, &'a [StateParameter])> {
     for machine in program.machines() {
@@ -314,7 +313,7 @@ fn call_target<'a>(
 }
 
 fn call_parameter_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     parameters: &[StateParameter],
 ) -> Vec<(symbols::SymbolHandle, String, String)> {
@@ -337,7 +336,7 @@ fn call_parameter_substitutions(
 }
 
 fn proposition_labels(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[SignatureContract],
     kind: SignatureContractKind,
     substitutions: &[(symbols::SymbolHandle, String, String)],

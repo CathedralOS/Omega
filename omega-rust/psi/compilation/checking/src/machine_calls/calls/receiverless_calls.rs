@@ -159,7 +159,7 @@ pub(super) fn validate_receiverless_call(
 /// receiverless call that resolved to `state` of `callee_machine`.
 #[allow(clippy::too_many_arguments)]
 fn validate_resolved_receiverless_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     callee_machine: &typed_trees::machine::Machine,

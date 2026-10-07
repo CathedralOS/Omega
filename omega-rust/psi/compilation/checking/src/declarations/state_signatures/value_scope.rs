@@ -7,12 +7,10 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use diagnostics::Diagnostic;
-use typed_trees::{
-    TypedTrees, domain::ProofFact, machine::Machine, signature::SignatureContractKind,
-};
+use typed_trees::{domain::ProofFact, machine::Machine, signature::SignatureContractKind};
 
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,

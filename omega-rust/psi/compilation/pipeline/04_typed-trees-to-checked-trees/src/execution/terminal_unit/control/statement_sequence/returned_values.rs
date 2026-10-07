@@ -9,7 +9,7 @@ use super::super::super::{
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    Multiplicity, StatementNode, SymbolHandle, TypedTrees,
+    Multiplicity, StatementNode, SymbolHandle,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::CheckedUnitStructuralReturnPlan;
@@ -17,7 +17,7 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 /// Completion forwards a whole parameter only when its exact output contract
 /// and, for linear values, checked input-origin claim outcome agree.
 pub(in crate::execution::terminal_unit) fn returned_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -150,7 +150,7 @@ pub(in crate::execution::terminal_unit) fn returned_parameter(
 /// `source_leaf` only admits a record whose declared reference roster is
 /// exactly the selected leaf.
 pub(in crate::execution::terminal_unit) fn returned_reference_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Option<CheckedUnitStructuralReturnPlan> {
@@ -187,7 +187,7 @@ pub(in crate::execution::terminal_unit) fn returned_reference_leaf(
 /// itself be borrowed. A mutable input can lend shared observation; its
 /// exclusivity does not require the output to remain mutable.
 pub(in crate::execution::terminal_unit) fn returned_named_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -303,7 +303,7 @@ pub(in crate::execution::terminal_unit) fn returned_named_view(
 /// operand does. Its descriptor carries backing and extent by value; Terminal
 /// independently reconstructs the original backing through the producer.
 pub(in crate::execution::terminal_unit) fn returned_subslice(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -348,7 +348,7 @@ pub(in crate::execution::terminal_unit) fn returned_subslice(
 /// ordinary value-transition the state's exit spells, matching the shape the
 /// terminator route reads.
 pub(in crate::execution::terminal_unit) fn returned_mutable_view(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -414,7 +414,7 @@ pub(in crate::execution::terminal_unit) fn returned_mutable_view(
 /// No parameter, local, or result custody is involved and no reference source
 /// is established: the verifier's literal place kind is self-describing.
 pub(in crate::execution::terminal_unit) fn returned_byte_sequence_literal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<CheckedUnitStructuralReturnPlan> {
     if !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {

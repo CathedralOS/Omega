@@ -6,7 +6,6 @@
 
 use super::place_paths::FramePlaceOrigin;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -29,7 +28,7 @@ pub(super) struct CycleFrameEquation<'program> {
 }
 
 pub(super) fn append_cycle_frame_edge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     target: TransitionTargetHandle,

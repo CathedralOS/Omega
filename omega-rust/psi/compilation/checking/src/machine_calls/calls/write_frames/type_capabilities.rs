@@ -12,13 +12,12 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn type_reference_is_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(handle) {
@@ -32,7 +31,10 @@ pub(super) fn type_reference_is_reference(
 
 /// Parameter roots use the same storage classification as call arguments and
 /// local bindings. Their position in a transition cycle adds no authority.
-pub(super) fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
+pub(super) fn parameter_may_carry_write(
+    program: &dyn crate::CheckingInput,
+    parameter: &StateParameter,
+) -> bool {
     type_may_carry_write(program, parameter.type_reference)
 }
 
@@ -43,7 +45,7 @@ pub(super) fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateP
 /// excludes it rather than trusting an empty field roster. Slice carriers
 /// keep their conservative classification below.
 fn type_is_reference_free_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -68,7 +70,7 @@ fn type_is_reference_free_value(
 /// the isolation walk does, so `Box<u64>` inspects `value: u64` while an
 /// unbound parameter stays unknown.
 fn type_reaches_opaque_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     visiting: &mut Vec<SymbolHandle>,
     bindings: &mut TypeBindings,
@@ -142,7 +144,7 @@ fn type_reaches_opaque_data(
 }
 
 fn data_definition_reaches_opaque_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     visiting: &mut Vec<SymbolHandle>,
     bindings: &mut TypeBindings,
@@ -172,7 +174,7 @@ fn data_definition_reaches_opaque_data(
 }
 
 pub(super) fn type_may_carry_write_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -190,7 +192,7 @@ pub(super) fn type_may_carry_write_in(
 }
 
 fn type_may_carry_write_walk(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -222,6 +224,9 @@ fn type_may_carry_write_walk(
     }
 }
 
-pub(super) fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+pub(super) fn type_may_carry_write(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
     type_may_carry_write_in(program, handle, &[])
 }

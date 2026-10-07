@@ -39,7 +39,7 @@ pub(crate) use expression::{
 };
 
 pub(crate) fn instantiate_call_contract_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
@@ -104,7 +104,7 @@ pub(crate) fn instantiate_call_contract_place(
 /// inherited by a differently named satisfier. Bind through that exact edge
 /// before projecting an actual; display-name substitution cannot select it.
 fn membership_argument_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,

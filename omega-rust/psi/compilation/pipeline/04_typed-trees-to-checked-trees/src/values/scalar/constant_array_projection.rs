@@ -7,13 +7,12 @@
 use super::structural_fields;
 use checked_trees::CheckedOperatorFacts;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn selected_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -73,7 +72,7 @@ pub(super) fn selected_leaf(
 }
 
 fn closed_literal_array(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> bool {

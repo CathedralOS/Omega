@@ -7,7 +7,6 @@ use checked_trees::{
     CheckedScalarExpression,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -19,7 +18,10 @@ use typed_trees::types::PrimitiveType;
 /// retained parameters after it shift down, matching the stripped signature
 /// plan in `execution::unit::calls::signatures`; a runtime read of it then
 /// finds no position and fails closed here as well as in validation.
-pub(crate) fn occupies_scalar_position(program: &TypedTrees, parameter: &StateParameter) -> bool {
+pub(crate) fn occupies_scalar_position(
+    program: &dyn ::validation::CheckingInput,
+    parameter: &StateParameter,
+) -> bool {
     !parameter.relevance.is_erased()
         && program
             .primitive_type_reference(parameter.type_reference)
@@ -27,7 +29,7 @@ pub(crate) fn occupies_scalar_position(program: &TypedTrees, parameter: &StatePa
 }
 
 pub(crate) fn parameter_position(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
     parameters: &[StateParameter],
 ) -> Option<usize> {
@@ -51,7 +53,7 @@ pub(crate) fn parameter_position(
 }
 
 pub(crate) fn local_position(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
     locals: &[ScalarLocal],
@@ -95,7 +97,7 @@ pub(crate) fn scalar_expression_type(
 /// another site or a reference has no such meaning. Arithmetic policy alone
 /// permits zero; other qualifications still need their establishment evidence.
 pub(crate) fn zeroed_scalar_local_initializer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<CheckedScalarExpression> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};

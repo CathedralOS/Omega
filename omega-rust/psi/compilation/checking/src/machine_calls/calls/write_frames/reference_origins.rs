@@ -11,7 +11,6 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
 use facts::PlaceSegment;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -22,7 +21,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// Resolving a type does not prove that a stored reference still denotes the
 /// same storage; origin consumers separately validate those crossings.
 pub(super) fn retained_receiver_projection<'name>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     root: symbols::SymbolHandle,
     leaf: symbols::SymbolHandle,
@@ -69,7 +68,7 @@ pub(super) fn retained_receiver_projection<'name>(
 /// returned beside the candidates — a resolved attached machine still names
 /// the one execution the call can take.
 pub(super) fn receiver_frame_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -111,7 +110,7 @@ pub(super) fn receiver_frame_origins(
 /// unresolved. A match receiver names it only when every arm agrees on the
 /// same referent data; an ambiguous or untyped arm leaves it unknown.
 fn receiver_referee_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: ExpressionHandle,
 ) -> Option<String> {
@@ -169,7 +168,7 @@ fn receiver_referee_name(
 /// caller storage. A helper cannot turn an untracked reference-bearing carrier
 /// or a foreign binding identity into a proven caller storage origin.
 pub(super) fn exclusive_reference_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -189,7 +188,7 @@ pub(super) fn exclusive_reference_origin(
 /// transparent helper result or a divergent match keeps the exact finite
 /// union of its routes. An unproven route fails the whole argument closed.
 pub(super) fn exclusive_reference_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -305,7 +304,7 @@ pub(super) fn exclusive_reference_origins(
 /// reference keeps the argument opaque because those leaf positions either
 /// never reach the declared frontier or belong to the direct-result relation.
 pub(super) fn projected_carrier_reference_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -390,7 +389,7 @@ pub(super) fn projected_carrier_reference_origins(
 /// symbolic source is frozen by state transfer; it is not a loaded carrier
 /// behind another reference, nor permission to replace the reference slot.
 fn carried_reference_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
@@ -443,7 +442,7 @@ fn carried_reference_origin(
 /// footprint can select a formal origin. In particular, a stale or foreign
 /// root with the same spelling cannot be exported through a helper result.
 pub(super) fn declared_origin_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     mut expression: ExpressionHandle,
 ) -> Option<()> {
@@ -471,7 +470,7 @@ pub(super) fn declared_origin_root(
 }
 
 fn exclusive_reference_has_owned_storage(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     exclusive_reference_referee(program, reference)
@@ -479,7 +478,7 @@ fn exclusive_reference_has_owned_storage(
 }
 
 pub(super) fn exclusive_reference_referee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(reference) {
@@ -494,7 +493,7 @@ pub(super) fn exclusive_reference_referee(
 }
 
 pub(super) fn owned_receiver_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -598,7 +597,7 @@ pub(super) fn owned_receiver_origin(
 /// Replaying that prefix here would recursively replay every earlier boundary
 /// call. Carrier fields stay opaque.
 fn exclusive_reference_binding_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<String> {
@@ -609,7 +608,7 @@ fn exclusive_reference_binding_path(
 }
 
 pub(super) fn referent_has_only_owned_storage(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     referent_has_only_owned_storage_in(program, reference, &[])
@@ -619,7 +618,7 @@ pub(super) fn referent_has_only_owned_storage(
 /// caller actual before the owned-storage walk; an unbound parameter keeps
 /// the named leaf and stays opaque.
 pub(super) fn referent_has_only_owned_storage_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     bindings: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {

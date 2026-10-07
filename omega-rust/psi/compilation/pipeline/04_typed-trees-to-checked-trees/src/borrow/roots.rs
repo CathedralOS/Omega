@@ -2,7 +2,7 @@ use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowRootKind, BorrowWritableRootFact};
 
 pub(super) fn append_state_writable_roots(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     writable_roots: &mut arena::Arena<BorrowWritableRootFact>,
@@ -47,7 +47,7 @@ pub(super) fn append_state_writable_roots(
 }
 
 pub(super) fn mutable_parameter_count(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> usize {
     program
@@ -57,7 +57,7 @@ pub(super) fn mutable_parameter_count(
         .count()
 }
 
-pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) -> usize {
+pub(super) fn estimated_borrow_root_capacity(program: &dyn ::validation::CheckingInput) -> usize {
     program
         .machines()
         .iter()

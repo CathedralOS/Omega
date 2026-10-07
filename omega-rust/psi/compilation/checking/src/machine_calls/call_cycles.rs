@@ -11,7 +11,6 @@ use crate::value_custody::places::exact_data_member_field;
 use diagnostics::Diagnostic;
 use std::collections::{BTreeSet, HashMap};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -110,7 +109,7 @@ struct ExactProofCallEdge {
 /// expression positions: an admitted theorem does not become checked merely
 /// because its citation is nested inside another expression.
 pub fn machine_call_dependency_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<SymbolHandle> {
     let mut symbols = Vec::new();
@@ -127,7 +126,7 @@ pub fn machine_call_dependency_symbols(
 }
 
 fn collect_contract_dependency_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     symbols: &mut Vec<SymbolHandle>,
 ) {
@@ -161,7 +160,7 @@ fn push_dependency_symbol(symbols: &mut Vec<SymbolHandle>, symbol: SymbolHandle)
 }
 
 fn collect_statement_dependency_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     symbols: &mut Vec<SymbolHandle>,
 ) {
@@ -220,7 +219,7 @@ fn collect_statement_dependency_symbols(
 }
 
 fn collect_expression_dependency_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbols: &mut Vec<SymbolHandle>,
 ) {
@@ -295,7 +294,9 @@ fn collect_expression_dependency_symbols(
 /// ranking judgment. The full graph includes proof dependencies, so a runtime
 /// subset of a mixed component cannot acquire independent admission. This
 /// query does not validate progress premises or single-machine recursion.
-pub fn validated_runtime_recursive_components(program: &TypedTrees) -> Vec<Vec<SymbolHandle>> {
+pub fn validated_runtime_recursive_components(
+    program: &dyn crate::CheckingInput,
+) -> Vec<Vec<SymbolHandle>> {
     let mut diagnostics = Vec::new();
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     if diagnostics.iter().any(Diagnostic::is_error) {
@@ -317,7 +318,7 @@ pub fn validated_runtime_recursive_components(program: &TypedTrees) -> Vec<Vec<S
 /// Re-run the runtime component judgment and retain its exact unsigned rank
 /// coordinates and edge comparisons. Acyclic callers are not component members.
 pub fn validated_runtime_natural_components(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<ValidatedRuntimeNaturalComponent> {
     let mut diagnostics = Vec::new();
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
@@ -350,7 +351,7 @@ struct MachineCallGraph {
 }
 
 fn build_machine_call_graph(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> MachineCallGraph {
@@ -380,7 +381,7 @@ fn build_machine_call_graph(
 }
 
 pub(crate) fn validate_machine_call_cycles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedProofRecursiveComponent> {
@@ -466,7 +467,7 @@ pub(crate) fn validate_machine_call_cycles(
 }
 
 fn build_validated_proof_recursive_components(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     adjacency: &[Vec<usize>],
@@ -698,7 +699,7 @@ fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
 }
 
 fn collect_proof_call_dependencies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Vec<Vec<usize>> {
     let machines = program.machines();
@@ -733,7 +734,7 @@ fn collect_proof_call_dependencies(
 }
 
 fn collect_exact_proof_call_edges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     index_of: &HashMap<u32, usize>,
@@ -769,7 +770,7 @@ fn collect_exact_proof_call_edges(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_exact_proof_statement_edges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
@@ -893,7 +894,7 @@ fn collect_exact_proof_statement_edges(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_exact_proof_expression_edges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
@@ -975,7 +976,7 @@ fn collect_exact_proof_expression_edges(
 /// own entry. Runtime cycle classification deliberately excludes self calls;
 /// proof-recursion certificates must retain them as exact induction edges.
 fn resolve_machine_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     index_of: &HashMap<u32, usize>,
@@ -997,7 +998,7 @@ fn resolve_machine_index(
 }
 
 fn proof_rank_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Option<(SymbolHandle, TypeReferenceHandle, String)> {
     let caller_witness = machine.termination_plan.implementation_witness.as_ref()?;
@@ -1020,7 +1021,7 @@ fn proof_rank_parameter(
 }
 
 fn proof_edge_decrease_witness(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     target: &typed_trees::name::Identifier,
@@ -1078,7 +1079,7 @@ fn proof_edge_decrease_witness(
 }
 
 fn expression_strict_member_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root_symbol: SymbolHandle,
     root_name: &str,
@@ -1089,7 +1090,7 @@ fn expression_strict_member_path(
 }
 
 fn expression_member_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root_symbol: SymbolHandle,
     root_name: &str,
@@ -1140,7 +1141,7 @@ fn expression_member_path(
 /// the unique declaration under the receiver's nominal type. The returned
 /// witness never retains either spelling.
 fn exact_member_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     receiver_type: TypeReferenceHandle,
     member_symbol: SymbolHandle,
     member_name: &str,

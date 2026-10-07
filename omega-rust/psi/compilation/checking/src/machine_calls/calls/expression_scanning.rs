@@ -16,7 +16,6 @@ use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
 use language_core::is_self_receiver;
 use symbols::BuiltinFunction;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -51,7 +50,7 @@ pub(crate) use traversal::validate_value_position_calls;
 /// their symbolic calls are resolved by fixed-point specialization once a
 /// concrete outer call selects them.
 fn fence_generic_value_callee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     callee_machine: &Machine,
     target: &str,
@@ -79,7 +78,7 @@ fn fence_generic_value_callee(
 /// (calls, literals). Mirrors the state-call plan's `append_receiver_path`
 /// walk at the typed layer.
 pub(super) fn receiver_member_chain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> Option<Vec<String>> {
     if !receiver.is_valid() {
@@ -141,7 +140,7 @@ impl<'program> ValueCallee<'program> {
 /// One VALUE-position call occurrence and the caller facts its resolved
 /// callee is checked against.
 struct ValueCallSite<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     current_machine: &'a Machine,
     current_state: &'a State,
     prior_statements: &'a [typed_trees::statement::StatementNode],
@@ -207,7 +206,7 @@ impl ValueCallSite<'_> {
 
 #[allow(clippy::too_many_arguments)]
 fn validate_expression_call_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
     machine_symbols: &MachineSymbols<'_>,
@@ -741,7 +740,7 @@ fn validate_expression_call_bounds(
 }
 
 fn validate_named_float_to_integer_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
     value_environment: &ValueEnvironment,

@@ -1,7 +1,6 @@
 //! Range constraints concern the produced rank, not its subject's carrier.
 
 use super::{DecreaseMeasure, RankingOrder};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -9,7 +8,7 @@ mod endpoints;
 mod relational;
 
 pub(super) fn proves_entry_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
@@ -25,7 +24,7 @@ pub(super) struct RangeProof {
 }
 
 pub(super) fn check(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     range: &language_semantics::RankRange,
     order: &RankingOrder,
@@ -72,7 +71,7 @@ pub(super) fn check(
 /// recognizer declines, reuse the complete relational entry-and-edge judgment;
 /// never promote its membership result without strict decrease and pinning.
 pub(super) fn proves_relational_decrease(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
@@ -82,7 +81,7 @@ pub(super) fn proves_relational_decrease(
 }
 
 fn proves_range(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
@@ -163,7 +162,7 @@ struct Bounds {
 }
 
 fn endpoint_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     pinned_bound: Option<(ExpressionHandle, i128, i128)>,
@@ -179,7 +178,11 @@ fn endpoint_bounds(
     endpoints::pinned_expression_bounds(program, machine, expression, call_frames)
 }
 
-fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {
+fn same_parameter(
+    program: &dyn ::validation::CheckingInput,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
     match (
         program.expression_table.expression(left),
         program.expression_table.expression(right),
@@ -194,7 +197,11 @@ fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: Expressio
     }
 }
 
-fn bounds(program: &TypedTrees, machine: &Machine, expression: ExpressionHandle) -> Option<Bounds> {
+fn bounds(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<Bounds> {
     let state = program.machine_states(machine).first()?;
     if let Some((low, high)) =
         validation::immutable_integer_expression_bounds(program, machine, state, expression)

@@ -22,7 +22,6 @@
 //! separate stays opaque and reaches everything at or below it.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -58,7 +57,7 @@ pub(crate) enum PlaceSegment {
 /// that still folds to a literal keeps the same element identity here, and a
 /// genuinely dynamic index stays opaque.
 pub(super) fn canonical_place_segment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segment: &facts::PlaceSegment,
 ) -> PlaceSegment {
     match segment {
@@ -79,7 +78,10 @@ pub(super) fn canonical_place_segment(
 /// index keeps its bounds as one half-open window. Anything not statically
 /// known stays `Opaque` — conservative, since element writes cannot be
 /// separated below the collection root.
-pub(crate) fn fixed_index_segment(program: &TypedTrees, index: ExpressionHandle) -> PlaceSegment {
+pub(crate) fn fixed_index_segment(
+    program: &dyn ::validation::CheckingInput,
+    index: ExpressionHandle,
+) -> PlaceSegment {
     let constant = |expression: ExpressionHandle| {
         program
             .expression_table
@@ -163,7 +165,7 @@ fn paths_interfere(write: &[PlaceSegment], read: &[PlaceSegment]) -> bool {
 /// field — while retaining the segments a whole-symbol scan discards. A
 /// non-place expression has no root.
 fn rooted_place_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
@@ -214,7 +216,7 @@ fn rooted_place_path(
 /// The written or exclusively borrowed place `expression` reaches `symbol`'s
 /// storage at a path the read cannot be separated from.
 fn place_interferes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
@@ -230,7 +232,7 @@ fn place_interferes(
 /// conservative. A caller-side value proof uses this to refuse reads whose
 /// call-entry context postdates a sibling operand's effects.
 pub(crate) fn statement_may_overwrite_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     place: &crate::flow::CanonicalPlace,
@@ -251,7 +253,7 @@ pub(crate) fn statement_may_overwrite_place(
 /// is the whole binding: every write rooted at `symbol` interferes. A
 /// malformed window cannot be cleared.
 pub(super) fn storage_holds_bound_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
     start: usize,
@@ -272,7 +274,7 @@ pub(super) fn storage_holds_bound_value(
 }
 
 fn statement_may_overwrite(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -368,7 +370,7 @@ fn statement_may_overwrite(
 /// confines the write to the resolved leaf member, and a deeper or
 /// unresolvable projection cannot be separated below its root.
 fn call_receiver_path_interferes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &TableCall,
     read_path: &[PlaceSegment],
 ) -> bool {
@@ -390,7 +392,7 @@ fn call_receiver_path_interferes(
 /// nested exclusive borrow or receiver-mutating call inside any of them can
 /// reach `symbol`'s storage before the edge is taken.
 fn transition_may_overwrite(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     transition: &TableTransition,
     symbol: SymbolHandle,
@@ -452,7 +454,7 @@ fn transition_may_overwrite(
 /// Writes through aliases are conservatively covered by their exclusive
 /// borrow creation or the call that receives mutable access.
 fn expression_may_overwrite(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     root: ExpressionHandle,
     symbol: SymbolHandle,
@@ -530,7 +532,10 @@ fn expression_may_overwrite(
 /// A call whose receiver is rooted at the tracked symbol writes that storage
 /// when the callee's `self` parameter is mutable. An unresolvable or
 /// self-less target cannot be cleared of writing.
-fn receiver_call_writes(program: &TypedTrees, target_symbol: SymbolHandle) -> bool {
+fn receiver_call_writes(
+    program: &dyn ::validation::CheckingInput,
+    target_symbol: SymbolHandle,
+) -> bool {
     match crate::semantic::calls::call_target_parameters(program, target_symbol) {
         Some(parameters) => parameters
             .iter()
@@ -544,7 +549,7 @@ fn receiver_call_writes(program: &TypedTrees, target_symbol: SymbolHandle) -> bo
 /// spelling a fresh exclusive borrow. Unknown callees cannot clear a place
 /// argument of writing; ordinary value parameters do not grant such access.
 fn call_arguments_may_overwrite(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],

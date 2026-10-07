@@ -7,7 +7,6 @@
 use super::place_paths::{append_place_suffix, split_place_root};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -27,7 +26,7 @@ pub(super) fn push_visible_frame_path(
 }
 
 pub(super) fn expression_forwards_exact_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -60,7 +59,7 @@ pub(super) fn relative_state_path_is_visible(
 }
 
 pub(super) fn normalize_state_relative_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     relative: &str,
 ) -> Option<Option<String>> {

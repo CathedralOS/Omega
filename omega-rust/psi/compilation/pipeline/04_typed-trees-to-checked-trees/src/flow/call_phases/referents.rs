@@ -26,7 +26,7 @@ use symbols::SymbolHandle;
 /// Re-seed the declared field facts of every readable `&mut` referent the
 /// call hands back, on the referent's exact storage place.
 pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
@@ -235,7 +235,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
 /// the call. A different application of one indexed family cannot restore a
 /// conservatively invalidated candidate that the callee might not have received.
 fn row_was_live(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &FlowBuildContext,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,

@@ -3,7 +3,7 @@
 
 use super::{
     ExpressionHandle, ExpressionNode, FrameSourcePlace, Machine, PlaceSegment, TypeReferenceHandle,
-    TypedTrees, stored_origins, type_reference_is_reference, validate_owned_projection,
+    stored_origins, type_reference_is_reference, validate_owned_projection,
 };
 /// Check every retained selector before fact-place normalization can map an
 /// inherited field to its storage declaration. This also covers a suffix
@@ -11,7 +11,7 @@ use super::{
 /// Missing ordinary selectors are resolved by the subsequent exact nominal
 /// projection; a conflicting retained selector must not be silently replaced.
 pub(super) fn validate_selectors(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     mut expression: ExpressionHandle,
 ) -> Option<()> {
@@ -39,7 +39,7 @@ pub(super) fn validate_selectors(
 }
 
 pub(super) fn validate_owned_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     reference: TypeReferenceHandle,
     source: &FrameSourcePlace,

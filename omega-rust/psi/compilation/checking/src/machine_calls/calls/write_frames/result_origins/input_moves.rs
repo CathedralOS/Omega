@@ -5,14 +5,14 @@ use super::super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
 };
 use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
-use super::super::{FrameInference, Machine, TopLevelSymbols, TypedTrees};
+use super::super::{FrameInference, Machine, TopLevelSymbols};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 
 pub(super) fn validate_frozen_inputs(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     include_shared: bool,
@@ -63,7 +63,7 @@ pub(super) fn validate_frozen_inputs(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_moves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
@@ -176,7 +176,7 @@ pub(super) fn instantiate_moves(
     Some(returned)
 }
 
-fn local_suffix(program: &TypedTrees, segments: &[PlaceSegment]) -> String {
+fn local_suffix(program: &dyn crate::CheckingInput, segments: &[PlaceSegment]) -> String {
     let mut suffix = String::new();
     for segment in segments {
         match segment {

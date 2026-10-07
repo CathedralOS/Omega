@@ -7,7 +7,6 @@
 
 use super::{RepresentativeStaticApplication, RepresentativeStaticBinding};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::proposition::ProofSubstitutions;
@@ -333,7 +332,7 @@ pub(super) struct ProofFactIdentityContext<'a> {
 }
 
 pub(super) fn proof_facts_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: &ProofFact,
     right: &ProofFact,
     left_context: ProofFactIdentityContext<'_>,
@@ -389,7 +388,7 @@ pub(super) fn proof_facts_match(
 }
 
 fn membership_arguments_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: &typed_trees::domain::ProofMembershipFact,
     right: &typed_trees::domain::ProofMembershipFact,
     left_bindings: &[RepresentativeStaticBinding],
@@ -440,7 +439,7 @@ fn membership_arguments_match(
 }
 
 fn proof_expression_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     values: &[ProofValueSubstitution],
 ) -> (String, String) {
@@ -455,7 +454,7 @@ fn proof_expression_identity(
 }
 
 fn expression_symbol_trace(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     values: &[ProofValueSubstitution],
 ) -> String {

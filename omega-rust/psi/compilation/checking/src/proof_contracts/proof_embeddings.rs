@@ -11,7 +11,6 @@ use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use numerics::literals::LandedIntegerType;
 use symbols::BuiltinFunction;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
@@ -35,7 +34,7 @@ pub(crate) struct IntegerEmbedding {
 }
 
 pub(crate) fn validate_proof_embeddings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -203,7 +202,10 @@ fn has_embedding_shape(call: &TableCallExpression) -> bool {
         && call.private_layout_operation.is_none()
 }
 
-pub(crate) fn is_exact_embed_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
+pub(crate) fn is_exact_embed_call(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> bool {
     !call.receiver.is_valid()
         && call.target.as_str() == BuiltinFunction::IntegerEmbed.name()
         && program
@@ -213,7 +215,7 @@ pub(crate) fn is_exact_embed_call(program: &TypedTrees, call: &TableCallExpressi
 }
 
 pub(crate) fn integer_embedding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<IntegerEmbedding> {
     let primitive = expression_primitive(program, expression)?;
@@ -229,7 +231,7 @@ pub(crate) fn integer_embedding(
 /// structural query; proof placement and denotational eligibility still
 /// require the ordinary validation and checked termination gates.
 pub fn integer_embedding_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ExpressionHandle)> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -245,7 +247,7 @@ pub fn integer_embedding_argument(
 }
 
 pub(crate) fn machine_contains_integer_embedding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> bool {
     let mut nodes = Vec::new();
@@ -286,7 +288,9 @@ pub(crate) fn machine_contains_integer_embedding(
     })
 }
 
-pub(crate) fn proof_int_type_reference(program: &TypedTrees) -> Option<TypeReferenceHandle> {
+pub(crate) fn proof_int_type_reference(
+    program: &dyn crate::CheckingInput,
+) -> Option<TypeReferenceHandle> {
     let symbol = program
         .symbols
         .builtin_type_symbol(symbols::BuiltinType::Int)?;
@@ -296,7 +300,7 @@ pub(crate) fn proof_int_type_reference(program: &TypedTrees) -> Option<TypeRefer
 }
 
 fn expression_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
     if let Some(type_reference) = expression_type_reference(program, expression) {
@@ -365,7 +369,7 @@ fn expression_primitive(
     }
 }
 
-fn is_unlanded_integer(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_unlanded_integer(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     matches!(program.expression_table.expression(expression),
         ExpressionNode::Integer(literal) if literal.landing().is_none())
 }
@@ -374,7 +378,7 @@ fn is_unlanded_integer(program: &TypedTrees, expression: ExpressionHandle) -> bo
 /// References are not erased here: embedding observes an integer payload,
 /// never the address or referent of an arbitrary borrow.
 pub(crate) fn expression_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
@@ -482,7 +486,7 @@ pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigIn
 }
 
 fn collect_statement_nodes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     nodes: &mut Vec<ExpressionHandle>,
     seen: &mut HashSet<ExpressionHandle>,

@@ -31,7 +31,6 @@ use crate::proof_contracts::contract_entailment::{
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -123,7 +122,7 @@ pub(in crate::proof_contracts::quotients) struct QuotientCorrespondenceCertifica
 /// fact under the certificate's own value substitutions, or `None` when no
 /// candidate location proves the exact match.
 fn exact_public_precondition<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     public_machine: &'program Machine,
     public_state: &'program State,
     public_values: &[ProofValueSubstitution],
@@ -158,7 +157,7 @@ fn exact_public_precondition<'program>(
 }
 
 pub(super) fn derive_direct_lift_precondition_implication(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     representative: &RepresentativeTelescope,
@@ -258,7 +257,7 @@ pub(super) fn derive_direct_lift_precondition_implication(
 /// hypotheses for the arithmetic-implication fallback when no exact public
 /// precondition matches the representative fact.
 fn public_expression_hypotheses(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     locations: &[RepresentativeContractFactLocation],
@@ -282,7 +281,7 @@ fn public_expression_hypotheses(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn derive_fixed_representative_call_preconditions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     representative: &RepresentativeTelescope,
@@ -460,7 +459,7 @@ fn proof_value_for_literal(
 }
 
 fn arithmetic_bindings_for_runtime(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     runtime: &DirectLiftRuntimeCorrespondence,
 ) -> Vec<StrictArithmeticSymbolBinding> {
@@ -485,7 +484,7 @@ fn arithmetic_bindings_for_runtime(
 }
 
 fn arithmetic_bindings_for_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     runtime: &DirectLiftRuntimeCorrespondence,
     expected: &ExpectedTheoremSchema,
@@ -544,7 +543,7 @@ fn append_static_integer_bindings(
 /// an exact integer and the position sources a public parameter or literal —
 /// other positions contribute no bindings.
 fn push_exact_position_arithmetic_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bindings: &mut Vec<StrictArithmeticSymbolBinding>,
     position: &DirectLiftRuntimePosition,
     representative_parameter: &RepresentativeRuntimeParameter,
@@ -621,7 +620,7 @@ fn push_arithmetic_binding(
 }
 
 fn exact_integer_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(PrimitiveType, bool)> {
     crate::program_scope::type_shape::exact_integer_primitive(program, type_reference, true)

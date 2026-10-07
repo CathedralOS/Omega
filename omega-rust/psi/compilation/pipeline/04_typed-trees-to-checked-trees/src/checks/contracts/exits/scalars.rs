@@ -3,7 +3,7 @@
 
 use checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
-use typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine};
+use typed_trees::{expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
     prover::{
@@ -22,7 +22,7 @@ mod static_calls;
 mod write_transport;
 
 pub(super) fn proves<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
@@ -102,7 +102,7 @@ pub(super) fn proves<'program>(
 }
 
 struct ExitScalars<'program, 'facts> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     machine: &'program Machine,
     exit: &'facts FlowExitFact,
@@ -114,7 +114,7 @@ struct ExitScalars<'program, 'facts> {
 /// Parameters typed primitive — the leading slots of a scalar binding
 /// roster at any occurrence in `state`.
 pub(crate) fn primitive_parameters<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,
 ) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
     program
@@ -131,7 +131,7 @@ pub(crate) fn primitive_parameters<'a>(
 /// An immutable local carrying an initializer whose declared type is
 /// primitive — the only locals a scalar binding roster names.
 pub(crate) fn is_scalar_roster_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> bool {
     !local.is_mutable

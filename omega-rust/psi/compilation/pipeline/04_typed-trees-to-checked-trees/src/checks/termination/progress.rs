@@ -21,7 +21,7 @@ use crate::checks::termination::progress::fact_subjects::{profile_label, subject
 /// This does not add a caller premise or treat an exit guarantee, another
 /// subject's qualification, or a later receipt as an entry assumption.
 pub(crate) fn entry_covers_progress_premises(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     checked: &checked_trees::CheckFacts,
     machine: SymbolHandle,
     premises: &[ProgressPremise],
@@ -107,7 +107,7 @@ pub(crate) struct CheckedProgressSummary {
 }
 
 pub(crate) fn analyze_checked_progress_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

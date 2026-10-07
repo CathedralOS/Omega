@@ -4,7 +4,6 @@
 //! must-meet for transported literal valuations. It does not schedule the
 //! fixpoint, walk statements, or emit diagnostics.
 
-use typed_trees::TypedTrees;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
@@ -60,7 +59,10 @@ pub(super) fn meet_valuations(
 /// The machine's state-transition edges by state INDEX (Named targets
 /// matched by simple state name; Value/Terminal edges carry no
 /// establishment transfer).
-pub(super) fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize, usize)> {
+pub(super) fn state_edges(
+    program: &dyn crate::CheckingInput,
+    states: &[State],
+) -> Vec<(usize, usize)> {
     let mut edges = Vec::new();
     for (from, state) in states.iter().enumerate() {
         for statement in program.statement_table.statements(state.statement_nodes) {

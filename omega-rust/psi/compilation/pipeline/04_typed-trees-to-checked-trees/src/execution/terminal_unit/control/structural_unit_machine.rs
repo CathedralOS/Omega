@@ -10,7 +10,7 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarArgumentPlan, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
     Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees,
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
@@ -21,7 +21,7 @@ use checked_trees::{
 /// This is deliberately separate from the primitive scalar graph: structural
 /// parameters are custody, not fake scalar arguments.
 pub(crate) fn build_structural_unit_control_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

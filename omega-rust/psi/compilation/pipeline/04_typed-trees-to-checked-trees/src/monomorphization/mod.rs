@@ -49,7 +49,7 @@ pub(crate) use body_rewriting::{
 };
 pub(crate) mod identities;
 pub(crate) use identities::{
-    bind_specialization_contract_identities, canonical_state_signature_bytes,
+    canonical_state_signature_bytes, prepare_specialization_contract_identities,
 };
 pub use identities::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
@@ -330,7 +330,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
 
 fn materialize_static_argument_types(program: &mut TypedTrees) {
     fn collect(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         arguments: &[StaticMachineArgument],
         literals: &mut Vec<String>,
         types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
@@ -650,7 +650,10 @@ fn candidate_conformance_fingerprint_arguments(candidate: &Candidate) -> Vec<Str
         .collect()
 }
 
-fn conformance_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
+fn conformance_symbol_identity(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> String {
     let path = program.symbols.display_path(symbol, "::");
     let Some(package) = program.symbols.symbol_package_identity(symbol) else {
         return format!("unmanaged::{path}");
@@ -666,7 +669,7 @@ fn conformance_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> St
 }
 
 fn normalized_machine_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
     let declaration = conformance_symbol_identity(program, machine.symbol);
@@ -840,7 +843,7 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
 }
 
 fn closed_operator_realizations_for_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Result<Vec<typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic> {
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)
@@ -876,7 +879,7 @@ fn closed_operator_realizations_for_machine(
 }
 
 fn specialized_attached_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
     machine: &typed_trees::machine::Machine,
 ) -> Option<(typed_trees::name::Identifier, SymbolHandle)> {

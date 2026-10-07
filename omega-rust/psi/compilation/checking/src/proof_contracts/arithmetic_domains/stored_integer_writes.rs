@@ -8,7 +8,6 @@ use diagnostics::Diagnostic;
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use semantic_vocabulary::{IntegerSign, IntegerType};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -22,7 +21,7 @@ pub use source_geometry::stored_integer_source_may_require_fit;
 /// this exact destination/value occurrence; it is not a changed semantic type.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_stored_integer_write(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     destination: ExpressionHandle,
@@ -90,7 +89,7 @@ pub(crate) fn validate_stored_integer_write(
 /// traversal. This operation only substitutes its exact coordinates; it does
 /// not rediscover initializers, pick one conditional origin, or use path text.
 fn destination_projections(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     destination: ExpressionHandle,
@@ -176,7 +175,7 @@ fn destination_projections(
 /// cannot be established. The source may name any alternative retained by the
 /// prefix owner; consumers must check every alternative.
 pub fn stored_integer_source_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
@@ -188,7 +187,7 @@ pub fn stored_integer_source_projection(
 }
 
 fn source_coordinates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
@@ -208,7 +207,7 @@ fn source_coordinates(
 }
 
 fn root_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     root: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -228,7 +227,7 @@ fn root_type(
 /// normalization then visits only that owner, so an unrelated opaque sibling
 /// in an outer record cannot hide a selected IntegerAt field.
 fn typed_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
@@ -241,7 +240,7 @@ struct StorageProjection {
 }
 
 fn typed_storage_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut carrier: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Result<StorageProjection, ()> {
@@ -350,7 +349,7 @@ fn typed_storage_projection(
 /// The same exact declared-field geometry is shared by assignment and value
 /// construction. No source expression or scalar alias spelling selects it.
 pub(crate) fn stored_integer_field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: TypeReferenceHandle,
     field: SymbolHandle,
 ) -> Result<Option<IntegerType>, ()> {
@@ -380,7 +379,7 @@ pub(crate) fn stored_integer_field_type(
 }
 
 pub(crate) fn stored_integer_value_fits(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
     interval: Interval,
     primitive: Option<PrimitiveType>,

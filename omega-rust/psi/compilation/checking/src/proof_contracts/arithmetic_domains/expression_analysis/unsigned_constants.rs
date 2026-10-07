@@ -6,13 +6,13 @@
 
 use crate::proof_contracts::arithmetic_domains::integer_ranges::known_u64_value;
 use crate::proof_contracts::arithmetic_domains::{
-    ExpressionHandle, ExpressionNode, PrimitiveType, TypedTrees, ValueEnvironment, bitwise,
+    ExpressionHandle, ExpressionNode, PrimitiveType, ValueEnvironment, bitwise,
 };
 
 /// A landed literal retains its own width inside a larger expression; the
 /// destination does not widen its arithmetic. A suffix contributes no policy.
 pub(super) fn integer_literal_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
     use numerics::literals::LandedIntegerType;
@@ -37,7 +37,7 @@ pub(super) fn integer_literal_primitive(
 /// represent. This evaluates only bitwise trees, through the shared carrier
 /// evaluator; it never reinterprets an unsigned literal as a signed value.
 pub(super) fn bitwise_known_unsigned(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &ValueEnvironment,
     primitive: PrimitiveType,
     expression: ExpressionHandle,

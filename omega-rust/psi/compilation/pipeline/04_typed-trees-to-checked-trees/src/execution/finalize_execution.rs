@@ -1,9 +1,8 @@
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 pub(crate) fn finalize_execution(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut facts: CheckFacts,
 ) -> Result<CheckFacts, Vec<Diagnostic>> {
     // Execution planning runs in its own immutable window, after the

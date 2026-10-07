@@ -141,7 +141,9 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
     }
 }
 
-fn collect_conversion_cast_bindings(program: &TypedTrees) -> Vec<ConversionCastBinding> {
+fn collect_conversion_cast_bindings(
+    program: &dyn crate::CheckingInput,
+) -> Vec<ConversionCastBinding> {
     let mut bindings = Vec::new();
     let mut visited = Vec::new();
     for machine in program.machines() {
@@ -166,7 +168,7 @@ fn collect_conversion_cast_bindings(program: &TypedTrees) -> Vec<ConversionCastB
 }
 
 fn collect_expression_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -206,7 +208,7 @@ fn collect_expression_bindings(
 /// The one visible conversion overload a supported numeric cast
 /// selects, with the requirement's final path member for the call spelling.
 fn selected_conversion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

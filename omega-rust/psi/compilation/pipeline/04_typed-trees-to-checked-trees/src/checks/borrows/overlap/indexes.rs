@@ -244,7 +244,7 @@ impl<'a> SelectorEvaluation<'a> {
 /// disequality, and a stated premise is consulted only when structural
 /// relations cannot settle it.
 pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: ExpressionHandle,
     left_location: SelectorLocation,
     right: ExpressionHandle,
@@ -393,7 +393,7 @@ fn index_window_provably_empty(
 }
 
 fn range_integer_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
@@ -482,7 +482,7 @@ fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool
 /// session, reusing its bounds at the segment's exact path location. The bound positions match the overlap selectors: `Index` for a
 /// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
 pub(super) fn index_expression_extent_with_selectors<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     location: SelectorLocation,
     selectors: &mut SelectorEvaluation<'_>,
@@ -536,7 +536,7 @@ pub(super) fn index_expression_extent_with_selectors<'p>(
 /// reported as unknown (`None`), which the overlap checks treat conservatively
 /// as possibly-overlapping.
 fn exclusive_end_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
@@ -589,7 +589,7 @@ fn exclusive_end_bound(
 /// only reach one through a guarantee whose result binding is version-pinned
 /// to the same occurrence.
 pub(super) fn selector_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
@@ -607,7 +607,7 @@ pub(super) fn selector_bound(
 /// receiver contributes the projected storage coordinate under the same
 /// pin-evidence contract as `Storage`.
 pub(super) fn projected_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
@@ -634,7 +634,7 @@ pub(super) fn projected_bound(
 /// contributes the element's storage coordinate under the same pin-evidence
 /// contract as `Storage`.
 pub(super) fn indexed_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
@@ -648,7 +648,7 @@ pub(super) fn indexed_bound(
 }
 
 pub(super) fn normalized_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {

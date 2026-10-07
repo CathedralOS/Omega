@@ -4,7 +4,6 @@ use crate::values::lower_machine_parameter_boolean_expression;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarExpression;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -21,7 +20,7 @@ pub(crate) use crash_entry::{
 /// execution eligibility, not the identity of a concrete scalar contract leaf
 /// on a generic declaration awaiting application.
 pub(super) fn entry_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
     let parameters = authored_entry_parameters(program, machine)?;
@@ -43,7 +42,7 @@ pub(super) fn entry_parameters<'program>(
 /// machine/state/formal identity, without borrowing each other's leaf vocabulary
 /// or eligibility policy. Unread type parameters do not erase concrete clauses.
 pub(super) fn authored_entry_parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program [StateParameter]> {
     if !machine.symbol.is_valid()
@@ -97,7 +96,7 @@ pub(super) fn authored_entry_parameters<'program>(
 }
 
 pub(crate) fn lower_machine_entry_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     expression: ExpressionHandle,
@@ -120,7 +119,7 @@ pub(crate) fn lower_machine_entry_boolean_expression(
 }
 
 struct EntryOperands<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     parameters: &'program [StateParameter],
 }
 

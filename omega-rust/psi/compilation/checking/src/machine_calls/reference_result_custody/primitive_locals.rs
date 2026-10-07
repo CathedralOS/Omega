@@ -8,7 +8,7 @@ use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgu
 /// already own physical storage; mutable SSA formals require storage coherence
 /// across writes before they can use this addressable ingress contract.
 pub fn primitive_local_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     statement: usize,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
@@ -58,8 +58,7 @@ pub fn primitive_local_source(
         }
         _ => (borrow.target, false),
     };
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, target)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, target)
     else {
         return None;
     };

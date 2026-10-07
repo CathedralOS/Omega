@@ -38,7 +38,7 @@ pub(super) fn project(
             (
                 signature.service_reach_row,
                 owner.is_boundary.then_some(symbol),
-                validation::declared_signature_invocations(&compilation.typed, signature),
+                validation::declared_signature_invocations(compilation.checking_input, signature),
                 compilation.state_signature_parameters(signature),
                 &signature.termination_guarantee,
             )
@@ -68,7 +68,7 @@ pub(super) fn project(
             (
                 machine.service_reach_row,
                 None,
-                validation::declared_machine_invocations(&compilation.typed, machine),
+                validation::declared_machine_invocations(compilation.checking_input, machine),
                 compilation.state_parameters(entry),
                 guarantee,
             )

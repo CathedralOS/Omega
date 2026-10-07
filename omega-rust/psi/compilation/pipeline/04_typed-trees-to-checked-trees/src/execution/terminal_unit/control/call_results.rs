@@ -11,7 +11,7 @@ use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallR
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralResultBindingPlan, Multiplicity, SymbolHandle, TypeReferenceHandle,
-    TypedTrees, is_reference,
+    is_reference,
 };
 
 /// Rebind a Unit call's result to the scalar local its statement declares.
@@ -84,7 +84,7 @@ pub(crate) fn bind_structural_call_result(
 /// classifies storage; the copied value plan must separately rejoin its
 /// readable source and exact leaf type.
 pub(crate) fn checked_copied_result_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -125,7 +125,7 @@ pub(crate) fn checked_copied_result_type(
 /// Primitive arrays use their complete-shape classifier, including dimensions
 /// with no leaves; the older owned-storage classifier excludes empty arrays.
 pub(crate) fn checked_structural_result_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],

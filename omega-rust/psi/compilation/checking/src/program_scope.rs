@@ -11,9 +11,9 @@
 //! slot can never serve a replacement that lands on its freed address, and
 //! the fingerprint moves on any table or roster mutation so in-place edits
 //! inside a build reopen the memo. Declaration rosters themselves are
-//! answered by the `TypedTrees`-owned indexes; the separate `frozen_program`
-//! scope additionally checks a retained program identity for its
-//! `Arc`-shared memos.
+//! answered by the `TypedTrees`-owned indexes. The separate `CheckingContext`
+//! carries immutable-program memos directly in read-only checking inputs;
+//! this plan scope does not own or discover that state.
 
 pub(crate) mod call_targets;
 pub(crate) mod data_definitions;
@@ -35,7 +35,7 @@ use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 /// on any mutation of the tables, roots, or planning Vecs a memo could read.
 type ProgramKey = (u64, u64);
 
-fn program_key(program: &typed_trees::TypedTrees) -> ProgramKey {
+fn program_key(program: &dyn crate::CheckingInput) -> ProgramKey {
     (program.identity.get(), program.structural_fingerprint())
 }
 
@@ -102,9 +102,9 @@ type ScopedProgramMapSlot<V> =
 /// a miss and its result is written back; a foreign program's entry is left
 /// alone. Identity and fingerprint keying live in `program_key`.
 fn scoped_program_map<V: 'static>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     slot: &'static std::thread::LocalKey<std::cell::RefCell<ScopedProgramMapSlot<V>>>,
-    build: impl FnOnce(&typed_trees::TypedTrees) -> HashMap<symbols::SymbolHandle, V>,
+    build: impl FnOnce(&dyn crate::CheckingInput) -> HashMap<symbols::SymbolHandle, V>,
 ) -> std::rc::Rc<HashMap<symbols::SymbolHandle, V>> {
     enum SlotState<V> {
         NoScope,

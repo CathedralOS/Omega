@@ -20,7 +20,7 @@
 /// that application identity: it describes values of this selected instance,
 /// not compatibility between different indices or a way to infer an index.
 pub fn declared_domain_predicate_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
     use numerics::bignum::BigInt;
@@ -45,7 +45,7 @@ pub fn declared_domain_predicate_bounds(
 /// unstated side is `None`, the carrier's own extreme; a routed domain, an
 /// unrecognized predicate, or no stated side at all declines.
 pub fn exact_declared_domain_interval(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<(
     Option<numerics::bignum::BigInt>,
@@ -66,7 +66,7 @@ pub fn exact_declared_domain_interval(
 /// unstated side is the carrier's extreme, and a stated side never widens
 /// past it.
 pub fn exact_declared_domain_carrier_interval(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     carrier: typed_trees::types::PrimitiveType,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
@@ -98,7 +98,7 @@ struct PredicateInterval {
 }
 
 fn predicate_interval(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<PredicateInterval> {
     use typed_trees::types::DomainConstraintSubject;
@@ -151,7 +151,7 @@ fn predicate_interval(
 /// time, and return whether the whole predicate was read. `&&` contributes
 /// both sides; any other shape contributes nothing and is not read.
 fn self_predicate_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::domain::DomainDefinition,
     expression: typed_trees::expression::ExpressionHandle,
     indices: &[(symbols::SymbolHandle, numerics::bignum::BigInt)],
@@ -227,7 +227,7 @@ fn self_predicate_bounds(
 /// or flow bounds. Exact normalized identity and carrier checks keep a summary
 /// of `AtMost<256>` from authorizing `AtMost<512>` or an open application.
 fn closed_index_bindings(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::domain::DomainDefinition,
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>> {

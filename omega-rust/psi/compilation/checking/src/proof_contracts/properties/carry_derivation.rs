@@ -1,9 +1,8 @@
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember, TypeParameter};
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct CarryDerivation<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameters: Vec<(
         symbols::SymbolHandle,
         String,
@@ -18,7 +17,10 @@ pub(super) struct CarryDerivation<'program> {
 }
 
 impl<'program> CarryDerivation<'program> {
-    pub(super) fn new(program: &'program TypedTrees, parameters: &[TypeParameter]) -> Self {
+    pub(super) fn new(
+        program: &'program dyn crate::CheckingInput,
+        parameters: &[TypeParameter],
+    ) -> Self {
         let parameters = parameters
             .iter()
             .map(|parameter| {
@@ -176,7 +178,7 @@ impl<'program> CarryDerivation<'program> {
 }
 
 pub(super) fn for_each_stored_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
     visit: &mut impl FnMut(&DataField, Option<&str>),
 ) {

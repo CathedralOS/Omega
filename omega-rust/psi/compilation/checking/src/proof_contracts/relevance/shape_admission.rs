@@ -1,12 +1,14 @@
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
 use language_semantics::DataSupplyMode;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(super) fn validate_supported_shapes(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for definition in program.data_definitions() {
         let erased = erased_fields(program, definition);
         if erased.is_empty() {
@@ -66,7 +68,10 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
 /// boundary-shaped carriers) has no term form, so its plan omission would
 /// otherwise surface with no name. Proof machines are exempt: their erased
 /// formals are proof-side occurrences that never need a runtime plan.
-fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_erased_runtime_scalar_formals(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let proof_only = crate::proof_only_classification(program);
     for machine in program.machines() {
         if proof_only.is_proof_machine(program, machine) {
@@ -103,7 +108,10 @@ fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mu
 /// owns neither, so attaching the qualifier to an
 /// erased occurrence has no meaning: refuse it here rather than letting the
 /// calling plan silently refuse with no name for the cause.
-fn validate_erased_binding_qualifiers(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_erased_binding_qualifiers(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
@@ -176,7 +184,7 @@ fn erased_qualifier(
 /// boundary providers need additional representation or evidence rules and
 /// therefore remain behind the existing fail-closed fence.
 fn supports_erased_attached_machine_record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> bool {
     if definition.supply_mode != DataSupplyMode::CheckedShape
@@ -218,7 +226,7 @@ fn supports_erased_attached_machine_record(
 }
 
 fn validate_unresolved_erased_generic_uses(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for definition in program
@@ -287,7 +295,7 @@ fn unsupported(definition: &DataDefinition, fields: &str, shape: &str) -> Diagno
 }
 
 pub(crate) fn erased_fields<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &'program DataDefinition,
 ) -> Vec<&'program DataField> {
     let mut fields = Vec::new();
@@ -309,7 +317,7 @@ pub(crate) fn erased_fields<'program>(
 }
 
 fn unresolved_erased_generic_base(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<String> {
     if !handle.is_valid() {

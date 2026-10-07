@@ -1,5 +1,4 @@
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
@@ -7,7 +6,7 @@ use typed_trees::signature::{SignatureContract, SignatureContractKind, StatePara
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_contract_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
@@ -31,7 +30,7 @@ pub(super) fn validate_contract_facts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_callable_contract_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     requirement_identity: &str,
     required_contracts: &[SignatureContract],
@@ -81,7 +80,7 @@ pub(crate) fn validate_callable_contract_refinement(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_crash_contract_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     label: &str,
     requirement_identity: &str,
     required_contracts: &[SignatureContract],
@@ -139,7 +138,7 @@ struct NormalizedCrashBucket {
 }
 
 fn normalized_crash_bucket(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],
@@ -164,7 +163,7 @@ fn normalized_crash_bucket(
 }
 
 fn normalized_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[SignatureContract],
     kind: &SignatureContractKind,
     parameters: &[StateParameter],

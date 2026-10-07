@@ -9,7 +9,7 @@ use super::super::path_instantiation::aggregate_arguments::reference_leaves_with
 use super::super::place_paths::append_place_suffix;
 use super::super::reference_origins::exclusive_reference_origins;
 use super::super::reference_subjects;
-use super::super::{FrameInference, FramePlaceOrigin, Machine, TopLevelSymbols, TypedTrees};
+use super::super::{FrameInference, FramePlaceOrigin, Machine, TopLevelSymbols};
 use super::frozen_bindings::binding_source;
 use super::projections::{prefix_matches, reference_leaves_before_statement_for_query};
 use super::reference_values::canonical_reference_origins;
@@ -24,7 +24,7 @@ use typed_trees::statement::{StatementNode, TableAssignment};
 /// replacement must make the effect walk opaque.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -69,7 +69,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
 /// opaque rather than keeping stale declared rows beside observed ones.
 #[allow(clippy::too_many_arguments)]
 fn assigned_stored_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,

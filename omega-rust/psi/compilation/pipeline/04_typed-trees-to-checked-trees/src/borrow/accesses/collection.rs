@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 use validation::DispatchExtraction;
 
 pub(super) struct BorrowAccessCollection<'a> {
-    pub(super) program: &'a typed_trees::TypedTrees,
+    pub(super) program: &'a dyn ::validation::CheckingInput,
     access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
     accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,
@@ -20,7 +20,7 @@ pub(super) struct BorrowAccessCollection<'a> {
 
 impl<'a> BorrowAccessCollection<'a> {
     pub(super) fn new(
-        program: &'a typed_trees::TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         access_segments: &'a mut arena::Arena<facts::PlaceSegment>,
         argument_accesses: &'a mut arena::Arena<BorrowArgumentAccessFact>,
         accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,

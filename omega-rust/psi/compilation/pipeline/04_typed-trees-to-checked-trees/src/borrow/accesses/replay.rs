@@ -6,10 +6,9 @@
 use crate::semantic::calls::{CallSite, call_site_argument_expressions, find_call_site};
 use checked_trees::{BorrowFacts, FlowCallFact};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(crate) fn rejoin_call_accesses<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

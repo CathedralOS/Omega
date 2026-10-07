@@ -3,7 +3,7 @@ use typed_trees::expression::ExpressionHandle;
 use super::patterns;
 
 pub(super) fn state_has_proven_self_loop<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,

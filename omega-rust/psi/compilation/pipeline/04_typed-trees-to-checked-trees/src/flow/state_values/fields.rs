@@ -196,7 +196,7 @@ pub(super) fn height(fields: &[FieldValue], threshold_count: usize) -> usize {
 /// parameter's own symbol for a transition argument. `&mut self` and a named
 /// `&mut T` parameter are the same carrier here, one root spelling apart.
 fn root_data_definition<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     root: facts::PlaceRoot,
@@ -221,7 +221,7 @@ fn root_data_definition<'program>(
 /// The declared primitive extent of a field path, when it resolves to a
 /// primitive scalar: the widest interval a widening join can need.
 fn carrier_integer_range(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     root: facts::PlaceRoot,
@@ -259,7 +259,7 @@ fn carrier_integer_range(
 /// arena scan runs at most once per flow build rather than per widening
 /// rejoin.
 pub(in crate::flow) fn integer_literal_thresholds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<numerics::bignum::BigInt> {
     let mut literals: Vec<numerics::bignum::BigInt> = program
         .expression_table
@@ -290,7 +290,7 @@ pub(in crate::flow) fn integer_literal_thresholds(
 /// carrier. Identical arrivals retain that widening rather than shrinking
 /// back to the raw union without new evidence.
 pub(super) fn meet(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     destination: &typed_trees::state::State,
     previous: &mut Vec<FieldValue>,
@@ -392,7 +392,7 @@ impl FieldValue {
     /// widening consults when a bound keeps extending.
     fn rejoin(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         thresholds: &[numerics::bignum::BigInt],
@@ -547,7 +547,7 @@ impl FieldValue {
 /// the same join; a named `&mut T` argument is no different one symbol over.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
@@ -834,7 +834,7 @@ pub(super) fn capture(
 }
 
 pub(super) fn append(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     fields: &[FieldValue],
     machine: &typed_trees::machine::Machine,

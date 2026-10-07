@@ -7,7 +7,6 @@
 //! vocabulary, and independently validates the resulting plan.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -15,7 +14,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// Both checking and policy evaluation use the same exact declarations. A local
 /// trait with the same spelling cannot change foreign-carrier admission.
 pub fn standard_calling_traits(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Option<(&TraitDefinition, &TraitDefinition)> {
     let vocabularies = standard_calling_vocabularies(program);
     let [vocabulary] = vocabularies.as_slice() else {
@@ -31,7 +30,7 @@ pub fn standard_calling_traits(
 /// the vocabulary a boundary references join on the relationship symbol
 /// rather than the first match.
 pub fn standard_calling_vocabularies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<(&TraitDefinition, &TraitDefinition)> {
     let mut per_file: std::collections::BTreeMap<
         usize,
@@ -72,7 +71,7 @@ pub fn standard_calling_vocabularies(
 /// vocabulary publishes; report each colliding `data` with the ordinary
 /// duplicate-declaration diagnostic.
 pub fn validate_calling_vocabulary_uniqueness(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     let mut paths = std::collections::BTreeSet::new();
@@ -105,7 +104,7 @@ pub fn validate_calling_vocabulary_uniqueness(
 }
 
 fn has_calling_interface(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     calling: &TraitDefinition,
     policy: &TraitDefinition,
 ) -> bool {
@@ -153,7 +152,7 @@ fn has_calling_interface(
 }
 
 fn is_calling_interface_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     type_reference: TypeReferenceHandle,
     name: &str,
@@ -180,7 +179,7 @@ fn is_calling_interface_data(
         && declaring_source(owner).is_some_and(|owner| declaring_source(*symbol) == Some(owner))
 }
 
-pub(crate) fn is_core_vector(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+pub(crate) fn is_core_vector(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
     program.data_definitions().iter().any(|definition| {
         definition.symbol == symbol
             && definition.name.as_str() == "Vec"
@@ -189,7 +188,7 @@ pub(crate) fn is_core_vector(program: &TypedTrees, symbol: SymbolHandle) -> bool
 }
 
 pub(crate) fn is_core_vector_surface_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> bool {
@@ -206,7 +205,7 @@ pub(crate) fn is_core_vector_surface_state(
 }
 
 fn has_toolchain_declaration_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     relative_path: &str,
 ) -> bool {

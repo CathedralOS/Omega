@@ -4,7 +4,7 @@ use crate::proof_contracts::contract_entailment::law_conformance::check_law_conf
 use crate::proof_contracts::contract_entailment::law_conformance::operator_contracts::is_equality_conjunction;
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::{
-    ExpressionHandle, ProofFact, SignatureContractKind, SymbolHandle, TypedTrees,
+    ExpressionHandle, ProofFact, SignatureContractKind, SymbolHandle,
 };
 
 /// LAW-CONFORMANCE (rearrange rung B, settle 2026-07-18): a trait requirement
@@ -28,7 +28,7 @@ pub struct MatchedLawGuarantee {
 }
 
 pub fn matched_machine_law_guarantees(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Vec<MatchedLawGuarantee> {
     let Some(machine) = program.machines().iter().find(|machine| {

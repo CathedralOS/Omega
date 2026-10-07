@@ -9,12 +9,12 @@ use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
-    PermissionEventSource, StatementNode, TypedTrees, control, local_results,
+    PermissionEventSource, StatementNode, control, local_results,
 };
 use checked_trees::CheckedUnitStructuralParameterPlan;
 
 pub(super) fn account(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

@@ -5,13 +5,12 @@
 
 use checked_trees::{ContractProofFact, ProofFacts};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// Resolve the captured source of a formal projection. Named arguments keep
 /// their field path; constructed arguments select the corresponding authored
 /// child. Publication and checking share this exact place correspondence.
 pub(crate) fn projected_argument_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -34,7 +33,7 @@ pub(crate) fn projected_argument_place(
 }
 
 pub(crate) fn contract_parameter_position(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     contract: &ContractProofFact,
     target: SymbolHandle,

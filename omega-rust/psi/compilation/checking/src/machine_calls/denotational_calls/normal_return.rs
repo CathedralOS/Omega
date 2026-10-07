@@ -1,7 +1,6 @@
 //! Conditional equality of concrete value-only calls during validation.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -17,7 +16,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// dependencies across writes; equal target spelling is never sufficient.
 /// Both summaries must belong to this same typed program.
 pub fn normal_return_call_candidate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -44,7 +43,7 @@ pub fn normal_return_call_candidate<'program>(
 }
 
 pub(crate) fn plain_value_call_target<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<(&'program Machine, &'program State)> {
     if !call.target_symbol.is_valid()
@@ -76,7 +75,7 @@ pub(crate) fn plain_value_call_target<'program>(
     Some((machine, state))
 }
 
-fn primitive_value_machine(program: &TypedTrees, machine: &Machine) -> bool {
+fn primitive_value_machine(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     machine.symbol.is_valid()
         && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         && machine.body_is_present
@@ -102,7 +101,7 @@ fn primitive_value_machine(program: &TypedTrees, machine: &Machine) -> bool {
 /// binds reads to explicit value inputs and operator meaning: operational call
 /// summaries do not include implementations of arbitrary infix operators.
 fn primitive_value_closure(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
@@ -202,7 +201,7 @@ fn primitive_value_closure(
 }
 
 fn closed_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

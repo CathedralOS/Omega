@@ -5,7 +5,6 @@ use super::{exact_case_membership_meaning, membership_subject_matches_owner};
 use crate::value_custody::places::{exact_data_member_field, unwrapped_type_reference};
 use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField};
 use typed_trees::domain::{DomainDefinition, ProofFact};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableBinaryExpression};
@@ -13,7 +12,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Check case membership under the exact domain declaration's carrier binding.
 pub fn has_exact_domain_case_membership_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     expression: ExpressionHandle,
     comparison: &TableBinaryExpression,
@@ -32,7 +31,7 @@ pub fn has_exact_domain_case_membership_meaning(
 
 /// Check case membership under the exact data declaration's field bindings.
 pub fn has_exact_data_case_membership_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &DataDefinition,
     expression: ExpressionHandle,
     comparison: &TableBinaryExpression,
@@ -57,7 +56,7 @@ pub fn has_exact_data_case_membership_meaning(
 }
 
 fn owns_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: HandleSpan<ProofFact>,
     expression: ExpressionHandle,
     comparison: &TableBinaryExpression,
@@ -72,7 +71,7 @@ fn owns_expression(
 }
 
 pub(super) fn facts_contain_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: HandleSpan<ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
@@ -109,7 +108,7 @@ enum DefinitionSubject<'program> {
 /// The domain subject has meaning only under its declaration-owned binding.
 /// This is a carrier lookup, not evidence that any runtime value is a member.
 pub fn exact_domain_subject_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -124,7 +123,10 @@ pub fn exact_domain_subject_type(
     subject_type(program, DefinitionSubject::Domain(domain), expression, 0)
 }
 
-pub(super) fn has_exact_domain_definition(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+pub(super) fn has_exact_domain_definition(
+    program: &dyn crate::CheckingInput,
+    domain: &DomainDefinition,
+) -> bool {
     let mut definitions = program
         .domain_definitions()
         .iter()
@@ -136,7 +138,7 @@ pub(super) fn has_exact_domain_definition(program: &TypedTrees, domain: &DomainD
 }
 
 fn subject_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: DefinitionSubject<'_>,
     expression: ExpressionHandle,
     depth: usize,
@@ -203,7 +205,7 @@ fn subject_type(
 }
 
 fn checked_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     data: &'program DataDefinition,
     symbol: SymbolHandle,
     name: &str,

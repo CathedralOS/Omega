@@ -9,7 +9,7 @@ use super::super::overlap::{canonical_place_loan_compatibility, captured_place_c
 use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 
 pub(super) fn check_call_access_conflicts<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,

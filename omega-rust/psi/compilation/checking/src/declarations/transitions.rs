@@ -3,7 +3,6 @@ use crate::machine_calls::calls::validate_call_arguments_with_environments;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -17,7 +16,7 @@ pub(crate) use evaluation::TransitionValueEnvironments;
 /// Resolve a named transfer's exact declaration, retaining its owning machine.
 /// Machine declarations select entry; state declarations select that state.
 pub(crate) fn resolved_transition_target_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<(&Machine, &State)> {
     if !target.is_valid() {
@@ -44,7 +43,7 @@ pub(crate) fn resolved_transition_target_state(
 /// Named state transfers remain control flow; named machine and requirement
 /// targets contribute ordinary call contracts, including static binder bounds.
 pub(crate) fn named_transition_call_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
 ) -> symbols::SymbolHandle {
@@ -71,7 +70,7 @@ pub(crate) fn named_transition_call_symbol(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -258,7 +257,7 @@ pub(crate) fn validate_transition_target_node(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_transition_arguments_handles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,

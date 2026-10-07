@@ -13,13 +13,21 @@ use compilation_products::CheckedCompilation;
 pub struct PackageReviewInput<'a> {
     pub(crate) program: &'a CheckedTrees,
     pub(crate) custody: &'a CheckedCompilation,
+    /// Read-only query state travels with the exact supplied semantic program.
+    /// Aggregate projection lends its invocation context; standalone projections
+    /// use the bare program without discovering another projection's memos.
+    pub(crate) checking_input: &'a dyn validation::CheckingInput,
 }
 
 impl<'a> PackageReviewInput<'a> {
     /// Review an untrusted semantic candidate against immutable compiler custody.
     /// Results are review data only, never checked compiler or execution authority.
     pub const fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
-        Self { program, custody }
+        Self {
+            program,
+            custody,
+            checking_input: &program.typed,
+        }
     }
 
     /// Authored deployment scope must agree with immutable compiler custody.

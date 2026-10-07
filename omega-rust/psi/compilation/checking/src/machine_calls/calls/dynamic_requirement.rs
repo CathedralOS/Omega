@@ -13,7 +13,7 @@
 //! unfittable envelope) rejects here, at the call that would need it.
 
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle, TypedTrees,
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle,
     ValueEnvironment, WritableRoots,
 };
 use typed_trees::machine::GenericConformanceBound;
@@ -34,7 +34,7 @@ pub(crate) struct DynamicSelectorCall<'program> {
 /// first operand is a selector. `Ok(None)` leaves every other call to its own
 /// route; a recognized call that cannot dispatch is an error.
 pub(crate) fn dynamic_selector_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     receiver: symbols::SymbolHandle,
@@ -125,7 +125,7 @@ pub(crate) fn dynamic_selector_call<'program>(
 /// requirement's static tuple against its declared roster.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_dynamic_selector_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -158,7 +158,7 @@ pub(super) fn validate_dynamic_selector_arguments(
 /// runtime value cannot select a family row. A requirement without a finite
 /// family takes no static machine arguments through a selector.
 fn validate_family_tuple(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &DynamicSelectorCall<'_>,
     machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
@@ -201,7 +201,7 @@ fn validate_family_tuple(
 /// The trait an expression call's receiver names (`Trait` in
 /// `Trait::member(...)`), or the invalid symbol.
 pub(crate) fn expression_trait_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
 ) -> symbols::SymbolHandle {
     match program.expression_table.expression(receiver) {
@@ -218,7 +218,7 @@ pub(crate) fn expression_trait_receiver(
 /// The selector type an operand carries: a conversion's stated `dyn` type, or
 /// the declared type of the place that holds it.
 fn selector_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,

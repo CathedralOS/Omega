@@ -12,7 +12,6 @@ use facts::PlaceSegment;
 use flow_effects::{CleanupDependency, OperationalPlan};
 use language_semantics::{MachineSupplyMode, Multiplicity};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -62,7 +61,7 @@ pub(crate) enum CleanupLeaf {
 /// Walk the selected residual once for both effects and generic obligations.
 /// Unknown storage is `None`, distinct from an empty, cleanup-free residual.
 pub(crate) fn selected_cleanup_leaves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     disposition: &ContextualCleanupDisposition,
 ) -> Option<Vec<CleanupLeaf>> {
@@ -109,7 +108,7 @@ pub(crate) fn selected_cleanup_leaves(
 /// In particular, a child hook cannot authorize a distinct nominal linear
 /// obligation, and an owner hook cannot erase an undisposable child.
 pub(crate) fn whole_cleanup_is_eligible(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     let mut has_erased_members = false;
@@ -131,7 +130,7 @@ pub(crate) fn whole_cleanup_is_eligible(
 }
 
 pub(crate) fn derive_cleanup_effect_dependencies(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operational: &OperationalPlan,
     facts: &CheckFacts,
 ) -> Result<Arena<CleanupDependency>, Vec<Diagnostic>> {
@@ -217,7 +216,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
 /// restore the path.
 #[allow(clippy::too_many_arguments)]
 fn visit_field_child(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     child: &[&[PlaceSegment]],
     active: &mut Vec<TypeReferenceHandle>,
@@ -244,7 +243,7 @@ fn visit_field_child(
 }
 
 fn visit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
@@ -358,7 +357,7 @@ fn visit(
 }
 
 fn visit_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
@@ -485,7 +484,7 @@ fn selected<'a>(removed: &[&'a [PlaceSegment]], segment: PlaceSegment) -> Vec<&'
 }
 
 fn visit_array(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     element: TypeReferenceHandle,
     length: usize,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -551,7 +550,7 @@ fn visit_array(
 /// Resolve a selected cleanup subtree through declaration identities while
 /// retaining generic substitutions; a textual member spelling is no authority.
 fn select_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &[PlaceSegment],

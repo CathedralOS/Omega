@@ -38,7 +38,7 @@ pub(crate) struct StateMutationSummaryCache {
 /// Cleanup uses the same summary as authored calls, without fabricating a
 /// source call coordinate or interpreting the frame's rendered report paths.
 pub(crate) fn state_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     cache: &StateMutationSummaryCache,
     state: &typed_trees::state::State,
@@ -70,7 +70,7 @@ struct MutationWrite {
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -123,7 +123,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
 /// own argument loans reach. `None` when the callee has no complete summary or
 /// a receiver write cannot be placed.
 pub(super) fn instantiate_known_call_receiver_summary_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -180,7 +180,7 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
 }
 
 fn state_mutation_summary<'cache>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     cache: &'cache StateMutationSummaryCache,
     state: &typed_trees::state::State,
@@ -195,7 +195,7 @@ fn state_mutation_summary<'cache>(
 }
 
 fn build_state_mutation_summaries(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StateMutationSummary> {
@@ -240,7 +240,7 @@ fn build_state_mutation_summaries(
 }
 
 fn propagate_state_mutation_summaries(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     states: &mut [StateMutationSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -429,7 +429,7 @@ fn propagate_state_mutation_summaries(
 /// A target summary's writes in the caller's storage coordinates at `call`,
 /// in summary order. `None` when one cannot be placed.
 fn instantiate_target_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -479,7 +479,7 @@ fn summary_index_from(
 }
 
 fn machine_symbol_for_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> SymbolHandle {
     crate::semantic::calls::find_state_with_machine(program, state.symbol)
@@ -488,7 +488,7 @@ fn machine_symbol_for_state(
 }
 
 fn state_has_concrete_body_signature(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
     crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
@@ -505,7 +505,7 @@ fn state_has_concrete_body_signature(
 // Owned primitive formals contain no references: writes change callee storage,
 // not the caller's delivered argument. Keep reference-bearing roots visible.
 fn state_summary_exposes_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     place: &CanonicalPlace,
 ) -> bool {
@@ -522,7 +522,7 @@ fn state_summary_exposes_place(
 }
 
 fn collect_state_mutation_summary_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<MutationWrite>> {
@@ -592,7 +592,7 @@ fn collect_state_mutation_summary_places(
 }
 
 pub(in crate::flow) fn instantiate_call_relative_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,

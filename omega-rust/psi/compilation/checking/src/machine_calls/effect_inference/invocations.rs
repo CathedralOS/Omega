@@ -6,7 +6,6 @@
 //! nth non-`self` entry parameter of the machine whose summary carries it.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
@@ -36,7 +35,9 @@ struct CallWork {
     declared: Vec<InvocationTarget>,
 }
 
-pub fn infer_synchronous_invocations(program: &TypedTrees) -> InvocationInferencePlan {
+pub fn infer_synchronous_invocations(
+    program: &dyn crate::CheckingInput,
+) -> InvocationInferencePlan {
     let state_to_machine = state_to_machine_index(program);
     let mut work = program
         .machines()
@@ -119,7 +120,7 @@ pub fn infer_synchronous_invocations(program: &TypedTrees) -> InvocationInferenc
 }
 
 pub fn declared_signature_invocations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &StateSignature,
 ) -> Vec<InvocationTarget> {
     let parameters = program
@@ -151,7 +152,7 @@ pub(crate) fn full_parameter_invocation(
 }
 
 fn explicit_signature_invocations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &StateSignature,
 ) -> Vec<InvocationTarget> {
     declared_signature_invocations(program, signature)
@@ -168,7 +169,7 @@ fn explicit_signature_invocations(
 /// that retain per-occurrence provenance may compare its cardinality with the
 /// authored declaration list to reject unresolved or duplicate targets.
 pub fn declared_machine_invocations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<InvocationTarget> {
     declared_targets(
@@ -179,7 +180,7 @@ pub fn declared_machine_invocations(
 }
 
 pub fn invocation_target_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     target: InvocationTarget,
 ) -> String {
@@ -202,7 +203,7 @@ pub fn invocation_target_label(
 /// the adapter but keeps calls through it inside the selected provider
 /// artifact; it is not a component-boundary invocation target.
 pub fn has_self_forwarded_boundary_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     boundary: SymbolHandle,
     requirement_parameter_count: usize,
@@ -222,7 +223,7 @@ pub fn has_self_forwarded_boundary_parameter(
 }
 
 fn build_machine_work(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state_to_machine: &StateToMachine,
 ) -> MachineWork {
@@ -255,7 +256,7 @@ fn build_machine_work(
 }
 
 fn collect_statement_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -380,7 +381,7 @@ fn collect_statement_calls(
 }
 
 fn collect_transition_target_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: typed_trees::statement::TransitionTargetHandle,
@@ -465,7 +466,7 @@ fn collect_transition_target_expression_calls(
 }
 
 fn collect_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -532,7 +533,7 @@ fn collect_expression_calls(
 }
 
 fn collect_table_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCall,
@@ -560,7 +561,7 @@ fn collect_table_call(
 /// then the work item lands through `push_call`.
 #[allow(clippy::too_many_arguments)]
 fn collect_resolved_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target_symbol: SymbolHandle,
@@ -588,7 +589,7 @@ fn collect_resolved_call(
 }
 
 fn origin_for_statement_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCall,
@@ -606,7 +607,7 @@ fn origin_for_statement_receiver(
 }
 
 fn boundary_service_for_receiver_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     head_symbol: SymbolHandle,
@@ -646,7 +647,7 @@ fn boundary_service_for_receiver_path(
 }
 
 fn type_reference_for_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -678,14 +679,14 @@ fn type_reference_for_symbol(
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
 fn data_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
 }
 
 fn collect_expression_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -709,7 +710,7 @@ fn collect_expression_call(
 }
 
 fn push_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: SymbolHandle,
     static_machine_parameter: SymbolHandle,
     receiver: Option<InvocationTarget>,
@@ -769,7 +770,10 @@ fn push_call(
     });
 }
 
-fn signature_for_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {
+fn signature_for_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&StateSignature> {
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
         return Some(signature);
     }
@@ -782,7 +786,7 @@ fn signature_for_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&S
 }
 
 fn boundary_trait_for_signature(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     program
@@ -799,7 +803,7 @@ fn boundary_trait_for_signature(
 }
 
 fn declared_targets(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declarations: &[typed_trees::signature::AuthoredInvocation],
     parameters: &[&typed_trees::signature::StateParameter],
 ) -> Vec<InvocationTarget> {
@@ -830,7 +834,7 @@ fn declared_targets(
 }
 
 fn machine_entry_parameters<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<&'a typed_trees::signature::StateParameter> {
     program
@@ -841,7 +845,7 @@ fn machine_entry_parameters<'a>(
 }
 
 fn origin_for_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -863,7 +867,7 @@ fn origin_for_expression(
 }
 
 fn origin_for_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -916,13 +920,11 @@ fn origin_for_symbol(
 }
 
 fn boundary_service_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let symbol = crate::machine_calls::invocations::boundary_requirement_symbol(
-        program,
-        type_reference,
-    );
+    let symbol =
+        crate::machine_calls::invocations::boundary_requirement_symbol(program, type_reference);
     program
         .traits()
         .iter()

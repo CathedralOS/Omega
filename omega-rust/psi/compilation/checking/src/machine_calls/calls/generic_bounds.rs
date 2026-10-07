@@ -5,7 +5,6 @@ use crate::proof_contracts::properties::{
 use crate::value_custody::places::declared_place_type;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -31,7 +30,7 @@ use typed_trees::state::State;
 /// reach this function.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_machine_call_type_parameter_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,
@@ -71,7 +70,7 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 /// callers must rejoin a closed requirement after specialization. Erased
 /// lifetime binders contribute no static application arguments.
 fn is_directly_callable_top_level_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     current_machine: &Machine,
 ) -> bool {
@@ -82,7 +81,7 @@ fn is_directly_callable_top_level_requirement(
 }
 
 fn report_bodyless_boundary_symbol_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     current_machine: &Machine,
     target_name: &str,
@@ -116,7 +115,7 @@ fn report_bodyless_boundary_symbol_call(
 /// fence keeps its existing named-rung owners only.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_resolved_target_type_parameter_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,
@@ -141,7 +140,7 @@ pub(super) fn validate_resolved_target_type_parameter_bounds(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_type_parameter_instantiation_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &State,

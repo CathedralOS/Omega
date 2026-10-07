@@ -3,7 +3,6 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::PrimitiveType;
@@ -38,7 +37,7 @@ struct ReconstructedDischarge {
 }
 
 pub(crate) fn build_contract_entailment_assumption_discharges(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &MachineContractPlans,
 ) -> Result<Vec<CheckedContractEntailmentAssumptionDischarge>, Vec<diagnostics::Diagnostic>> {
     let stand_downs = validation::collect_contract_entailment_stand_downs(program);
@@ -65,7 +64,7 @@ pub(crate) fn build_contract_entailment_assumption_discharges(
 }
 
 fn reconstruct_discharge(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &MachineContractPlans,
     stand_down: ContractEntailmentStandDown,
 ) -> Result<Option<ReconstructedDischarge>, ContractEntailmentDischargeError> {
@@ -179,7 +178,7 @@ fn accept_reconstructed(
 }
 
 fn parameter_bindings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     entry: &typed_trees::state::State,
 ) -> Result<Vec<ParameterBinding>, ContractEntailmentDischargeError> {
     let mut bindings = Vec::new();
@@ -226,7 +225,7 @@ fn scalar_type(primitive: PrimitiveType) -> Option<ScalarType> {
 }
 
 fn lower_proposition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[ParameterBinding],
 ) -> Option<Proposition> {
@@ -282,7 +281,7 @@ fn lower_proposition(
 }
 
 fn infer_scalar_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[ParameterBinding],
 ) -> Option<ScalarType> {
@@ -312,7 +311,7 @@ fn infer_scalar_type(
 }
 
 fn lower_scalar_term(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[ParameterBinding],
     expected: ScalarType,

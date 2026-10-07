@@ -7,7 +7,6 @@
 //! have separate owners below.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 mod demands;
 mod migration;
@@ -20,7 +19,7 @@ use schemas::check_wire_demands;
 
 /// Reject unmet directional compatibility facts.
 pub(crate) fn validate_wire_protocol(
-    typed: &TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     compatibility_demands: &[WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_wire_demands(&check_wire_demands(typed, compatibility_demands))

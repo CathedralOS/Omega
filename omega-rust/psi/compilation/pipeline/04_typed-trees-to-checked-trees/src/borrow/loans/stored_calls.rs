@@ -5,7 +5,7 @@
 use super::{StatementBorrowLoan, owner_path_from_place_segments};
 
 pub(super) fn loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _state: &typed_trees::state::State,
     machine_symbol: symbols::SymbolHandle,
     statement: &checked_trees::statement::StatementNode,

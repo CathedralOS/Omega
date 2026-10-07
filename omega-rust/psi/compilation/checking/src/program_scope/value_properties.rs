@@ -13,7 +13,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// each caller's walk rebuilds the declaration/parameter indexes before
 /// recursing; inside a scope, each queried type reference walks once.
 pub(crate) fn memoized_claim_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     enum SlotState {
@@ -71,7 +71,7 @@ pub(crate) fn memoized_claim_frontier(
 /// the program's owned attached-drop index, rebuilt on any machine-table
 /// mutation; no scope slot is needed.
 pub(crate) fn memoized_owns_drop_hook(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
     program.attached_drop_machine_exists(symbol)
@@ -83,7 +83,7 @@ pub(crate) fn memoized_owns_drop_hook(
 /// evaluates their range endpoints. The definition's symbol is the same
 /// key the walk's inner establishment index already memoizes on.
 pub(crate) fn memoized_data_requires_establishment(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     compute: impl FnOnce() -> bool,
 ) -> bool {

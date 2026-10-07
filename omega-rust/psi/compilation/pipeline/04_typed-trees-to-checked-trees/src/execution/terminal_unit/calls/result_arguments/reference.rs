@@ -12,7 +12,6 @@ use checked_trees::{
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::TableLocalData;
@@ -20,12 +19,15 @@ use typed_trees::types::TypeReferenceHandle;
 use validation::reference_result_custody;
 
 /// Slice views have their own descriptor argument route.
-pub(super) fn is_carrier(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub(super) fn is_carrier(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     reference_result_custody::stored_loan_parts(program, reference).is_some()
 }
 
 pub(super) fn argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &State,
     statement_index: usize,

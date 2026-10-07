@@ -4,13 +4,12 @@
 //! supplied telescope, then reuse nominal field and call-result queries.
 
 use super::{exact_data_member_field, unwrapped_type_reference};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn parameter_scoped_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -18,7 +17,7 @@ pub(crate) fn parameter_scoped_type_reference(
 }
 
 fn expression_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     depth: usize,
@@ -118,7 +117,7 @@ fn expression_type(
 }
 
 pub(crate) fn has_retained_builtin_index_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;

@@ -3,7 +3,6 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    TypedTrees,
     data::DataMember,
     expression::{ExpressionHandle, ExpressionNode},
     name::Identifier,
@@ -19,7 +18,7 @@ pub(super) struct Projection {
 }
 
 pub(super) fn root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     before: usize,
     symbol: SymbolHandle,
@@ -50,7 +49,7 @@ pub(super) fn root(
 }
 
 pub(super) fn field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: Projection,
     name: &Identifier,
 ) -> Option<Projection> {
@@ -92,7 +91,7 @@ pub(super) fn field(
 }
 
 pub(super) fn expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     before: usize,
     handle: ExpressionHandle,
@@ -193,7 +192,7 @@ pub(super) fn expression(
 }
 
 fn check_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     authored: SymbolHandle,
     selected: &Projection,

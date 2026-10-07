@@ -8,10 +8,9 @@
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{MachineSupplyMode, TerminationGuarantee, TerminationInterface};
-use typed_trees::TypedTrees;
 
 pub(crate) fn validate_selected_cleanup_guarantees(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

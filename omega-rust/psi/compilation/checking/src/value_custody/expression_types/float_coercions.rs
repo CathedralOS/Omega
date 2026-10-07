@@ -23,7 +23,6 @@
 
 use diagnostics::Diagnostic;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -31,7 +30,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// Discharge the authored coercion at an unchanged cast or its derived call.
 /// The target is an obligation, never a premise about the operand.
 pub(crate) fn validate_exact_float_coercion(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     operand: typed_trees::expression::ExpressionHandle,

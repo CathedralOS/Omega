@@ -13,7 +13,6 @@ use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
@@ -24,7 +23,7 @@ use typed_trees::types::PrimitiveType;
 /// is represented; any wider state shape stays explicit as `None` so crash
 /// refinement cannot claim a portable predicate it cannot later materialize.
 pub(crate) fn lower_state_scalar_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
     before_statement: usize,
@@ -74,7 +73,7 @@ pub(crate) fn lower_state_scalar_expression(
 /// parameters retain their separate custody namespace; only primitive
 /// parameters and earlier immutable primitive locals occupy scalar positions.
 pub(crate) fn lower_unit_scalar_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
     before_statement: usize,
@@ -104,7 +103,7 @@ pub(crate) fn lower_unit_scalar_argument(
 /// that exact state namespace. The binder supplies its own custody policy;
 /// local reads stay reads of the local value rather than its initializer.
 pub(crate) fn lower_unit_scalar_argument_with_places(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
     before_statement: usize,
@@ -160,7 +159,7 @@ pub(crate) fn lower_unit_scalar_argument_with_places(
 }
 
 pub(super) fn unit_scalar_context(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     before_statement: usize,
 ) -> Option<(Vec<StateParameter>, Vec<ScalarLocal>)> {
@@ -203,7 +202,7 @@ pub(super) fn unit_scalar_context(
 /// The exact binding namespace used by `lower_unit_scalar_argument`. Stored
 /// local values retain their own symbols rather than replaying initializers.
 pub(crate) fn unit_scalar_binding_symbols(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     before_statement: usize,
 ) -> Option<Vec<symbols::SymbolHandle>> {
@@ -227,7 +226,7 @@ pub(crate) fn unit_scalar_binding_symbols(
 /// lands directly in the general count carrier. Terminal emission performs the
 /// exact coordinate conversion after evaluating this expression.
 pub(crate) fn lower_index_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -257,7 +256,7 @@ pub(crate) fn lower_index_expression(
 }
 
 pub(crate) fn lower_return_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -306,7 +305,7 @@ pub(crate) fn lower_return_expression(
 }
 
 pub(crate) fn land_anonymous_scalar_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     destination: PrimitiveType,
@@ -321,7 +320,7 @@ pub(crate) fn land_anonymous_scalar_expression(
 }
 
 pub(crate) fn lower_scalar_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     binary: &typed_trees::expression::TableBinaryExpression,
     parameters: &[StateParameter],
@@ -374,7 +373,7 @@ pub(crate) fn lower_scalar_operands(
 }
 
 pub(crate) fn lower_scalar_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],

@@ -1,6 +1,6 @@
 //! Target-local range premises follow the authored transition schedule.
 use super::{
-    ExpressionHandle, Machine, State, TransitionTargetHandle, TransitionTargetNode, TypedTrees,
+    ExpressionHandle, Machine, State, TransitionTargetHandle, TransitionTargetNode,
     ValueEnvironment,
 };
 use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
@@ -13,7 +13,7 @@ pub(crate) struct TransitionValueEnvironments {
 
 impl TransitionValueEnvironments {
     pub(crate) fn collect<'program>(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &'program Machine,
         state: &State,
         statement: &StatementNode,
@@ -88,7 +88,7 @@ impl TransitionValueEnvironments {
 
 fn cross_expression_effects<'program>(
     environment: &mut ValueEnvironment,
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &State,
     expression: ExpressionHandle,

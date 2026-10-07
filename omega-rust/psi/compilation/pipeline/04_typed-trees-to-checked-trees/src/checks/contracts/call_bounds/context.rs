@@ -5,7 +5,7 @@
 //! Caller storage and earlier initializers are never replayed.
 use super::{
     BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, FlowCallFact, FlowStateFact,
-    OperatorSpelling, TypedTrees,
+    OperatorSpelling,
 };
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
@@ -39,7 +39,7 @@ fn roster_premise_facts<'f>(
 }
 
 pub(in crate::checks::contracts) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
@@ -51,7 +51,7 @@ pub(in crate::checks::contracts) fn proves(
 }
 
 fn prove(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
@@ -336,7 +336,7 @@ fn prove(
 /// such as `fuel > 1 && members[row].vector == at` keeps its arithmetic
 /// conjunct even though the other lies outside this vocabulary.
 fn true_conjuncts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     expression: ExpressionHandle,
@@ -367,7 +367,7 @@ fn true_conjuncts(
 // Boolean-pattern transition guards retain `comparison == true`. Peel only
 // positively asserted builtin wrappers; a false arm supplies no positive fact.
 fn positive_comparison_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     mut expression: ExpressionHandle,
@@ -409,7 +409,7 @@ fn positive_comparison_expression(
     None
 }
 
-fn is_data_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn is_data_namespace(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> bool {
     symbol.is_valid()
         && program
             .data_definitions()
@@ -448,7 +448,10 @@ pub(crate) fn fixed_integer(primitive: PrimitiveType) -> bool {
     )
 }
 
-fn fixed_parameter_type(program: &TypedTrees, parameter: &StateParameter) -> Option<PrimitiveType> {
+fn fixed_parameter_type(
+    program: &dyn ::validation::CheckingInput,
+    parameter: &StateParameter,
+) -> Option<PrimitiveType> {
     if !parameter.symbol.is_valid() || parameter.is_const {
         return None;
     }
@@ -458,7 +461,7 @@ fn fixed_parameter_type(program: &TypedTrees, parameter: &StateParameter) -> Opt
 }
 
 fn direct_parameter<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &'a [StateParameter],
     expression: ExpressionHandle,
 ) -> Option<&'a StateParameter> {
@@ -481,7 +484,7 @@ fn direct_parameter<'a>(
 }
 
 fn comparison_is_supported(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     parameters: &[StateParameter],

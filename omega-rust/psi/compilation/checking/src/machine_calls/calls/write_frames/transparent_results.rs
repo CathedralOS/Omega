@@ -13,7 +13,6 @@ use crate::machine_calls::calls::write_frames::transparent_effects::{
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -26,7 +25,7 @@ use typed_trees::state::State;
 /// authorize borrowing the actual storage. Unresolved alternatives and recursive
 /// machine calls remain opaque; a return type or lifetime is never an origin.
 pub(crate) fn transparent_call_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -107,7 +106,7 @@ pub(crate) fn transparent_call_result_origins(
 /// match arms contribute their candidate union. Any unresolvable route fails
 /// the expression rather than dropping a possible referent.
 pub(crate) fn transparent_place_expression_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -188,7 +187,7 @@ pub(crate) fn transparent_place_expression_origins(
 /// caller-reachable parameter root fails the whole relation closed. Internal state
 /// cycles use the finite result solver; recursive machine calls remain opaque.
 pub(crate) fn transparent_callee_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     callee_state: &State,
     symbols: &TopLevelSymbols<'_>,

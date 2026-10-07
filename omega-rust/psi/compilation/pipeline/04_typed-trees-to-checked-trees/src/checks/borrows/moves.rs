@@ -12,7 +12,7 @@ use crate::flow::{CanonicalPlace, DiscoveredMoveEvent};
 use crate::labels::symbol_name;
 
 pub(super) fn check_storage_move<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement: &FlowStatementFact,

@@ -21,7 +21,6 @@
 //! reject, not be reinterpreted as equality between independently valid values.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -44,7 +43,7 @@ pub(crate) use field_obligations::{
 };
 
 pub(crate) fn validate_struct_literal_fields(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
     let mut stored_integer_writes = Vec::new();
@@ -173,7 +172,7 @@ pub(crate) fn validate_struct_literal_fields(
 }
 
 fn scan_transition_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: &TransitionTargetNode,
@@ -211,7 +210,7 @@ fn scan_transition_target(
 }
 
 fn scan_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -483,7 +482,7 @@ fn scan_expression(
 /// members: record literals (current or historical shape) construct FIELD
 /// members; case literals construct the named variant's PAYLOAD fields.
 fn validate_literal_field_names(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
@@ -648,7 +647,7 @@ fn validate_literal_field_names(
 /// checks common fields plus the selected case payload only, so a payload-free
 /// zero case honestly absorbs gates carried by later cases.
 fn validate_omitted_gated_fields(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -694,7 +693,7 @@ fn validate_omitted_gated_fields(
 }
 
 pub(crate) fn data_declares_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
     field_name: &str,
 ) -> bool {

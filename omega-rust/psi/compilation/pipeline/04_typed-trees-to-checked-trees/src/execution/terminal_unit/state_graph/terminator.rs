@@ -15,7 +15,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls, FusedStates,
     ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode, closed_sum, control,
     guard_is_boolean, retained_guard, returns, successor, terminal_calls,
 };
 
@@ -25,7 +25,7 @@ use super::{
 /// edge stays inside the one dispatch loop.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -704,7 +704,7 @@ pub(super) fn build(
 /// Only the composed graph's explicit fused roster makes a foreign machine
 /// entry an internal edge; the scalar branch roster alone cannot do so.
 fn internal_destination(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     fused: &FusedStates<'_>,
     transition: &typed_trees::statement::TableTransition,
@@ -747,7 +747,7 @@ fn internal_destination(
 /// arm so `operation_dependencies` reports it exactly once).
 #[allow(clippy::too_many_arguments)]
 fn guarded_return_arm(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -872,7 +872,7 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
 /// Crash completion retains its authored occurrence without fabricating a
 /// value, successor, or ordinary return-cleanup obligation.
 fn crash_arm(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     transition: &typed_trees::statement::TableTransition,
     statement_ordinal: u32,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {

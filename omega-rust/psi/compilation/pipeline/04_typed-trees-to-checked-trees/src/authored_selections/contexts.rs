@@ -16,7 +16,6 @@ use std::cell::RefCell;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -133,7 +132,7 @@ impl OwnerEnvironmentIndex {
     /// contains `expression`, in program order. Facts never add a site.
     pub(super) fn containing_statement_sites(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Vec<(usize, usize, usize)> {
@@ -145,7 +144,7 @@ impl OwnerEnvironmentIndex {
 
     fn environments(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Option<Vec<TypeEnvironment>> {
@@ -165,7 +164,7 @@ impl OwnerEnvironmentIndex {
 
     fn executable_sites(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Vec<ExecutableSite> {
@@ -180,7 +179,7 @@ impl OwnerEnvironmentIndex {
     /// order.
     pub(super) fn containing_contract_facts(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         expression: ExpressionHandle,
     ) -> Vec<arena::Handle<ContractProofFact>> {
@@ -193,7 +192,7 @@ impl OwnerEnvironmentIndex {
 
     fn index<'a>(
         &'a self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
     ) -> std::cell::Ref<'a, OwnerIndex> {
         {

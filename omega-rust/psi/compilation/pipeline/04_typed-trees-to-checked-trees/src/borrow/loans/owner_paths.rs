@@ -4,7 +4,7 @@ use super::super::tracker::BorrowOwnerSegment;
 /// is an address crossing only where the declaration itself is a reference;
 /// the old loan held by the slot being replaced is deliberately not crossed.
 pub(crate) fn store_destination_places<'loan>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     target: checked_trees::CapturedPlace,
     loans: impl Iterator<
@@ -60,7 +60,7 @@ pub(crate) fn store_destination_places<'loan>(
 }
 
 pub(super) fn owner_path_from_place_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segments: &[facts::PlaceSegment],
 ) -> Vec<BorrowOwnerSegment> {
     segments
@@ -84,7 +84,7 @@ pub(super) fn owner_path_from_place_segments(
 /// segment. `DynamicIndex` owners match no fixed shape here — each caller
 /// decides which index spellings it accepts.
 pub(crate) fn owner_segment_matches_place_segment(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: &BorrowOwnerSegment,
     place: &facts::PlaceSegment,
 ) -> Option<bool> {
@@ -120,7 +120,7 @@ pub(crate) fn owner_segment_matches_place_segment(
 }
 
 pub(super) fn owner_path_matches(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
@@ -141,7 +141,7 @@ pub(super) fn owner_path_matches(
 }
 
 pub(super) fn place_path_matches_owner_prefix(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place_segments: &[facts::PlaceSegment],
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {

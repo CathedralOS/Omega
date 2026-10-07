@@ -51,7 +51,7 @@ use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 pub(crate) fn derive_checked_nominal_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -75,7 +75,7 @@ enum CheckedResolutionTarget {
 }
 
 pub(crate) fn bind_checked_intrinsic_call_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Diagnostic> {
     let mut intrinsic_calls = Vec::new();
@@ -127,7 +127,7 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
 /// is the same owner-type resolution checked binding applies to them. `None`
 /// means no exact owner is derivable, never that the spelling is free.
 pub(crate) fn exact_owner_member_declaration(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {

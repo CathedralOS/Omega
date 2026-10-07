@@ -11,7 +11,7 @@
 //! fit check would silently accept a base conformance the refinement
 //! forbids, so both live here and are consulted together.
 
-use crate::monomorphization::{Diagnostic, SymbolHandle, TypedTrees};
+use crate::monomorphization::{Diagnostic, SymbolHandle};
 use typed_trees::trait_definition::{
     Conformance, TraitDefinition, TraitRefinementClause, TraitRefinementReach,
 };
@@ -32,7 +32,7 @@ pub(crate) struct ResolvedBoundCarrier<'program> {
 /// Symbol resolution rejects a refinement of a refinement ("refine the
 /// nominal base directly"), so exactly one hop reaches the nominal base.
 pub(crate) fn resolve_bound_carrier<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     carrier: SymbolHandle,
 ) -> ResolvedBoundCarrier<'program> {
     let Some(definition) = program
@@ -90,7 +90,7 @@ fn covering_clauses<'program>(
 /// inheritance, unlike the omission rules of an ordinary machine contract",
 /// so only authored axes carry an obligation at the concrete site.
 pub(crate) fn refinement_fit_diagnostics(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     refinement: &TraitDefinition,
     conformance: &Conformance,
     template_name: &str,

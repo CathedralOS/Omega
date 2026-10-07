@@ -25,7 +25,7 @@ use typed_trees::references::{
 /// Prepare the complete admitted Build context without changing symbol handles.
 /// The result must still pass ordinary checking before any machine executes.
 pub fn project_build_program(
-    original: &TypedTrees,
+    original: &dyn ::validation::CheckingInput,
     entry: SymbolHandle,
 ) -> Result<TypedTrees, Vec<Diagnostic>> {
     // Instantiation preserves template source provenance for diagnostics, not
@@ -119,7 +119,7 @@ pub fn project_build_program(
         &generated_methods,
         Some(static_argument_role),
     );
-    program.product_declaration_frontier = Some(Arc::new(original.clone()));
+    program.product_declaration_frontier = Some(Arc::new(original.typed_program().clone()));
     Ok(program)
 }
 
@@ -127,7 +127,9 @@ pub fn project_build_program(
 /// graph becomes host type-work merely through the selection operation. Keep
 /// ordinary Build bodies as roots, then restore any described declaration they
 /// actually use through the same value/signature/proof reference traversal.
-fn build_descriptor_declarations(program: &TypedTrees) -> HashSet<SymbolHandle> {
+fn build_descriptor_declarations(
+    program: &dyn ::validation::CheckingInput,
+) -> HashSet<SymbolHandle> {
     let references = collect_program_references_with_roles(
         program,
         &DeclarationSelection::all(),
@@ -164,11 +166,11 @@ fn build_descriptor_declarations(program: &TypedTrees) -> HashSet<SymbolHandle> 
 /// children. This selects no target and grants no checking or execution
 /// authority. Any frozen Product descriptor already present is preserved.
 pub fn project_selected_program(
-    original: &TypedTrees,
+    original: &dyn ::validation::CheckingInput,
     selection: &typed_trees::references::DeclarationSelection,
 ) -> TypedTrees {
     if selection.is_all() {
-        return original.clone();
+        return original.typed_program().clone();
     }
     project_declarations(
         original,
@@ -185,13 +187,13 @@ pub fn project_selected_program(
 }
 
 fn project_declarations(
-    original: &TypedTrees,
+    original: &dyn ::validation::CheckingInput,
     selected_root: impl Fn(SymbolHandle) -> bool,
     retain_reference: impl Fn(SymbolHandle) -> bool,
     declaration_children: &[(SymbolHandle, SymbolHandle)],
     classify_static_arguments: Option<StaticArgumentClassifier>,
 ) -> TypedTrees {
-    let mut program = original.clone();
+    let mut program = original.typed_program().clone();
     // A changed roster is a different program even when backing arena lengths
     // do not change. Program-owned lookup memos must not reuse the original.
     program.identity = Default::default();
@@ -319,7 +321,7 @@ fn project_declarations(
 /// their owners: frozen Product descriptors or declarations removed by private
 /// projection. Stable IDs are never erased or reassigned.
 pub(crate) fn descriptor_selection_occurrences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
     program
         .authored_declaration_selections()

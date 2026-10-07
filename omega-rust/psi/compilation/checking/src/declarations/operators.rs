@@ -18,10 +18,9 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
-use typed_trees::TypedTrees;
 
 pub(crate) fn validate_operator_declarations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -46,7 +45,7 @@ pub(crate) fn validate_operator_declarations(
 }
 
 fn validate_operator_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -103,7 +102,7 @@ fn validate_operator_types(
 /// candidate. The parser accepts only the settled literal token in the
 /// declaration head; the retired trailing `spelling` clause is rejected.
 fn validate_spelling_overlap(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -132,7 +131,7 @@ fn validate_spelling_overlap(
 }
 
 fn validate_duplicate_operator_signatures(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &str,
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,

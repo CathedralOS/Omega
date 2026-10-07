@@ -2,7 +2,6 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::{MachineSupplyMode, ReferenceAccess};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -24,7 +23,7 @@ struct WriteOnlyRoot {
 }
 
 pub(crate) fn validate_checked_write_only_slice(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
@@ -129,7 +128,10 @@ pub(crate) fn validate_checked_write_only_slice(
     }
 }
 
-fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_unrestricted_scalar(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     let TypeReferenceNode::Named { name, .. } =
         program.type_reference_table.type_reference(type_reference)
     else {
@@ -150,7 +152,7 @@ fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHan
 /// into an enforced integer range. `write_only_assignment_leaf` separately
 /// admits the arithmetic-policy-only integer leaf.
 fn is_closed_ranged_integer_scalar(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let mut current = type_reference;
@@ -190,7 +192,7 @@ fn is_closed_ranged_integer_scalar(
 }
 
 fn fixed_unrestricted_write_only_array_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, usize)> {
     let TypeReferenceNode::FixedArray {
@@ -205,14 +207,14 @@ fn fixed_unrestricted_write_only_array_shape(
 }
 
 fn fixed_unrestricted_write_only_array_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     fixed_unrestricted_write_only_array_shape(program, type_reference).map(|(_, length)| length)
 }
 
 fn literal_fixed_array_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     let TypeReferenceNode::FixedArray {
@@ -225,7 +227,10 @@ fn literal_fixed_array_length(
     Some(*length)
 }
 
-fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_supported_checked_referee(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     is_unrestricted_write_only_field_leaf(program, type_reference)
         || is_qualified_write_only_leaf(program, type_reference)
         || is_byte_slice(program, type_reference)
@@ -242,13 +247,16 @@ fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeRefere
 /// the referent, and nothing weaker or different. Named constraints, mixed
 /// constraint classes, symbolic or open ranges, and non-plain domains stay
 /// unsupported referees here.
-fn is_qualified_write_only_leaf(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_qualified_write_only_leaf(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     is_closed_ranged_integer_scalar(program, type_reference)
         || crate::is_arithmetic_policy_only_integer(program, type_reference)
         || is_plain_domain_qualified_leaf(program, type_reference)
 }
 
-fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn is_byte_slice(program: &dyn crate::CheckingInput, type_reference: TypeReferenceHandle) -> bool {
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Slice { element_type }
@@ -257,7 +265,7 @@ fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> b
 }
 
 fn is_write_only_length_metadata(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
     roots: &[WriteOnlyRoot],
 ) -> bool {
@@ -285,7 +293,7 @@ fn is_write_only_length_metadata(
 /// content. Record traversal and atomic sum replacement apply their own shape
 /// judgments below.
 fn closed_write_only_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     let TypeReferenceNode::Named { symbol, .. } =
@@ -297,7 +305,7 @@ fn closed_write_only_data(
 }
 
 fn closed_write_only_data_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
     let definition =
@@ -315,7 +323,7 @@ fn closed_write_only_data_by_symbol(
 /// record may contain wider siblings without making them writable; final-leaf
 /// eligibility is checked separately at the exact assignment target.
 fn write_only_record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     let definition = closed_write_only_data(program, type_reference)?;
@@ -325,7 +333,7 @@ fn write_only_record(
 }
 
 fn is_unrestricted_write_only_record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     write_only_record(program, type_reference).is_some_and(|definition| {
@@ -338,7 +346,7 @@ fn is_unrestricted_write_only_record(
 /// neither observes nor projects the prior case. Erased payload occurrences
 /// remain outside the runtime replacement carrier.
 fn is_unrestricted_write_only_sum(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     closed_write_only_data(program, type_reference).is_some_and(|definition| {
@@ -364,7 +372,7 @@ fn is_unrestricted_write_only_sum(
 /// array. Generic/qualified shells do not enter through this judgment, and
 /// aggregate elements remain atomic.
 fn is_unrestricted_write_only_array_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, type_reference)
@@ -379,7 +387,10 @@ fn is_unrestricted_write_only_array_element(
         || is_unrestricted_write_only_sum(program, type_reference)
 }
 
-fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
+fn whole_root_replacement_is_supported(
+    program: &dyn crate::CheckingInput,
+    root: &WriteOnlyRoot,
+) -> bool {
     // The whole-root store displaces the complete referee footprint, so the
     // same leaf judgment that governs one content-independent field store
     // applies: an unrestricted leaf, or a qualified one whose atoms the
@@ -397,7 +408,7 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
 /// is a content-independent place judgment: expression traversal rejects
 /// reading the same path, and sum payloads never enter this walk.
 fn write_only_record_field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<TypeReferenceHandle> {
@@ -420,7 +431,7 @@ fn write_only_record_field_type(
 /// Indexed element stores reuse the same exact path resolver below and apply
 /// their own narrower leaf/index gate.
 fn is_unrestricted_write_only_field_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     field_type: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, field_type)
@@ -440,7 +451,10 @@ fn is_unrestricted_write_only_field_leaf(
 /// domain-qualified carrier below. Cross-class, narrowing, and domain-atom
 /// weakening checks on the value are unchanged. Nothing else about the path
 /// or the value relaxes.
-fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHandle) -> bool {
+fn write_only_assignment_leaf(
+    program: &dyn crate::CheckingInput,
+    field_type: TypeReferenceHandle,
+) -> bool {
     is_unrestricted_write_only_field_leaf(program, field_type)
         || is_qualified_write_only_leaf(program, field_type)
 }
@@ -464,7 +478,7 @@ fn write_only_assignment_leaf(program: &TypedTrees, field_type: TypeReferenceHan
 /// membership), and `&write` subloans of a domain-qualified leaf (the
 /// attenuated referee cannot carry the atom) stay outside the envelope.
 fn is_plain_domain_qualified_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let TypeReferenceNode::Constrained {
@@ -489,7 +503,7 @@ fn is_plain_domain_qualified_leaf(
 }
 
 fn write_only_record_field_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
@@ -510,7 +524,7 @@ fn write_only_record_field_assignment(
 /// could be reseated beneath the loan. An erased binding owns no runtime
 /// storage at all.
 fn mutable_formation_sources(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     stop_before_local: Option<SymbolHandle>,
 ) -> Vec<WriteOnlyRoot> {
@@ -600,7 +614,7 @@ fn mutable_formation_sources(
 /// shape is no admitted subloan, leaving the ordinary expression walk to
 /// report it.
 fn write_only_call_subloan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -693,7 +707,7 @@ fn write_only_call_subloan(
 /// `self` root's declared type spells `Self` while the callee's parameter
 /// spells the data name for the identical carrier.
 fn subloan_referee_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     declared: TypeReferenceHandle,
 ) -> bool {
@@ -725,7 +739,7 @@ fn subloan_referee_matches(
 /// declared referee atom-for-atom, then treat the argument as resolved: the
 /// generic projection envelope must not report the same borrow again.
 fn reject_subloan_referee_mismatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -750,7 +764,7 @@ fn reject_subloan_referee_mismatch(
 /// unrestricted record, and the literal index fixes the complete write
 /// footprint without observing the referent.
 fn write_only_literal_indexed_record_field_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
@@ -805,7 +819,7 @@ fn write_only_literal_indexed_record_field_assignment(
 }
 
 fn validate_statement<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     machine_definition: &Machine,
     state_definition: &State,
     statement: &StatementNode,
@@ -1009,7 +1023,7 @@ fn validate_statement<'p>(
 /// exactly the same element width. Returns whether the target was such a range
 /// even when another checker owns its eventual rejection.
 fn validate_write_only_fixed_array_range_assignment<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1116,7 +1130,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
 }
 
 fn write_only_element_assignment_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<ExpressionHandle> {
@@ -1151,7 +1165,7 @@ fn write_only_element_assignment_index(
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &str,
     state: &str,
     expression: ExpressionHandle,
@@ -1184,7 +1198,7 @@ fn diagnose_unsupported_write_only_assignment_target(
 }
 
 fn validate_transition_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: typed_trees::statement::TransitionTargetHandle,
@@ -1224,7 +1238,7 @@ fn validate_transition_target(
 /// Each call argument checked against its positional declared parameter —
 /// the caller resolves the callee state's parameter types when it can.
 fn validate_arguments_against_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     argument_handles: &[ExpressionHandle],
@@ -1245,7 +1259,10 @@ fn validate_arguments_against_parameters(
     }
 }
 
-fn declared_state_parameters(program: &TypedTrees, state: &State) -> Vec<TypeReferenceHandle> {
+fn declared_state_parameters(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+) -> Vec<TypeReferenceHandle> {
     program
         .state_parameters(state)
         .iter()
@@ -1254,7 +1271,7 @@ fn declared_state_parameters(program: &TypedTrees, state: &State) -> Vec<TypeRef
 }
 
 fn validate_call_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1288,7 +1305,7 @@ fn validate_call_argument(
 }
 
 fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1451,7 +1468,7 @@ fn validate_expression(
     }
 }
 
-fn is_direct_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_direct_name(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Name(path)
@@ -1475,7 +1492,7 @@ fn is_direct_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
 /// whose root binding is reference-typed (`let w: &write u8 = &write source`
 /// on `source: &u8`).
 fn binding_without_write_authority(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     target: ExpressionHandle,
 ) -> Option<String> {
@@ -1517,7 +1534,7 @@ fn binding_without_write_authority(
 }
 
 fn direct_write_only_root<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &'a [WriteOnlyRoot],
 ) -> Option<&'a WriteOnlyRoot> {
@@ -1534,7 +1551,7 @@ fn direct_write_only_root<'a>(
 }
 
 fn mentioned_write_only_root<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &'a [WriteOnlyRoot],
 ) -> Option<&'a WriteOnlyRoot> {
@@ -1544,7 +1561,7 @@ fn mentioned_write_only_root<'a>(
 }
 
 fn expression_mentions_write_only_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
@@ -1552,7 +1569,7 @@ fn expression_mentions_write_only_root(
 }
 
 fn expression_mentions_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     root: &WriteOnlyRoot,
 ) -> bool {

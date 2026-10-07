@@ -13,7 +13,7 @@ use crate::monomorphization::{
 };
 
 pub(crate) fn substitute_cloned_type_parameters(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: usize,
@@ -104,7 +104,7 @@ pub(crate) fn substitute_cloned_type_parameters(
 /// separate clone-owned nodes from shared binding artifacts and template-owned
 /// nodes, so the walk follows the specialization's own type roots instead.
 pub(crate) fn reject_runtime_bound_static_occurrences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
     cloned: &typed_trees::machine::Machine,
 ) -> Result<(), Diagnostic> {
@@ -252,7 +252,7 @@ fn rebind_range_endpoint_names(
 /// binder occurrences are only meaningful inside this region; template-owned
 /// expressions keep their authored binder spelling.
 pub(crate) fn cloned_expression_roots(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
@@ -286,7 +286,7 @@ pub(crate) fn cloned_expression_roots(
 }
 
 pub(crate) fn collect_contract_type_roots(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract: &typed_trees::signature::SignatureContract,
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
@@ -316,7 +316,7 @@ pub(crate) fn collect_contract_type_roots(
 }
 
 pub(crate) fn collect_expression_type_roots(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
@@ -343,7 +343,7 @@ pub(crate) fn collect_expression_type_roots(
 }
 
 pub(crate) fn name_mentions_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -358,7 +358,7 @@ pub(crate) fn name_mentions_symbol(
 }
 
 pub(crate) fn runtime_bound_occurrence_in(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     roots: &[TypeReferenceHandle],
     parameter_symbol: SymbolHandle,
 ) -> bool {

@@ -5,7 +5,6 @@ use crate::obligations::plan::{ConstraintBuffer, FloatRange};
 use crate::obligations::{IntegerRange, ProofConstraint};
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -331,7 +330,7 @@ pub(crate) fn float_binary_range(
 /// endpoint at all. Integer endpoints convert once into the carrier, exactly
 /// as the retained interchange bits do.
 pub(crate) fn float_range_bound(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     base_type: TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Option<f64> {
@@ -359,7 +358,7 @@ pub(crate) fn float_range_bound(
 }
 
 pub(crate) fn constrained_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, HandleSpan<TypeConstraintNode>)> {
     match program.type_reference_table.type_reference(type_reference) {

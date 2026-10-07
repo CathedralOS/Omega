@@ -8,7 +8,6 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::operator::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
@@ -22,7 +21,7 @@ use typed_trees::typed_trees::MachineSpecialization;
 /// execution authority. Consumers must still validate the provider's
 /// signature, body and conformance.
 pub fn resolve<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     provider: &Machine,
     requirement: &'program Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
@@ -114,7 +113,7 @@ pub fn resolve<'program>(
 }
 
 fn retains_application_tuple(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receipt: &MachineSpecialization,
     application: &ClosedOperatorRealizationApplication,
 ) -> bool {
@@ -158,7 +157,7 @@ fn retains_application_tuple(
 }
 
 fn same_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: &ClosedOperatorRealizationApplication,
     right: &ClosedOperatorRealizationApplication,
 ) -> bool {

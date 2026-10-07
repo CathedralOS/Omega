@@ -8,8 +8,7 @@
 //! or -- when the right-hand side is the call this same statement performs --
 //! the call's result in the dense scalar namespace.
 use super::super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, ExpressionNode,
-    PrimitiveType, TypedTrees,
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, ExpressionNode, PrimitiveType,
 };
 use super::destination::Root;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -35,7 +34,7 @@ pub(in crate::execution::terminal_unit) enum AssignmentSource {
 /// Select the scalar value an authored assignment stores into a leaf of
 /// `primitive_type`, then apply the root lane's value policy.
 pub(super) fn assignment_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -191,7 +190,7 @@ pub(super) fn runtime_index(
 /// The `u8` a byte store writes: the same scalar source selection as every
 /// other store, including a computation that owns the value's calls.
 pub(super) fn byte_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

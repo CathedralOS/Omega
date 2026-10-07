@@ -8,7 +8,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 pub(crate) fn build_contract_call_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     contract_facts: &arena::Arena<ContractProofFact>,
 ) -> (
@@ -160,7 +160,7 @@ fn append_contract_call(
 }
 
 pub(crate) fn build_contract_exit_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract_facts: &arena::Arena<ContractProofFact>,
     fact_refs: &mut arena::Arena<ContractProofFactRef>,
 ) -> arena::Arena<ContractExitFact> {
@@ -299,7 +299,7 @@ fn append_contract_fact_refs(
 }
 
 pub(crate) fn contract_target_from_state_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if !target_state_symbol.is_valid() {

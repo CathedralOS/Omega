@@ -4,7 +4,6 @@
 
 use checked_trees::{CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use language_core::operator_spelling::OperatorSpelling;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
 use typed_trees::machine::Machine;
 use typed_trees::operator::{resolve_indexed_spelling_for_operands, resolve_spelling};
@@ -15,7 +14,7 @@ use super::{RangeFacts, lower_bounds};
 mod clauses;
 
 pub(super) fn obligation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -164,7 +163,7 @@ pub(super) fn obligation(
 /// selected-operator discharge proves them over the actual operands; the two
 /// checks split every indexed occurrence between them by this one answer.
 pub(in crate::checks) fn ranges_seam_owns(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     indexed: &typed_trees::expression::TableIndexedExpression,
     origin: checked_trees::CheckedValueOrigin,
 ) -> bool {
@@ -176,7 +175,7 @@ pub(in crate::checks) fn ranges_seam_owns(
 }
 
 fn has_builtin_collection_geometry(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut collection: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     for _ in 0..128 {
@@ -204,7 +203,7 @@ fn has_builtin_collection_geometry(
 /// The retained choice is an expectation, never an input to domain activation.
 /// This scratch use is not published and carries no additional proof authority.
 fn replay_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selected: &checked_trees::CheckedOperatorUseFact,
     live: &[typed_trees::operator::SpelledOperator<'_>],
 ) -> Option<(CheckedOperatorResolutionStatus, symbols::SymbolHandle)> {

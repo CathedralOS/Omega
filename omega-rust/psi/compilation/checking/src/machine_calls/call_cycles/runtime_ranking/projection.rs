@@ -4,7 +4,6 @@ use crate::proof_contracts::contract_entailment::{
 };
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -94,7 +93,7 @@ pub(super) struct RankProjection {
 }
 
 impl RankProjection {
-    pub(super) fn resolve(program: &TypedTrees, machine: &Machine) -> Option<Self> {
+    pub(super) fn resolve(program: &dyn crate::CheckingInput, machine: &Machine) -> Option<Self> {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
         // Never rediscover the subject by scanning rendered expressions.
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
@@ -414,12 +413,11 @@ impl RankProjection {
         })
     }
 
-
     /// The shared single-subject projection shape every declared rank view
     /// fills: `order`/`measure` vary per view; the subject's carrier formal
     /// also names the record when the subject is a member chain.
     fn for_subject(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         parameter: &StateParameter,
         subject: ExpressionHandle,
         argument_position: usize,
@@ -456,7 +454,7 @@ impl RankProjection {
     /// entry-state call reads the same identity mapping it always had.
     pub(super) fn is_subject(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         role: &dyn Fn(SymbolHandle) -> SymbolHandle,
     ) -> bool {
@@ -466,7 +464,7 @@ impl RankProjection {
 
     pub(super) fn is_component(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         field: SymbolHandle,
         role: &dyn Fn(SymbolHandle) -> SymbolHandle,
@@ -509,7 +507,7 @@ impl RankProjection {
 /// the per-order leaf checks then judge. An ambiguous or non-name arrival
 /// has no exact argument mapping.
 fn entry_parameter<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     entry: &'program State,
     subject: ExpressionHandle,
 ) -> Option<(usize, &'program StateParameter)> {
@@ -546,7 +544,7 @@ fn entry_parameter<'program>(
 
 /// Whether the retained subject reads projected storage: a member chain
 /// rooted at an entry formal rather than a bare formal name.
-fn member_subject(program: &TypedTrees, subject: ExpressionHandle) -> bool {
+fn member_subject(program: &dyn crate::CheckingInput, subject: ExpressionHandle) -> bool {
     matches!(
         program
             .expression_table
@@ -559,7 +557,7 @@ fn member_subject(program: &TypedTrees, subject: ExpressionHandle) -> bool {
 /// leaf. A projected subject judges its own declared leaf; a bare subject
 /// judges its formal's carrier.
 fn slice_subject_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry: &State,
     subject: ExpressionHandle,
@@ -582,7 +580,7 @@ fn slice_subject_carrier(
 /// leaf. A projected subject's leaf -- not its record formal's type -- must
 /// carry the exact unsigned base a natural-order projection requires.
 fn unsigned_subject_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry: &State,
     subject: ExpressionHandle,
@@ -598,7 +596,7 @@ fn unsigned_subject_carrier(
 
 /// The slice carrier under any reference or constrained shells. A ranked
 /// subject without an exact slice base cannot carry a length projection.
-fn slice_carrier_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn slice_carrier_type(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
     crate::program_scope::type_shape::has_slice_base(program, reference)
 }
 
@@ -606,7 +604,7 @@ fn slice_carrier_type(program: &TypedTrees, reference: TypeReferenceHandle) -> b
 /// subject or endpoint without an exact unsigned base cannot carry a
 /// natural-order projection.
 fn unsigned_carrier_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -622,7 +620,10 @@ fn unsigned_carrier_type(
     .then_some(primitive)
 }
 
-pub(super) fn unwrapped(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
+pub(super) fn unwrapped(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
     crate::expression_traversal::unwrapped(program, expression)
 }
 
@@ -630,7 +631,7 @@ pub(super) fn unwrapped(program: &TypedTrees, expression: ExpressionHandle) -> E
 /// telescope. Unsupported ranking orders keep their ordinary admission but
 /// do not acquire an unsigned scalar projection.
 pub(super) fn natural_component(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     component: &[usize],
     ranks: &[RankProjection],
     mappings: &[Vec<Vec<SymbolHandle>>],
@@ -672,7 +673,7 @@ pub(super) fn natural_component(
 /// its exact resolved actual proves identity transport without introducing
 /// another arithmetic comparison recognizer.
 pub(super) fn retain_internal_transfer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     component: &mut super::ValidatedRuntimeNaturalComponent,
     source: SymbolHandle,
     target: SymbolHandle,

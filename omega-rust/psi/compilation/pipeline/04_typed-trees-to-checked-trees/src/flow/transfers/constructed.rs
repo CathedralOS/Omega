@@ -16,7 +16,7 @@ use facts::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_constructed_field_values(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,

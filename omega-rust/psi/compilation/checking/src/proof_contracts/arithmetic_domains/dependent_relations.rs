@@ -1,6 +1,6 @@
 use super::{
     ExpressionHandle, ExpressionNode, Interval, Machine, State, TypeConstraintNode,
-    TypeReferenceHandle, TypedTrees,
+    TypeReferenceHandle,
 };
 use language_core::place_label;
 
@@ -16,7 +16,7 @@ use language_core::place_label;
 /// stands). Interval-only engines cannot express the relation; this rule
 /// consumes it at the one operator shape R1 unblocks.
 pub(super) fn refine_dependent_subtract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -63,12 +63,14 @@ pub(super) fn refine_dependent_subtract(
 /// constraint, under Exact shells only (mirrors the checker's substitution
 /// gates).
 pub(super) fn dependent_maximum_of_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
     let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
-    shells.iter().flat_map(|constraints| constraints.iter()).find_map(|constraint| {
-        match constraint {
+    shells
+        .iter()
+        .flat_map(|constraints| constraints.iter())
+        .find_map(|constraint| match constraint {
             TypeConstraintNode::Range {
                 maximum,
                 end_inclusive,
@@ -82,8 +84,7 @@ pub(super) fn dependent_maximum_of_type_reference(
                 Some((symbolic.field, symbolic.offset))
             }
             _ => None,
-        }
-    })
+        })
 }
 
 /// Conservative whole-state field-preservation scan (twin of the proof
@@ -92,7 +93,7 @@ pub(super) fn dependent_maximum_of_type_reference(
 /// summaries as the linear value environment, while opaque calls remain a
 /// fail-closed fence.
 pub(super) fn validation_state_preserves_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     field: &typed_trees::name::Identifier,
@@ -147,7 +148,7 @@ pub(super) fn validation_state_preserves_field(
 }
 
 fn validation_expression_mentions_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     field: &typed_trees::name::Identifier,
 ) -> bool {

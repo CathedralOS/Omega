@@ -16,7 +16,6 @@ use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -57,7 +56,7 @@ pub(crate) struct AvailablePartitionSource {
 }
 
 pub(crate) fn returned_partition_invocations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Vec<ReturnedPartitionInvocation> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -132,7 +131,7 @@ pub(crate) fn returned_partition_invocations(
 }
 
 fn direct_expression_invocation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<ReturnedPartitionInvocation> {
@@ -162,7 +161,7 @@ fn term_contains_partition(term: &ContentConservationTerm) -> bool {
 }
 
 pub(crate) fn instantiate_partition_wrapper(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
@@ -275,7 +274,7 @@ pub(crate) fn instantiate_partition_wrapper(
 }
 
 fn partition_invocation_call_ordinal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -339,7 +338,7 @@ fn partition_invocation_call_ordinal(
 
 #[allow(clippy::too_many_arguments)]
 fn instantiate_partition_term(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: &typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
@@ -415,7 +414,7 @@ fn permission_event_at_invocation(
 
 #[allow(clippy::too_many_arguments)]
 fn instantiate_partition_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: &typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
@@ -538,7 +537,7 @@ fn instantiate_partition_subject(
 }
 
 fn instantiate_partition_result_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: &typed_trees::state::State,
     invocation: &ReturnedPartitionInvocation,
@@ -639,7 +638,7 @@ fn argument_for_target_parameter(
 }
 
 fn partition_argument_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     argument: ExpressionHandle,
@@ -668,7 +667,7 @@ fn partition_argument_place(
 }
 
 fn aggregate_argument_projection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     projection_path: &[ContentPlaceSegment],
 ) -> Option<ExpressionHandle> {

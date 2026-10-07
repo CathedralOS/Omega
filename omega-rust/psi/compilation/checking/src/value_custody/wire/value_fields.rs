@@ -1,6 +1,5 @@
 use crate::value_custody::places::unwrapped_type_reference;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::wire::{WireField, WireMember, WireSchema};
 
@@ -23,7 +22,7 @@ pub(super) fn nested_schema_must_be_scalar_diagnostic(
 }
 
 pub(super) fn validate_nested_value_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     schema: &WireSchema,
     machine_name: &str,
     value_data: &typed_trees::data::DataDefinition,
@@ -128,7 +127,7 @@ pub(super) fn validate_nested_value_field(
 /// scalar element, and capacity as the schema. Fixed arrays are exactly full;
 /// `FixedVec<T, N>` owns its live length in the carrier itself.
 pub(super) fn validate_repeated_value_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     schema: &WireSchema,
     machine_name: &str,
     value_data: &typed_trees::data::DataDefinition,
@@ -197,7 +196,7 @@ pub(super) fn validate_repeated_value_field(
 
 /// The data definition a `Named` type reference points at, if any.
 pub(super) fn named_data_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let TypeReferenceNode::Named { name, .. } =
@@ -251,7 +250,7 @@ impl CodecDirection {
 /// One schema field's value-data lookup, emitting the direction's
 /// missing-field diagnostic on absence.
 fn value_field_or_missing<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     schema: &WireSchema,
     value_data: &'program typed_trees::data::DataDefinition,
     field: &WireField,
@@ -285,7 +284,7 @@ fn value_field_or_missing<'program>(
 /// `scalar_check` runs a direction-specific tail per surviving scalar pair.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_value_argument_fields(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     schema: &WireSchema,
@@ -297,7 +296,7 @@ pub(super) fn validate_value_argument_fields(
     direction: CodecDirection,
     diagnostics: &mut Vec<Diagnostic>,
     mut scalar_check: impl FnMut(
-        &TypedTrees,
+        &dyn crate::CheckingInput,
         &WireField,
         &typed_trees::data::DataField,
         &WireSchema,

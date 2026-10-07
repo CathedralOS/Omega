@@ -13,7 +13,7 @@ mod usage;
 /// liveness outside borrow expiry; finer intra-statement ordering can extend
 /// the same query without changing carry semantics.
 pub(crate) fn place_is_used_after_statement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statements: arena::HandleSpan<StatementNode>,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -31,7 +31,7 @@ pub(crate) fn place_is_used_after_statement(
 }
 
 pub(super) fn update_state_loan_last_uses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statements: arena::HandleSpan<StatementNode>,
     borrow_calls: &[BorrowCallFact],

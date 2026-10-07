@@ -8,7 +8,6 @@
 use super::theorem::SelectedTheoremTelescope;
 use super::{ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
@@ -62,7 +61,7 @@ pub(super) struct LocatedFact<'a> {
 /// ensures facts with their exact coordinates. Named-evidence lanes and
 /// result-scoped kinds are not part of the theorem schema.
 pub(super) fn collect_contract_facts<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     theorem: &SelectedTheoremTelescope,
 ) -> Result<(Vec<LocatedFact<'a>>, Vec<LocatedFact<'a>>), RelationPlanError> {
     let mut requires = Vec::new();
@@ -146,7 +145,7 @@ pub(super) struct ExpectedTheoremSchema {
 }
 
 pub(super) fn derive_expected_theorem_schema(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     input_relations: &[InputRelation],
     result_relation: ExactQuotientRelation,
     representative: &RepresentativeTelescope,

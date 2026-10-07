@@ -15,7 +15,7 @@
 use facts::IntegerRange;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, state::State};
+use typed_trees::state::State;
 
 const WIDENING_DELAY: u8 = 4;
 
@@ -50,7 +50,7 @@ impl ParameterBounds {
 
     pub(super) fn join(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         destination: &State,
         incoming: Option<&IntegerRange>,
         thresholds: &[BigInt],

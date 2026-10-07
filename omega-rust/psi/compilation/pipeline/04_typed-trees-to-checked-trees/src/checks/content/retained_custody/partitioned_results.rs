@@ -20,13 +20,12 @@ use language_semantics::content::{
     ContentProjectionPlan, ContentStructuralPlace,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_boundary_partition_results(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     label: &str,
     callable: SymbolHandle,

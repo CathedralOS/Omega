@@ -45,7 +45,7 @@ use crate::proof_contracts::quotients::formation_collection::{
 use carrier_fence::first_forbidden_carrier_content;
 
 pub(crate) fn type_has_forbidden_denotational_content(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -131,7 +131,7 @@ pub struct ValidatedQuotientFormation {
 /// quotient-operation requests. Package review uses this instead of trusting
 /// the retained `QuotientDefinition` metadata as checked evidence.
 pub fn validate_quotient_formations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<Vec<ValidatedQuotientFormation>, Vec<Diagnostic>> {
     let proof_only = crate::proof_only_classification(program);
     let mut diagnostics = Vec::new();
@@ -159,14 +159,14 @@ pub enum QuotientRequestAdmission {
 }
 
 pub(crate) fn validate_quotients_with_admission(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     admission: QuotientRequestAdmission,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match admission {
         QuotientRequestAdmission::AtValidation => {
-            reject_quotient_operation_requests(program, program, diagnostics);
+            reject_quotient_operation_requests(program, program.typed_program(), diagnostics);
         }
         QuotientRequestAdmission::AfterCheckedFacts => {}
     }
@@ -185,7 +185,7 @@ pub(crate) fn validate_quotients_with_admission(
 /// Admission is proof-only: the bridged correspondences are a judgment and
 /// are not retained in Terminal Psi.
 pub fn admit_checked_quotient_requests(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     termination: &dyn CheckedTerminationOracle,
 ) -> Result<(), Vec<Diagnostic>> {
     if !program

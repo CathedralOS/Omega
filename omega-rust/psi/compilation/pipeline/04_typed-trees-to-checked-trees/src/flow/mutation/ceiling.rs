@@ -22,7 +22,7 @@ use typed_trees::types::TypeReferenceNode;
 /// own alias place beside its storage so facts keyed on the alias retire
 /// too. The alias closure runs in the caller (`call_storage_writes`).
 pub(crate) fn signature_ceiling_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
@@ -42,7 +42,7 @@ pub(crate) fn signature_ceiling_places(
 /// may carry references resolve to the exact referents of their carried
 /// exclusive loans instead of leaving the ceiling unrepresentable.
 pub(crate) fn signature_ceiling_places_with_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -60,7 +60,7 @@ pub(crate) fn signature_ceiling_places_with_loans(
 }
 
 fn signature_ceiling_places_inner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: Option<&BorrowFacts>,
@@ -153,7 +153,7 @@ fn signature_ceiling_places_inner(
 }
 
 pub(super) fn is_exclusive_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     let mut reference = type_reference;
@@ -174,7 +174,7 @@ pub(super) fn is_exclusive_reference(
 /// declaration. Shared (`&`) loans contribute nothing: a read-only borrow
 /// inside the consumed value reaches no writable caller place.
 fn carried_exclusive_referents(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -222,7 +222,7 @@ fn carried_exclusive_referents(
 /// Same prefix law as `borrow::last_uses`'s owner-path matching: an absent
 /// or dynamic selector conservatively overlaps its counterpart.
 fn owner_path_overlaps(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_path: &[BorrowLoanOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {

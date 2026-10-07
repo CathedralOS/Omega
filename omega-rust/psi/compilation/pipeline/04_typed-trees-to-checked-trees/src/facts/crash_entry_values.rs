@@ -32,7 +32,6 @@
 use checked_trees::CrashPredicateExpression;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
@@ -59,7 +58,7 @@ const MAX_ENTRY_PROVENANCE_DEPTH: u32 = 64;
 /// entry provenance check. The caller supplies the retained evaluation point;
 /// later writes must not invalidate an earlier observation.
 pub(crate) fn entry_boolean_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -97,7 +96,7 @@ pub(crate) fn entry_boolean_predicate(
 }
 
 pub(super) fn entry_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -127,7 +126,7 @@ pub(super) fn entry_operand(
 /// non-shared borrow, or a non-place operand carrying a non-empty projection
 /// — refuses the same way the whole-operand path did.
 pub(super) fn operand_entry_provenance(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -273,7 +272,7 @@ pub(super) fn operand_entry_provenance(
 /// projection is applied by the substituting `Member` nodes above the
 /// `Parameter` leaf, never doubled here.
 pub(super) fn entry_operand_projected(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -292,7 +291,7 @@ pub(super) fn entry_operand_projected(
 }
 
 fn entry_operand_projected_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -445,7 +444,7 @@ enum OperandSpineStep {
 /// symbol stays invalid so `member_entry_name` keeps the authored `len`
 /// name. Other unresolvable members still admit no hop at all.
 fn member_hop_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
     let symbol = crate::flow::effective_member_symbol(program, member.receiver, member);
@@ -469,7 +468,7 @@ fn member_hop_path(
 /// same-named payload fields of different cases cannot collide in the caller
 /// namespace.
 fn member_entry_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &typed_trees::expression::TableMemberExpression,
     field_symbol: SymbolHandle,
 ) -> String {
@@ -482,7 +481,7 @@ fn member_entry_name(
 }
 
 fn field_entry_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     field_symbol: SymbolHandle,
     field_name: &str,
     authored_case: Option<&str>,
@@ -502,7 +501,7 @@ fn field_entry_name(
 /// write that reaches it. Resolution stops at the first opaque step: nothing
 /// below it can be separated anyway.
 pub(super) fn formal_member_projection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
     members: &[String],
 ) -> Vec<PlaceSegment> {
@@ -552,7 +551,7 @@ pub(super) fn formal_member_projection(
 }
 
 fn entry_operand_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -848,7 +847,7 @@ fn entry_operand_at(
 /// local or parameter the pristine-storage window only has to keep that
 /// projection unwritten, since sibling fields version independently.
 fn entry_operand_name_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -884,7 +883,7 @@ fn entry_operand_name_at(
 /// Shared provenance for an already resolved binding. Expression callers
 /// validate their name syntax first; canonical places already retain the symbol.
 fn entry_operand_symbol_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -956,7 +955,7 @@ fn entry_operand_symbol_at(
 /// projections take the parameter path below.
 
 fn builtin_binary_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
@@ -972,7 +971,7 @@ fn builtin_binary_meaning(
 /// contents only while the selected storage remains unwritten. Nested loans
 /// and interior mutation still fail the ordinary contents classifier.
 fn observation_requires_write_scan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     field_path: &[PlaceSegment],
 ) -> Option<bool> {
@@ -1011,7 +1010,7 @@ fn observation_requires_write_scan(
 /// operand asserts only that projection is uniform across arrivals, never
 /// that the whole bound record is.
 fn state_parameter_entry_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -1124,7 +1123,7 @@ fn state_parameter_entry_operand(
 /// does. Exits are not named arrivals; an edge short an
 /// argument contributes an invalid handle that fails resolution above.
 fn named_transition_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_index: usize,
     argument_index: usize,

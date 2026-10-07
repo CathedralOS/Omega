@@ -9,7 +9,6 @@ use super::super::path_instantiation::aggregate_arguments::{
 use super::StoredLocalOrigins;
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolKind;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -18,7 +17,7 @@ use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn moved_reference_leaves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     destination: &TableLocalData,
     expression: ExpressionHandle,
@@ -49,7 +48,7 @@ pub(super) fn moved_reference_leaves(
 /// Raw call instantiation retains symbolic binding paths. The existing caller
 /// prefix transfer must expand those paths before filtering local storage.
 pub(in crate::machine_calls::calls::write_frames) fn symbolic_reference_leaves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
@@ -72,7 +71,7 @@ pub(in crate::machine_calls::calls::write_frames) fn symbolic_reference_leaves(
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_statement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     before: &StatementNode,
     expression: ExpressionHandle,
@@ -86,7 +85,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_statement_for_query(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     before: &StatementNode,
     expression: ExpressionHandle,
@@ -206,7 +205,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
 /// Callers transporting expression-derived selectors must conjoin their
 /// builtin-coordinate flag into all returned reference and move sources.
 pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     established: &StoredLocalOrigins,
     segments: &[PlaceSegment],
     symbolic: bool,
@@ -341,7 +340,7 @@ pub(super) fn prefix_matches(selected: &[PlaceSegment], candidate: &[PlaceSegmen
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn projected_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<TypeReferenceHandle> {
@@ -352,7 +351,7 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_type(
 /// Walk owned structure up to a slot, without dereferencing a reference leaf.
 /// Exact-reference demand may then use separately frozen evidence for that slot.
 pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<TypeReferenceHandle> {
@@ -452,7 +451,7 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
 }
 
 fn unconstrained_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while let TypeReferenceNode::Constrained { base_type, .. } =

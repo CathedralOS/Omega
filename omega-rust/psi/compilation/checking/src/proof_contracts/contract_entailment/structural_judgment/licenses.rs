@@ -4,7 +4,7 @@
 //! stores; all candidate computation and shape checking lives here.
 use super::super::{
     BinaryOperator, ExpressionNode, Machine, ProofFact, SignatureContractKind, SymbolHandle,
-    TraitDefinition, TypedTrees, structural_term,
+    TraitDefinition, structural_term,
 };
 use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
@@ -43,7 +43,7 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 /// Each `ensures`-contract equality conjunct across a state signature's
 /// contract roster, resolved to its structural-term pair.
 fn for_each_ensures_equality(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
@@ -75,7 +75,7 @@ fn for_each_ensures_equality(
 }
 
 pub(crate) fn declared_index_algebra_laws(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     requirement: &str,
 ) -> DeclaredIndexAlgebraLaws {
@@ -114,7 +114,7 @@ pub(super) struct SemiringLicense {
 pub(crate) struct EntryMachines(Vec<((u32, u32), u32)>);
 
 impl EntryMachines {
-    pub(crate) fn of(program: &TypedTrees) -> Self {
+    pub(crate) fn of(program: &dyn crate::CheckingInput) -> Self {
         let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
         let mut entries = program
             .machines()
@@ -145,7 +145,7 @@ impl EntryMachines {
     /// `structural_terms::selected_application_machine` selects it.
     pub(super) fn machine<'program>(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         target: SymbolHandle,
     ) -> Option<&'program Machine> {
         if !target.is_valid() {
@@ -268,7 +268,7 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
 /// symbol) index: conformances are fixed for the build, so per-law slot
 /// membership reads this instead of re-scanning every machine per candidate.
 pub(crate) fn conformance_slot_carriers_uncached(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
     let mut slot_carriers = std::collections::HashMap::new();
     for candidate in program.machines() {
@@ -335,7 +335,7 @@ pub(crate) struct LicenseCandidates {
 }
 
 impl LicenseCandidates {
-    pub(crate) fn of(program: &TypedTrees) -> Self {
+    pub(crate) fn of(program: &dyn crate::CheckingInput) -> Self {
         let slot_carriers =
             crate::program_scope::call_targets::memoized_conformance_slot_carriers(program);
         Self {
@@ -354,7 +354,7 @@ impl LicenseCandidates {
     /// licenses (the trait-wide skip wrongly stripped those).
     pub(super) fn ring_licenses(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         judged_machine: &Machine,
     ) -> Vec<RingLicense> {
         let judged_carrier = judged_carrier(program, judged_machine);
@@ -387,7 +387,7 @@ impl LicenseCandidates {
     /// cannot rearrange it.
     pub(super) fn semiring_licenses(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         judged_machine: &Machine,
     ) -> Vec<SemiringLicense> {
         let judged_carrier = judged_carrier(program, judged_machine);
@@ -413,7 +413,7 @@ impl LicenseCandidates {
 
 /// The law requirements `judged_machine` binds on one trait.
 fn judged_bound_laws<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     judged_machine: &'program Machine,
     trait_symbol: SymbolHandle,
 ) -> impl Iterator<Item = String> + 'program {
@@ -426,7 +426,10 @@ fn judged_bound_laws<'program>(
 
 /// The carrier a judged machine's laws speak about: its first entry
 /// parameter's type, else its result type.
-fn judged_carrier(program: &TypedTrees, judged_machine: &Machine) -> Option<TypeReferenceHandle> {
+fn judged_carrier(
+    program: &dyn crate::CheckingInput,
+    judged_machine: &Machine,
+) -> Option<TypeReferenceHandle> {
     program.machine_states(judged_machine).first().map(|entry| {
         program
             .state_parameters(entry)
@@ -442,7 +445,7 @@ fn judged_carrier(program: &TypedTrees, judged_machine: &Machine) -> Option<Type
 /// before applying their own carrier-closure tests.
 #[allow(clippy::type_complexity)]
 fn algebraic_law_slots<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
 ) -> Vec<(
     &'program TraitDefinition,
     Vec<(String, String)>,
@@ -485,7 +488,7 @@ fn ring_license_candidates(
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<RingCandidate> {
     let mut candidates = Vec::new();
 
@@ -573,7 +576,7 @@ fn slot_satisfier_exists(
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_symbol: SymbolHandle,
     requirement_name: &str,
     carrier: TypeReferenceHandle,
@@ -684,7 +687,7 @@ fn semiring_license_candidates(
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<SemiringCandidate> {
     let mut candidates = Vec::new();
     for (trait_definition, comm_laws, assoc_laws, dist_laws) in algebraic_law_slots(program) {
@@ -764,7 +767,7 @@ fn op_slot_satisfier(
         (SymbolHandle, String),
         Vec<(TypeReferenceHandle, SymbolHandle)>,
     >,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_symbol: SymbolHandle,
     op_slot: &str,
     carrier: TypeReferenceHandle,

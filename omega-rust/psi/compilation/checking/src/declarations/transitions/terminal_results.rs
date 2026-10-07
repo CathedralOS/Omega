@@ -16,7 +16,6 @@
 //! never reports a pairing it cannot name.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -36,7 +35,7 @@ enum ResultShape {
 /// Report a terminal call whose callee's declared result differs from the
 /// result of the state that tail-calls it.
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &State,
     callee_machine: &Machine,
@@ -72,7 +71,10 @@ pub(super) fn validate(
     )));
 }
 
-fn shape(program: &TypedTrees, mut handle: TypeReferenceHandle) -> Option<ResultShape> {
+fn shape(
+    program: &dyn crate::CheckingInput,
+    mut handle: TypeReferenceHandle,
+) -> Option<ResultShape> {
     if !handle.is_valid() {
         return Some(ResultShape::Unit);
     }
@@ -100,7 +102,7 @@ fn shape(program: &TypedTrees, mut handle: TypeReferenceHandle) -> Option<Result
     }
 }
 
-fn spelling(program: &TypedTrees, handle: TypeReferenceHandle) -> String {
+fn spelling(program: &dyn crate::CheckingInput, handle: TypeReferenceHandle) -> String {
     if matches!(shape(program, handle), Some(ResultShape::Unit)) {
         "Unit".to_owned()
     } else {

@@ -17,7 +17,7 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    MachineSupplyMode, Multiplicity, StateParameter, SymbolHandle, TypeReferenceHandle, TypedTrees,
+    MachineSupplyMode, Multiplicity, StateParameter, SymbolHandle, TypeReferenceHandle,
 };
 use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
 
@@ -143,7 +143,7 @@ impl ArgumentPathShape {
 /// the callee formal it must present as.
 #[derive(Clone, Copy)]
 pub(crate) struct ParameterArgument<'argument> {
-    pub(crate) program: &'argument TypedTrees,
+    pub(crate) program: &'argument dyn ::validation::CheckingInput,
     pub(crate) machine: SymbolHandle,
     pub(crate) state: SymbolHandle,
     pub(crate) statement_index: usize,

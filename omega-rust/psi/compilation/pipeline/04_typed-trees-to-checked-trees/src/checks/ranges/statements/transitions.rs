@@ -7,7 +7,7 @@ use super::super::facts::RangeFacts;
 use super::super::indexes::{IndexVerdicts, check_expression};
 
 pub(super) fn check_transition_target<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &State,
     call_frames: Option<&validation::CallFrameResolver<'program>>,

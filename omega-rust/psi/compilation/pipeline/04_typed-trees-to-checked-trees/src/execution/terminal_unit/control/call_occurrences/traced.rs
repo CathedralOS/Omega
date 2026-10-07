@@ -4,7 +4,6 @@
 
 use super::super::{
     CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
-    TypedTrees,
 };
 use super::collecting::{
     collect, collect_argument_calls, collect_constructor_calls, collect_owned_root_calls,
@@ -22,7 +21,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 /// call, statement shape, target agreement, argument calls, unconsumed
 /// nested calls) where it declined the body.
 pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

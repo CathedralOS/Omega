@@ -43,7 +43,6 @@ use facts::{ContractFactKind, FactOrigin, FactPayload};
 use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -90,7 +89,7 @@ impl CyclicHeaderInvariants {
 
     pub(in crate::checks::contracts) fn proves(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         exit: &FlowExitFact,
         requirement: &facts::Fact,
@@ -146,7 +145,7 @@ struct RosterParameter {
 }
 
 struct Header<'program, 'facts> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     machine: &'program Machine,
     /// The destination state whose local invariant is being proposed.
@@ -173,7 +172,7 @@ struct Header<'program, 'facts> {
 
 impl<'program, 'facts> Header<'program, 'facts> {
     fn new(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         facts: &'facts CheckFacts,
         machine: &'program Machine,
         header: &'program State,
@@ -840,7 +839,7 @@ struct TermReference {
 /// reads as its residue representative. `Saturating` and `Trapping` stay
 /// outside the language.
 fn fixed_integer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
     let primitive = program.primitive_type_reference(type_reference)?;

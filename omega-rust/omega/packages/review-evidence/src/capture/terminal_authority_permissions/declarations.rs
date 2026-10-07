@@ -48,7 +48,7 @@ pub(super) fn resolve_services<'a>(
         };
         let schema = provider_planning::service_schema::from_typed(
             provider_planning::ProviderPlanningContext::new(
-                &compilation.typed,
+                compilation.checking_input,
                 source::DependencyScope::Product,
             ),
             definition,

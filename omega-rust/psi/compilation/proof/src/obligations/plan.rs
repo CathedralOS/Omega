@@ -7,7 +7,6 @@ use arena::{Arena, HandleSpan};
 use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -15,7 +14,7 @@ use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
-    pub program: &'program TypedTrees,
+    pub program: &'program dyn ::validation::CheckingInput,
     pub obligations: Arena<ProofObligation>,
     pub type_constraints: Arena<ProofConstraint>,
     /// Range-analysis inputs for every assignment whose target type resolves,
@@ -27,7 +26,7 @@ pub struct ProofPlan<'program> {
 }
 
 impl<'program> ProofPlan<'program> {
-    pub(crate) fn new(program: &'program TypedTrees) -> Self {
+    pub(crate) fn new(program: &'program dyn ::validation::CheckingInput) -> Self {
         let obligation_capacity = estimated_proof_obligation_capacity(program);
         let constraint_capacity = program
             .type_reference_table
@@ -55,7 +54,7 @@ impl<'program> ProofPlan<'program> {
 
     pub(crate) fn store_constraint_nodes(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<ProofConstraint> {
@@ -72,7 +71,7 @@ impl<'program> ProofPlan<'program> {
     /// [`ProofConstraint::from_node_with_domain_intervals`].
     pub(crate) fn store_constraint_nodes_with_domain_intervals(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<ProofConstraint> {
@@ -86,11 +85,11 @@ impl<'program> ProofPlan<'program> {
 
     fn store_constraint_nodes_with(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
         from_node: impl Fn(
-            &TypedTrees,
+            &dyn ::validation::CheckingInput,
             TypeReferenceHandle,
             &TypeConstraintNode,
         ) -> Option<ProofConstraint>,
@@ -160,7 +159,7 @@ impl ProofConstraint {
     /// (validation's `closed_float_range_endpoint` twin), never at the
     /// transitional f64 window.
     pub(crate) fn from_node(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         constraint: &TypeConstraintNode,
     ) -> Option<Self> {
@@ -205,7 +204,7 @@ impl ProofConstraint {
     /// establishment route, and an interval standing in for it takes both
     /// away.
     pub(crate) fn from_node_with_domain_intervals(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         constraint: &TypeConstraintNode,
     ) -> Option<Self> {
@@ -218,7 +217,7 @@ impl ProofConstraint {
     }
 
     fn exact_domain_interval(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         domain: &typed_trees::types::DomainConstraint,
     ) -> Option<Self> {
@@ -231,7 +230,7 @@ impl ProofConstraint {
     }
 
     fn range_from_expression_handles(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         base_type: TypeReferenceHandle,
         minimum: ExpressionHandle,
         maximum: ExpressionHandle,

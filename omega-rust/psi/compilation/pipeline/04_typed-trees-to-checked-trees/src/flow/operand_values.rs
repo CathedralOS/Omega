@@ -5,13 +5,13 @@
 
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
-use typed_trees::{TypedTrees, types::TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Contextual construction uses the bound destination declaration. A source
 /// declaration is retained only when that destination cannot be projected.
 /// Neither path infers a type from a sibling's expression handle.
 pub(super) fn operand_child_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parent: TypeReferenceHandle,
     destination: &[PlaceSegment],
     declared: TypeReferenceHandle,
@@ -37,7 +37,7 @@ pub(crate) struct CapturedValue<'capture> {
 /// A dynamic selector can produce several candidates. Consumers must prove
 /// each independently; combining their contexts would invent a capture epoch.
 pub(crate) fn captured_operand_values<'capture>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &'capture FlowFacts,
     semantic: &FactPlan,
     state: &FlowStateFact,
@@ -89,7 +89,7 @@ pub(crate) fn captured_operand_values<'capture>(
 /// strictly decreases the statement frontier. Unknown writes stop provenance,
 /// leaving the current storage observation and its own contexts intact.
 fn reaching_store_values<'capture>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &'capture FlowFacts,
     semantic: &FactPlan,
     state: &FlowStateFact,
@@ -171,7 +171,7 @@ fn reaching_store_values<'capture>(
 }
 
 pub(crate) fn captured_operand_at_path<'capture>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     control: &'capture FlowControlFacts,
     mut operand: &'capture FlowOperandFact,
     mut type_reference: TypeReferenceHandle,

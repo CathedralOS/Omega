@@ -37,7 +37,6 @@ pub(crate) use where_fact_intervals::{
 pub use where_fact_intervals::{case_where_field_intervals, data_where_field_intervals};
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -116,14 +115,14 @@ impl OpenInvariantCrashSite {
 }
 
 pub(crate) fn validate_default_domain_writes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     analyze_default_domain_writes(program, diagnostics, &mut Vec::new());
 }
 
 fn analyze_default_domain_writes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
@@ -497,7 +496,7 @@ impl TrackedPlace<'_> {
 /// EXIT-established spellings (entry-established places stay established:
 /// monotone).
 fn walk_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
     machine: &Machine,
     state: &State,

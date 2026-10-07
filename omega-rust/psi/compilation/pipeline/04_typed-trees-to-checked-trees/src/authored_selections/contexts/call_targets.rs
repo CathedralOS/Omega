@@ -11,12 +11,11 @@ use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironm
 use checked_trees::CheckFacts;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use typed_trees::types::TypeReferenceHandle;
 
 pub(in crate::authored_selections) fn checked_member_target_from_exact_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
@@ -32,7 +31,7 @@ pub(in crate::authored_selections) fn checked_member_target_from_exact_owner(
 }
 
 pub(super) fn authored_member_source_span(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<source::SourceSpan> {
     let mut retained = None;
@@ -65,7 +64,7 @@ pub(super) fn authored_member_source_span(
 /// symbols unresolved; the retained checked contract owner is the authority
 /// for those bindings.
 pub(in crate::authored_selections) fn checked_expression_type_reference_from_exact_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner_expression: ExpressionHandle,
     expression: ExpressionHandle,
@@ -90,7 +89,7 @@ pub(in crate::authored_selections) fn checked_expression_type_reference_from_exa
 }
 
 pub(in crate::authored_selections) fn checked_collection_view_intrinsic_from_exact_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -116,7 +115,7 @@ pub(in crate::authored_selections) fn checked_collection_view_intrinsic_from_exa
 }
 
 pub(in crate::authored_selections) fn checked_machine_call_target_from_exact_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -135,7 +134,7 @@ pub(in crate::authored_selections) fn checked_machine_call_target_from_exact_own
 }
 
 pub(super) fn checked_machine_call_target_from_type_owners(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -150,7 +149,7 @@ pub(super) fn checked_machine_call_target_from_type_owners(
 }
 
 pub(super) fn checked_machine_call_target_from_executable_owner(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -238,7 +237,7 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
 /// spelling, then the attached-machine lookup off the receiver's type
 /// inferred in the environment the statement's prefix bindings establish.
 pub(super) fn executable_site_call_candidate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[typed_trees::statement::StatementNode],
@@ -290,7 +289,7 @@ pub(super) fn executable_site_call_candidate(
 /// environment extended by the `LocalData` bindings preceding the statement.
 
 pub(super) fn call_target_in_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     environment: &TypeEnvironment,
 ) -> Option<SymbolHandle> {
@@ -303,7 +302,7 @@ pub(super) fn call_target_in_environment(
 }
 
 pub(super) fn exact_static_data_receiver(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
     environment: &TypeEnvironment,
 ) -> Option<InferredType> {
@@ -355,7 +354,7 @@ pub(super) fn exact_static_data_receiver(
 }
 
 pub(super) fn attached_machine_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver_type: InferredType,
     target_name: &str,
 ) -> Option<SymbolHandle> {

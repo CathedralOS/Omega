@@ -7,7 +7,7 @@ use facts::FactPlan;
 use symbols::SymbolHandle;
 
 pub(crate) fn index_place_segment(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> facts::PlaceSegment {
     if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
@@ -29,7 +29,7 @@ pub(crate) fn index_place_segment(
 /// not by the place algebra. Inclusive syntax is normalized once by advancing
 /// its last included ordinal.
 fn fixed_half_open_range(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
@@ -55,7 +55,7 @@ fn fixed_half_open_range(
 }
 
 pub(crate) fn push_field_place_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     segments: &mut Vec<facts::PlaceSegment>,
     symbol: SymbolHandle,
 ) {
@@ -66,7 +66,7 @@ pub(crate) fn push_field_place_segments(
 }
 
 pub(crate) fn canonical_place_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     if !expression.is_valid() {
@@ -133,7 +133,7 @@ pub(crate) fn canonical_place_from_expression(
 }
 
 pub(crate) fn canonical_place_from_expression_in_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -152,7 +152,7 @@ pub(crate) fn canonical_place_from_expression_in_state(
 /// establishment view, instead of the write landing on a fixed element while
 /// retiring facts at every element.
 pub(crate) fn narrow_pinned_index_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -195,7 +195,7 @@ pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<Canoni
 }
 
 pub(crate) fn canonical_place_from_semantic_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     place: &facts::Place,
 ) -> Option<CanonicalPlace> {
@@ -219,7 +219,7 @@ pub(crate) fn canonical_place_from_semantic_place(
 /// must still be the member its expression resolves to, or the place it
 /// yields would read evidence the source did not name.
 pub(crate) fn projected_leaf_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     leaf: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     let mut current = leaf;
@@ -273,7 +273,7 @@ pub(crate) fn projected_leaf_place(
 /// root, and every segment a statically known field, case, or literal index —
 /// computed indices keep the place source-dependent.
 pub(crate) fn source_independent_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     let place = canonical_place_from_expression(program, expression)?;
@@ -294,7 +294,7 @@ pub(crate) fn source_independent_place(
 /// whole-place recasts unwrap to their target, and a plain place expression
 /// names the place the new local aliases.
 pub(crate) fn reference_source_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     initializer: ExpressionHandle,
@@ -306,7 +306,7 @@ pub(crate) fn reference_source_place(
 /// `let v = xs.as_mut_slice()` alias refers to the receiver collection's
 /// storage — writes through `v` name the same place as the receiver's own.
 pub(crate) fn reference_source_place_through_collection_views(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     initializer: ExpressionHandle,
@@ -315,7 +315,7 @@ pub(crate) fn reference_source_place_through_collection_views(
 }
 
 fn reference_source_place_shaped(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     initializer: ExpressionHandle,

@@ -26,7 +26,7 @@ use diagnostics::Diagnostic;
 
 /// Build once before the checks and preserve the resulting handles for lowering.
 pub(super) fn initialize_checked_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {

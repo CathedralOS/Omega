@@ -9,7 +9,7 @@ use typed_trees::signature::StateSignature;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_machine_parameter_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value_environment: &ValueEnvironment,

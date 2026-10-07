@@ -6,12 +6,11 @@ use crate::semantic::calls::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn type_reference_contains_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     expression: ExpressionHandle,
     visited: &mut Vec<TypeReferenceHandle>,
@@ -78,7 +77,7 @@ pub(super) fn type_reference_contains_expression(
 }
 
 pub(super) fn member_target_in_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &TableMemberExpression,
     environment: &TypeEnvironment,
     source_span: source::SourceSpan,
@@ -104,7 +103,7 @@ pub(super) fn member_target_in_environment(
 /// [`crate::semantic::calls::collection_measure_member`] in that query's
 /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
 pub(super) fn collection_measure_in_environment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member: &TableMemberExpression,
     receiver_type: InferredType,
 ) -> Option<CollectionMeasure> {
@@ -117,7 +116,7 @@ pub(super) fn collection_measure_in_environment(
 }
 
 pub(super) fn resolve_member_symbol_from_authored_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver_type: InferredType,
     member: &TableMemberExpression,
     source_span: source::SourceSpan,
@@ -137,7 +136,7 @@ pub(super) fn resolve_member_symbol_from_authored_source(
 }
 
 pub(super) fn unresolved_nominal_type_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -156,7 +155,7 @@ pub(super) fn unresolved_nominal_type_name(
 }
 
 pub(super) fn infer_expression_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     environment: &TypeEnvironment,
     visited: &mut Vec<ExpressionHandle>,
@@ -277,7 +276,7 @@ pub(super) fn infer_expression_type(
 }
 
 pub(super) fn resolve_member_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver_type: InferredType,
     member: &TableMemberExpression,
 ) -> Option<SymbolHandle> {
@@ -325,7 +324,7 @@ pub(super) fn resolve_member_symbol(
 }
 
 pub(super) fn inferred_nominal_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     inferred: InferredType,
 ) -> Option<SymbolHandle> {
     match inferred {
@@ -339,7 +338,10 @@ pub(super) fn inferred_nominal_symbol(
     }
 }
 
-pub(super) fn inferred_type_is_collection(program: &TypedTrees, inferred: InferredType) -> bool {
+pub(super) fn inferred_type_is_collection(
+    program: &dyn ::validation::CheckingInput,
+    inferred: InferredType,
+) -> bool {
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
@@ -351,7 +353,7 @@ pub(super) fn inferred_type_is_collection(program: &TypedTrees, inferred: Inferr
 }
 
 pub(super) fn collection_view_operation_for_receiver(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operation: language_semantics::declaration_selection::CollectionViewOperation,
     receiver: InferredType,
 ) -> Option<language_semantics::declaration_selection::CollectionViewOperation> {
@@ -372,7 +374,10 @@ pub(super) fn collection_view_operation_for_receiver(
     }
 }
 
-pub(super) fn inferred_type_is_compiler_text(program: &TypedTrees, inferred: InferredType) -> bool {
+pub(super) fn inferred_type_is_compiler_text(
+    program: &dyn ::validation::CheckingInput,
+    inferred: InferredType,
+) -> bool {
     let InferredType::TypeReference(mut type_reference) = inferred else {
         return matches!(inferred, InferredType::CompilerString);
     };
@@ -391,7 +396,7 @@ pub(super) fn inferred_type_is_compiler_text(program: &TypedTrees, inferred: Inf
 }
 
 pub(super) fn collection_element_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     inferred: InferredType,
 ) -> Option<TypeReferenceHandle> {
     let type_reference = match inferred {

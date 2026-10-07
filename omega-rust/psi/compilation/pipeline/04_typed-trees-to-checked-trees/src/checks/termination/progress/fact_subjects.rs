@@ -5,7 +5,7 @@ use language_semantics::ProgressSubject;
 use symbols::SymbolHandle;
 
 pub(crate) fn fact_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
 ) -> Option<SymbolHandle> {
     let (domain_symbol, semantic_domain) = match payload {
@@ -76,7 +76,7 @@ pub(crate) fn subject_from_place(
 }
 
 pub(crate) fn profile_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     profile: language_semantics::SemanticDomainId,
 ) -> String {
     program
@@ -87,7 +87,7 @@ pub(crate) fn profile_label(
 }
 
 pub(crate) fn subject_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: &ProgressSubject,
 ) -> String {
     let mut label = program.symbols.display_path(subject.root, "::");

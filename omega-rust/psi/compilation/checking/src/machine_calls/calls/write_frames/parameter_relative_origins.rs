@@ -20,7 +20,6 @@ use crate::machine_calls::calls::write_frames::transparent_results::transparent_
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use crate::machine_calls::calls::write_frames::value_expressions::ValuePosition;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -30,7 +29,7 @@ use typed_trees::signature::StateParameter;
 /// parameter-relative binding still require every route to name the same
 /// place.
 pub(crate) fn parameter_relative_place_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -56,7 +55,7 @@ pub(crate) fn parameter_relative_place_origin(
 /// selecting one side. A route that cannot be named fails the whole
 /// expression closed.
 pub(crate) fn parameter_relative_place_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -84,7 +83,7 @@ pub(crate) fn parameter_relative_place_origins(
 /// actual position.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn parameter_relative_place_or_carrier_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -106,7 +105,7 @@ pub(crate) fn parameter_relative_place_or_carrier_origins(
 
 #[allow(clippy::too_many_arguments)]
 fn parameter_relative_place_origins_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -311,7 +310,7 @@ fn parameter_relative_place_origins_in(
 /// reference leaf also names its own carrier place: the spelled path then
 /// describes which leaf inside the carrier the route selects.
 fn parameter_relative_name_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -366,7 +365,7 @@ fn parameter_relative_name_origins(
 /// the leaf's proven referents. Each referent must re-root on a declared
 /// parameter; private or unresolvable storage stays opaque.
 fn parameter_relative_aggregate_leaf_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -403,7 +402,7 @@ fn parameter_relative_aggregate_leaf_origins(
 /// through its own selected actual; an actual that cannot be named keeps the
 /// whole call opaque because the result could reach untracked storage.
 fn parameter_relative_call_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCallExpression,
     caller_parameters: &[StateParameter],

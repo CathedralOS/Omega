@@ -5,7 +5,7 @@
 //! without changing the Boolean's saved value.
 
 use super::super::ordered_values::{Operand, Relation, rebind_relations};
-use super::{ExpressionHandle, Machine, State, TypedTrees, ValueEnvironment};
+use super::{ExpressionHandle, Machine, State, ValueEnvironment};
 use typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,7 +41,7 @@ impl BooleanValue {
 /// effectful initializer cannot describe current operands by replaying its
 /// pre-call comparison. Unknown expressions simply retain no conditional facts.
 pub(crate) fn record_boolean_local(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -66,7 +66,7 @@ pub(crate) fn record_boolean_local(
 }
 
 pub(crate) fn record_boolean_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -96,7 +96,7 @@ pub(crate) fn record_boolean_assignment(
 }
 
 fn record_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -141,7 +141,7 @@ fn record_binding(
 }
 
 pub(super) fn select(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,

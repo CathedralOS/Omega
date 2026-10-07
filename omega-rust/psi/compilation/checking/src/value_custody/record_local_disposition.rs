@@ -7,7 +7,6 @@ use language_semantics::{
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TableLocalData};
 
@@ -18,7 +17,7 @@ use typed_trees::statement::{StatementNode, TableLocalData};
 /// Callers retain record shape admission and independent authored-value replay;
 /// this join matches the local ledger to retained initializer Place occurrences.
 pub fn record_local_disposition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -124,7 +123,7 @@ pub fn record_local_disposition(
 }
 
 fn local_provenance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statements: &[StatementNode],
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -227,7 +226,7 @@ fn local_provenance(
 }
 
 fn initializer_transfer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     statements: &[StatementNode],
     machine: SymbolHandle,

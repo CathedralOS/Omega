@@ -27,7 +27,6 @@
 //! stays an ordinary call.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -36,7 +35,10 @@ use typed_trees::types::TypeReferenceNode;
 
 /// The theorem-only machine a call target names, by machine symbol or by its
 /// entry state's symbol.
-pub fn fact_only_theorem(program: &TypedTrees, target: SymbolHandle) -> Option<&Machine> {
+pub fn fact_only_theorem(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> Option<&Machine> {
     if !target.is_valid() {
         return None;
     }
@@ -92,7 +94,7 @@ pub fn fact_only_theorem(program: &TypedTrees, target: SymbolHandle) -> Option<&
 /// A parameter a citation can bind without transferring or writing storage:
 /// a bare scalar, or a shared borrow.
 fn read_only_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     if parameter.is_mutable {
@@ -116,7 +118,10 @@ fn read_only_parameter(
 }
 
 /// Whether one statement is a fact-only citation that execution erases.
-pub fn is_fact_only_citation(program: &TypedTrees, statement: &StatementNode) -> bool {
+pub fn is_fact_only_citation(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> bool {
     let StatementNode::Call(call) = statement else {
         return false;
     };
@@ -125,7 +130,7 @@ pub fn is_fact_only_citation(program: &TypedTrees, statement: &StatementNode) ->
 
 /// Whether one statement call cites a theorem-only machine with arguments
 /// whose evaluation performs no work.
-pub fn is_fact_only_citation_call(program: &TypedTrees, call: &TableCall) -> bool {
+pub fn is_fact_only_citation_call(program: &dyn crate::CheckingInput, call: &TableCall) -> bool {
     call.receiver.is_empty()
         && !call.receiver_symbol.is_valid()
         && !call.static_machine_parameter.is_valid()
@@ -153,7 +158,7 @@ pub fn is_fact_only_citation_call(program: &TypedTrees, call: &TableCall) -> boo
 }
 
 /// A literal, a place spelling, or a shared borrow of a place spelling.
-fn work_free_argument(program: &TypedTrees, argument: ExpressionHandle) -> bool {
+fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHandle) -> bool {
     if !program.expression_table.expression_is_valid(argument) {
         return false;
     }
@@ -168,7 +173,7 @@ fn work_free_argument(program: &TypedTrees, argument: ExpressionHandle) -> bool 
 }
 
 /// A name path or a chain of plain member selections over one.
-fn place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn place_spelling(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }

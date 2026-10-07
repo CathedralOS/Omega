@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn review_domain_lifetime_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     domain: &typed_trees::types::DomainConstraint,
 ) -> Result<String, Vec<Diagnostic>> {
@@ -70,7 +70,7 @@ pub(crate) fn review_domain_lifetime_label(
 }
 
 pub(crate) fn review_lifetime_topology_with_substitutions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
     lifetime_binders: &[typed_trees::name::Identifier],

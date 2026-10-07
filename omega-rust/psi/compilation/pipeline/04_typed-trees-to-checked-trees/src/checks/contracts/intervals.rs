@@ -14,7 +14,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 /// comparison over that exact spelling contributes nothing, so the result is
 /// only ever weaker than the guard.
 pub(super) fn guard_interval_for_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
@@ -66,7 +66,7 @@ pub(super) fn complement_comparison(operator: BinaryOperator) -> Option<BinaryOp
 /// does positively; `!(a && b)` cannot isolate an operand, so it contributes
 /// nothing.
 pub(super) fn negated_guard_interval_for_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
@@ -105,7 +105,7 @@ pub(super) fn negated_guard_interval_for_label(
 /// One comparison's contribution, when exactly one side is the subject and the
 /// other is a closed integer literal.
 fn comparison_bound(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
@@ -115,7 +115,7 @@ fn comparison_bound(
 /// `comparison_bound` under a caller-selected operator, so the negated arm
 /// can read the complement comparison the same way.
 fn comparison_bound_with_operator(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     operator: BinaryOperator,
     subject_label: &str,

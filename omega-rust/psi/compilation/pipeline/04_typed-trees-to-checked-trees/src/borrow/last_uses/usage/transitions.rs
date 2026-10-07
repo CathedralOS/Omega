@@ -1,7 +1,7 @@
 use super::expressions::expression_uses_local_name;
 
 pub(super) fn transition_guard_uses_local_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: typed_trees::statement::TransitionGuardNode,
     local_name: &str,
 ) -> bool {
@@ -14,7 +14,7 @@ pub(super) fn transition_guard_uses_local_name(
 }
 
 pub(super) fn transition_target_uses_local_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: &typed_trees::statement::TransitionTargetNode,
     local_name: &str,
 ) -> bool {

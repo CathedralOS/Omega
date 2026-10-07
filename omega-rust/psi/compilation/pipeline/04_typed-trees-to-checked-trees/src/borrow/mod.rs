@@ -43,7 +43,7 @@ use state::{BorrowFactArenas, append_state_borrow_facts};
 /// The caller prepares call frames once for this immutable program. `None`
 /// retains failed preparation; source reconstruction must not retry it per call.
 pub(crate) fn build_borrow_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> BorrowFacts {
     let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));

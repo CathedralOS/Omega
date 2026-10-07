@@ -23,7 +23,6 @@ use nominal_admission::validate_nominal_machine_selection;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::machine::Machine;
@@ -157,7 +156,7 @@ fn project_operational_rows(
 }
 
 pub(crate) fn validate_static_machine_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_static_machine_arguments_with_facts(
@@ -168,7 +167,7 @@ pub(crate) fn validate_static_machine_arguments(
 }
 
 fn validate_static_machine_arguments_with_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
     selections: &mut ValidatedStaticMachineSelections,
 ) {
@@ -251,7 +250,7 @@ fn validate_static_machine_arguments_with_facts(
 }
 
 pub fn validate_static_machine_selections_with_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut selections = ValidatedStaticMachineSelections::default();
@@ -269,7 +268,7 @@ pub fn validate_static_machine_selections_with_facts(
 /// binder to its argument (admission here, native callback destinations in
 /// receiver-call validation) shares this one ordinal space.
 pub(crate) fn machine_selection_arguments<'call>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     arguments: &'call [StaticMachineArgument],
 ) -> impl Iterator<Item = &'call StaticMachineArgument> {
     arguments.iter().filter(|argument| {
@@ -281,7 +280,7 @@ pub(crate) fn machine_selection_arguments<'call>(
 }
 
 fn validate_call_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
     suspensions: &[MachineSuspensionRow],
     blockings: &[MachineBlockingRow],
@@ -295,29 +294,28 @@ fn validate_call_selection(
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
     specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
 ) {
-
-/// Split a type-parameter signature into its `Machine`-kind contract
-/// requirements and its `Type`-kind generic slots, in declaration order.
-fn contract_and_type_parameters<'p>(
-    parameters: &'p [TypeParameter],
-) -> (
-    Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
-    Vec<&'p TypeParameter>,
-) {
-    (
-        parameters
-            .iter()
-            .filter_map(|parameter| match &parameter.kind {
-                TypeParameterKind::Machine { contract } => Some((parameter, contract)),
-                _ => None,
-            })
-            .collect(),
-        parameters
-            .iter()
-            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-            .collect(),
-    )
-}
+    /// Split a type-parameter signature into its `Machine`-kind contract
+    /// requirements and its `Type`-kind generic slots, in declaration order.
+    fn contract_and_type_parameters<'p>(
+        parameters: &'p [TypeParameter],
+    ) -> (
+        Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
+        Vec<&'p TypeParameter>,
+    ) {
+        (
+            parameters
+                .iter()
+                .filter_map(|parameter| match &parameter.kind {
+                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
+                    _ => None,
+                })
+                .collect(),
+            parameters
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .collect(),
+        )
+    }
 
     // The build operations whose static operands name declarations, not
     // machine requirements, carry no requirement calls to validate.
@@ -503,7 +501,7 @@ fn contract_and_type_parameters<'p>(
 /// than an expression call node. Keeping this entry point here prevents proof
 /// data from growing a weaker, shape-only callback check.
 pub(crate) fn validate_data_machine_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     family_name: &str,
     parameter: &TypeParameter,
     requirement: &MachineParameterContract,
@@ -557,7 +555,7 @@ pub(crate) fn validate_data_machine_selection(
 }
 
 fn machine_parameter_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
     let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
@@ -565,7 +563,7 @@ fn machine_parameter_contract(
 }
 
 fn machine_parameter_contract_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&TypeParameter, &MachineParameterContract)> {
     for machine in program.machines() {
@@ -590,7 +588,7 @@ fn machine_parameter_contract_definition(
 }
 
 fn machine_parameter_contract_definition_in<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameters: &'program [TypeParameter],
     symbol: SymbolHandle,
 ) -> Option<(&'program TypeParameter, &'program MachineParameterContract)> {
@@ -614,7 +612,7 @@ fn machine_parameter_contract_definition_in<'program>(
 }
 
 fn machine_parameter_signature<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     contract: &'program MachineParameterContract,
 ) -> &'program typed_trees::signature::StateSignature {
     program
@@ -629,7 +627,7 @@ fn machine_parameter_signature<'program>(
 /// machine in declaration order wins on the (impossible in practice) collision.
 type MachineStateIndex = symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>;
 
-fn machine_state_index(program: &TypedTrees) -> MachineStateIndex {
+fn machine_state_index(program: &dyn crate::CheckingInput) -> MachineStateIndex {
     let mut index = MachineStateIndex::default();
     for (machine_position, machine) in program.machines().iter().enumerate() {
         let states = program.machine_states(machine);
@@ -653,7 +651,7 @@ fn machine_state_index(program: &TypedTrees) -> MachineStateIndex {
 }
 
 fn machine_and_state<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     index: &MachineStateIndex,
     selected_symbol: SymbolHandle,
 ) -> Option<(&'a Machine, &'a State)> {

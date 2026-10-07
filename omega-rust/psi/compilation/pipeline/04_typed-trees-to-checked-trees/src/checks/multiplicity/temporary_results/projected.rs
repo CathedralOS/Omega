@@ -12,7 +12,7 @@ use language_semantics::PermissionEventSource;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -143,7 +143,7 @@ pub(super) fn append(
 // Only traverse the selected branch. Untouched siblings are maximal residuals,
 // not leaf expansion, and retain their exact authored field/index identities.
 fn complement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
     root: &crate::flow::CanonicalPlace,

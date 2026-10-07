@@ -26,7 +26,6 @@ use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PrimitiveType, StatementNode,
-    TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{
@@ -38,7 +37,7 @@ use validation::AtomicAccessOperation;
 /// The reserved result of a writing event whose carrier is the next
 /// statement: `local` is the placeholder when that carrier's result names it.
 pub(super) fn result_placeholder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     local: &typed_trees::statement::TableLocalData,
@@ -61,7 +60,7 @@ pub(super) fn result_placeholder(
 /// load or a writing event's result placeholder — and so must be planned by
 /// the sequence rather than evaluated as a pure prefix initializer.
 pub(super) fn owns_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> bool {
@@ -79,7 +78,7 @@ pub(super) fn owns_local(
 /// Whether the carrier's generated result name binds `local`: its resolved
 /// symbol when the desugar left one, otherwise its spelling.
 fn names_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     result: typed_trees::expression::ExpressionHandle,
     local: &typed_trees::statement::TableLocalData,
 ) -> bool {
@@ -101,7 +100,7 @@ fn names_local(
 /// The load `let v: T = place.load(o);` at `statement_index`, binding `v`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn load_event(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -152,7 +151,7 @@ pub(super) fn load_event(
 /// takes none.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn writing_event(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -263,7 +262,7 @@ pub(super) fn writing_event(
 /// The retained `AtomicOperand` row for one authored operand, exact for the
 /// leaf carrier.
 fn operand_row(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement_index: u32,
@@ -302,7 +301,7 @@ struct AtomicPlace {
 /// the field, and its carrier.
 #[allow(clippy::too_many_arguments)]
 fn place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

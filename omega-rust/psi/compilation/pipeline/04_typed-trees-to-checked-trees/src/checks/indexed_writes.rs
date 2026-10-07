@@ -4,11 +4,10 @@
 //! statement's live contexts, never a historical fact or a later restoration.
 use checked_trees::CheckFacts;
 use facts::{FactOrigin, FactPayload, FactPlace};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-pub(super) fn record(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
     let mut proven = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {

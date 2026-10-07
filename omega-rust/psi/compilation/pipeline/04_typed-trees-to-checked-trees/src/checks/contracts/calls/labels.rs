@@ -184,7 +184,7 @@ pub(super) fn unqualified_label_identifiers(label: &str) -> Vec<String> {
 }
 
 pub(super) fn assignment_target_mentions_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: typed_trees::expression::ExpressionHandle,
     name: &str,
 ) -> bool {
@@ -212,7 +212,7 @@ pub(super) fn assignment_target_mentions_name(
 /// a field token in `self.count` must not be mistaken for the state parameter
 /// `count`.
 pub(super) fn instantiate_state_parameter_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     arguments: arena::HandleSpan<typed_trees::expression::ExpressionHandle>,
     label: &str,

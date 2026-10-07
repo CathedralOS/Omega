@@ -23,7 +23,6 @@ use super::{InvariantWindow, TrackedPlace};
 use crate::proof_contracts::collection_predicates::{
     self, ArgumentKnowledge, IntegerSet, unknown_knowledge,
 };
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -34,7 +33,7 @@ use typed_trees::state::State;
 /// Returns `false` when `target` is not such a store, leaving it to the
 /// ordinary field-store handling.
 pub(super) fn handle_element_store<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -172,7 +171,7 @@ pub(super) fn handle_element_store<'program>(
 }
 
 fn innermost_member(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut current = expression;
@@ -187,7 +186,7 @@ fn innermost_member(
 }
 
 fn data_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &DataDefinition,
     name: &str,
 ) -> Option<&'program DataField> {
@@ -202,7 +201,11 @@ fn data_field<'program>(
 
 /// Whether `expression` reads the contents of the field named `field`: any
 /// occurrence other than the receiver of a collection measure.
-fn reads_field_contents(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
+fn reads_field_contents(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    field: &str,
+) -> bool {
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
@@ -236,7 +239,7 @@ fn reads_field_contents(program: &TypedTrees, expression: ExpressionHandle, fiel
 }
 
 fn element_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     field_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<IntegerSet> {
     match unknown_knowledge(program, field_type)? {
@@ -245,7 +248,10 @@ fn element_carrier(
     }
 }
 
-fn unknown_elements(program: &TypedTrees, field: &DataField) -> Option<Vec<IntegerSet>> {
+fn unknown_elements(
+    program: &dyn crate::CheckingInput,
+    field: &DataField,
+) -> Option<Vec<IntegerSet>> {
     match unknown_knowledge(program, field.type_reference)? {
         ArgumentKnowledge::Array(elements) => Some(elements),
         _ => None,
@@ -256,7 +262,7 @@ fn unknown_elements(program: &TypedTrees, field: &DataField) -> Option<Vec<Integ
 /// stores in this state left, else what the standing facts imply, else
 /// nothing. `None` when the field is not a fixed integer array.
 fn current_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     place: &TrackedPlace<'_>,
     field: &DataField,
     standing: bool,
@@ -279,7 +285,7 @@ fn current_elements(
 
 /// Knowledge of another field a re-proved fact reads.
 fn other_field_knowledge(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     place: &TrackedPlace<'_>,
     field: &DataField,
     standing: bool,

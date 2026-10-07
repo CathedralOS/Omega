@@ -9,7 +9,6 @@ use crate::facts::crash_calls::summary_predicates::{
 };
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 
@@ -29,7 +28,7 @@ use typed_trees::signature::StateParameter;
 /// laws, and an actual whose own operator occurrence selected an authored
 /// meaning cannot be re-read under semantics its selection rejected.
 fn builtin_bound_owner<'o>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner: Option<(
         &'o typed_trees::machine::Machine,
         &'o typed_trees::state::State,
@@ -45,7 +44,7 @@ fn builtin_bound_owner<'o>(
 }
 
 pub(crate) fn call_argument_entry_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -90,7 +89,7 @@ pub(crate) enum SelectedTargetCrashRoutes<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn call_argument_substitution(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &facts::FactPlan,
     flow: &checked_trees::FlowFacts,
@@ -324,7 +323,7 @@ pub(crate) fn call_argument_substitution(
 /// storage newer than the entry snapshot the contract namespace names, so
 /// their rows stay `None` rather than naming stale storage.
 fn structural_actual_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_parameters: &[StateParameter],
     actual: ExpressionHandle,
 ) -> Option<checked_trees::CheckedStructuralParameterField> {
@@ -803,7 +802,7 @@ fn substitute_checked_scalar_expression(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn refine_published_crash_routes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     semantic: &facts::FactPlan,

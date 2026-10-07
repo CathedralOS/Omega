@@ -1,5 +1,5 @@
 pub(super) fn is_reference_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -18,7 +18,7 @@ pub(super) fn is_reference_type(
 }
 
 pub(crate) fn reference_borrow_access_kind(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::BorrowAccessKind> {
     match program.type_reference_table.type_reference(type_reference) {

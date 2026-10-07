@@ -3,7 +3,6 @@ mod stored_integers;
 
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -16,7 +15,7 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// like a plain record; type, `const`, and machine parameters defer member
 /// types to instantiation.
 pub(crate) fn construction_members_are_concrete(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
 ) -> bool {
     program
@@ -41,7 +40,7 @@ pub(crate) fn construction_members_are_concrete(
 /// is accepted when its PROVEN interval (type ranges + the flow facts visible
 /// here) is within the field range -- e.g. copying a same-range field.
 pub(super) fn enforce_construction_field_obligations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -298,7 +297,7 @@ pub(super) fn enforce_construction_field_obligations(
 /// environment), matching the construction field-obligation checks. Reused across the
 /// binding sites that know the array's expected type (assignment target, etc.).
 pub(crate) fn validate_array_literal_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -332,7 +331,7 @@ pub(crate) fn validate_array_literal_elements(
 /// This is used by fixed write-only windows, whose destination width is
 /// `end - start` rather than the width of the containing array.
 pub(crate) fn validate_array_literal_elements_for_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -492,7 +491,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
 /// the named variant) or a record/common struct field. (Also consumed by the
 /// literal-width gate in crate::value_custody::literals.)
 pub(crate) fn construction_field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
     case_name: Option<&str>,
     field_name: &str,
@@ -535,7 +534,7 @@ pub(crate) fn construction_field_type(
 /// of `literal` whose construction field type resolves — the peel the literal
 /// walk-downs share.
 pub(crate) fn each_selected_literal_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     mut each: impl FnMut(ExpressionHandle, TypeReferenceHandle),
 ) {
@@ -550,7 +549,7 @@ pub(crate) fn each_selected_literal_field(
 }
 
 pub fn selected_construction_field_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
     field: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -609,7 +608,10 @@ pub fn selected_construction_field_type(
 /// Read an integer-literal construction value (the parser folds a negative
 /// `-5` into `Integer(-5)`, so the bare `Integer` case suffices). `None` for any
 /// non-literal value -- those are conservatively rejected by the caller.
-fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
+fn construction_field_literal(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+) -> Option<i64> {
     match program.expression_table.expression(value) {
         ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,

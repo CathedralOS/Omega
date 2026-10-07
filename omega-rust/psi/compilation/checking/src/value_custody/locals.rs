@@ -4,7 +4,7 @@ use language_core::is_self_receiver;
 use typed_trees::data::{DataMember, TypeParameterKind};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 mod type_value_scope;
 mod value_scope;
 pub(crate) use value_scope::StateValueScope;
@@ -12,7 +12,7 @@ pub(crate) use value_scope::StateValueScope;
 /// An executable binding belongs to this state and is identified by its
 /// retained declaration, not another state's spelling.
 pub(crate) fn state_binding_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     prior_statements: &[StatementNode],
     symbol: symbols::SymbolHandle,
@@ -49,7 +49,7 @@ pub(crate) fn state_binding_type(
 
 /// A value root must name current-state storage or a non-storage declaration.
 pub(crate) fn state_value_root_is_known(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     prior_statements: &[StatementNode],
@@ -144,7 +144,7 @@ pub(crate) fn state_value_root_is_known(
 }
 
 pub(crate) struct WritableRoots<'program, 'state> {
-    pub(crate) program: &'program typed_trees::TypedTrees,
+    pub(crate) program: &'program dyn crate::CheckingInput,
     pub(crate) machine: &'program Machine,
     pub(crate) machine_symbols: &'state MachineSymbols<'program>,
     pub(crate) statements: &'state [StatementNode],
@@ -205,7 +205,7 @@ impl WritableRoots<'_, '_> {
 }
 
 pub(crate) fn local_is_mutable_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     local_data: &typed_trees::statement::TableLocalData,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;

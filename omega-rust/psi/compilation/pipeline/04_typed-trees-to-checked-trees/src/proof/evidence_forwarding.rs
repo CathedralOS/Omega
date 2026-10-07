@@ -16,7 +16,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 pub(crate) fn bind_evidence_forwarding_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -112,7 +112,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
 }
 
 pub(crate) fn bind_evidence_projection_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use checked_trees::CheckedEvidenceProjection;
@@ -251,7 +251,7 @@ fn evidence_term_in_scope(
 }
 
 fn checked_evidence_producer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     output: &CheckedEvidenceTerm,
     conformance_symbol: SymbolHandle,
     source_name: &str,
@@ -321,7 +321,7 @@ fn checked_evidence_producer(
 }
 
 fn validate_evidence_forwarding_definite_assignment(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -558,7 +558,7 @@ fn validate_evidence_forwarding_definite_assignment(
 }
 
 fn append_missing_evidence_diagnostics(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

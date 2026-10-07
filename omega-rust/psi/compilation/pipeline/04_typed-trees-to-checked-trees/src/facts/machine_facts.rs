@@ -1,10 +1,9 @@
 //! Termination, blocking, suspension and synchronous invocation facts.
 
 use crate::facts::{MachineBlockingRow, MachineSuspensionRow};
-use typed_trees::TypedTrees;
 
 pub(crate) fn build_termination_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     semantic: &facts::FactPlan,
     validation: &validation::ProgramValidationFacts,
@@ -110,7 +109,7 @@ pub(crate) fn build_termination_facts(
 }
 
 pub(crate) fn build_blocking_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     blocking: &[MachineBlockingRow],
 ) -> checked_trees::BlockingFacts {
     let machines = program
@@ -137,7 +136,7 @@ pub(crate) fn build_blocking_facts(
 }
 
 pub(crate) fn build_suspension_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     suspensions: &[MachineSuspensionRow],
 ) -> checked_trees::SuspensionFacts {
     let machines = program
@@ -167,7 +166,7 @@ pub(crate) fn build_suspension_facts(
 }
 
 pub(crate) fn build_synchronous_invocation_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::SynchronousInvocationFacts {
     let inference = validation::infer_synchronous_invocations(program);
     let machines = program

@@ -7,12 +7,11 @@
 //! substitution because a sibling operand may have changed the observed value.
 
 use checked_trees::{CheckedOperatorFacts, CrashPredicateExpression, FlowFacts, FlowStateFact};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
 pub(in crate::facts) fn entry_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     semantic: &facts::FactPlan,
     flow: &FlowFacts,

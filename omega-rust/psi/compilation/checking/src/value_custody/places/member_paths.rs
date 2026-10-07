@@ -4,7 +4,6 @@
 
 use super::{declared_place_type_raw, unwrapped_type_reference};
 use language_core::is_self_receiver;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -13,7 +12,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// Statement-position calls preserve name members even when their synthesized
 /// accessor target symbols are intentionally absent from authored provenance.
 pub(crate) fn declared_member_path_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     members: &[String],
@@ -70,7 +69,7 @@ pub(crate) fn declared_member_path_type(
 /// descending NESTED `Member` receivers. `None` for non-name shapes (indexed
 /// receivers, calls) -- those re-resolve during instruction selection.
 pub(super) fn collect_member_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<String>> {
     match program.expression_table.expression(expression) {
@@ -106,7 +105,7 @@ pub(super) fn collect_member_path(
 /// - a hop through a non-data type (array, slice, primitive, generic
 ///   parameter) skips -- other checks own those shapes.
 pub(crate) fn first_unknown_nested_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
@@ -193,7 +192,7 @@ pub(crate) fn first_unknown_nested_field(
 /// LAST hop returns the field/payload type reference RAW (constraints intact)
 /// so callers read the arithmetic domain (decision 17) and range refinement.
 fn resolve_nested_member_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     path: &[String],
@@ -220,7 +219,7 @@ fn resolve_nested_member_path(
 /// when any hop fails to land on a Named data field: those chains keep the
 /// existing unresolved-call error.
 pub(crate) fn nested_receiver_type_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &typed_trees::machine::Machine,
     current_state: Option<&typed_trees::state::State>,
     path: &[String],
@@ -237,7 +236,7 @@ pub(crate) fn nested_receiver_type_name<'program>(
 /// (through `&`/`in Domain` shells). Type arguments do not change the declared
 /// member names. `None` for primitives, arrays, and unknown names.
 pub(crate) fn data_definition_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
@@ -257,7 +256,7 @@ pub(crate) fn data_definition_for_type(
 
 /// Resolve a bare local-data or state-parameter name to its declared type.
 fn local_or_parameter_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_state: Option<&typed_trees::state::State>,
     name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -292,7 +291,7 @@ fn local_or_parameter_type(
 /// range-enforced: construction (struct_literals::enforce_construction_field_ranges)
 /// and assignment (the bounded-assignment obligation on `self.field`/`p.field`).
 pub(super) fn data_field_or_payload_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -300,7 +299,7 @@ pub(super) fn data_field_or_payload_type(
 }
 
 pub(super) fn data_field_or_payload<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     data: &'program typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<&'program typed_trees::data::DataField> {

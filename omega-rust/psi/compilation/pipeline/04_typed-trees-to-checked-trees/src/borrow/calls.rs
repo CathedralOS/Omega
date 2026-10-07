@@ -9,7 +9,7 @@ use collection::BorrowCallCollection;
 use transitions::collect_transition_target_borrow_calls;
 
 pub(crate) fn collect_statement_borrow_calls(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

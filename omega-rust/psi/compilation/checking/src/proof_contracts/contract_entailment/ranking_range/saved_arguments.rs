@@ -18,8 +18,7 @@
 //! the incoming value only while nothing can write it away.
 use super::super::StrictArithmeticExpressionBinding;
 use super::{
-    BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, TypedTrees,
-    lengths, meanings,
+    BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, lengths, meanings,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -32,7 +31,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// atoms -- because evaluating a stable name at the boundary cannot rewrite
 /// an installed caller fact.
 pub(super) fn actual(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -47,7 +46,7 @@ pub(super) fn actual(
 /// already-bound `a`. A local whose initializer leaves the strict arithmetic
 /// language, or reads a carrier that can change, simply never binds.
 pub(super) fn install(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     source_lengths: &[(SymbolHandle, String)],
@@ -112,7 +111,7 @@ pub(super) fn install(
 /// unbound there; downstream normalization fails closed on the unknown atom
 /// rather than substituting a different value.
 pub(super) fn saved<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
@@ -122,7 +121,10 @@ pub(super) fn saved<'a>(
 
 /// A plain name occurrence and the symbol it resolves to; member chains and
 /// path heads are deliberately not plain names.
-fn plain_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {
+fn plain_name(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -142,7 +144,7 @@ fn plain_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<Symb
 /// later write replaces it, so written locals produce no observation;
 /// neither do ambiguous or formal names.
 fn saved_local<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
@@ -156,7 +158,10 @@ fn saved_local<'a>(
 /// Whether `type_reference` resolves to an exclusive (`&mut`/`&out`) borrow:
 /// writes through it replace the referent without touching the binding, so a
 /// saved read of the carrier would go stale silently.
-fn exclusive_referent(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+fn exclusive_referent(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {
         visited.push(reference);
@@ -174,7 +179,11 @@ fn exclusive_referent(program: &TypedTrees, mut reference: TypeReferenceHandle) 
 /// engine's atoms denote the entry value a written carrier has already left.
 /// A carrier that can change between the two would silently read the wrong
 /// value, so the observation is withheld entirely rather than approximated.
-fn stable_references(program: &TypedTrees, state: &State, expression: ExpressionHandle) -> bool {
+fn stable_references(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
     let mut nodes = Vec::new();
     let mut seen = std::collections::HashSet::new();
     crate::expression_traversal::collect_expression_nodes(
@@ -204,7 +213,7 @@ fn stable_references(program: &TypedTrees, state: &State, expression: Expression
 /// local collection: `let s = &[..]; let n = s.len`. Formal receivers bind
 /// through `lengths::install`; only a local receiver needs this pass.
 fn bind_local_lengths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 pub(super) mod observations;
 
 pub(super) fn append_move_events_for_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -301,7 +301,7 @@ pub(super) fn append_move_events_for_expression(
 /// implementation with an authored `equals` row selects that row, and neither
 /// side moves.
 fn selected_meaning_borrows_operands(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
@@ -339,7 +339,7 @@ fn selected_meaning_borrows_operands(
 }
 
 fn append_move_events_for_call_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -423,7 +423,7 @@ fn append_move_events_for_call_arguments(
 /// Expression recursion must make the same classification or its unknown-call
 /// fallback will incorrectly transfer a borrowed receiver wholesale.
 fn expression_call_is_owned_by_call_flow(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
@@ -478,7 +478,7 @@ fn expression_call_is_owned_by_call_flow(
 /// consumes the receiver, so it gets a receiver-place move; the common
 /// borrowed receiver (`&self`/`&mut self`) transfers nothing.
 pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -568,7 +568,7 @@ impl OperatorCallOwnershipPolicy {
 /// the rest positionally; a static-path call binds every parameter
 /// positionally. Each binding transfers only when its declared type owns.
 fn operator_call_ownership_policy(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: Option<&typed_trees::operator::OperatorDefinition>,
     argument_count: usize,
     has_value_receiver: bool,
@@ -600,7 +600,7 @@ fn operator_call_ownership_policy(
 /// (`String::with_capacity(...)`) rather than a runtime value. A static path
 /// names no place, so it can never be moved from.
 fn receiver_expression_is_static_type_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
 ) -> bool {
     receiver_expression_static_path_segments(program, receiver).is_some()
@@ -611,7 +611,7 @@ fn receiver_expression_is_static_type_path(
 /// counts as static exactly when its resolved symbol has no value type (it is
 /// not a local, parameter, field, or contained object).
 fn receiver_expression_static_path_segments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: ExpressionHandle,
 ) -> Option<Vec<&str>> {
     if !receiver.is_valid() {
@@ -652,7 +652,7 @@ fn receiver_expression_static_path_segments(
 /// policy in one place; a place-like initializer is excluded because its
 /// transfer is already recorded by the source-side move.
 pub(in crate::flow::ownership) fn initializer_produces_owned_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     initializer: ExpressionHandle,
 ) -> bool {
     if !initializer.is_valid() {

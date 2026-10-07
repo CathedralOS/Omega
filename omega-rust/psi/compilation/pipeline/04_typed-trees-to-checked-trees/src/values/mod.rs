@@ -17,7 +17,6 @@ use checked_trees::{
 };
 use proof::obligations::ProofPlan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 
 pub(crate) mod bounds;
@@ -44,7 +43,7 @@ mod transition;
 /// Owned mutable parameters use current-state scalar storage, never reference
 /// rebinding or the immutable incoming-parameter expression namespace.
 pub(crate) fn mutable_scalar_parameter_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use typed_trees::types::PrimitiveType;
@@ -87,7 +86,7 @@ pub(crate) use scalar::{
 };
 
 pub(crate) fn build_value_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof_plan: &ProofPlan<'_>,
 ) -> CheckedValueFacts {
     collect_value_facts(
@@ -102,12 +101,14 @@ pub(crate) fn build_value_facts(
 /// Every value row's expression and origin, in `build_value_facts` order,
 /// without the type, primitive and proved range it attaches to each row.
 /// Pre-flow operator selection reads nothing else, so it needs no proof plan.
-pub(crate) fn build_value_origin_rows(program: &TypedTrees) -> CheckedValueFacts {
+pub(crate) fn build_value_origin_rows(
+    program: &dyn ::validation::CheckingInput,
+) -> CheckedValueFacts {
     collect_value_facts(program, None)
 }
 
 fn collect_value_facts<'program, 'plan>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     typing: Option<ValueTyping<'program, 'plan>>,
 ) -> CheckedValueFacts {
     let mut builder = ValueFactBuilder {
@@ -158,7 +159,7 @@ fn collect_value_facts<'program, 'plan>(
 }
 
 pub(super) struct ValueFactBuilder<'program, 'plan> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn ::validation::CheckingInput,
     /// Absent when only the rows' expressions and origins are wanted.
     typing: Option<ValueTyping<'program, 'plan>>,
     pub(super) facts: CheckedValueFacts,

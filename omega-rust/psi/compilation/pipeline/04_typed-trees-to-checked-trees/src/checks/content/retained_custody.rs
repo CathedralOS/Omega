@@ -20,7 +20,6 @@ use language_semantics::content::{
 };
 use language_semantics::{Multiplicity, ReferenceAccess, SemanticDomainId};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -28,7 +27,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_callable(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     label: &str,
     callable: SymbolHandle,
@@ -224,7 +223,7 @@ enum BorrowCustodyFailure {
 
 #[allow(clippy::too_many_arguments)]
 fn lifetime_bound_borrow_custody(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     label: &str,
     callable: SymbolHandle,
     callable_lifetime_parameters: &[Identifier],
@@ -329,7 +328,7 @@ fn lifetime_bound_borrow_custody(
 }
 
 fn lifetime_bound_result(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, Identifier)> {
     let return_type = strip_constraints(program, return_type);
@@ -360,7 +359,7 @@ fn lifetime_bound_result(
 }
 
 fn direct_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(ReferenceAccess, Option<Identifier>)> {
     let type_reference = strip_constraints(program, type_reference);
@@ -374,7 +373,7 @@ fn direct_reference(
 }
 
 fn strip_constraints(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -450,7 +449,7 @@ fn compatible_content(left: &ContentProjectionPlan, right: &ContentProjectionPla
 }
 
 fn append_type_domains(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     domains: &mut Vec<DomainApplication>,
 ) {
@@ -489,7 +488,7 @@ struct DomainApplication {
 }
 
 fn nominal_domain_application(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<DomainApplication> {
     let definition = program
@@ -505,7 +504,10 @@ fn nominal_domain_application(
         })
 }
 
-fn type_contains_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn type_contains_reference(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     type_reference.is_valid() && crate::borrow::view_link::returns_borrow(program, type_reference)
 }
 
@@ -515,7 +517,7 @@ fn push_unique_domain_application(domains: &mut Vec<DomainApplication>, domain: 
     }
 }
 
-fn domain_name(program: &TypedTrees, symbol: SymbolHandle) -> &str {
+fn domain_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> &str {
     program
         .domain_definitions()
         .iter()

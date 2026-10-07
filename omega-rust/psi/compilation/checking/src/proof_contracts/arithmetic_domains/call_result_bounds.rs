@@ -1,7 +1,7 @@
 //! Modular result bounds from exact, builtin normal-return contract facts.
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Interval, ProofFact, SignatureContractKind,
-    TypeReferenceHandle, TypedTrees, ValueEnvironment, guard_narrowing, range_constraint_interval,
+    TypeReferenceHandle, ValueEnvironment, guard_narrowing, range_constraint_interval,
 };
 use crate::machine_calls::calls::CalleeContract;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
@@ -11,7 +11,7 @@ use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 
 pub(super) fn normal_return_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     declared: Interval,
     actuals: &[(SymbolHandle, Interval)],
@@ -69,7 +69,7 @@ pub(super) fn normal_return_interval(
 }
 
 fn project(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
@@ -129,7 +129,7 @@ fn project(
 }
 
 fn operand_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
@@ -197,7 +197,7 @@ fn operand_interval(
 }
 
 fn builtin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     expression: ExpressionHandle,
     operator: BinaryOperator,

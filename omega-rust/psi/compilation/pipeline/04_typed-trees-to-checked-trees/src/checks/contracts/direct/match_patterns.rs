@@ -2,12 +2,11 @@
 //! Substitution maps formal leaves to caller operands; display labels never
 //! establish equality between different symbols or mutable storage locations.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: ExpressionHandle,
     pattern: ExpressionHandle,
     matched: bool,
@@ -29,7 +28,7 @@ pub(super) fn proves(
 
 #[allow(clippy::too_many_arguments)]
 fn proves_scoped(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: ExpressionHandle,
     pattern: ExpressionHandle,
     matched: bool,

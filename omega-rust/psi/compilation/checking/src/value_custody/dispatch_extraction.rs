@@ -29,7 +29,7 @@ pub struct DispatchExtraction {
 impl DispatchExtraction {
     /// Read the case tests of the transition arm at `statement_index`.
     pub fn of_transition_arm(
-        program: &typed_trees::TypedTrees,
+        program: &dyn crate::CheckingInput,
         state: &typed_trees::state::State,
         statement_index: usize,
     ) -> Self {
@@ -75,7 +75,7 @@ impl DispatchExtraction {
     /// dispatch extracted from a selected case of its saved subject.
     pub fn reads_extracted_copy(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn crate::CheckingInput,
         mut expression: ExpressionHandle,
         is_plain_copy: impl Fn(ExpressionHandle) -> bool,
     ) -> bool {

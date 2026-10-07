@@ -1,12 +1,11 @@
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 
 /// Transient, program-local results of positive entailment judgments. The
 /// runtime place prover need not duplicate structural or integer proof rules,
 /// but absence of a validation error is not evidence for any postcondition.
 pub(super) struct ProvenExitExpressions<'program, 'frames> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     classification: &'program typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&'frames validation::CallFrameResolver<'program>>,
     /// Postconditions validation already proved on this program, by machine.
@@ -25,7 +24,7 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
     /// `resolver` borrows it. `None` disables the isolated-proof-value path
     /// exactly as an unconstructable resolver did before.
     pub(super) fn new(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         classification: &'program typed_trees::proof_only::ProofOnlyClassification,
         resolver: Option<&'frames validation::CallFrameResolver<'program>>,
         validated: &'frames [(SymbolHandle, Vec<ExpressionHandle>)],
@@ -104,7 +103,10 @@ impl<'program, 'frames> ProvenExitExpressions<'program, 'frames> {
 /// Integral reflexivity is independent of parameter substitution. An
 /// inherited signature keeps its own formal symbol, not the implementing
 /// machine's parameter identity. Floating equality is deliberately excluded.
-pub(super) fn integral_parameter_reflexivity(program: &TypedTrees, fact: &facts::Fact) -> bool {
+pub(super) fn integral_parameter_reflexivity(
+    program: &dyn ::validation::CheckingInput,
+    fact: &facts::Fact,
+) -> bool {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
     use typed_trees::types::TypeReferenceNode;
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
@@ -163,7 +165,7 @@ pub(super) fn integral_parameter_reflexivity(program: &TypedTrees, fact: &facts:
 }
 
 pub(super) fn transparent_proposition_proves_exit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     outcome: &MachineEntailmentOutcome,
     state_flow: &checked_trees::FlowStateFact,
     fact: &facts::Fact,
@@ -199,7 +201,7 @@ pub(super) fn transparent_proposition_proves_exit(
 /// Complete empty checked frames exclude transitive writes. Direct owned
 /// parameter assignments must also be absent: they are not outward effects.
 fn entry_premises_are_preserved(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine_symbol: SymbolHandle,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -240,7 +242,7 @@ fn entry_premises_are_preserved(
 /// one observation point. Ask for the exact call entry, never reuse an exit
 /// judgment or import an unproved callee guarantee.
 pub(super) fn structural_call_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
@@ -295,7 +297,7 @@ pub(super) fn structural_call_requirement(
 }
 
 fn isolated_proof_values(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: &typed_trees::machine::Machine,
     classification: &typed_trees::proof_only::ProofOnlyClassification,

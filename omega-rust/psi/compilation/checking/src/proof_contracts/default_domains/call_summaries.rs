@@ -6,7 +6,6 @@
 
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Slice 11: state symbol to its owning machine symbol, built once per
@@ -15,7 +14,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// collision, matching the removed per-call scan's early return.
 pub(crate) type StateToMachine = SymbolKeyMap<SymbolHandle, SymbolHandle>;
 
-pub(crate) fn state_to_machine_index(program: &TypedTrees) -> StateToMachine {
+pub(crate) fn state_to_machine_index(program: &dyn crate::CheckingInput) -> StateToMachine {
     let mut index = StateToMachine::default();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -28,7 +27,7 @@ pub(crate) fn state_to_machine_index(program: &TypedTrees) -> StateToMachine {
 /// Slice 11: find call targets inside an expression and join their
 /// establishment summaries.
 pub(super) fn collect_call_summaries(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     state_to_machine: &StateToMachine,
     summaries: &SymbolKeyMap<SymbolHandle, Vec<String>>,

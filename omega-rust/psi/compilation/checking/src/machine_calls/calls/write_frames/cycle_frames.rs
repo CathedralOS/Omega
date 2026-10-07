@@ -45,7 +45,6 @@ use crate::machine_calls::calls::write_frames::transition_topology::{
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_may_carry_write;
 use crate::machine_calls::calls::write_frames::{stored_origins, wire_codecs};
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -59,7 +58,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// bound. Unknown effects or origins remain opaque. Borrow admission is a
 /// separate judgment and still rejects conflicting uses of aliased storage.
 pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     entry: &'program State,
     symbols: &TopLevelSymbols<'program>,
@@ -203,7 +202,7 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
 }
 
 fn build_cycle_frame_equation<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     symbols: &TopLevelSymbols<'program>,
@@ -375,12 +374,15 @@ fn build_cycle_frame_equation<'program>(
                     push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
                 }
                 if let Some(replacement) = replacement {
-                    stored_origins::record_replacement_local(&mut inference, &mut stored, replacement);
+                    stored_origins::record_replacement_local(
+                        &mut inference,
+                        &mut stored,
+                        replacement,
+                    );
                 }
             }
             StatementNode::Call(call) => {
                 let receiver_members =
-
                     crate::program_scope::call_targets::call_receiver_member_names(program, call);
                 let arguments = program.statement_table.expression_handles(call.arguments);
                 // Synthesized wire codecs frame from their borrowed arguments;
@@ -558,7 +560,7 @@ fn build_cycle_frame_equation<'program>(
 /// parameters substitute through authored arguments like call-frame
 /// instantiation. Value-position call writes are collected before the jump.
 pub(crate) fn summarize_transition_target_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source_state: &State,
     target: typed_trees::statement::TransitionTargetHandle,

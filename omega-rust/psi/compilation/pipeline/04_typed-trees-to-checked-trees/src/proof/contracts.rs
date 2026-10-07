@@ -40,7 +40,7 @@ pub(crate) use operators::build_contract_operator_use_facts;
 /// identities. Besides avoiding call-stack growth, this makes a malformed
 /// cyclic signature span terminate without repeatedly emitting the same row.
 pub(crate) fn machine_parameter_evidence_signatures<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     parameters: &'program [typed_trees::data::TypeParameter],
 ) -> Vec<(
     SymbolHandle,
@@ -98,7 +98,7 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
 }
 
 pub(crate) fn append_machine_contract_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     contract_facts: &mut arena::Arena<ContractProofFact>,
     evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
@@ -166,7 +166,7 @@ pub(crate) fn append_machine_contract_facts(
 }
 
 pub(crate) fn append_operator_declaration_contract_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     contract_facts: &mut arena::Arena<ContractProofFact>,
 ) {
@@ -192,7 +192,7 @@ pub(crate) fn append_operator_declaration_contract_facts(
 }
 
 pub(crate) fn append_state_contract_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     contract_facts: &mut arena::Arena<ContractProofFact>,
@@ -269,7 +269,7 @@ pub(crate) fn append_state_contract_facts(
 }
 
 pub(crate) fn append_state_signature_contract_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
     signatures: &[typed_trees::signature::StateSignature],
     contract_facts: &mut arena::Arena<ContractProofFact>,

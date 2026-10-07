@@ -1,7 +1,7 @@
 //! Whole replacement changes live extent; builtin byte replacement does not.
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 
 use super::{
     arrays::bounded_byte_type_capacity, expressions::expression_indexable_length,
@@ -9,7 +9,7 @@ use super::{
 };
 
 pub(super) fn replacement_length(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -22,7 +22,7 @@ pub(super) fn replacement_length(
 }
 
 pub(super) fn value_preserves_indexed_extent<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &State,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
@@ -71,7 +71,7 @@ pub(super) fn value_preserves_indexed_extent<'program>(
 }
 
 pub(super) fn assigned_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -98,7 +98,7 @@ pub(super) fn assigned_extent(
 }
 
 pub(super) fn seed_assigned_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &mut RangeFacts<'_>,

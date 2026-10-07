@@ -8,10 +8,9 @@ use crate::checks::termination::progress::machine_summaries::{
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(super) fn finite_projection_limit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     component: &[SymbolHandle],

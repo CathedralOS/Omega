@@ -8,7 +8,6 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     signature::StateParameter,
     statement::StatementNode,
@@ -16,7 +15,7 @@ use typed_trees::{
 };
 
 pub(in super::super) struct Denotations<'a> {
-    pub program: &'a TypedTrees,
+    pub program: &'a dyn ::validation::CheckingInput,
     pub facts: &'a CheckFacts,
     pub caller_state_symbol: SymbolHandle,
     pub statement_index: usize,

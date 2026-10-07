@@ -1,5 +1,4 @@
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -15,7 +14,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// (computed) classification, visible at its declaration -- never of the
 /// call site's context.
 pub(super) fn validate_result_use(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     target_name: &str,
     return_type: TypeReferenceHandle,

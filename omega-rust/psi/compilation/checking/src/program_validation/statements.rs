@@ -16,7 +16,6 @@ use crate::{
     proof_contracts::arithmetic_domains, value_custody::placed_views,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
@@ -24,7 +23,7 @@ use typed_trees::statement::StatementNode;
 /// under validation, the symbol tables and the transition environments.
 #[derive(Clone, Copy)]
 pub(super) struct StatementScope<'a> {
-    pub(super) program: &'a TypedTrees,
+    pub(super) program: &'a dyn crate::CheckingInput,
     pub(super) machine: &'a typed_trees::machine::Machine,
     pub(super) state_name: &'a str,
     pub(super) current_state: Option<&'a typed_trees::state::State>,
@@ -47,7 +46,7 @@ pub(super) struct StatementOutputs<'a> {
 }
 
 pub(super) fn validate_state_statement_node<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_name: &str,
     current_state: Option<&typed_trees::state::State>,
@@ -65,7 +64,7 @@ pub(super) fn validate_state_statement_node<'p>(
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     bound_lookup: &mut (
-        &'p TypedTrees,
+        &'p dyn crate::CheckingInput,
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
     ),
     diagnostics: &mut Vec<Diagnostic>,

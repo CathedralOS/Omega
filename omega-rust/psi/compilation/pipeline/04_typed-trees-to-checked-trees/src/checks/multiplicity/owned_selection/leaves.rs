@@ -12,7 +12,7 @@ use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn has_owned_leaf(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -56,7 +56,7 @@ pub(super) fn has_owned_leaf(
 /// root may be a whole local or a call's structural product; the product is
 /// its own once-evaluated owner and carries no roster source.
 pub(super) fn projected_leaf_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -187,7 +187,7 @@ pub(super) fn projected_leaf_source(
 }
 
 pub(super) fn collect_leaves(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -348,7 +348,7 @@ pub(super) fn collect_leaves(
 /// declared member type, not the source root's whole-place type, so a whole
 /// name at field position cannot name the moved custody the roster records.
 pub(super) fn collect_field_leaves(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -424,7 +424,7 @@ pub(super) fn collect_field_leaves(
 /// no transfer; its field operands obey the same no-hidden-ownership rules as
 /// selection predicates.
 pub(super) fn fresh_leaf(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -449,7 +449,7 @@ pub(super) fn fresh_leaf(
 /// the multiplicity's owned-storage walls, and the field value list is handed
 /// back for the caller's per-field disposition.
 pub(super) fn fresh_leaf_shape(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,

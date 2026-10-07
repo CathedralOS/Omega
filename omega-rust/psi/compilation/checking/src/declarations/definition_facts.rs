@@ -1,5 +1,4 @@
 use arena::{Handle, HandleSpan};
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::domain::ProofFact;
 
@@ -9,7 +8,7 @@ use facts::{
     ProgramPoint,
 };
 
-pub fn build_definition_fact_plan(program: &TypedTrees) -> FactPlan {
+pub fn build_definition_fact_plan(program: &dyn crate::CheckingInput) -> FactPlan {
     let mut facts = FactPlan::with_capacity(
         estimated_definition_fact_capacity(program),
         estimated_definition_context_capacity(program),
@@ -21,7 +20,7 @@ pub fn build_definition_fact_plan(program: &TypedTrees) -> FactPlan {
     facts
 }
 
-fn estimated_definition_fact_capacity(program: &TypedTrees) -> usize {
+fn estimated_definition_fact_capacity(program: &dyn crate::CheckingInput) -> usize {
     let domain_facts = program
         .domain_definitions()
         .iter()
@@ -35,11 +34,11 @@ fn estimated_definition_fact_capacity(program: &TypedTrees) -> usize {
     domain_facts + data_facts
 }
 
-fn estimated_definition_context_capacity(program: &TypedTrees) -> usize {
+fn estimated_definition_context_capacity(program: &dyn crate::CheckingInput) -> usize {
     program.domain_definitions().len() + program.data_definitions().len()
 }
 
-fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
+fn append_domain_definition_facts(program: &dyn crate::CheckingInput, facts: &mut FactPlan) {
     for domain in program.domain_definitions() {
         let mut refs = HandleSpan::empty();
         for fact_handle in proof_fact_handles(domain.facts) {
@@ -78,7 +77,7 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
     }
 }
 
-fn append_data_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
+fn append_data_definition_facts(program: &dyn crate::CheckingInput, facts: &mut FactPlan) {
     for data in program.data_definitions() {
         let mut refs = HandleSpan::empty();
         for fact_handle in proof_fact_handles(data.where_facts) {
@@ -118,7 +117,7 @@ fn append_data_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
 }
 
 fn data_fact_dependency_places(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     data: &typed_trees::data::DataDefinition,
     proof_fact: &ProofFact,
@@ -161,7 +160,7 @@ fn data_fact_dependency_places(
 /// becomes a dependency `leaf` builds (it also owns the place append into
 /// `facts`); every other node recurses into its operands.
 fn append_expression_dependency_places<D>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     expression: typed_trees::expression::ExpressionHandle,
     dependencies: &mut Vec<D>,
@@ -198,96 +197,34 @@ fn append_expression_dependency_places<D>(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             dependencies.push(leaf(facts, expression));
         }
-        ExpressionNode::Borrow(inner) => append_expression_dependency_places(
-            program,
-            facts,
-            inner.target,
-            dependencies,
-            leaf,
-        ),
+        ExpressionNode::Borrow(inner) => {
+            append_expression_dependency_places(program, facts, inner.target, dependencies, leaf)
+        }
         ExpressionNode::Atomic(atomic) => {
-            append_expression_dependency_places(
-                program,
-                facts,
-                atomic.value,
-                dependencies,
-                leaf,
-            );
-            append_expression_dependency_places(
-                program,
-                facts,
-                atomic.result,
-                dependencies,
-                leaf,
-            );
+            append_expression_dependency_places(program, facts, atomic.value, dependencies, leaf);
+            append_expression_dependency_places(program, facts, atomic.result, dependencies, leaf);
         }
         ExpressionNode::Binary(binary) => {
-            append_expression_dependency_places(
-                program,
-                facts,
-                binary.left,
-                dependencies,
-                leaf,
-            );
-            append_expression_dependency_places(
-                program,
-                facts,
-                binary.right,
-                dependencies,
-                leaf,
-            );
+            append_expression_dependency_places(program, facts, binary.left, dependencies, leaf);
+            append_expression_dependency_places(program, facts, binary.right, dependencies, leaf);
         }
-        ExpressionNode::Cast(cast) => append_expression_dependency_places(
-            program,
-            facts,
-            cast.value,
-            dependencies,
-            leaf,
-        ),
+        ExpressionNode::Cast(cast) => {
+            append_expression_dependency_places(program, facts, cast.value, dependencies, leaf)
+        }
         ExpressionNode::Call(call) => {
-            append_expression_dependency_places(
-                program,
-                facts,
-                call.receiver,
-                dependencies,
-                leaf,
-            );
+            append_expression_dependency_places(program, facts, call.receiver, dependencies, leaf);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                append_expression_dependency_places(
-                    program,
-                    facts,
-                    *argument,
-                    dependencies,
-                    leaf,
-                );
+                append_expression_dependency_places(program, facts, *argument, dependencies, leaf);
             }
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                append_expression_dependency_places(
-                    program,
-                    facts,
-                    *value,
-                    dependencies,
-                    leaf,
-                );
+                append_expression_dependency_places(program, facts, *value, dependencies, leaf);
             }
         }
         ExpressionNode::Range(range) => {
-            append_expression_dependency_places(
-                program,
-                facts,
-                range.start,
-                dependencies,
-                leaf,
-            );
-            append_expression_dependency_places(
-                program,
-                facts,
-                range.end,
-                dependencies,
-                leaf,
-            );
+            append_expression_dependency_places(program, facts, range.start, dependencies, leaf);
+            append_expression_dependency_places(program, facts, range.end, dependencies, leaf);
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
@@ -300,13 +237,9 @@ fn append_expression_dependency_places<D>(
                 );
             }
         }
-        ExpressionNode::Unary(unary) => append_expression_dependency_places(
-            program,
-            facts,
-            unary.operand,
-            dependencies,
-            leaf,
-        ),
+        ExpressionNode::Unary(unary) => {
+            append_expression_dependency_places(program, facts, unary.operand, dependencies, leaf)
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
@@ -317,7 +250,7 @@ fn append_expression_dependency_places<D>(
 }
 
 fn append_data_expression_dependency_places(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     data: &typed_trees::data::DataDefinition,
     expression: typed_trees::expression::ExpressionHandle,
@@ -336,7 +269,7 @@ fn append_data_expression_dependency_places(
 }
 
 fn append_domain_expression_dependency_places(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     domain_target: typed_trees::types::TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
@@ -355,7 +288,7 @@ fn append_domain_expression_dependency_places(
 }
 
 fn append_data_expression_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     data: &typed_trees::data::DataDefinition,
     expression: typed_trees::expression::ExpressionHandle,
@@ -450,7 +383,7 @@ fn append_data_expression_place(
 /// An index expression's place segment: a constant index becomes a fixed
 /// slot, anything else keeps the expression.
 fn push_index_place_segment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     indexed: &typed_trees::expression::TableIndexedExpression,
     place: PlaceHandle,
@@ -469,7 +402,7 @@ fn push_index_place_segment(
 /// Push the resolved member's case-variant (when payload-carried) and field
 /// segments onto `place`.
 fn push_member_field_segments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     place: PlaceHandle,
     symbol: symbols::SymbolHandle,
@@ -481,7 +414,7 @@ fn push_member_field_segments(
 }
 
 fn data_field_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     symbol: symbols::SymbolHandle,
 ) -> Option<symbols::SymbolHandle> {
@@ -495,7 +428,7 @@ fn data_field_symbol(
 }
 
 fn domain_fact_dependency_places(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     domain: &typed_trees::domain::DomainDefinition,
     proof_fact: &ProofFact,
@@ -535,7 +468,7 @@ fn domain_fact_dependency_places(
 }
 
 fn append_domain_expression_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     domain_target: typed_trees::types::TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
@@ -585,7 +518,7 @@ fn append_domain_expression_place(
 }
 
 fn domain_target_member_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: typed_trees::types::TypeReferenceHandle,
     member_name: &str,
 ) -> Option<symbols::SymbolHandle> {
@@ -621,7 +554,7 @@ fn domain_target_member_symbol(
 }
 
 fn append_proof_fact_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     proof_fact: &ProofFact,
 ) -> PlaceHandle {
@@ -637,7 +570,7 @@ fn append_proof_fact_place(
 }
 
 fn append_data_proof_fact_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &mut FactPlan,
     data: &typed_trees::data::DataDefinition,
     proof_fact: &ProofFact,

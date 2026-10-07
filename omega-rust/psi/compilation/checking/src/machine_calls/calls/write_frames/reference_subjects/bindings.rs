@@ -8,7 +8,7 @@
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::{
     ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, StateParameter, TopLevelSymbols,
-    TypedTrees, caller_aliases, local_aliases, stored_origins,
+    caller_aliases, local_aliases, stored_origins,
 };
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
@@ -21,7 +21,7 @@ use symbols::SymbolKeyMap as HashMap;
 /// it to another machine. Every call operand inside that initializer still
 /// needs its own exposure fence, independently of the call's write frame.
 pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -54,7 +54,7 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,

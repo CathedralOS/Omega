@@ -46,7 +46,7 @@ pub(super) fn project_callable_conformances(
             if let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                 requirement,
             )) = typed_trees::machine::resolve_satisfied_declaration(
-                &compilation.typed,
+                compilation.checking_input,
                 machine,
                 conformance,
             ) {
@@ -70,13 +70,13 @@ pub(super) fn project_callable_conformances(
             }
             let operator =
                 typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                    &compilation.typed,
+                    compilation.checking_input,
                     machine,
                     conformance,
                 )
                 .or_else(|| {
                     typed_trees::operator::resolve_specialized_checked_operator_application(
-                        &compilation.typed,
+                        compilation.checking_input,
                         machine,
                         conformance.name.as_str(),
                         requirement_name.as_str(),
@@ -169,7 +169,7 @@ pub(super) fn project_callable_conformances(
                 ))]);
             };
             validation::validate_checked_operator_realization_contract(
-                &compilation.typed,
+                compilation.checking_input,
                 machine,
                 operator,
             )?;
@@ -209,7 +209,7 @@ pub(super) fn project_callable_conformances(
             definition: resolved_trait,
             requirement,
         }) = typed_trees::machine::resolve_satisfied_declaration(
-            &compilation.typed,
+            compilation.checking_input,
             machine,
             conformance,
         )

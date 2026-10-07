@@ -29,7 +29,6 @@ use crate::value_custody::reference_shells::{
 };
 use checked_trees::CheckedByteSequenceCarrier;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -38,7 +37,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// with a bounded view keeping its loan and a bounded byte owner keeping its
 /// qualification (see the module comment).
 pub fn structural_identity_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
@@ -82,7 +81,7 @@ pub fn structural_identity_type(
 /// the plan describes the storage a value lends or owns: the identity of
 /// [`structural_identity_type`] under the same binders and substitutions.
 pub fn structural_type_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -105,7 +104,7 @@ pub fn structural_type_identity(
 /// store their own descriptors; any other loan stores a pointer to a referent
 /// that stays where it lives.
 pub fn stores_reference_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
@@ -119,7 +118,7 @@ pub fn stores_reference_shape(
 /// registered under its whole reference type; every other value under
 /// [`structural_type_identity`].
 pub fn stored_structural_type_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

@@ -66,7 +66,7 @@ impl std::fmt::Debug for IncomingGuardIndexCache {
 impl IncomingGuardIndexCache {
     pub(crate) fn index(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> &IncomingGuardIndex {
         let cell = if call_frames.is_some() {
@@ -80,7 +80,7 @@ impl IncomingGuardIndexCache {
 
 impl IncomingGuardIndex {
     pub(in crate::checks) fn build(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Self {
         // The bound index is immutable program data: build it once here
@@ -221,7 +221,7 @@ enum StateWrites {
 /// index, so batch consumers pass one in instead of paying that whole-program
 /// cost once per machine (or, in contract checking, once per call).
 pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
@@ -463,7 +463,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
 /// own guard (evaluated after P's statements, so it holds at J's entry without a
 /// survives check). Used by the multi-predecessor meet.
 fn edge_carried_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     walk_facts: &[IncomingGuard],
     writes: &[(SymbolHandle, StateWrites)],
     edge: &Edge,
@@ -543,7 +543,7 @@ fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
 }
 
 fn compose_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     arguments: arena::HandleSpan<ExpressionHandle>,
     bindings: &[(SymbolHandle, Option<crate::flow::CanonicalPlace>)],
@@ -577,7 +577,7 @@ fn compose_parameter_argument_places(
 }
 
 fn direct_edge_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     edge: &Edge,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
     let target_state = crate::semantic::calls::find_state(program, edge.target)?;
@@ -600,7 +600,7 @@ fn direct_edge_parameter_argument_places(
 }
 
 fn compose_carried_parameter_argument_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     edge: &Edge,
     fact: &IncomingGuard,
 ) -> Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>> {
@@ -630,7 +630,7 @@ fn compose_carried_parameter_argument_places(
 }
 
 fn immutable_parameter_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
 ) -> ImmutableArgumentSymbols {
     program
@@ -652,7 +652,7 @@ fn immutable_parameter_symbols(
 /// Scalar transport follows the same edges as place transport, but cannot
 /// substitute away a mutable intermediate binding's changed value.
 fn direct_edge_immutable_argument_symbols(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     edge: &Edge,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<ImmutableArgumentSymbols> {
@@ -705,7 +705,7 @@ fn substituted_immutable_symbol(
 }
 
 fn immutable_argument_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
@@ -740,7 +740,7 @@ fn immutable_argument_symbol(
 }
 
 fn immutable_integer_binding(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -826,7 +826,7 @@ fn state_field_writes(
 /// opaque call frame. An un-analyzable guard only survives at the immediate
 /// edge (nothing written yet).
 fn guard_survives(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     guard_state: SymbolHandle,
     written: &[String],
@@ -849,7 +849,7 @@ fn guard_survives(
 /// their authored data place; nested and statement-position calls contribute
 /// the shared R5 normalized frame. Opaque calls fail closed.
 fn state_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -898,7 +898,7 @@ fn extend_unique(target: &mut Vec<String>, additions: &[String]) {
 /// The set of machine-field paths a guard names, or `None` if it contains a node we
 /// cannot conservatively analyze (a call, range, literal aggregate, ...).
 fn guard_member_paths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_binding: Option<&str>,
     guard: ExpressionHandle,
 ) -> Option<Vec<String>> {
@@ -911,7 +911,7 @@ fn guard_member_paths(
 /// A guard's rendered paths are spelled in the state that evaluates it, so
 /// which root they carry is that state's property.
 fn state_data_binding_of(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<&str> {
     let machine = program.machine_holding_state(state_symbol)?;
@@ -927,7 +927,7 @@ fn state_data_binding_of(
 /// Collect every data-rooted field path the expression names; returns false if it
 /// contains a node that might reference a field through a path we do not walk.
 fn collect_member_paths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_binding: Option<&str>,
     expression: ExpressionHandle,
     paths: &mut Vec<String>,
@@ -969,7 +969,7 @@ fn collect_member_paths(
 }
 
 fn push_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     edges: &mut Vec<Edge>,
     source: SymbolHandle,
@@ -1001,7 +1001,7 @@ fn push_edge(
 
 /// Seed `facts` with every entry guard collected for `state`.
 pub(super) fn seed_incoming_guard_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     facts: &mut RangeFacts<'_>,
     state: &State,
@@ -1080,7 +1080,7 @@ pub(super) fn seed_incoming_guard_facts(
 /// fact store keys on labels and a dangling or shadowed spelling would
 /// mis-aim the premise.
 fn stable_scope_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     evaluation_state: SymbolHandle,
@@ -1103,7 +1103,7 @@ fn stable_scope_conjuncts(
 /// the whole guard when it already qualifies; otherwise each qualifying
 /// side, so a mixed conjunction still contributes its admissible half.
 fn qualifying_guard_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: ExpressionHandle,
     admissible: &dyn Fn(ExpressionHandle) -> bool,
 ) -> Vec<ExpressionHandle> {
@@ -1148,7 +1148,7 @@ fn qualifying_guard_conjuncts(
 /// Operand-leaf admissibility for the stable-scope family: machine storage,
 /// plus evaluation-state parameters bound identically across the edge.
 fn expression_in_stable_scope(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     evaluation_state: SymbolHandle,
@@ -1180,7 +1180,7 @@ fn expression_in_stable_scope(
 /// with no projections, and no same-named local in the target scope may
 /// capture the label.
 fn parameter_bound_identically(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     evaluation_state: SymbolHandle,
     state: &State,
     parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
@@ -1226,7 +1226,7 @@ fn parameter_bound_identically(
 }
 
 fn guard_uses_machine_storage_only(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
@@ -1239,7 +1239,7 @@ fn guard_uses_machine_storage_only(
 /// The expression-tail walk both machine-storage eligibility tests share:
 /// names delegate to `name_test`, every other node recurses, literals pass.
 fn expression_tail_eligible(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     name_test: &dyn Fn(ExpressionHandle) -> bool,
 ) -> bool {

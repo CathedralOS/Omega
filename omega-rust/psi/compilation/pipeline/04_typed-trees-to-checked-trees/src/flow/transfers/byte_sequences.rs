@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_derived_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -73,7 +73,7 @@ pub(super) fn append_derived_predicates(
 }
 
 fn value_proves_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     operators: &checked_trees::CheckedOperatorFacts,
     active: &[Fact],
@@ -199,7 +199,7 @@ fn value_proves_predicate(
 /// class the previous store left behind.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_element_replacement_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -413,7 +413,7 @@ pub(super) fn append_element_replacement_predicates(
 // Read captured scalar values without replaying mutable operand expressions.
 #[allow(clippy::too_many_arguments)]
 fn replacement_byte(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
@@ -461,7 +461,7 @@ fn replacement_byte(
 /// exact literal snapshot, an already-proved per-byte class, or a declared
 /// domain whose own predicate implies it.
 fn carrier_proves_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     carrier_facts: &[Fact],
     predicate: crate::facts::field_domain::ByteSequencePredicate,
     ceiling: &[crate::facts::field_domain::ByteSequencePredicate],
@@ -499,7 +499,7 @@ fn carrier_proves_predicate(
 /// attached storage root; authored accesses may still use the current self
 /// parameter or an inherited field root.
 fn facts_about_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     active: &[Fact],
     carrier: PlaceHandle,
@@ -523,7 +523,7 @@ fn facts_about_place(
 }
 
 fn index_free_membership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: symbols::SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {

@@ -8,7 +8,6 @@ use crate::declarations::traits::conformance::signature_matching::{
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
@@ -24,7 +23,7 @@ pub(crate) struct GenericBoundRequirement<'program> {
 /// binder's trait. The binder's trait arguments substitute the trait's own
 /// parameters; there is no subject binding.
 pub(crate) fn named_conformance_argument_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
     requirement: &GenericBoundRequirement<'_>,
@@ -49,7 +48,7 @@ pub(crate) fn named_conformance_argument_matches(
 }
 
 pub(crate) fn validate_generic_conformance_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -63,7 +62,7 @@ pub(crate) fn validate_generic_conformance_bounds(
 }
 
 pub(crate) fn validate_trait_conformance_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -77,7 +76,7 @@ pub(crate) fn validate_trait_conformance_bounds(
 }
 
 fn validate_conformance_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner_kind: &str,
     owner_name: &str,
     bounds: &[typed_trees::machine::GenericConformanceBound],

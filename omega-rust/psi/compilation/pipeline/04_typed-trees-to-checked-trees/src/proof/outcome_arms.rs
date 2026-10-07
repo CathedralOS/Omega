@@ -11,7 +11,7 @@ use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 /// tests the saved result of a direct immutable call. Broader value-origin
 /// tracing intentionally remains fail-closed for this stage.
 pub(crate) fn bind_outcome_specific_arm_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
@@ -251,7 +251,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
 }
 
 fn outcome_evidence_interface_scope(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proposition: &checked_trees::CheckedPropositionApplication,
     retained_occurrences: &[typed_trees::expression::ExpressionHandle],
 ) -> Option<checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
@@ -276,7 +276,7 @@ fn outcome_evidence_interface_scope(
 }
 
 fn append_evidence_interface_reference_regions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     regions: &mut Vec<typed_trees::types::TypeReferenceHandle>,
 ) {
@@ -312,7 +312,7 @@ fn append_evidence_interface_reference_regions(
 }
 
 pub(crate) fn exact_outcome_case_test(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -374,7 +374,7 @@ pub(crate) fn exact_outcome_case_test(
 }
 
 fn outcome_call_substitutions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _caller_state_symbol: SymbolHandle,
     result_expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -406,7 +406,7 @@ fn outcome_call_substitutions(
 }
 
 fn instantiate_outcome_arm_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> (
@@ -451,7 +451,7 @@ fn instantiate_outcome_arm_fact(
 }
 
 pub(crate) fn exact_result_case(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     result: typed_trees::expression::ExpressionHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     use typed_trees::expression::ExpressionNode;
@@ -480,7 +480,7 @@ pub(crate) fn exact_result_case(
 }
 
 pub(crate) fn outcome_specific_fact_is_proved(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     result: Option<typed_trees::expression::ExpressionHandle>,
     known: &std::collections::BTreeSet<String>,
@@ -515,7 +515,7 @@ pub(crate) fn outcome_specific_fact_is_proved(
 }
 
 pub(crate) fn outcome_specific_assignment_matches_result(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     result: Option<typed_trees::expression::ExpressionHandle>,

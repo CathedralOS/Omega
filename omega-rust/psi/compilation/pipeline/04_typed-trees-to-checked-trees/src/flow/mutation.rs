@@ -48,7 +48,7 @@ pub(super) enum WritePlaceNamespace {
 /// Reuse the resolver prepared for this immutable program; local origins still
 /// resolve at the exact caller prefix, not from an earlier query's facts.
 pub(crate) fn call_mutated_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -117,7 +117,7 @@ pub(crate) fn call_mutated_places(
 /// lifetime authority. Without a loan, callers
 /// inspect the complete write set (for example, restored-use certificates).
 pub(crate) fn call_write_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -144,7 +144,7 @@ pub(crate) fn call_write_accesses(
 /// the whole receiver place when no complete summary is known. Writes through
 /// explicit `&mut` arguments are excluded; argument checks own those.
 pub(crate) fn call_receiver_write_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -174,7 +174,7 @@ pub(crate) fn call_receiver_write_accesses(
 }
 
 fn call_write_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -313,7 +313,7 @@ fn call_write_places(
 }
 
 fn shared_call_storage_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -409,7 +409,7 @@ fn shared_call_storage_places(
 /// own place. `false` disables refinement entirely when an exclusive actual
 /// cannot be spelled as caller storage at all.
 fn boundary_frame_access_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -562,7 +562,7 @@ fn is_index_place_segment(segment: facts::PlaceSegment) -> bool {
 /// frame path could have coarsened away. An equal-length place (including a
 /// whole-collection borrow or receiver) also counts: it contributed the path.
 fn storage_extends_frame_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     exact: &CanonicalPlace,
     coarse: &CanonicalPlace,
 ) -> bool {
@@ -578,7 +578,7 @@ fn storage_extends_frame_place(
 }
 
 fn call_is_storage_free_asm_intrinsic(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &BorrowCallFact,
 ) -> bool {
     // These canonical intrinsics affect machine services, not caller storage.
@@ -590,7 +590,7 @@ fn call_is_storage_free_asm_intrinsic(
 }
 
 pub(crate) fn statement_mutated_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -616,7 +616,7 @@ pub(crate) fn statement_mutated_place(
 /// Storage writes for fact invalidation, including compiler-owned operations
 /// on borrowed receivers. An unresolved origin requires full invalidation.
 pub(crate) fn statement_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -665,7 +665,7 @@ pub(crate) fn statement_storage_writes(
 /// Project a shared complete call frame into the exact caller storage namespace.
 /// Coarse selectors remain conservative writes; they are not value provenance.
 pub(crate) fn frame_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -699,7 +699,7 @@ pub(crate) fn frame_storage_writes(
 }
 
 fn normalize_write_only_range_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     place: &mut CanonicalPlace,
 ) {

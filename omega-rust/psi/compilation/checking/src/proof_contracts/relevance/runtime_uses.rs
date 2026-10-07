@@ -5,7 +5,6 @@ use super::{
 use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -14,7 +13,7 @@ use typed_trees::statement::TableCall;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn validate_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     state: &State,
@@ -177,7 +176,7 @@ pub(super) fn validate_expression(
 }
 
 fn validate_struct_literal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     state: &State,
@@ -253,7 +252,7 @@ fn validate_struct_literal(
 /// a direct read. The caller runs this only when the call itself is a runtime
 /// call; a proof-machine receiver may cite erased bindings as proof material.
 pub(super) fn validate_statement_call_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCall,
@@ -321,7 +320,7 @@ pub(super) fn validate_statement_call_receiver(
 /// local of the current state, or an attached field named bare. Anything else
 /// (a namespace root, an unresolved projection) yields no owner to descend.
 fn receiver_root_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     root: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -342,7 +341,7 @@ fn receiver_root_type(
 }
 
 fn report_runtime_erased_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
@@ -364,7 +363,7 @@ fn report_runtime_erased_field(
 /// An erased parameter or `let` local of the current state has no runtime
 /// value; a runtime read of its symbol rejects exactly like an erased field.
 fn report_runtime_erased_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -406,7 +405,7 @@ fn report_runtime_erased_binding(
 }
 
 fn report_runtime_erased_attached_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     name: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -432,7 +431,7 @@ fn report_runtime_erased_attached_field(
 }
 
 fn report_runtime_erased_member_by_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     receiver: ExpressionHandle,
@@ -492,7 +491,7 @@ fn report_runtime_erased_member_by_receiver(
 }
 
 fn literal_fields<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &'program DataDefinition,
     case_name: Option<&typed_trees::name::Identifier>,
 ) -> impl Iterator<Item = &'program DataField> {
@@ -511,7 +510,7 @@ fn literal_fields<'program>(
     fields.into_iter()
 }
 
-fn field_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DataField> {
+fn field_by_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<&DataField> {
     // A frozen program answers every field symbol from one table pass; any
     // other program rescans, since one query costs less than the index.
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {

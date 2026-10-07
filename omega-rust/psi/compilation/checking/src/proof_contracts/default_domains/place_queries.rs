@@ -4,7 +4,6 @@
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
 use language_core::{is_rooted_at, is_self_receiver};
-use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -16,7 +15,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// -- their writes carry the same obligation; only their VALUATION model
 /// differs (no born zero).
 pub(super) fn self_place_spelling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(expression) {
@@ -66,7 +65,7 @@ pub(super) fn is_data_rooted(data_binding: Option<&str>, spelling: &str) -> bool
 /// escape every invariant-window obligation (ch11's conservative ceiling on
 /// unrepresentable origins).
 pub(super) fn write_place_spelling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(expression) {
@@ -143,7 +142,7 @@ pub(super) fn is_subplace(child: &str, parent: &str) -> bool {
 /// not a read, so it is never reported; index expressions are ordinary
 /// evaluated reads (and may contain calls).
 pub(super) fn write_target_index_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
     let mut indexes = Vec::new();
@@ -167,7 +166,7 @@ pub(super) fn write_target_index_expressions(
 /// Call sites inside these are consumption points exactly like call
 /// statements.
 pub(super) fn transition_evaluated_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     transition: &typed_trees::statement::TableTransition,
 ) -> Vec<ExpressionHandle> {
     let mut evaluated = Vec::new();
@@ -192,7 +191,7 @@ pub(super) fn transition_evaluated_expressions(
 }
 
 pub(super) fn domain_definition_by_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     name: &str,
 ) -> Option<&'program DataDefinition> {
     program
@@ -210,7 +209,10 @@ pub(super) fn domain_definition_by_name<'program>(
 /// facts? A constrained case's facts extend the default domain while that
 /// case is active, so its writes join the same invariant-window net as a
 /// `where`-carrying record's.
-pub(super) fn data_has_case_where_facts(program: &TypedTrees, definition: &DataDefinition) -> bool {
+pub(super) fn data_has_case_where_facts(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> bool {
     program.data_members(definition).iter().any(|member| {
         matches!(member, typed_trees::data::DataMember::Variant(variant)
             if !variant.where_facts.is_empty())
@@ -224,7 +226,7 @@ pub(super) fn data_has_case_where_facts(program: &TypedTrees, definition: &DataD
 /// receivers share the same establishment analysis without manufacturing a
 /// synthetic type-reference handle for `self`.
 pub(super) fn data_definition_for_expression<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -264,7 +266,7 @@ pub(super) fn data_definition_for_expression<'program>(
 }
 
 fn data_definition_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(handle) {
@@ -281,7 +283,7 @@ fn data_definition_for_type(
 }
 
 pub(super) fn field_is_where_mentioned(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     field: &str,
 ) -> bool {
@@ -291,7 +293,7 @@ pub(super) fn field_is_where_mentioned(
 /// Whether any fact in `facts` names `field` -- the write-target test shared
 /// by type-wide `where` facts and a constrained case's own fact span.
 pub(super) fn fact_span_mentions_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     field: &str,
 ) -> bool {
@@ -317,7 +319,7 @@ pub(super) fn fact_span_mentions_field(
 /// synthesized record's field writes re-prove. Folding such a fact against a
 /// FIELD valuation can only answer "unknown".
 pub(super) fn fact_mentions_any_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: &typed_trees::domain::ProofFact,
 ) -> bool {
@@ -339,12 +341,15 @@ pub(super) fn fact_mentions_any_field(
         })
 }
 
-pub(super) fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
+pub(super) fn membership_field_name(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+) -> Option<&str> {
     crate::expression_traversal::name_path_last_member(program, value)
 }
 
 fn expression_mentions_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     name: &str,
 ) -> bool {

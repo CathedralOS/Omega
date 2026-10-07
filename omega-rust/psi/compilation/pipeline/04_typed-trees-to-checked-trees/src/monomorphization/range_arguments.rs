@@ -20,7 +20,6 @@
 //! nor type display strings establish a static endpoint.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
@@ -29,7 +28,10 @@ use validation::{
     declared_integer_range as declared_range,
 };
 
-pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>) {
+pub(super) fn collect_literals(
+    program: &dyn ::validation::CheckingInput,
+    literals: &mut Vec<String>,
+) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {
         for constraint in program.type_reference_table.constraints(constraints) {
             if let TypeConstraintNode::Range {
@@ -59,7 +61,7 @@ pub(super) fn collect_literals(program: &TypedTrees, literals: &mut Vec<String>)
 }
 
 pub(super) fn infer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
     parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
@@ -139,7 +141,7 @@ pub(super) fn infer(
 /// structural equation; the endpoint's named reference is materialized by
 /// `collect_binders` so this lookup stays a pure read.
 fn open_endpoint_binder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     actual_endpoint: typed_trees::expression::ExpressionHandle,
     same_inclusion_position: bool,
 ) -> Option<TypeReferenceHandle> {
@@ -157,7 +159,10 @@ fn open_endpoint_binder(
         .find_named_type_reference(name.symbol)
 }
 
-fn is_const_parameter_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn is_const_parameter_symbol(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> bool {
     symbol.is_valid()
         && program.machines().iter().any(|machine| {
             program
@@ -175,7 +180,7 @@ fn is_const_parameter_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool
 /// reference so `infer` can propose the exact structural equation instead of
 /// an anonymous value leaf.
 pub(super) fn collect_binders(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
 ) {
     for (_, constraints) in program.type_reference_table.constrained_type_references() {

@@ -11,7 +11,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn build_machine_activation_carry_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
 ) -> Vec<checked_trees::MachineActivationCarryFact> {
     // Each machine reads only its own evidenced carry facts. Grouping them
@@ -45,7 +45,7 @@ pub(super) fn build_machine_activation_carry_facts(
 }
 
 fn build_machine_activation_carry_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
     carry_facts: &[&facts::Fact],
@@ -88,7 +88,7 @@ fn build_machine_activation_carry_fact(
 
 /// `carry_facts` are the machine's evidenced carry facts in fact order.
 fn established_claim_carry_policy(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     carry_facts: &[&facts::Fact],
 ) -> Option<CarryPolicy> {
@@ -147,7 +147,7 @@ fn fact_point_machine(point: facts::ProgramPoint) -> Option<SymbolHandle> {
 }
 
 struct ActivationCarryAccumulator<'program> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine_type_parameters: &'program [typed_trees::data::TypeParameter],
     effective: CarryPolicy,
     analysis_complete: bool,
@@ -412,7 +412,7 @@ impl ActivationCarryAccumulator<'_> {
 }
 
 fn find_operator(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Option<&typed_trees::operator::OperatorDefinition> {
     program

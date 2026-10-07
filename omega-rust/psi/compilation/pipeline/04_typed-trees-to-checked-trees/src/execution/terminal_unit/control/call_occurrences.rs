@@ -4,7 +4,7 @@
 //! exact roots, independently of the destination's spelling. This roster only
 //! accounts for the calls: the store planner and emitter still establish the
 //! destination and evaluate selectors before the value, once in authored order.
-use super::{CheckFacts, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
+use super::{CheckFacts, ExpressionNode, StatementNode, SymbolHandle};
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -29,7 +29,7 @@ pub(in crate::execution::terminal_unit) use collecting::call_owns_statement_comp
 pub(in crate::execution::terminal_unit) use traced::outer_calls_before_traced;
 
 pub(in crate::execution::terminal_unit) fn terminal_named_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -74,7 +74,7 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Option<(
@@ -100,7 +100,7 @@ pub(in crate::execution::terminal_unit) fn tail_call<'a>(
 /// A Unit-result call can occupy a statement without being the state's tail.
 /// Tail consumers retain their existing final-statement check above.
 pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -129,7 +129,7 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
 }
 
 pub(super) fn ordered_statement_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -179,7 +179,7 @@ pub(super) fn ordered_statement_call<'program>(
 
 /// `outer_calls_before` over the whole body, tracing where admission stopped.
 pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -201,7 +201,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
 }
 
 pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

@@ -12,7 +12,6 @@ use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan, Multiplicity,
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    TypedTrees,
 };
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
@@ -20,7 +19,7 @@ use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity}
 
 #[allow(clippy::too_many_arguments)]
 fn validate_permissions_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -151,7 +150,7 @@ fn validate_permissions_at(
 /// evaluation schedule. Scalar and operation callers consume these same rows;
 /// a selected subtree never becomes a second whole temporary.
 pub(crate) fn projected_temporary_residuals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -206,7 +205,7 @@ pub(crate) fn projected_temporary_residuals(
 /// borrowed owners and partially transferred owners without regrouping them.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_continuation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

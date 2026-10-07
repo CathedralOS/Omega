@@ -10,7 +10,7 @@ use super::caller_aliases::{LocalWriteOrigin, LocalWriteSource};
 use super::place_paths::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
 use super::state_write_walk::{CollectedStatementPrefix, stored_reference_transfer};
 use super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
-use super::{FrameInference, Machine, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees};
+use super::{FrameInference, Machine, SymbolHandle, TableCall, TopLevelSymbols};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
@@ -56,7 +56,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEff
 }
 
 pub(super) fn call_effects(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     call: &TableCall,
     context: &CollectedStatementPrefix,
@@ -127,7 +127,10 @@ pub(super) fn call_effects(
     )
 }
 
-fn destination_inventory(program: &TypedTrees, state: &State) -> Option<Vec<StoredWriteOrigin>> {
+fn destination_inventory(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+) -> Option<Vec<StoredWriteOrigin>> {
     let mut leaves = Vec::new();
     for parameter in program.state_parameters(state) {
         if !super::type_reference_is_reference(program, parameter.type_reference)
@@ -161,7 +164,7 @@ fn destination_inventory(program: &TypedTrees, state: &State) -> Option<Vec<Stor
 }
 
 pub(super) fn state_effects(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry: &State,
     symbols: &TopLevelSymbols<'_>,
@@ -195,7 +198,7 @@ struct SlotEquation<'program> {
 /// route: only a real normal exit can seed incoming contents. Root substitution
 /// finiteness bounds the source set before iteration; there is no depth cutoff.
 fn solve_state_effects<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     entry: &'program State,
     symbols: &TopLevelSymbols<'_>,
@@ -396,7 +399,7 @@ fn solve_state_effects<'program>(
 }
 
 fn collect_exit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     inventory: &[StoredWriteOrigin],
     stored: &[StoredLocalOrigins],
@@ -481,7 +484,7 @@ fn collect_exit(
 }
 
 fn instantiate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
@@ -575,7 +578,7 @@ fn instantiate(
 }
 
 fn argument_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameter: &StateParameter,
     actual: ExpressionHandle,
@@ -608,7 +611,7 @@ fn argument_origin(
     })
 }
 
-fn path(program: &TypedTrees, source: &FrameSourcePlace) -> String {
+fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {
     let mut path = program.symbols.name(source.root).to_owned();
     for segment in &source.segments {
         if let PlaceSegment::Field { symbol } = segment {
@@ -620,7 +623,7 @@ fn path(program: &TypedTrees, source: &FrameSourcePlace) -> String {
 }
 
 pub(super) fn apply(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     stored: &mut Vec<StoredLocalOrigins>,
     effects: &[SlotEffect],
 ) {

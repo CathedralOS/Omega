@@ -4,7 +4,6 @@ use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::{contexts, contract_resolution};
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 pub(crate) fn checked_operator_conformance_targets(
@@ -29,7 +28,7 @@ pub(crate) fn checked_operator_conformance_targets(
 }
 
 pub(crate) fn checked_statement_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -66,7 +65,7 @@ pub(crate) fn checked_statement_call_target(
 }
 
 pub(crate) fn checked_call_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     authored_target: SymbolHandle,
@@ -169,7 +168,7 @@ pub(crate) fn checked_call_target(
 }
 
 pub(crate) fn exact_named_operator_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
@@ -198,7 +197,7 @@ pub(crate) fn exact_named_operator_call<'program>(
 }
 
 pub(crate) fn checked_name_path_segment_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
     target_index: usize,
@@ -274,7 +273,7 @@ pub(crate) fn checked_name_path_segment_target(
 }
 
 fn authored_contextual_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -339,7 +338,7 @@ fn authored_contextual_root(
 /// the call, and the row it reaches may be a synthesized default machine that
 /// has no separate authority of its own.
 pub(crate) fn implementation_call_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: SymbolHandle,
 ) -> Option<SymbolHandle> {
     (receiver.is_valid() && program.symbols.get(receiver).kind == symbols::SymbolKind::Conformance)
@@ -347,7 +346,7 @@ pub(crate) fn implementation_call_selection(
 }
 
 pub(crate) fn expression_receiver_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> SymbolHandle {
     if !receiver.is_valid() {

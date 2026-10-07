@@ -8,7 +8,6 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -17,7 +16,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// policy-constrained layer or element is still a closed primitive carrier;
 /// any other constraint keeps its own owner and stops the peel.
 pub fn peel_arithmetic_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained {
@@ -48,7 +47,7 @@ pub fn peel_arithmetic_policy(
 /// (`[i32; 6] in Wrapping`) qualifies arithmetic on its elements, not their
 /// storage, so it is peeled; any other constraint keeps its own owner.
 pub fn closed_array_store_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let peeled = peel_arithmetic_policy(program, reference);
@@ -60,7 +59,7 @@ pub fn closed_array_store_type(
 /// and effects remain separate expression obligations. Admitting IEEE storage
 /// does not admit unselected floating arithmetic in its initializer.
 pub fn is_closed_primitive_array_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> bool {
     let mut array = false;
@@ -105,7 +104,7 @@ pub fn is_closed_primitive_array_type(
 /// Each leaf retains its exact destination carrier so anonymous integer literals
 /// can be rendered by the numeric landing owner without rewriting authored trees.
 pub fn closed_constant_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: symbols::SymbolHandle,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
@@ -195,7 +194,7 @@ pub struct ScalarArrayElements {
 /// constant row still requires all unselected siblings to be closed literals;
 /// this query never makes an effectful sibling disappear.
 pub fn scalar_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: symbols::SymbolHandle,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
@@ -279,7 +278,7 @@ pub fn scalar_array_elements(
 /// predicates or routed authority. Constructor and destination checking retain
 /// those obligations on the complete declared type before lowering.
 pub fn closed_literal_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
@@ -380,7 +379,7 @@ pub fn closed_literal_array_elements(
 /// origin or permission to borrow it. Indexing and operator matching need the
 /// complete type even when there are no literal leaves from which to infer it.
 pub fn declared_constant_array_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !matches!(
@@ -431,7 +430,7 @@ pub fn declared_constant_array_type(
 /// checks operation meaning, not bounds or borrowing. Retaining the projection
 /// type prevents a typed leaf from becoming an anonymous destination literal.
 pub fn builtin_constant_array_projection_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     mut expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -483,7 +482,7 @@ pub fn builtin_constant_array_projection_type(
 }
 
 pub(super) fn validate_declared_array_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut value: ExpressionHandle,
     destination: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -540,7 +539,7 @@ pub(super) fn validate_declared_array_destination(
 /// Recurse for scalar projections too: value-position call arguments do not
 /// otherwise run the statement path's per-element array validation.
 pub(crate) fn validate_constant_projection_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
@@ -618,12 +617,11 @@ pub(crate) fn validate_constant_projection_destination(
     conflict
 }
 
-
 /// Push a fixed array's literal elements onto the pending walk when the
 /// literal count matches the declared length; `false` rejects a mismatched
 /// literal.
 fn extend_fixed_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle, bool)>,
     elements: &arena::HandleSpan<ExpressionHandle>,
     element_type: &TypeReferenceHandle,
@@ -643,7 +641,7 @@ fn extend_fixed_array_elements(
 }
 
 fn same_array_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut declared: TypeReferenceHandle,
     mut destination: TypeReferenceHandle,
 ) -> bool {

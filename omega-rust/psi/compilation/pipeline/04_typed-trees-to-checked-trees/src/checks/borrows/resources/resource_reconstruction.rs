@@ -85,7 +85,7 @@ pub(crate) fn install_borrow_resources(
 }
 
 pub(crate) fn reconstruct_direct_borrow_resources(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
 ) -> Result<Vec<CheckedDirectBorrowLoanResource>, Vec<Diagnostic>> {

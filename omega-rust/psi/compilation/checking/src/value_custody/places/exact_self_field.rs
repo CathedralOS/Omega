@@ -2,7 +2,6 @@
 
 use super::exact_data_member_field;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -16,7 +15,7 @@ use typed_trees::machine::Machine;
 /// one member satisfying `member_matches` — `self` for the machine's own
 /// storage, the storage root's name for a parameter-carried root.
 pub fn single_member_receiver_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     receiver_symbol: SymbolHandle,
@@ -48,7 +47,7 @@ pub fn single_member_receiver_field<'program>(
 }
 
 pub fn exact_self_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
@@ -67,7 +66,7 @@ pub fn exact_self_field<'program>(
 /// Resolve a field in the exact carrier declaration, without machine aliases.
 /// The caller establishes that the expression denotes this receiver's storage.
 pub fn exact_attached_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     field_symbol: SymbolHandle,
     field_name: &str,

@@ -10,7 +10,6 @@
 use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, UnaryOperator,
 };
@@ -29,7 +28,7 @@ use typed_trees::types::{
 /// domains, predicates or selected traits remain unresolved rather than losing
 /// their meaning.
 pub fn expression_result_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -46,7 +45,7 @@ pub fn expression_result_type_reference(
 /// telescope. Parameters and reserved result occurrences retain their owner;
 /// computed nodes share the selected-result rules used by executable states.
 pub fn parameter_expression_result_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner_symbol: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
@@ -69,7 +68,7 @@ pub fn parameter_expression_result_type_reference(
 // Only declaration-backed leaves differ: self belongs to the domain carrier,
 // while static indices retain their own declared types.
 pub(crate) fn domain_expression_result_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -105,7 +104,7 @@ impl ExpressionOwner<'_> {
 }
 
 fn result_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: ExpressionOwner<'_>,
     expression: ExpressionHandle,
     active: &mut Vec<ExpressionHandle>,
@@ -404,9 +403,9 @@ fn result_type(
                                 })
                             } else {
                                 crate::program_scope::data_definitions::data_field_type_by_symbol(
-                program,
-                member.member_symbol,
-            )
+                                    program,
+                                    member.member_symbol,
+                                )
                             }
                         })
                     }
@@ -441,7 +440,7 @@ fn result_type(
 /// Join declaration-backed result types without exporting one arm's predicates
 /// to another. Missing references require independently checked anonymous shape.
 pub fn join_result_type_references(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     references: &[Option<TypeReferenceHandle>],
     anonymous: &[bool],
 ) -> Option<TypeReferenceHandle> {
@@ -493,7 +492,10 @@ pub fn join_result_type_references(
         })
 }
 
-fn has_domain_result_shell(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+fn has_domain_result_shell(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     let mut seen = Vec::new();
     let mut domain = false;
     while program
@@ -532,7 +534,7 @@ fn has_domain_result_shell(program: &TypedTrees, mut reference: TypeReferenceHan
 }
 
 fn binary_result(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: ExpressionOwner<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
@@ -708,7 +710,7 @@ fn binary_result(
 /// unresolved: rebuilding instantiated shells or inventing an unbound
 /// identity would fabricate caller facts.
 fn bound_result_type_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     operands: &[Option<TypeReferenceHandle>],
 ) -> Option<TypeReferenceHandle> {
@@ -753,7 +755,7 @@ fn bound_result_type_parameter(
 /// instantiates a bare `T` from its operand. Exporting such a shell through
 /// a named call would fabricate caller identity, so it stays unresolved.
 fn result_mentions_type_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     reference: TypeReferenceHandle,
 ) -> bool {
@@ -821,7 +823,7 @@ fn result_mentions_type_parameters(
 }
 
 fn compatible_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     binary: &TableBinaryExpression,
     operands: [Option<TypeReferenceHandle>; 2],
     carrier: TypeReferenceHandle,
@@ -843,12 +845,15 @@ fn compatible_operands(
         })
 }
 
-fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+fn primitive(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     arithmetic_carrier(program, reference)?;
     program.primitive_type_reference(reference)
 }
 
-fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn integer(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
     matches!(
         primitive(program, reference),
         Some(
@@ -878,14 +883,14 @@ fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
 // operation and must survive. Unknown domain and reference shells are not
 // predicate-only qualifications and cannot use this projection.
 pub(super) fn arithmetic_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
     qualified_builtin_carrier(program, reference, true)
 }
 
 fn qualified_builtin_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     allow_range_predicates: bool,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
@@ -931,7 +936,7 @@ fn qualified_builtin_carrier(
 }
 
 pub fn arithmetic_result_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let (carrier, policy) = arithmetic_carrier(program, reference)?;
@@ -940,7 +945,10 @@ pub fn arithmetic_result_type_reference(
         .find_arithmetic_result_type_reference(carrier, policy)
 }
 
-fn builtin_reference(program: &TypedTrees, atom: BuiltinTypeAtom) -> Option<TypeReferenceHandle> {
+fn builtin_reference(
+    program: &dyn crate::CheckingInput,
+    atom: BuiltinTypeAtom,
+) -> Option<TypeReferenceHandle> {
     let symbol = program
         .symbols
         .child_handles(program.symbols.root())?

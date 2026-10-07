@@ -7,12 +7,11 @@ use crate::checks::termination::progress::machine_summaries::{
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 mod projections;
 
 pub(super) fn derive_summaries(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -59,7 +58,7 @@ pub(super) fn derive_summaries(
 }
 
 fn derive_component(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     component: &[SymbolHandle],

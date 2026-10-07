@@ -5,15 +5,12 @@ use crate::flow::{
     CanonicalPlace, canonical_place_from_semantic_place, canonical_place_from_symbol,
 };
 use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
-use typed_trees::{
-    TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode},
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Read scalar bindings and structural fields from the same live storage facts.
 /// Bindings use dense scalar positions; structural paths use authored parameters.
 pub(crate) struct PlaceScalarValues<'a, Resolve> {
-    pub program: &'a TypedTrees,
+    pub program: &'a dyn ::validation::CheckingInput,
     pub parameters: &'a [typed_trees::signature::StateParameter],
     pub symbols: &'a [symbols::SymbolHandle],
     pub value_at_place: Resolve,
@@ -51,7 +48,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueS
 }
 
 pub(crate) fn scalar_value_at_place<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
@@ -64,7 +61,7 @@ pub(crate) fn scalar_value_at_place<'a>(
 }
 
 pub(crate) fn scalar_value_from_payloads(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     payloads: impl IntoIterator<Item = FactPayload>,
 ) -> Option<ScalarValue> {
@@ -112,7 +109,7 @@ pub(crate) fn scalar_value_from_payloads(
 }
 
 pub(crate) fn literal_at_place<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
@@ -132,7 +129,7 @@ pub(crate) fn literal_at_place<'a>(
 }
 
 pub(crate) fn integer_bounds_at_place<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
@@ -145,7 +142,7 @@ pub(crate) fn integer_bounds_at_place<'a>(
 }
 
 pub(crate) fn integer_bounds_from_payloads(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     payloads: impl IntoIterator<Item = FactPayload>,
 ) -> Option<facts::IntegerRange> {
@@ -196,7 +193,7 @@ pub(crate) fn integer_bounds_from_payloads(
 }
 
 fn payloads_at_place<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
@@ -237,7 +234,7 @@ fn payloads_at_place<'a>(
 }
 
 fn has_completed_call_snapshot(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: &FactContext,
     fact: &facts::Fact,
@@ -271,7 +268,10 @@ fn has_completed_call_snapshot(
 /// Literal payloads are immutable authored values, including the exact landed
 /// float bits. Keeping their handles does not re-evaluate a source expression.
 /// Copies and state-edge joins use this same admission as direct assignments.
-pub(crate) fn is_assignment_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(crate) fn is_assignment_literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     program.expression_table.expression_is_valid(expression)
         && matches!(
             program.expression_table.expression(expression),
@@ -283,7 +283,7 @@ pub(crate) fn is_assignment_literal(program: &TypedTrees, expression: Expression
 }
 
 pub(crate) fn literal_assignment_payload(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: &CanonicalPlace,
 ) -> Option<FactPayload> {
     if let PlaceRoot::Expression(expression) = subject.root
@@ -305,7 +305,7 @@ pub(crate) struct AssignmentObservation {
 }
 
 pub(crate) fn prepare_assignment_observations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: &FactContext,
 ) -> Vec<AssignmentObservation> {

@@ -20,10 +20,9 @@ use crate::value_custody::type_references::{
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(crate) fn validate_domain_definitions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
@@ -59,7 +58,10 @@ pub(crate) fn validate_domain_definitions(
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
 }
 
-fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_progress_profile_domains(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for domain in program.domain_definitions().iter().filter(|domain| {
         domain.classification == Some(language_semantics::DomainClassification::ProgressProfile)
     }) {
@@ -101,7 +103,7 @@ fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec
 }
 
 fn validate_domain_aliases(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -231,7 +233,7 @@ fn validate_domain_aliases(
 /// Match a family's carrier to its own first type binder, never another
 /// declaration with an equal debug name. The caller supplies the actual subject.
 fn generic_alias_carrier_parameter<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<&'program typed_trees::data::TypeParameter> {
     let parameter = program.domain_type_parameters(domain).first()?;
@@ -248,7 +250,7 @@ fn generic_alias_carrier_parameter<'program>(
 }
 
 fn validate_domain_alias_cycle_from(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain_symbol: SymbolHandle,
     path: &mut Vec<SymbolHandle>,
     reported: &mut Vec<SymbolHandle>,
@@ -294,7 +296,7 @@ fn validate_domain_alias_cycle_from(
 }
 
 fn validate_repeated_normalized_domain_identities(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -361,7 +363,7 @@ fn validate_repeated_normalized_domain_identities(
 /// `u8`, so the ambiguity this forbids is the same for a `[u16; N]` carrier
 /// and the check does not narrow itself to bytes.
 fn validate_capacity_normalized_domain_agreement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -396,7 +398,7 @@ fn validate_capacity_normalized_domain_agreement(
 }
 
 fn domain_target_normalizes_its_capacity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     matches!(
@@ -408,7 +410,7 @@ fn domain_target_normalizes_its_capacity(
 }
 
 fn same_normalized_domain_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     left: &typed_trees::domain::DomainDefinition,
     right: &typed_trees::domain::DomainDefinition,
 ) -> bool {
@@ -420,7 +422,7 @@ fn same_normalized_domain_owner(
 }
 
 fn normalized_domain_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     domain_symbol: SymbolHandle,
 ) -> Vec<String> {
@@ -474,7 +476,7 @@ fn normalized_domain_facts(
 }
 
 fn validate_domain_membership_targets(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     domain: &typed_trees::domain::DomainDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -517,7 +519,7 @@ fn validate_domain_membership_targets(
 }
 
 fn validate_domain_membership_cycles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -536,7 +538,7 @@ fn validate_domain_membership_cycles(
 }
 
 fn validate_domain_membership_cycle_from(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     domain_symbol: SymbolHandle,
     path: &mut Vec<SymbolHandle>,
@@ -589,7 +591,7 @@ fn domain_membership_facts(
 }
 
 fn domain_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
     if !symbol.is_valid() {

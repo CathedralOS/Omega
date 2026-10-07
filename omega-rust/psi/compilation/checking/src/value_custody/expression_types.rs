@@ -37,9 +37,8 @@
 //!   and occurrence collection belong to `crate::expression_traversal`.
 
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use std::fmt;
-use typed_trees::TypedTrees;
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
@@ -122,7 +121,7 @@ impl fmt::Display for ExpressionTypeOwner<'_> {
 /// flow facts nor domain proof; post-check and logical-formation consumers use
 /// the declaration-backed reference relation instead of runtime call evidence.
 pub fn argument_matches_type_reference_handle(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -141,7 +140,7 @@ pub fn argument_matches_type_reference_handle(
 /// and package-review rechecks have no such call context and use the declared
 /// correspondence above. Both judgments traverse the identical expressions.
 pub(crate) fn argument_matches_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -149,7 +148,7 @@ pub(crate) fn argument_matches_carrier(
 }
 
 pub(crate) fn argument_matches_carrier_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
@@ -188,7 +187,7 @@ pub(crate) fn argument_matches_carrier_with_substitutions(
 }
 
 fn argument_matches_type_reference_using(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     correspondence: reference_values::ReferenceCorrespondence,
@@ -515,7 +514,7 @@ fn argument_matches_type_reference_using(
 }
 
 pub(crate) fn named_value_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<TypeReferenceHandle> {
     let [_] = program.expression_table.name_path_members(path.members) else {
@@ -575,8 +574,7 @@ pub(crate) fn named_value_type_reference(
             return Some(owned.type_reference);
         }
         for state in program.machine_states(machine) {
-            if let Some(type_reference) =
-                state_symbol_declared_type(program, state, matches_symbol)
+            if let Some(type_reference) = state_symbol_declared_type(program, state, matches_symbol)
             {
                 return Some(type_reference);
             }
@@ -600,7 +598,7 @@ pub(crate) fn named_value_type_reference(
 /// statements. Each hinted container is verified with the caller's exact
 /// symbol predicate; `None` leaves the whole-program scan authoritative.
 fn hinted_named_value_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
     matches_symbol: impl Fn(symbols::SymbolHandle) -> bool,
 ) -> Option<TypeReferenceHandle> {
@@ -712,7 +710,7 @@ fn hinted_named_value_type_reference(
 /// The declared type a state's parameter or `data` local carries for a
 /// matching symbol, or `None`.
 fn state_symbol_declared_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     matches_symbol: impl Fn(SymbolHandle) -> bool,
 ) -> Option<TypeReferenceHandle> {
@@ -738,7 +736,7 @@ fn state_symbol_declared_type(
 /// array into `{len, bytes[N]}`; layout-policy domains do not.
 /// The returned capacity is not evidence of the value's live length.
 pub fn bounded_byte_buffer_capacity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     let TypeReferenceNode::Constrained {
@@ -755,7 +753,7 @@ pub fn bounded_byte_buffer_capacity(
 }
 
 fn has_value_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     constraints: arena::HandleSpan<TypeConstraintNode>,
 ) -> bool {
     program
@@ -772,7 +770,7 @@ fn has_value_domain(
 }
 
 fn fixed_byte_array_capacity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     let TypeReferenceNode::FixedArray {
@@ -793,7 +791,7 @@ fn fixed_byte_array_capacity(
 }
 
 pub(crate) fn validate_expression_type_handle(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -820,7 +818,7 @@ pub(crate) fn validate_expression_type_handle(
 }
 
 pub(crate) fn expression_type_name_handle(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> &'static str {
     match program.expression_table.expression(argument) {

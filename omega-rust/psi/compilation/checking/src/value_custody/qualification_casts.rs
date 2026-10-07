@@ -13,11 +13,10 @@
 use crate::program_validation::{ExpressionInterval, expression_interval};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 
 pub(crate) fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     intervals: &[ExpressionInterval],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -40,7 +39,7 @@ pub(crate) fn validate(
 /// empty domain qualifies vacuously. A routed domain cannot be fabricated by
 /// `as`, even when it has no predicate propositions.
 fn judge_qualification_cast(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: Option<&ExpressionInterval>,
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
@@ -141,7 +140,7 @@ fn judge_qualification_cast(
 /// parameter symbol with 256, so facts declared as `subject <= Bound` judge
 /// against the instance's argument rather than the parameter name.
 fn cast_domain_index_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     cast: &TableCastExpression,
 ) -> Vec<(SymbolHandle, i128)> {
@@ -187,7 +186,7 @@ fn index_literal(indices: &[(SymbolHandle, i128)], symbol: SymbolHandle) -> Opti
 }
 
 fn domain_is_vacuous(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain_symbol: SymbolHandle,
     stack: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -228,7 +227,7 @@ enum MintJudgment {
 /// comparison facts fold; anything else is conservatively NotProved.
 /// Unsupported propositions are missing evidence, never ignorable facts.
 fn literal_mint_discharges(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     value: ExpressionHandle,
     indices: &[(SymbolHandle, i128)],
@@ -291,7 +290,7 @@ fn literal_mint_discharges(
 /// (`subject >= K` iff low >= K; `subject <= K` iff high <= K; strict and equality
 /// forms accordingly). An absent endpoint entails nothing on its side.
 fn interval_mint_judgment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     low: Option<i64>,
     high: Option<i64>,

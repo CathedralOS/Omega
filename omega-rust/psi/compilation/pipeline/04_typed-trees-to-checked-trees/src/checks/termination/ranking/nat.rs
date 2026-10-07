@@ -21,7 +21,7 @@ pub(super) struct DirectCountdownEdge {
 /// later checked-plan producer may project this judgment, but must not grow a
 /// second recognizer for `parameter > 0` and `parameter - 1`.
 pub(super) fn direct_countdown_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
@@ -44,7 +44,7 @@ pub(super) fn direct_countdown_edge(
 /// Edge proofs locate a target's subjects by name, so every state of a cyclic
 /// component carries parameters of these names.
 pub(super) fn state_rank(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
 ) -> Option<checked_trees::CheckedStateNaturalRank> {
@@ -160,7 +160,7 @@ pub(super) fn state_rank(
 /// executable rank measures. The index returned counts every formal, self
 /// included, matching `state_rank`'s `parameter_position`.
 pub(super) fn carried_subject<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program typed_trees::state::State,
     entries: &[symbols::SymbolHandle],
     subject: ExpressionHandle,
@@ -183,7 +183,7 @@ pub(super) fn carried_subject<'program>(
 /// subject's role to a renamed or reordered formal. Distance measures keep
 /// the name-based `state_rank` judgment until one needs this route.
 pub(super) fn carried_state_rank(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     entries: &[symbols::SymbolHandle],
@@ -216,7 +216,7 @@ pub(super) fn carried_state_rank(
 /// parameter/slot selection differs, so a renamed or reordered header still
 /// reports the exact parameter/argument join.
 pub(super) fn carried_direct_countdown_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
@@ -249,7 +249,7 @@ pub(super) fn carried_direct_countdown_edge(
 /// positivity floor, and `- 1` recognizers are the name-based edge's own —
 /// only the parameter/slot selection differs.
 pub(super) fn carried_edge_decrease_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
@@ -284,7 +284,7 @@ pub(super) fn carried_edge_decrease_proven(
 }
 
 pub(super) fn state_has_proven_self_loop(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
 ) -> bool {
@@ -303,7 +303,7 @@ pub(super) fn state_has_proven_self_loop(
 /// recognizer here: `current_values` proves every distance edge from the
 /// current values the edge actually supplies.
 pub(super) fn edge_decrease_proven(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
@@ -327,7 +327,7 @@ pub(super) fn edge_decrease_proven(
 /// Index of the non-self parameter with the given name in a state's parameter
 /// list (the positional argument slot for that parameter on an incoming edge).
 fn target_argument_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: &typed_trees::state::State,
     name: &str,
 ) -> Option<usize> {
@@ -338,7 +338,7 @@ fn target_argument_index(
 }
 
 fn countdown_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
@@ -357,7 +357,7 @@ fn countdown_edge(
 }
 
 fn countdown_edge_parts<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     source: &'program typed_trees::state::State,
     target: &typed_trees::state::State,
     arguments: &'program [ExpressionHandle],
@@ -392,7 +392,7 @@ fn countdown_edge_parts<'program>(
 /// Non-Exact carriers are permissive (probed live at stores) and never
 /// discharge a bound.
 fn floor_at_least_one(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -405,7 +405,7 @@ fn floor_at_least_one(
 }
 
 fn member_countdown_edge(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     guard: &[patterns::GuardFact],
@@ -442,7 +442,7 @@ fn member_countdown_edge(
 /// `- 1` shape or positive-looking guard is not builtin arithmetic evidence
 /// when an authored/selected operator owns that exact expression.
 fn has_builtin_meaning(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {

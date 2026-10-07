@@ -11,7 +11,7 @@ use typed_trees::expression::ExpressionHandle;
 /// ordinal before occurrence-ordered replay uses the row. Retired calls belong
 /// to their selected replacements and are not executed again here.
 pub(in crate::checks::multiplicity) fn check_call_occurrences(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     calls: &[checked_trees::FlowCallFact],
@@ -47,7 +47,7 @@ pub(in crate::checks::multiplicity) fn check_call_occurrences(
 /// occurrences. This consumes final call effects without reapplying any move
 /// or reconstructing restoration from the later, repaired storage state.
 pub(in crate::checks::multiplicity) fn check_recorded_invocations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -142,7 +142,7 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
 /// This query runs only for calls crossing an open window. Its local visited
 /// set closes cycles without inventing a new effect row or expanding paths.
 pub(super) fn call_may_enter_boundary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     service_reaches: &checked_trees::ServiceReachFacts,
     control: &checked_trees::FlowControlFacts,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -213,7 +213,7 @@ pub(super) fn call_may_enter_boundary(
 /// those records for both named and spelled operators so skipped operands do
 /// not become calls, and wrappers cannot hide an opaque operator invocation.
 pub(in crate::checks::multiplicity) fn state_has_boundary_operator(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     control: &checked_trees::FlowControlFacts,
     operators: &checked_trees::CheckedOperatorFacts,
     state: SymbolHandle,
@@ -266,7 +266,7 @@ pub(in crate::checks::multiplicity) fn borrowed_transfer_diagnostic(
 /// different routes (a `&mut` local versus the owner path), so each arm's
 /// route is checked on its own links even though the join opens one hole.
 pub(in crate::checks::multiplicity) fn authored_route_exclusive(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

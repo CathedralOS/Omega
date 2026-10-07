@@ -1,5 +1,4 @@
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -32,7 +31,7 @@ impl ValueClass {
     }
 
     /// The class of a literal RHS, or `None` for a non-literal expression.
-    fn of_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<Self> {
+    fn of_literal(program: &dyn crate::CheckingInput, value: ExpressionHandle) -> Option<Self> {
         match program.expression_table.expression(value) {
             ExpressionNode::Boolean(_) => Some(Self::Boolean),
             ExpressionNode::String(_) => Some(Self::Text),
@@ -57,7 +56,7 @@ impl ValueClass {
 /// Unsupported results remain unknown; missing representation information is
 /// never used to invent a declared callable's result class.
 pub(super) fn value_class(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: Option<&typed_trees::machine::Machine>,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -150,7 +149,7 @@ pub(super) fn value_class(
 /// assignment RHS and call/transition ARGUMENTS -- both store a value into a
 /// typed slot, and both silently miscompiled on a cross-class scalar.
 pub(crate) fn cross_class_conflict(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: Option<&typed_trees::machine::Machine>,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -170,7 +169,7 @@ pub(crate) fn cross_class_conflict(
 /// SINGLE SOURCE OF TRUTH for the cross-class store diagnostic across every store
 /// position -- the class complement of `arithmetic_domains::check_value_narrowing`.
 pub(crate) fn report_cross_class_store(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: Option<&typed_trees::machine::Machine>,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -256,7 +255,7 @@ pub(crate) fn report_cross_class_store(
 /// ones a nominal argument check must NOT flag, so a data value passed to a trait
 /// or generic parameter is never a "wrong type".
 fn concrete_data_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     if !handle.is_valid() {
@@ -279,14 +278,14 @@ fn concrete_data_type_symbol(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open (the declaration slice is otherwise re-scanned per query).
 fn data_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
 }
 
 pub(super) fn concrete_data_type_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<&str> {
     let symbol = concrete_data_type_symbol(program, handle)?;
@@ -297,7 +296,7 @@ pub(super) fn concrete_data_type_name(
 /// use site's spelling. Payloadless cases retain their exact variant parent.
 /// Open generic constructions remain with their existing application checker.
 fn constructed_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let symbol = match program.expression_table.expression(value) {
@@ -316,7 +315,7 @@ fn constructed_data_symbol(
 }
 
 pub(crate) fn value_concrete_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -338,7 +337,7 @@ pub(crate) fn value_concrete_data_symbol(
 /// Names remain diagnostic output; nominal comparisons retain selected symbols
 /// across literal materialization, local storage and resolved call results.
 pub(super) fn value_concrete_data_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -352,7 +351,7 @@ pub(super) fn value_concrete_data_name<'program>(
 /// stored places, and resolved call results retain their actual owner; open
 /// generic and unresolved result paths remain with their existing checkers.
 pub(crate) fn report_data_type_conflict(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,

@@ -7,13 +7,12 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use std::fmt;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn validate_owned_data(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -67,7 +66,7 @@ impl fmt::Display for InitialValueOwner<'_> {
 }
 
 fn validate_initial_value_handle(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     initial_value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,

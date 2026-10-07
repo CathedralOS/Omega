@@ -26,7 +26,6 @@
 
 use access_plans::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
 use language_core::atomic::AtomicOrderingPlan;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression,
 };
@@ -40,7 +39,7 @@ use typed_trees::types::TypeReferenceNode;
 /// polarity when the assignment is the parser's carrier for that operation
 /// on atomic storage.
 pub(crate) fn assignment_receiver_polarity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     assignment: &TableAssignment,
@@ -63,7 +62,7 @@ pub(crate) fn assignment_receiver_polarity(
 /// operation on the target) or a read-modify-write whose interpreter model is
 /// not one of the fetch families.
 pub(crate) fn carried_atomic_operation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     atomic: &TableAtomicExpression,
 ) -> Option<AtomicAccessOperation> {
     match atomic.ordering {
@@ -98,7 +97,7 @@ pub(crate) fn carried_atomic_operation(
 /// package type that merely spells `Atomic...` does not qualify and an
 /// ordinary integer is never implicitly atomic.
 pub fn place_is_atomic_storage(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     place: ExpressionHandle,
@@ -145,7 +144,7 @@ pub struct AtomicCarrierAccess {
 
 /// Decode a load carrier: `place.load(ordering)` in value position.
 pub fn atomic_load_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<AtomicCarrierAccess> {
     let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) else {
@@ -172,7 +171,7 @@ pub fn atomic_load_carrier(
 /// result; any other value, an illegal ordering, or the single-attempt form
 /// (whose `Uncommitted` outcome has no scalar prior) decodes to nothing.
 pub fn atomic_assignment_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     assignment: &TableAssignment,
 ) -> Option<AtomicCarrierAccess> {
     let ExpressionNode::Atomic(atomic) = program.expression_table.expression(assignment.value)
@@ -193,7 +192,7 @@ pub fn atomic_assignment_carrier(
 /// execution: compare-exchange does not evaluate a subtraction of replacement
 /// and prior, and fetch arithmetic has the sealed atomic operation's policy.
 pub(crate) fn atomic_value_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<ExpressionHandle>> {
     if let Some(load) = atomic_load_carrier(program, expression) {
@@ -206,7 +205,7 @@ pub(crate) fn atomic_value_operands(
 }
 
 fn atomic_write_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     atomic: &TableAtomicExpression,
 ) -> Option<(AtomicAccessOperation, Vec<ExpressionHandle>)> {
     if !atomic.result_custody.is_valid_for(atomic.ordering)
@@ -283,7 +282,7 @@ fn atomic_write_operands(
 /// with the result binding's own name; binding that name to the actual local
 /// is the consumer's separate check.
 fn same_result_name(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     result: ExpressionHandle,
 ) -> bool {

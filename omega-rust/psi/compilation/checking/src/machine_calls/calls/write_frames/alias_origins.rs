@@ -17,7 +17,6 @@ use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -37,7 +36,7 @@ use typed_trees::types::TypeReferenceNode;
 /// Direct parameter-relative member and effect-free indexed projections compose
 /// the same exact/coarse path algebra. Other computed results stay opaque.
 pub(crate) fn stable_local_reference_alias_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -83,7 +82,7 @@ pub(crate) fn stable_local_reference_alias_origin(
 /// resolves through the backing-origin lane instead of its initializer.
 #[allow(clippy::too_many_arguments)]
 fn stable_reference_alias_dispatch<T>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -97,7 +96,7 @@ fn stable_reference_alias_dispatch<T>(
     include_shared: bool,
     backing: impl FnOnce(&mut FrameInference) -> Option<T>,
     initializer: impl Fn(
-        &TypedTrees,
+        &dyn crate::CheckingInput,
         &Machine,
         &MachineSymbols<'_>,
         &mut FrameInference,
@@ -137,7 +136,7 @@ fn stable_reference_alias_dispatch<T>(
 /// A local's declared reference access after peeling constraint shells —
 /// `None` when the declared type is not a reference.
 fn local_declared_reference_access(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<language_core::ReferenceAccess> {
     let mut reference = local.type_reference;
@@ -162,7 +161,7 @@ fn local_declared_reference_access(
 /// match expression admits.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_local_reference_alias_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -198,7 +197,7 @@ pub(crate) fn stable_local_reference_alias_origins(
 /// place.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_alias_initializer_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -234,7 +233,7 @@ pub(crate) fn stable_alias_initializer_origin(
 /// named fails the whole expression closed.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_alias_initializer_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -481,7 +480,7 @@ pub(crate) fn stable_alias_initializer_origins(
 
 #[allow(clippy::too_many_arguments)]
 fn stable_alias_expression_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -624,7 +623,7 @@ fn stable_alias_expression_origins(
 /// helper result while preserving the rebinding and opacity fences.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stable_assignment_target_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     inference: &mut FrameInference,
@@ -659,7 +658,7 @@ pub(crate) fn stable_assignment_target_path(
 /// Indexing projects every origin through the collection expression at
 /// collection-coarse precision.
 fn projected_indexed_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     origins: Vec<FramePlaceOrigin>,
     expression: ExpressionHandle,
     collection: ExpressionHandle,
@@ -667,10 +666,9 @@ fn projected_indexed_origins(
     origins
         .into_iter()
         .map(|mut collection_origin| {
-            collection_origin.source =
-                collection_origin
-                    .source
-                    .projected(program, expression, collection);
+            collection_origin.source = collection_origin
+                .source
+                .projected(program, expression, collection);
             collection_origin.precision = FramePathPrecision::CollectionCoarse;
             collection_origin
         })
@@ -680,7 +678,7 @@ fn projected_indexed_origins(
 /// A member projection keeps an exact origin's path and re-projects its
 /// source; a coarse origin carries the new source only.
 fn projected_member_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     origins: Vec<FramePlaceOrigin>,
     expression: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -697,9 +695,7 @@ fn projected_member_origins(
                     precision: FramePathPrecision::Exact,
                     source,
                 },
-                FramePathPrecision::CollectionCoarse => {
-                    FramePlaceOrigin { source, ..receiver }
-                }
+                FramePathPrecision::CollectionCoarse => FramePlaceOrigin { source, ..receiver },
             }
         })
         .collect()

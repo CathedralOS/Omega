@@ -24,7 +24,7 @@ use symbols::SymbolHandle;
 /// without a reconstructible body retains its conservative lifetime footprint;
 /// executable custody still requires an exact returned-origin replay.
 pub(super) fn completed_field_sources(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
@@ -129,7 +129,7 @@ fn owner_segments(segments: Vec<facts::PlaceSegment>) -> Option<Vec<BorrowOwnerS
 /// the single-place query used for bare reference inputs.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn result_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -294,7 +294,7 @@ pub(super) fn attenuate(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,

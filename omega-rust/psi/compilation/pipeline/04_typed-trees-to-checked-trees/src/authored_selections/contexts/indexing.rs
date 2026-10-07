@@ -9,7 +9,6 @@ use super::{Binding, ExecutableSite, InferredType, OwnerIndex, TypeEnvironment};
 use checked_trees::CheckFacts;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -21,7 +20,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// collectors' per-expression ordering: contracts, domains, propositions,
 /// measures, parameter constraints, rankings, then executable sites.
 pub(super) fn build_owner_environment_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> OwnerIndex {
     let mut index = OwnerIndex::default();
@@ -70,7 +69,7 @@ pub(super) fn build_owner_environment_index(
 /// `proof_fact_value_contains_expression`, which asks membership in exactly
 /// this set.
 pub(super) fn proof_fact_reachable_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
 ) -> HashSet<ExpressionHandle> {
     let mut reached = HashSet::default();
@@ -105,7 +104,7 @@ pub(super) fn proof_fact_reachable_expressions(
 }
 
 pub(super) fn proof_fact_handle_reachable_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> HashSet<ExpressionHandle> {
     proof_fact_reachable_expressions(program, program.proof_facts.get(fact))
@@ -119,7 +118,7 @@ pub(super) fn proof_fact_handle_reachable_expressions(
 /// shape of `type_reference_contains_expression`, whose recursion this walk
 /// mirrors arm for arm.
 pub(super) fn type_reference_reachable_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> HashSet<ExpressionHandle> {
     let mut reached = HashSet::default();
@@ -128,7 +127,7 @@ pub(super) fn type_reference_reachable_expressions(
 }
 
 pub(super) fn collect_type_reference_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,
     reached: &mut HashSet<ExpressionHandle>,
@@ -196,7 +195,10 @@ pub(super) fn collect_type_reference_expressions(
     }
 }
 
-pub(super) fn index_proposition_environments(program: &TypedTrees, index: &mut OwnerIndex) {
+pub(super) fn index_proposition_environments(
+    program: &dyn ::validation::CheckingInput,
+    index: &mut OwnerIndex,
+) {
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     for proposition in program.propositions() {
@@ -235,7 +237,10 @@ pub(super) fn index_proposition_environments(program: &TypedTrees, index: &mut O
     }
 }
 
-pub(super) fn index_measure_environments(program: &TypedTrees, index: &mut OwnerIndex) {
+pub(super) fn index_measure_environments(
+    program: &dyn ::validation::CheckingInput,
+    index: &mut OwnerIndex,
+) {
     for measure in program.measures() {
         let Some(parameter) = measure.parameter.as_ref() else {
             continue;
@@ -253,7 +258,7 @@ pub(super) fn index_measure_environments(program: &TypedTrees, index: &mut Owner
 }
 
 pub(super) fn index_parameter_constraint_environments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     index: &mut OwnerIndex,
 ) {
     for machine in program.machines() {
@@ -302,7 +307,7 @@ pub(super) fn index_parameter_constraint_environments(
 }
 
 pub(super) fn index_telescope_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     index: &mut OwnerIndex,
 ) {
@@ -320,7 +325,10 @@ pub(super) fn index_telescope_parameters(
     }
 }
 
-pub(super) fn index_ranking_environments(program: &TypedTrees, index: &mut OwnerIndex) {
+pub(super) fn index_ranking_environments(
+    program: &dyn ::validation::CheckingInput,
+    index: &mut OwnerIndex,
+) {
     for custody in &program.ranking_expression_custody {
         let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
             continue;
@@ -343,7 +351,10 @@ pub(super) fn index_ranking_environments(program: &TypedTrees, index: &mut Owner
     }
 }
 
-pub(super) fn index_executable_environments(program: &TypedTrees, index: &mut OwnerIndex) {
+pub(super) fn index_executable_environments(
+    program: &dyn ::validation::CheckingInput,
+    index: &mut OwnerIndex,
+) {
     // One buffer serves every statement; a fresh vector per statement spent
     // most of this walk growing it.
     let mut expressions = Vec::new();
@@ -382,7 +393,7 @@ pub(super) fn index_executable_environments(program: &TypedTrees, index: &mut Ow
 }
 
 pub(in crate::authored_selections) fn proof_fact_contains_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
@@ -390,7 +401,7 @@ pub(in crate::authored_selections) fn proof_fact_contains_expression(
 }
 
 pub(super) fn proof_fact_value_contains_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     fact: &typed_trees::domain::ProofFact,
     expression: ExpressionHandle,
 ) -> bool {

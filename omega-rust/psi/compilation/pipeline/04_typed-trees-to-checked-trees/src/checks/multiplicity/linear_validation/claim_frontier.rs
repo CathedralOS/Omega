@@ -9,7 +9,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn initial_linear_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -179,7 +179,7 @@ pub(crate) fn initial_linear_places(
 /// cannot diverge. Templates keep the checker's fields; every frontier claim
 /// is linear by construction and `conditional` rides the case-segment test.
 pub(crate) fn linear_claim_frontier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<LinearClaimTemplate> {
     validation::linear_claim_frontier(program, type_reference)
@@ -197,7 +197,7 @@ pub(crate) fn linear_claim_frontier(
 /// completes; permission production preserves transferred identities or mints
 /// the genuinely new claims at that completion.
 pub(crate) fn reserve_owner_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: facts::PlaceRoot,
     type_reference: TypeReferenceHandle,
     places: &mut Vec<LinearPlace>,
@@ -241,7 +241,7 @@ pub(crate) fn reserve_owner_places(
 }
 
 fn claim_place_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: &str,
     path: &[facts::PlaceSegment],
 ) -> String {

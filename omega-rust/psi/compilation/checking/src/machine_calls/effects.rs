@@ -1,8 +1,7 @@
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 pub fn validate_behavior_plan(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -62,7 +61,7 @@ pub fn validate_behavior_plan(
 }
 
 fn validate_service_reach_ceilings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
@@ -117,7 +116,7 @@ fn validate_service_reach_ceilings(
 }
 
 fn format_service_row(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     services: &[language_semantics::ServiceReachId],
 ) -> String {
     if services.is_empty() {

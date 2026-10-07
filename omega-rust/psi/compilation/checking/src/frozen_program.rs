@@ -1,10 +1,10 @@
-//! Memos over one frozen program. Between validation and execution
-//! finalization `lower_typed_trees` checks a program no pass restructures,
-//! and many consumers there derive the same program-pure tables: every
-//! check-pass consumer builds its own call-frame resolver, two dozen sites
-//! classify proof-only data, every structural judge rescans the trait laws,
-//! and check facts, crash contracts and package evidence each rebuild the
-//! content-conservation table. Inside a scope they share one copy.
+//! Invocation-owned memos over the immutable program being checked.
+//!
+//! Stage 04 borrows its prepared typed program in CheckingContext at the frozen
+//! boundary. Read-only checking inputs carry that context through every query;
+//! neither a thread's current scope nor a program address finds it. Queries on
+//! bare TypedTrees remain one-shot, so mutation passes cannot borrow frozen
+//! evidence accidentally. Memos are not durable IR or semantic identity.
 
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
@@ -13,31 +13,117 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
 use crate::value_custody::content_conservation::ContentConservationSourcePlan;
-use std::cell::RefCell;
+use std::fmt;
+use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
 use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
 
-thread_local! {
-    static FROZEN_PROGRAM: RefCell<Option<FrozenProgramSlot>> = const { RefCell::new(None) };
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for typed_trees::TypedTrees {}
+    impl Sealed for super::CheckingContext<'_> {}
 }
 
-struct FrozenProgramSlot {
-    program: usize,
-    identity: u64,
-    memos: Arc<FrozenProgramMemos>,
+/// Read-only source checking input. A prepared invocation owns reusable memos;
+/// a bare typed program supplies no frozen memo state.
+///
+/// The closed implementations prevent substituting another program under an
+/// invocation's memos. Dereferencing exposes typed queries, not mutation or
+/// permission to retain this scratch in a compilation product.
+pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
+    fn typed_program(&self) -> &TypedTrees;
+
+    #[doc(hidden)]
+    fn checking_memos(&self) -> Option<&CheckingMemos>;
 }
 
+impl Deref for dyn CheckingInput + '_ {
+    type Target = TypedTrees;
+
+    fn deref(&self) -> &TypedTrees {
+        self.typed_program()
+    }
+}
+
+// Local proof-plan equality observes the typed program, never invocation scratch.
+impl PartialEq for dyn CheckingInput + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        self.typed_program() == other.typed_program()
+    }
+}
+
+impl Eq for dyn CheckingInput + '_ {}
+
+impl CheckingInput for TypedTrees {
+    fn typed_program(&self) -> &TypedTrees {
+        self
+    }
+
+    fn checking_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
+}
+
+/// Borrows one immutable program and owns invocation-local query state. Moving
+/// or nesting contexts preserves memos without installing ambient state.
+pub struct CheckingContext<'program> {
+    program: &'program TypedTrees,
+    memos: CheckingMemos,
+}
+
+impl<'program> CheckingContext<'program> {
+    pub fn new(program: &'program TypedTrees) -> Self {
+        Self {
+            program,
+            memos: CheckingMemos::default(),
+        }
+    }
+
+    /// End checking without attaching scratch to the durable typed program.
+    pub fn into_program(self) -> &'program TypedTrees {
+        self.program
+    }
+}
+
+impl fmt::Debug for CheckingContext<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CheckingContext")
+            .field("program", &self.program)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Deref for CheckingContext<'_> {
+    type Target = TypedTrees;
+
+    fn deref(&self) -> &TypedTrees {
+        self.program
+    }
+}
+
+impl CheckingInput for CheckingContext<'_> {
+    fn typed_program(&self) -> &TypedTrees {
+        self.program
+    }
+
+    fn checking_memos(&self) -> Option<&CheckingMemos> {
+        Some(&self.memos)
+    }
+}
+
+/// Opaque invocation scratch. Only checking owns these fields; callers carry
+/// it through CheckingInput rather than opening or sharing arbitrary slots.
+#[doc(hidden)]
 #[derive(Default)]
-pub(crate) struct FrozenProgramMemos {
+pub struct CheckingMemos {
     pub(crate) call_frames: Arc<CallFrameCaches>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
-    /// Builtin meaning of one binary node, by the position of its machine in
-    /// the program, its state within that machine, and the node.
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
@@ -47,61 +133,25 @@ pub(crate) struct FrozenProgramMemos {
         OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
 }
 
-/// Restores the enclosing scope, if any, when dropped.
-pub struct FrozenProgramScope {
-    enclosing: Option<FrozenProgramSlot>,
+/// The reusable memos explicitly carried by a frozen checking input.
+pub(crate) fn frozen_program_memos(program: &dyn CheckingInput) -> Option<&CheckingMemos> {
+    program.checking_memos()
 }
 
-impl Drop for FrozenProgramScope {
-    fn drop(&mut self) {
-        FROZEN_PROGRAM.with(|slot| *slot.borrow_mut() = self.enclosing.take());
-    }
-}
-
-/// Share program-pure memos for `program` on this thread until the guard
-/// drops. The caller keeps `program` in place and leaves everything the memos
-/// read unchanged while the guard lives. Any other program, including a clone
-/// at another address, keeps private memos.
-pub fn enter_frozen_program_scope(program: &TypedTrees) -> FrozenProgramScope {
-    let slot = FrozenProgramSlot {
-        program: std::ptr::from_ref(program).addr(),
-        identity: program.identity.get(),
-        memos: Arc::default(),
-    };
-    FrozenProgramScope {
-        enclosing: FROZEN_PROGRAM.with(|scope| scope.borrow_mut().replace(slot)),
-    }
-}
-
-/// The open scope's memos when `program` is its frozen program.
-pub(crate) fn frozen_program_memos(program: &TypedTrees) -> Option<Arc<FrozenProgramMemos>> {
-    FROZEN_PROGRAM.with(|scope| {
-        scope
-            .borrow()
-            .as_ref()
-            .filter(|slot| {
-                slot.program == std::ptr::from_ref(program).addr()
-                    && slot.identity == program.identity.get()
-            })
-            .map(|slot| slot.memos.clone())
-    })
-}
-
-/// `compute`, once per frozen program in the memo `slot` selects; afresh for
-/// any other program.
+/// Compute once in the input's invocation, or one-shot for a bare typed program.
 pub(crate) fn frozen_memo<T>(
-    program: &TypedTrees,
-    slot: impl FnOnce(&FrozenProgramMemos) -> &OnceLock<Arc<T>>,
+    program: &dyn CheckingInput,
+    slot: impl FnOnce(&CheckingMemos) -> &OnceLock<Arc<T>>,
     compute: impl FnOnce() -> T,
 ) -> Arc<T> {
-    match frozen_program_memos(program) {
-        Some(memos) => slot(&memos).get_or_init(|| Arc::new(compute())).clone(),
+    match program.checking_memos() {
+        Some(memos) => slot(memos).get_or_init(|| Arc::new(compute())).clone(),
         None => Arc::new(compute()),
     }
 }
 
-/// `typed_trees::proof_only::classify`, computed once per frozen program.
-pub fn proof_only_classification(program: &TypedTrees) -> Arc<ProofOnlyClassification> {
+/// Proof-only classification, shared by consumers of this checking context.
+pub fn proof_only_classification(program: &dyn CheckingInput) -> Arc<ProofOnlyClassification> {
     frozen_memo(
         program,
         |memos| &memos.proof_only,

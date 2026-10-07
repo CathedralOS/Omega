@@ -2,20 +2,22 @@ use crate::value_custody::places::unwrapped_type_reference;
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
 pub(crate) fn validate_qualification_authorization(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_boundary_requirements(program, diagnostics);
     validate_external_machine_claims(program, diagnostics);
 }
 
-fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_boundary_requirements(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for trait_definition in program
         .traits()
         .iter()
@@ -119,7 +121,7 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
 /// parameters, but this must not widen ordinary generic matching: runtime type
 /// arguments still require exact normalized identity.
 fn lifetime_erased_nominal_carriers_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     application: typed_trees::types::TypeReferenceHandle,
     nominal: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -150,7 +152,10 @@ fn lifetime_erased_nominal_carriers_match(
             })
 }
 
-fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_external_machine_claims(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for machine in program.machines().iter().filter(|machine| {
         matches!(
             machine.supply_mode,
@@ -207,7 +212,7 @@ fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<
 /// out-parameter direction of `ensures result in D`. Immutable parameters
 /// stay caller premises — nothing may establish into them.
 fn expression_is_mutable_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> bool {
@@ -215,7 +220,7 @@ fn expression_is_mutable_parameter(
 }
 
 fn mutable_parameter<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     signature: &'a typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<&'a typed_trees::signature::StateParameter> {
@@ -234,7 +239,7 @@ fn mutable_parameter<'a>(
 /// constraints) lets the provider write caller storage. An owned `mut`
 /// binding dies with the callee, so its ensures cannot mint caller claims.
 fn is_mutable_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {

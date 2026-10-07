@@ -7,7 +7,6 @@ use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
     CheckedOperatorFacts, CheckedScalarExpression as Scalar,
 };
-use typed_trees::TypedTrees;
 use typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::PrimitiveType;
@@ -16,7 +15,7 @@ use typed_trees::types::PrimitiveType;
 /// predicate package. Indexed and routed theory needs its separate evidence
 /// transport; declining it here must never drop only the unsupported rows.
 pub fn scalar_membership_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     membership: &ProofMembershipFact,
 ) -> Option<PrimitiveType> {
     let domain = typed_trees::domain::domain_by_symbol(program, membership.domain_symbol)?;
@@ -44,7 +43,7 @@ pub fn scalar_membership_carrier(
 /// checked scalar subject. The caller separately rejoins that subject to the
 /// membership's source expression; this query grants no value or provenance.
 pub fn scalar_membership_predicates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     membership: &ProofMembershipFact,
     subject: &Scalar,
@@ -60,7 +59,7 @@ pub fn scalar_membership_predicates(
 }
 
 fn project(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     membership: &ProofMembershipFact,
     subject: &Scalar,
     active: &mut Vec<symbols::SymbolHandle>,
@@ -97,7 +96,7 @@ fn project(
 }
 
 struct Predicate<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     builtin_closed: &'program dyn Fn(&DomainDefinition, ExpressionHandle) -> bool,
     domain: &'program DomainDefinition,
     subject: &'program Scalar,
@@ -232,7 +231,7 @@ impl Predicate<'_> {
 /// callable contracts. Projecting that meaning does not prove membership or
 /// change an invariant-window fact into a per-write storage restriction.
 pub fn scalar_field_domain_predicate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     constraint: &typed_trees::types::DomainConstraint,
     primitive: PrimitiveType,
 ) -> Option<Boolean> {

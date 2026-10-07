@@ -15,7 +15,6 @@
 
 use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, TypeParameter};
 use typed_trees::types::TypeReferenceNode;
 
@@ -72,7 +71,7 @@ impl std::fmt::Display for DeclaredPropertyRequirement {
 }
 
 pub(crate) fn validate_data_properties(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     opaque_property_receipts: &[OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
@@ -108,7 +107,7 @@ pub(crate) fn validate_data_properties(
 /// not the referent; qualification, provenance and lifetime checking still
 /// apply to every copy. Exclusive references and bare slices do not qualify.
 fn validate_structural_property(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     data_definition: &DataDefinition,
     property: &str,
@@ -151,7 +150,7 @@ fn validate_structural_property(
 }
 
 fn validate_carry_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
     required: language_semantics::CarryPolicy,
     diagnostics: &mut Vec<Diagnostic>,
@@ -225,7 +224,7 @@ fn validate_opaque_data_properties(
 }
 
 fn validate_opaque_property_receipts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receipts: &[OpaqueDataPropertyReceipt],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -271,7 +270,7 @@ fn validate_opaque_property_receipts(
 /// its complete stored shape. This is the checker-owned result; an authored
 /// `carry(...)` clause is only a minimum promise validated against it.
 pub fn effective_data_carry_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
 ) -> language_semantics::CarryPolicy {
     CarryDerivation::new(program, &[]).derive_named_data(
@@ -286,7 +285,7 @@ pub fn effective_data_carry_policy(
 /// the same structural derivation and concrete-argument substitution as
 /// property validation; carry policy is never re-inferred from a type name.
 pub fn effective_type_carry_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> language_semantics::CarryPolicy {
@@ -297,7 +296,7 @@ pub fn effective_type_carry_policy(
 /// with the instantiation-time bound check. Carry requirements use the
 /// normalized four-axis comparison.
 pub fn type_satisfies_declared_property(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -327,7 +326,7 @@ pub fn type_satisfies_declared_property(
 }
 
 fn type_satisfies_structural_property(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -432,7 +431,7 @@ fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -
 /// by the machine-call bound check (decision 13) to find which parameter a
 /// signature type like `&T` instantiates.
 pub(crate) fn referenced_type_parameter<'program>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_parameters: &'program [TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&'program TypeParameter> {
@@ -457,7 +456,7 @@ pub(crate) fn referenced_type_parameter<'program>(
 }
 
 fn named_type_declares_property(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     symbol: symbols::SymbolHandle,
     name: &str,

@@ -5,7 +5,6 @@
 //! discovery or the generic arithmetic/structural fallback tiers.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::proposition::ProofSubstitutions;
@@ -15,7 +14,7 @@ use typed_trees::proposition::ProofSubstitutions;
 /// equality but its relation premise is absent; callers reject it instead of
 /// letting the generic structural tier stand down.
 pub(super) fn quotient_equality_from_requires(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     requires: &[ExpressionHandle],
     proposition_requires: &[&typed_trees::proposition::PropositionApplication],
@@ -74,7 +73,7 @@ pub(super) fn quotient_equality_from_requires(
 }
 
 fn named_parameter_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
@@ -90,7 +89,7 @@ fn named_parameter_identity(
 }
 
 fn transparent_relation_fact_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
     relation_symbol: SymbolHandle,
     left: ExpressionHandle,
@@ -136,7 +135,7 @@ fn transparent_relation_fact_matches(
 }
 
 pub(super) fn quotient_equality_names(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
 ) -> Option<(String, String)> {
     let (definition, _, _) = quotient_equality_goal(program, fact)?;
@@ -153,7 +152,7 @@ pub(super) fn quotient_equality_names(
 }
 
 fn quotient_equality_goal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
 ) -> Option<(
     &typed_trees::data::DataDefinition,
@@ -187,7 +186,7 @@ fn quotient_equality_goal(
 }
 
 fn relation_fact_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
 ) -> Option<&typed_trees::expression::TableCallExpression> {
     match program.expression_table.expression(fact) {
@@ -212,7 +211,7 @@ fn relation_fact_call(
 }
 
 fn relation_call_matches_quotient(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     relation_symbol: SymbolHandle,
 ) -> bool {

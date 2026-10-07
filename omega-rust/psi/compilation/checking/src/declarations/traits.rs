@@ -29,7 +29,6 @@
 //! `named_implementations` and `requirements` children share.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::trait_definition::TraitDefinition;
 
 mod conformance;
@@ -63,7 +62,7 @@ pub(crate) use requirements::validate_trait_requirements;
 /// that names no trait. Every conformance, requirement, and data-conformance
 /// validator below resolves its trait through this one lookup.
 fn trait_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&TraitDefinition> {
     if !symbol.is_valid() {

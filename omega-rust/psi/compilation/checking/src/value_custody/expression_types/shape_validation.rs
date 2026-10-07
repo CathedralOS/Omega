@@ -3,7 +3,6 @@ use super::value_classification::{
     ValueClass, concrete_data_type_name, value_class, value_concrete_data_name,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -12,7 +11,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// vs a scalar literal, or a place resolved through `declared_place_type`. A
 /// computed value (call, binary, indexed) is `None` so this never false-positives.
 pub(super) fn value_shape_is_array(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -42,7 +41,7 @@ pub(super) fn value_shape_is_array(
 /// determinable; a computed value (a call result) is skipped. Complements the
 /// scalar-CLASS and nominal-DATA checks, which both classify only scalar shapes.
 pub(crate) fn report_array_scalar_shape_mismatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -97,7 +96,7 @@ pub(crate) fn report_array_scalar_shape_mismatch(
 /// (owned by the array-shape check), text carriers, and unresolvable computed values
 /// are left alone.
 pub(crate) fn report_scalar_data_shape_mismatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     value: ExpressionHandle,
@@ -134,7 +133,7 @@ pub(crate) fn report_scalar_data_shape_mismatch(
 /// The slice-view element a parameter declares: `&[T]` under any
 /// `Constrained`/`Reference` shells. Anything else has no element to check.
 fn slice_view_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut handle = type_reference;
@@ -151,7 +150,7 @@ fn slice_view_element(
 /// The element type a slice or fixed-array type reference supplies; a scalar,
 /// data, or unresolvable type has none.
 fn collection_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -169,7 +168,7 @@ fn collection_element(
 /// not resolve to a concrete collection type return `None` and stay with plan
 /// admission, which already arbitrates them.
 fn argument_collection_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     argument: ExpressionHandle,
@@ -199,7 +198,7 @@ fn argument_collection_element(
 /// An element type both sides can compare: concrete under `Constrained`
 /// shells. A type parameter, generic slot, or dynamic trait stays open for
 /// inference, so the call keeps its existing acceptance shape.
-fn element_is_concrete(program: &TypedTrees, element: TypeReferenceHandle) -> bool {
+fn element_is_concrete(program: &dyn crate::CheckingInput, element: TypeReferenceHandle) -> bool {
     let mut handle = element;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(handle)
@@ -228,7 +227,7 @@ fn element_is_concrete(program: &TypedTrees, element: TypeReferenceHandle) -> bo
 /// concrete element; a generic formal or an argument whose type cannot be
 /// resolved keeps the existing permissive shape.
 pub(crate) fn report_view_element_argument_mismatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     argument: ExpressionHandle,

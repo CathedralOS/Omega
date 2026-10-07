@@ -4,10 +4,9 @@
 
 use super::{FramePlaceOrigin, StoredLocalOrigins, compose_origin, place_suffix};
 use facts::PlaceSegment;
-use typed_trees::TypedTrees;
 
 pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     origin: &Option<FramePlaceOrigin>,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
@@ -16,7 +15,7 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projection_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     captured: &FramePlaceOrigin,
     projected: &FramePlaceOrigin,
     stored: &[StoredLocalOrigins],
@@ -40,7 +39,7 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projecti
 }
 
 fn resolve_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     origin: &Option<FramePlaceOrigin>,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],

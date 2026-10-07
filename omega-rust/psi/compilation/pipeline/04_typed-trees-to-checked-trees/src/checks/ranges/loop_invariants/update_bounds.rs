@@ -53,7 +53,7 @@ impl Bounds {
 }
 
 pub(super) fn updates_preserve_order(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     states: &[State],
     loop_states: &[SymbolHandle],
@@ -196,7 +196,7 @@ pub(super) fn updates_preserve_order(
 }
 
 fn transition_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     guard: TransitionGuardNode,
@@ -212,7 +212,7 @@ fn transition_bounds(
 }
 
 fn guard_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     guard: ExpressionHandle,

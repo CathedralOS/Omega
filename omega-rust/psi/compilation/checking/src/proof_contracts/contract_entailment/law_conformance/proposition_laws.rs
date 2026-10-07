@@ -2,13 +2,13 @@
 
 use crate::proof_contracts::contract_entailment::{
     BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Machine, StateSignature,
-    StructuralTerm, TraitDefinition, TypedTrees,
+    StructuralTerm, TraitDefinition,
 };
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_proposition_law_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
@@ -25,7 +25,9 @@ pub(crate) fn check_proposition_law_conformance(
         return;
     };
     let substitutions = crate::declarations::state_signatures::signature_entry_substitutions(
-        program, requirement, entry_state,
+        program,
+        requirement,
+        entry_state,
     );
     let trait_parameters = program.trait_type_parameters(trait_definition);
 
@@ -145,7 +147,7 @@ pub(crate) fn check_proposition_law_conformance(
 }
 
 pub(crate) fn synthesize_indexed_law_binder_labels(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     authored_law: &typed_trees::proposition::PropositionApplication,
     instantiated_law: &typed_trees::proposition::PropositionApplication,
     requirement: &StateSignature,
@@ -180,7 +182,7 @@ pub(crate) fn synthesize_indexed_law_binder_labels(
 }
 
 fn proposition_law_parameter_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<usize> {
@@ -198,7 +200,7 @@ fn proposition_law_parameter_index(
 }
 
 fn generic_type_argument_handles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&[typed_trees::types::TypeReferenceHandle]> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -246,7 +248,7 @@ pub(crate) fn bindings_are_forall_general(
 
 /// Split an ensures fact into its `==` conjuncts (And-chains recursively).
 pub(crate) fn collect_equality_conjuncts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     out: &mut Vec<ExpressionHandle>,
 ) {

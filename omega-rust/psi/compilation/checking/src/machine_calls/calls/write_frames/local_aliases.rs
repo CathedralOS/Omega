@@ -11,7 +11,6 @@ use super::place_paths::{
 };
 use super::type_capabilities::type_reference_is_reference;
 use language_core::is_self_receiver;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -42,7 +41,7 @@ pub(super) fn rebase_local_alias_path(
 /// referent set rather than collapsing to one route or to the bare local
 /// name; a candidate that cannot be spelled fails the entire place closed.
 pub(super) fn stable_alias_place_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     isolated_local_roots: &[String],
@@ -102,7 +101,7 @@ pub(super) fn stable_alias_place_origins(
 /// place borrow rather than a reborrow. Only a reference binding whose origin
 /// cannot be resolved at all keeps failing closed.
 pub(super) fn expression_reborrows_unresolved_reference_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -127,7 +126,7 @@ pub(super) fn expression_reborrows_unresolved_reference_binding(
 }
 
 pub(super) fn expression_reborrows_reference_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     is_reference_binding: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
@@ -140,7 +139,7 @@ pub(super) fn expression_reborrows_reference_binding(
 }
 
 pub(super) fn expression_has_exclusive_borrow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     is_reference_binding: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
@@ -174,7 +173,7 @@ pub(super) fn expression_has_exclusive_borrow(
 /// another binding would each lose the referent set it denotes. The pure tail
 /// return is admitted separately by the caller.
 pub(super) fn statement_mentions_place_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     roots: &[String],
 ) -> bool {
@@ -196,7 +195,7 @@ pub(super) fn statement_mentions_place_roots(
 /// load. Validate retained selectors against their declared carrier rather
 /// than admitting particular statement or argument spellings.
 pub(super) fn validate_divergent_projections(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     divergent: &[(String, Vec<FramePlaceOrigin>)],
@@ -273,7 +272,7 @@ pub(super) fn validate_divergent_projections(
 }
 
 pub(super) fn expression_mentions_place_roots(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &[String],
 ) -> bool {
@@ -306,7 +305,7 @@ pub(super) fn expression_mentions_place_roots(
 /// rebound (`alias = &mut other`). Accept an exact origin only while the RHS is
 /// proven value-shaped; unknown/reference-shaped replacements fail closed.
 pub(super) fn expression_may_rebind_mutable_alias(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

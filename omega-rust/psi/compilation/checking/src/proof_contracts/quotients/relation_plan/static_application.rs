@@ -5,7 +5,6 @@
 //! static telescope and compares its substituted declaration types with the
 //! concrete quotient-facing runtime telescope.
 
-use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::{QuotientOperationRequest, StaticMachineArgument};
 use typed_trees::name::Identifier;
@@ -20,7 +19,7 @@ use super::{
 /// checked type arena. Only the exact, closed static application retained on
 /// the representative telescope may replace a declaration binder.
 pub(super) fn substituted_type_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     template: TypeReferenceHandle,
     concrete: TypeReferenceHandle,
     substitutions: &[RepresentativeStaticBinding],
@@ -174,7 +173,7 @@ fn substituted_array_length_matches(
 }
 
 fn static_argument_matches_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
     concrete: TypeReferenceHandle,
     _substitutions: &[RepresentativeStaticBinding],
@@ -223,7 +222,7 @@ fn static_argument_matches_type(
 }
 
 pub(super) fn derive_exact_representative_static_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     request: &QuotientOperationRequest,
 ) -> Result<RepresentativeStaticApplication, RelationPlanError> {
     let (machine, _) =
@@ -237,7 +236,7 @@ pub(super) fn derive_exact_representative_static_application(
 }
 
 pub(super) fn validate_static_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     lifetime_parameters: &[Identifier],
     parameters: &[TypeParameter],
     selected: &StaticMachineArgument,
@@ -317,7 +316,7 @@ pub(super) fn validate_static_application(
 }
 
 fn validate_closed_type_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
     position: usize,
 ) -> Result<(), RelationPlanError> {

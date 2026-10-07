@@ -44,7 +44,6 @@ use super::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
     CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, TypeReferenceNode,
-    TypedTrees,
 };
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,
@@ -72,7 +71,7 @@ fn callable_target<'plan>(
 /// roster at finalize time, or the live candidates while closure pruning still
 /// needs the generic consuming machine as a resolvable call target.
 pub(super) fn build_nominal_affine_unit_cleanup_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     plans: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
@@ -306,7 +305,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
 /// attached checked-body `::drop` machine whose first state takes one
 /// parameter.
 pub(crate) fn nominal_cleanup_shape<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(
     &'a typed_trees::machine::Machine,
@@ -348,7 +347,7 @@ pub(crate) fn nominal_cleanup_shape<'a>(
 /// and propagates its actual reach; retaining a borrowed subject or effectful
 /// body does not create a different cleanup operation.
 pub(crate) fn nominal_cleanup_target_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     plan: &CheckedUnitCallableEntry<'_>,

@@ -10,7 +10,7 @@ use super::isolation::{
 };
 use super::{
     ExpressionHandle, ExpressionNode, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, expression_is_effectful_for_transparent_result, free_machine_entry_state,
+    expression_is_effectful_for_transparent_result, free_machine_entry_state,
     machine_state_by_symbol,
 };
 
@@ -46,7 +46,10 @@ impl ValuePosition {
         }
     }
 
-    fn computed_operand_requirement(self, program: &TypedTrees) -> Option<CallResultRequirement> {
+    fn computed_operand_requirement(
+        self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<CallResultRequirement> {
         match self {
             Self::IndexOperand => Some(CallResultRequirement::CallerIsolated),
             Self::CallArgument(expected_type) => program
@@ -66,7 +69,7 @@ pub(super) type PendingValue = (ExpressionHandle, ValuePosition);
 /// returned children on their own worklist, so alternating calls and computed
 /// values do not recursively re-enter the value traversal.
 pub(super) fn push_value_children(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     position: ValuePosition,
     pending: &mut Vec<PendingValue>,
@@ -163,7 +166,7 @@ pub(super) fn push_value_children(
 }
 
 pub(super) fn value_call_result_is_admitted(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     position: ValuePosition,
     symbols: &TopLevelSymbols<'_>,
@@ -199,7 +202,7 @@ pub(super) fn value_call_result_is_admitted(
 }
 
 fn typed_array_element_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
     element_count: usize,
 ) -> Option<TypeReferenceHandle> {
@@ -222,7 +225,7 @@ fn typed_array_element_type(
 }
 
 fn push_computed_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     requirement: CallResultRequirement,
     pending: &mut Vec<PendingValue>,

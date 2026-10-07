@@ -45,7 +45,7 @@ pub(super) fn proof_obligation_point(obligation: &ProofObligationFact) -> Progra
 }
 
 pub(super) fn contract_fact_point(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract: &ContractProofFact,
 ) -> ProgramPoint {
     match contract.owner {

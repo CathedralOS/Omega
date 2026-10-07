@@ -2,7 +2,6 @@
 //! judgments.
 
 use crate::proof_contracts::contract_entailment::arithmetic_judgment::{Engine, Judgment};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
@@ -72,7 +71,7 @@ pub enum StrictArithmeticImplicationJudgment {
 /// symbol-keyed binding, and only `Proven` succeeds. In particular, the
 /// validator's sound stand-down behavior is `Unknown` here, never acceptance.
 pub fn strict_arithmetic_expression_implication(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ExpressionHandle],
     goal: ExpressionHandle,
@@ -96,7 +95,7 @@ pub fn strict_arithmetic_expression_implication(
 /// which shadow a caller symbol they share (a self-call's parameters).
 /// This supplies mathematical substitution, not executable value custody.
 pub fn strict_arithmetic_expression_implication_with_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ExpressionHandle],
     goal: ExpressionHandle,

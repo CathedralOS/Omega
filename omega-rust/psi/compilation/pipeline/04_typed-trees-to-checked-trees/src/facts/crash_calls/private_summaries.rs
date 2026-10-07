@@ -10,10 +10,9 @@ use crate::facts::crash_calls::summary_predicates::{
 };
 use crate::facts::crash_plan_facts::is_true_crash_route;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(crate) fn infer_private_body_summaries(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     semantic: &facts::FactPlan,
@@ -302,7 +301,7 @@ pub(crate) fn solve_private_summary_fixed_point(
 }
 
 fn machine_non_transition_invocation_sites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     flow: &checked_trees::FlowFacts,
     plan: &checked_trees::MachineContractPlan,
@@ -440,7 +439,7 @@ fn inferred_direct_body_crash_buckets(
 }
 
 fn private_dependency_reaches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     nodes: &[SummaryNode],
     plans: &[checked_trees::MachineContractPlan],
     start: SymbolHandle,
@@ -476,7 +475,7 @@ fn private_dependency_reaches(
 }
 
 pub(crate) fn requirement_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
 ) -> Option<&typed_trees::signature::StateSignature> {
@@ -498,7 +497,7 @@ pub(crate) fn requirement_signature(
 }
 
 pub(crate) fn crash_route_expressions_by_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],

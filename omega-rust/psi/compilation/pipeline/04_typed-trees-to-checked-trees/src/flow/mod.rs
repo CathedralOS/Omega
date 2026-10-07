@@ -164,7 +164,7 @@ use reference_spans::{
 /// existing opaque/conservative outcome.
 pub(crate) fn shared_call_frames_or<'program, 'a>(
     shared: Option<&'a validation::CallFrameResolver<'program>>,
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     owned: &'a mut Option<validation::CallFrameResolver<'program>>,
 ) -> Option<&'a validation::CallFrameResolver<'program>> {
     if shared.is_some() {
@@ -175,7 +175,7 @@ pub(crate) fn shared_call_frames_or<'program, 'a>(
 }
 
 pub(crate) fn resolved_operator_statement_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::statement::TableCall,
 ) -> Option<symbols::SymbolHandle> {
     operator_calls::resolve_operator_statement_call(program, call)

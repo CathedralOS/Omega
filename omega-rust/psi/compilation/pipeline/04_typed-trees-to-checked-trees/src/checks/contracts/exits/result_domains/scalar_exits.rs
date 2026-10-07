@@ -13,7 +13,7 @@ use typed_trees::types::TypeReferenceNode;
 /// Shared by the exit census and its consumer: a scalar domain annotation
 /// needs a live return context even when there is no authored `ensures`.
 pub(crate) fn scalar_result_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<&typed_trees::types::DomainConstraint> {
     // Reference and nominal field obligations retain their existing owners.
@@ -63,7 +63,7 @@ pub(crate) fn scalar_result_domains(
 /// cannot identify an indexed domain application, and predicate truth alone
 /// cannot establish a routed qualification.
 pub(in crate::checks::contracts) fn check_scalar_result_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -171,7 +171,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
 /// Both the machine's external result and the current state's result are
 /// obligations. Identical instances need only one establishment judgment.
 pub(super) fn scalar_exit_domains<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_symbol: symbols::SymbolHandle,
 ) -> Vec<&'program typed_trees::types::DomainConstraint> {
@@ -206,7 +206,7 @@ pub(super) fn scalar_exit_domains<'program>(
 /// the selected target contract. The common machine promise is checked at leaf
 /// exits, so intermediate states need not repeat it in their annotations.
 pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &checked_trees::FlowStateFact,
     call: &checked_trees::FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -277,7 +277,7 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
 }
 
 pub(super) fn call_result_has_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: symbols::SymbolHandle,
     required: &typed_trees::types::DomainConstraint,
 ) -> bool {
@@ -295,7 +295,7 @@ pub(super) fn call_result_has_domain(
 }
 
 pub(in crate::checks::contracts) fn exact_scalar_membership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,

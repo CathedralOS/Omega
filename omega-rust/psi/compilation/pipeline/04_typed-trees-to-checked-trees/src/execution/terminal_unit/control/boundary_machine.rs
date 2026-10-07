@@ -15,11 +15,11 @@ use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralParameterPlan, SymbolHandle, TypedTrees, is_reference,
+    CheckedUnitStructuralParameterPlan, SymbolHandle, is_reference,
 };
 
 pub(crate) fn build_boundary_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -97,7 +97,7 @@ pub(crate) fn build_boundary_machine(
 /// Integer parameter ranges follow. A floating parameter range has no
 /// proposition form here and, as before this lane existed, is not published.
 fn boundary_scalar_requires(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     contract: &checked_trees::MachineContractPlan,
 ) -> Option<Vec<checked_trees::ClosedScalarContractValue>> {
@@ -154,7 +154,7 @@ fn boundary_scalar_requires(
 /// presentation; a formal or result the planners cannot present leaves the
 /// slot unplanned, and calls naming it decline at their own plan.
 pub(crate) fn build_dynamic_slot_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<checked_trees::CheckedDynamicSlotPlan> {
     let mut plans = Vec::new();
@@ -203,7 +203,7 @@ pub(crate) fn build_dynamic_slot_plans(
 }
 
 pub(crate) fn build_static_boundary_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
@@ -428,7 +428,7 @@ pub(crate) fn build_static_boundary_requirements(
 /// receiver to omit; an operator's receiver is an actual operand and retains
 /// its position, type, and access like every other input.
 fn boundary_parameters<'program>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     parameters: impl Iterator<Item = &'program typed_trees::signature::StateParameter>,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
@@ -502,7 +502,7 @@ fn boundary_parameters<'program>(
 /// bodyless call. Its authored symbol owns the signature and contract; no
 /// synthetic machine or selected provider may replace that identity.
 fn build_boundary_operator(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
@@ -611,7 +611,7 @@ fn build_boundary_operator(
 /// Nominal binder requirements are not selected execution targets; only a closed
 /// specialization may replace a binder with a callable body or exact boundary.
 fn static_boundary_call_targets(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
     let mut targets = facts
@@ -654,7 +654,7 @@ fn static_boundary_call_targets(
 /// retained `Type` bindings must agree; selections may differ because the
 /// plan records no provider identity.
 fn specialized_signature_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     signature: &typed_trees::signature::StateSignature,
     type_parameters: &[typed_trees::data::TypeParameter],
@@ -755,7 +755,7 @@ fn specialized_signature_substitutions(
 }
 
 pub(crate) fn boundary_result_plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],

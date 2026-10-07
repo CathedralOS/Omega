@@ -4,11 +4,11 @@
 use super::super::{TableCallExpression, machine_state_by_symbol, result_origins};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    Machine, StoredLocalOrigins, TopLevelSymbols, TypedTrees, caller_aliases, stored_origins,
+    Machine, StoredLocalOrigins, TopLevelSymbols, caller_aliases, stored_origins,
     type_reference_is_reference, value_origins,
 };
 pub(super) fn call_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<&TableCallExpression> {
     while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
@@ -21,7 +21,7 @@ pub(super) fn call_expression(
 }
 
 pub(super) fn call_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,

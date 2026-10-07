@@ -12,7 +12,6 @@
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
@@ -64,7 +63,7 @@ impl Eq for DomainAtom {}
 /// fresh explicit result surface: `value as T` deliberately has `T`'s atoms,
 /// while `value as T in D` deliberately has `D` as well.
 pub(crate) fn validate_implicit_domain_weakening(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -95,7 +94,7 @@ pub(crate) fn validate_implicit_domain_weakening(
 /// field initializers have no callee contract and pass `None`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_argument_domain_weakening(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -216,7 +215,10 @@ pub(crate) fn validate_argument_domain_weakening(
 /// projection, another binding, or an `ensures` row names no premise here. The
 /// declared-atom expansion is the same one a declared qualification gets, so an
 /// alias premise contributes its constituents and a refinement its parents.
-fn parameter_premise_atoms(program: &TypedTrees, parameter: &StateParameter) -> Vec<DomainAtom> {
+fn parameter_premise_atoms(
+    program: &dyn crate::CheckingInput,
+    parameter: &StateParameter,
+) -> Vec<DomainAtom> {
     if !parameter.symbol.is_valid() {
         return Vec::new();
     }
@@ -260,7 +262,7 @@ fn parameter_premise_atoms(program: &TypedTrees, parameter: &StateParameter) -> 
 /// instance, which `is_deferred_index_compatibility` leaves to checked
 /// lowering. Arithmetic policy is an operand property, never a target's
 /// assumption, so only declared atoms participate.
-fn atom_requires_carried_evidence(program: &TypedTrees, atom: &DomainAtom) -> bool {
+fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &DomainAtom) -> bool {
     let DomainAtom::Declared { family: symbol, .. } = atom else {
         return false;
     };
@@ -280,7 +282,7 @@ fn atom_requires_carried_evidence(program: &TypedTrees, atom: &DomainAtom) -> bo
 /// stays a fresh explicit result surface and never consults the callee's
 /// ensures.
 fn append_call_ensured_domain_atoms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
     atoms: &mut Vec<DomainAtom>,
 ) {
@@ -334,7 +336,7 @@ fn append_call_ensured_domain_atoms(
 /// targets. A value-position call passes its target symbol; an argument passes
 /// the parameter's owning callable.
 fn callable_signature_contracts<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     target: SymbolHandle,
 ) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
     if let Some((machine, state)) =
@@ -392,7 +394,7 @@ fn is_deferred_index_compatibility(left: &DomainAtom, right: &DomainAtom) -> boo
 }
 
 fn expression_atoms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -446,7 +448,7 @@ fn expression_atoms(
 }
 
 fn append_type_atoms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     atoms: &mut Vec<DomainAtom>,
     stack: &mut Vec<SymbolHandle>,
@@ -490,7 +492,7 @@ fn append_type_atoms(
 }
 
 fn append_declared_atom(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     instance: language_semantics::SemanticDomainId,
     indexed: bool,
@@ -558,7 +560,7 @@ fn push_unique(atoms: &mut Vec<DomainAtom>, atom: DomainAtom) {
     }
 }
 
-fn atom_requires_explicit_removal(program: &TypedTrees, atom: &DomainAtom) -> bool {
+fn atom_requires_explicit_removal(program: &dyn crate::CheckingInput, atom: &DomainAtom) -> bool {
     match atom {
         DomainAtom::Arithmetic(_) => true,
         DomainAtom::Declared {
@@ -578,7 +580,11 @@ fn atom_requires_explicit_removal(program: &TypedTrees, atom: &DomainAtom) -> bo
     }
 }
 
-fn atoms_equivalent(program: &TypedTrees, left: &DomainAtom, right: &DomainAtom) -> bool {
+fn atoms_equivalent(
+    program: &dyn crate::CheckingInput,
+    left: &DomainAtom,
+    right: &DomainAtom,
+) -> bool {
     match (left, right) {
         (DomainAtom::Arithmetic(left), DomainAtom::Arithmetic(right)) => left == right,
         (
@@ -621,7 +627,10 @@ fn atom_label(atom: &DomainAtom) -> String {
 
 /// A semantic-domain argument renders as its canonical const value display
 /// when it names one, otherwise as the type reference itself.
-fn domain_argument_display(program: &TypedTrees, argument: TypeReferenceHandle) -> String {
+fn domain_argument_display(
+    program: &dyn crate::CheckingInput,
+    argument: TypeReferenceHandle,
+) -> String {
     match program.type_reference_table.type_reference(argument) {
         TypeReferenceNode::Named { name, .. } => {
             language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
@@ -632,7 +641,7 @@ fn domain_argument_display(program: &TypedTrees, argument: TypeReferenceHandle) 
 }
 
 fn domain_constraint_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> String {
     if domain.arguments.is_empty() {
@@ -642,14 +651,14 @@ fn domain_constraint_label(
     let arguments = domain
         .arguments
         .iter()
-.map(|argument| domain_argument_display(program, *argument))
+        .map(|argument| domain_argument_display(program, *argument))
         .collect::<Vec<_>>()
         .join(", ");
     format!("{}<{arguments}>", domain.name)
 }
 
 fn qualification_cast_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> String {
     let name = program
@@ -666,7 +675,7 @@ fn qualification_cast_label(
         .type_reference_table
         .type_reference_handles(cast.semantic_domain_arguments)
         .iter()
-.map(|argument| domain_argument_display(program, *argument))
+        .map(|argument| domain_argument_display(program, *argument))
         .collect::<Vec<_>>()
         .join(", ");
     format!("{name}<{arguments}>")

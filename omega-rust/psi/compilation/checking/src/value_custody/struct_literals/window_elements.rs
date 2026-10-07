@@ -1,6 +1,5 @@
 use super::validate_array_literal_elements_for_shape;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -9,13 +8,13 @@ use typed_trees::state::State;
 /// array. Enforce its element type for ordinary mutable writes as well as
 /// write-only writes; permission and selector bounds remain separate checks.
 pub(crate) fn validate_array_window_elements<'p>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
     value: ExpressionHandle,
     bound_lookup: &mut (
-        &'p TypedTrees,
+        &'p dyn crate::CheckingInput,
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
     ),
     diagnostics: &mut Vec<Diagnostic>,
@@ -46,10 +45,7 @@ pub(crate) fn validate_array_window_elements<'p>(
         return;
     };
     let Some((element_type, collection_length)) =
-        crate::program_scope::type_shape::collection_element_and_length(
-            program,
-            collection_type,
-        )
+        crate::program_scope::type_shape::collection_element_and_length(program, collection_type)
     else {
         return;
     };

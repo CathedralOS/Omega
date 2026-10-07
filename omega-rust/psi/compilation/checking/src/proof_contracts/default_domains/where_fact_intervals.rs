@@ -4,7 +4,6 @@
 //! only facts that the write validator has already established at every legal
 //! observation point, and refuses cyclic or unsupported bounds.
 
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataVariant};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -22,7 +21,7 @@ use crate::proof_contracts::arithmetic_domains::Interval;
 /// the co-field's DECLARED range (declared ranges always hold), never from
 /// flow values.
 pub(crate) fn where_fact_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -40,7 +39,7 @@ pub(crate) fn where_fact_interval(
 /// through the unranged middle field); a cyclic pair exhausts the cap and
 /// resolves to None -- over-refusal only.
 fn field_fact_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     field: &str,
     depth: usize,
@@ -168,7 +167,7 @@ fn field_fact_interval(
 /// the field's bounds. `None` when any conjunct relates two fields or has
 /// another shape; an empty list when the data states no facts.
 pub fn data_where_field_intervals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
     let fields = program
@@ -190,7 +189,7 @@ pub fn data_where_field_intervals(
 /// with the same field spelling. Constructors establish these bounds and
 /// dispatch exposes them only after selecting this case.
 pub fn case_where_field_intervals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     case: &DataVariant,
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
     let fields = program.data_payload_fields(case).iter().collect::<Vec<_>>();
@@ -202,7 +201,7 @@ pub fn case_where_field_intervals(
 }
 
 fn field_intervals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fields: &[&DataField],
     facts: &[ProofFact],
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
@@ -261,7 +260,7 @@ pub(crate) struct FieldLiteralBound {
 /// relates two fields or has another shape; an empty list when the data states
 /// no facts.
 pub(crate) fn data_where_field_literal_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> Option<Vec<FieldLiteralBound>> {
     let fields = program
@@ -280,7 +279,7 @@ pub(crate) fn data_where_field_literal_bounds(
 }
 
 fn field_literal_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fields: &[&DataField],
     facts: &[ProofFact],
 ) -> Option<Vec<FieldLiteralBound>> {
@@ -356,7 +355,7 @@ fn field_literal_bounds(
 /// of data whose facts are all interval-only: every store re-proves its own
 /// field's interval, which is then the whole default domain for that field.
 pub(crate) fn stored_field_where_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -381,7 +380,11 @@ pub(crate) fn stored_field_where_interval(
         .map(|(_, low, high)| Interval { low, high })
 }
 
-fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
+fn side_names_field(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    field: &str,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program
             .expression_table
@@ -396,7 +399,7 @@ fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &
 /// co-field name reads its DECLARED range (or full type width) from the
 /// data definition's own members.
 fn bound_source_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
     depth: usize,
@@ -429,7 +432,11 @@ fn bound_source_interval(
 
 /// Slice 10: is the definition's named field an UNSIGNED primitive (its
 /// values are >= 0 -- the product-division soundness guard)?
-fn field_is_unsigned(program: &TypedTrees, definition: &DataDefinition, field: &str) -> bool {
+fn field_is_unsigned(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    field: &str,
+) -> bool {
     use typed_trees::types::PrimitiveType;
     program
         .data_members(definition)
@@ -453,7 +460,7 @@ fn field_is_unsigned(program: &TypedTrees, definition: &DataDefinition, field: &
 /// Slice 10: a co-factor's LOWER bound -- its declared range, or a sibling
 /// literal fact (`stride >= 40` / `40 <= stride`), single level.
 fn factor_lower_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     factor: ExpressionHandle,
 ) -> Option<i64> {

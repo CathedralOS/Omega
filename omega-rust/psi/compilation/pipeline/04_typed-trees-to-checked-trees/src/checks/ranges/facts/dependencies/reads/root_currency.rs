@@ -1,7 +1,7 @@
 //! Root currency scope: a fresh state walks once whether its roots are
 //! current, and binder-formed members escape that freshness.
 
-use super::super::{Machine, State, TypedTrees};
+use super::super::{Machine, State};
 use symbols::SymbolHandle;
 
 /// One per-state index behind `root_is_current`: a place root is current when
@@ -72,7 +72,10 @@ pub(crate) fn enter_root_currency_scope() -> RootCurrencyScope {
     RootCurrencyScope(ROOT_CURRENCY.with(|cell| cell.borrow_mut().replace(None)))
 }
 
-pub(super) fn build_root_currency_index(program: &TypedTrees, state: &State) -> RootCurrencyIndex {
+pub(super) fn build_root_currency_index(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+) -> RootCurrencyIndex {
     let mut index = RootCurrencyIndex {
         parameters: std::collections::HashSet::new(),
         local_first: symbols::SymbolKeyMap::default(),
@@ -94,7 +97,7 @@ pub(super) fn build_root_currency_index(program: &TypedTrees, state: &State) -> 
 }
 
 pub(super) fn with_root_currency<R>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     read: impl FnOnce(&RootCurrencyIndex) -> R,
 ) -> R {
@@ -126,7 +129,7 @@ pub(super) fn with_root_currency<R>(
 }
 
 pub(in crate::checks::ranges::facts::dependencies) fn root_is_current(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,

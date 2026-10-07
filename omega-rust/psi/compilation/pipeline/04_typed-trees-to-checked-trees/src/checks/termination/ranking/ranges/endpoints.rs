@@ -4,7 +4,6 @@ use super::super::patterns;
 use super::super::write_preservation::prefix_preserves_path;
 use super::Bounds;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
@@ -13,7 +12,7 @@ mod endpoint_input;
 use endpoint_input::EndpointInput;
 
 pub(super) fn pinned_expression_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

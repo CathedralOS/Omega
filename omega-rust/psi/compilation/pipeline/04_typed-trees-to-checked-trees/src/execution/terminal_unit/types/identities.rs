@@ -4,7 +4,7 @@
 use super::*;
 
 pub(in crate::execution::terminal_unit) fn terminal_field_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<String> {
     program.data_definitions().iter().find_map(|definition| {
@@ -17,12 +17,15 @@ pub(in crate::execution::terminal_unit) fn terminal_field_identity(
     })
 }
 
-pub(crate) fn is_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+pub(crate) fn is_reference(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     validation::reference_shell(program, type_reference).is_some()
 }
 
 pub(in crate::execution::terminal_unit) fn structural_access_for_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<CheckedStructuralAccess> {
     let Some(shell) = validation::reference_shell(program, type_reference) else {
@@ -37,7 +40,7 @@ pub(in crate::execution::terminal_unit) fn structural_access_for_type_reference(
 /// Shared references to this existing whole affine carrier do not own or
 /// qualify the referent. Nested references and constrained carriers stay out.
 pub(in crate::execution::terminal_unit) fn shared_plain_affine_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let TypeReferenceNode::Reference {
@@ -66,7 +69,7 @@ pub(in crate::execution::terminal_unit) fn shared_plain_affine_referent(
 /// consumes the affine form with its own closed-referent companion.
 /// Nested references and constrained carriers stay out.
 pub(in crate::execution::terminal_unit) fn shared_plain_unrestricted_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let TypeReferenceNode::Reference {
@@ -91,7 +94,7 @@ pub(in crate::execution::terminal_unit) fn shared_plain_unrestricted_referent(
 /// out-parameter, and custody of the referent stays with the caller. Linear
 /// referents, nested references, and constrained carriers stay out.
 pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let TypeReferenceNode::Reference {
@@ -116,7 +119,7 @@ pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
 /// which shells a view, a bounded view and a bounded owner keep — belongs to
 /// `validation::structural_type_identity`.
 pub(crate) fn byte_sequence_type_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -133,7 +136,7 @@ pub(crate) fn byte_sequence_type_identity(
 pub(in crate::execution) use validation::type_graph_requires_nominal_drop;
 
 pub(in crate::execution::terminal_unit) fn is_unit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -152,7 +155,7 @@ pub(in crate::execution::terminal_unit) fn is_unit(
 /// the rule `validation::structural_type_identity` owns, so a bounded byte
 /// owner keeps its qualification here exactly as its registered plan does.
 pub(in crate::execution::terminal_unit) fn base_type_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<String> {
@@ -164,7 +167,7 @@ pub(in crate::execution::terminal_unit) fn base_type_identity(
 /// specialization derived, so a requirement formal's identity compares
 /// against the caller's concrete presentation.
 pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -197,7 +200,7 @@ pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions
 /// formal declares over it — while a qualified byte owner still lends
 /// different storage from the plain array.
 pub(in crate::execution::terminal_unit) fn lent_storage_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<String> {
@@ -213,7 +216,7 @@ pub(in crate::execution::terminal_unit) fn lent_storage_identity(
 /// parameter, and identity-level substitution covers the generic arguments
 /// inside it.
 pub(in crate::execution::terminal_unit) fn substituted_formal_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
@@ -238,7 +241,7 @@ pub(in crate::execution::terminal_unit) fn substituted_formal_type(
 }
 
 pub(in crate::execution::terminal_unit) fn closed_data_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     binders: &[(SymbolHandle, String)],
 ) -> String {
@@ -258,7 +261,7 @@ pub(in crate::execution::terminal_unit) fn closed_data_identity(
 }
 
 pub(in crate::execution::terminal_unit) fn scalar_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<PrimitiveType> {

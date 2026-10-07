@@ -34,7 +34,7 @@ fn checked_machine_service_reach<'a>(
     let declared = derive_declared_service_reach(
         compilation,
         authored,
-        &validation::declared_machine_invocations(compilation, machine),
+        &validation::declared_machine_invocations(compilation.checking_input, machine),
         parameters,
         machine.name.as_str(),
     )?;

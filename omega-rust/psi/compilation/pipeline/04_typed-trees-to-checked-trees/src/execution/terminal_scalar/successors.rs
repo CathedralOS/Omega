@@ -10,7 +10,6 @@ use checked_trees::{
 };
 use language_semantics::{Multiplicity, PermissionEventSource};
 use typed_trees::{
-    TypedTrees,
     expression::ExpressionNode,
     state::State,
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
@@ -56,7 +55,7 @@ successors_iter!(iter_mut,, mut);
 
 /// Resolve every edge's argument partition before any span mutates.
 pub(super) fn resolve_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &CheckedScalarExpressionPlans,
     computations: &CheckedScalarComputationPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
@@ -103,7 +102,7 @@ pub(super) fn commit_arguments(
 }
 
 fn arguments<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &CheckedScalarExpressionPlans,
     computations: &CheckedScalarComputationPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
@@ -456,7 +455,7 @@ fn arguments<'a>(
 
 /// Named state transfers share the existing call-occurrence permission ledger.
 pub(super) fn owned_transfers(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state: &State,
     source: &CheckedScalarStateGraph,
@@ -492,7 +491,7 @@ pub(super) fn owned_transfers(
 }
 
 fn transition_permission_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state: &State,
     successor: &CheckedScalarSuccessor,

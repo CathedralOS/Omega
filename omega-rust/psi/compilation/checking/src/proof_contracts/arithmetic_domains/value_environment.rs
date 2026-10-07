@@ -3,7 +3,7 @@
 //! This module owns the mutable abstract environment and its merge/invalidation
 //! rules. Expression analysis and guard recognition remain in the parent.
 
-use super::{ExpressionHandle, Interval, Machine, State, TypedTrees, ordered_values, place_path};
+use super::{ExpressionHandle, Interval, Machine, State, ordered_values, place_path};
 use crate::proof_contracts::arithmetic_domains::place_paths::{
     canonical_path_pair, place_paths_overlap,
 };
@@ -191,7 +191,7 @@ impl ValueEnvironment {
     /// `clear`, since immutability alone does not establish an incoming fact.
     pub(crate) fn invalidate_unknown_writes(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         state: Option<&State>,
     ) {
         let Some(state) = state else {
@@ -291,7 +291,7 @@ impl ValueEnvironment {
     /// Apply the store frame after its target and RHS effects have completed.
     pub(crate) fn invalidate_assignment_paths(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: Option<&State>,
         target: ExpressionHandle,
@@ -394,7 +394,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_joint_add_upper_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -410,7 +410,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_joint_add_lower_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -426,7 +426,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_joint_subtract_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -441,7 +441,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_signed_joint_subtract_lower_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -457,7 +457,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_signed_joint_subtract_upper_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -473,7 +473,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_joint_multiply_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -489,7 +489,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_signed_joint_multiply_bounds(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
@@ -506,7 +506,7 @@ impl ValueEnvironment {
 
     pub(super) fn proves_signed_joint_multiply_negation_bound(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {

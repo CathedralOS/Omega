@@ -31,11 +31,10 @@
 //! edges while retaining their own destination and execution rules.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use numerics::literals::LandedIntegerType;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
-use numerics::literals::LandedIntegerType;
 
 mod literal_widths;
 
@@ -61,10 +60,15 @@ pub(crate) fn primitive_landing_type(primitive: PrimitiveType) -> Option<LandedI
 }
 
 fn named_transition_arguments<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program typed_trees::machine::Machine,
     target_node: &typed_trees::statement::TransitionTargetNode,
-) -> Option<Vec<(&'program typed_trees::signature::StateParameter, ExpressionHandle)>> {
+) -> Option<
+    Vec<(
+        &'program typed_trees::signature::StateParameter,
+        ExpressionHandle,
+    )>,
+> {
     let typed_trees::statement::TransitionTargetNode::Named {
         path, arguments, ..
     } = target_node
@@ -114,7 +118,10 @@ pub(crate) use literal_widths::validate_literal_widths;
 /// while a bare `128i8` does not -- the negation caveat resolves itself.
 /// Value semantics throughout (ch5 exact anonymous values): `0xFFi8` is 255
 /// and does not fit i8 -- a bit-pattern intent spells `0xFFu8` or `-1i8`.
-pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_suffix_magnitudes(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for (_, node) in program.expression_table.expression_entries() {
         let ExpressionNode::Integer(literal) = node else {
             continue;
@@ -195,12 +202,11 @@ pub(crate) use integer_remainder::validate_anonymous_remainders;
 /// Check an already-landed literal against one exact declared destination.
 /// Explicit casts are conversions, not transparent literal wrappers.
 pub(crate) fn validate_suffix_landing(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
     declared: typed_trees::types::TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
             validate_suffix_landing(program, arm.value, declared, diagnostics);
@@ -299,7 +305,10 @@ pub(crate) fn validate_suffix_landing(
     }
 }
 
-pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_suffix_landings(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for (_, node) in program.expression_table.expression_entries() {
         let ExpressionNode::StructLiteral(literal) = node else {
             continue;
@@ -307,9 +316,7 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         crate::value_custody::struct_literals::each_selected_literal_field(
             program,
             literal,
-            |value, field_type| {
-                validate_suffix_landing(program, value, field_type, diagnostics)
-            },
+            |value, field_type| validate_suffix_landing(program, value, field_type, diagnostics),
         );
     }
 

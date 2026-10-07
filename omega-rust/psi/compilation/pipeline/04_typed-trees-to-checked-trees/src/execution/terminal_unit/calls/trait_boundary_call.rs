@@ -35,7 +35,7 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, SymbolHandle, TypedTrees, is_reference,
+    CheckedUnitStructuralResultBindingPlan, SymbolHandle, is_reference,
 };
 
 /// Authored requirement declarations share one call planner. This is a
@@ -54,7 +54,7 @@ pub(super) enum BoundaryRequirement<'program> {
 /// `None` means some operand, receiver, or contract has no admitted boundary
 /// presentation; selection never weakens that signature.
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

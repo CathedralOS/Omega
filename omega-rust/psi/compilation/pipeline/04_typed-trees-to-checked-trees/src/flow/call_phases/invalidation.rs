@@ -22,7 +22,7 @@ pub(in crate::flow) struct CallInvalidationResult {
 }
 
 pub(in crate::flow) fn call_storage_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
@@ -56,7 +56,7 @@ pub(in crate::flow) fn call_storage_writes(
 }
 
 pub(in crate::flow) fn apply_call_invalidations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     domains: &DomainFacts,

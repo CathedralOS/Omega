@@ -2,10 +2,7 @@
 
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, FlowCallFact, FlowStateFact};
 use language_core::OperatorSpelling;
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 mod context;
 mod guard_implication;
@@ -13,7 +10,7 @@ pub(super) use context::fixed_integer;
 pub(super) use context::proves as proves_in_context;
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
@@ -32,7 +29,7 @@ pub(super) fn proves(
 }
 
 fn prove(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
@@ -270,7 +267,7 @@ fn prove(
 /// this reader does not reinterpret an update as mathematical addition. The
 /// selected-arm caller separately checks guard and operand write ordering.
 fn guarded_update_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -323,7 +320,7 @@ fn guarded_update_bounds(
 /// values of operands that may since have changed. Mutable locals need an
 /// argument-evaluation snapshot, not this call-entry storage query.
 fn immutable_capture_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     contexts: &[facts::FactContextHandle],
     state: &typed_trees::state::State,
@@ -368,7 +365,7 @@ fn immutable_capture_bounds(
 /// two literals belong to the closed evaluator and two subjects have no
 /// carrier extent to quote.
 fn carrier_extent_discharge(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     explicit: &[&typed_trees::signature::StateParameter],
@@ -429,7 +426,7 @@ fn carrier_extent_discharge(
 /// runtime-length slice, a non-length member, or no literal side — stays
 /// undecided here and falls through to the evidence channels unchanged.
 pub(super) fn constant_extent_comparison_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binary: &typed_trees::expression::TableBinaryExpression,
@@ -473,7 +470,7 @@ pub(super) fn constant_extent_comparison_value(
 
 /// Whether a member chain reads a field of the machine's own receiver.
 fn receiver_rooted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     mut expression: ExpressionHandle,
 ) -> bool {

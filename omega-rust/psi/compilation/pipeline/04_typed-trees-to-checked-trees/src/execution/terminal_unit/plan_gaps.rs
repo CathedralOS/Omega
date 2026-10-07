@@ -10,7 +10,6 @@ use checked_trees::{CheckedUnitPlanGap, CheckedUnitPlanGapReason};
 use diagnostics::CoverageForm;
 use source::{SourceSpan, Span};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
@@ -26,7 +25,7 @@ pub(crate) enum GapSite {
 }
 
 pub(crate) fn plan_gap(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     site: GapSite,
     reason: CheckedUnitPlanGapReason,
@@ -69,7 +68,10 @@ pub(crate) fn plan_gap(
 }
 
 /// The coverage form and authored extent of one statement.
-fn statement_site(program: &TypedTrees, statement: &StatementNode) -> (CoverageForm, SourceSpan) {
+fn statement_site(
+    program: &dyn ::validation::CheckingInput,
+    statement: &StatementNode,
+) -> (CoverageForm, SourceSpan) {
     let expression = |handle: ExpressionHandle| {
         if handle.is_valid() {
             program.expression_table.source_span(handle)

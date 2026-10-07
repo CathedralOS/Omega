@@ -7,7 +7,6 @@
 use super::fields::{collect_record_paths, record_referent};
 use crate::expression_traversal::unwrapped;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -33,7 +32,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// step (`&R { f: carrier.f - 1 }` packs the scalar's moved copy inside the
 /// record that keeps the role).
 pub fn discover_state_entry_mappings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     rank_subject: SymbolHandle,
     required: &[SymbolHandle],
@@ -56,7 +55,7 @@ pub fn discover_state_entry_mappings(
 /// dependency-free literal arrival through `fresh_record_carrier`; scalar-only
 /// measures pass an invalid handle.
 pub fn discover_state_entry_mappings_preferring(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     preferred: &[SymbolHandle],
     record_subject: SymbolHandle,
@@ -193,7 +192,7 @@ pub fn discover_state_entry_mappings_preferring(
 /// Slots never touched by the demotion keep the rules `argument_mapping`
 /// already applied.
 fn demote_stale_copies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     occurrences: &[(usize, usize, &[ExpressionHandle])],
     mappings: &mut [Option<Vec<SymbolHandle>>],
@@ -336,7 +335,7 @@ fn demote_stale_copies(
 /// destination slot's own symbol on a self-edge -- and it must carry the same
 /// entry the slot claims, or the step moved some other role's value.
 fn strict_step_claim(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &State,
     source_mapping: &[SymbolHandle],
     argument: ExpressionHandle,
@@ -385,7 +384,7 @@ fn strict_step_claim(
 /// literal rebuild steps; a slice spelling cannot carry a scalar entry, so
 /// only the literal and borrowed shapes newly apply there.
 fn moved_copy_claim(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     source_mapping: &[SymbolHandle],
@@ -430,7 +429,7 @@ fn moved_copy_claim(
 /// start keeps the window's length unbounded below and is not divergence
 /// evidence.
 fn moved_leaf_step(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     source_mapping: &[SymbolHandle],
@@ -483,7 +482,7 @@ fn moved_leaf_step(
 /// requires: `live`, `live.power`, and `&holder.items` all root at the
 /// formal whose role decides.
 fn carrier_root_carries(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &State,
     source_mapping: &[SymbolHandle],
     mut expression: ExpressionHandle,
@@ -521,7 +520,7 @@ fn carrier_root_carries(
 /// not divergence evidence: the copies may still hold equal values, so the
 /// claimant keeps its equality obligation.
 pub(crate) fn positive_step_amount(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -545,7 +544,10 @@ pub(crate) fn positive_step_amount(
 /// some constrained shell bounds the value above zero outright, whatever the
 /// other constraints or the base primitive say. A non-literal minimum proves
 /// nothing here -- the arrival judgment keeps its own accounting of it.
-fn declared_positive_floor(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+fn declared_positive_floor(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -578,7 +580,11 @@ fn declared_positive_floor(program: &TypedTrees, mut reference: TypeReferenceHan
 /// incoming edge, so the fact holds wherever the step's carrier is judged.
 /// The owning machine's contracts cover the root state, whose formal-level
 /// requires live on the machine signature.
-fn requires_positive_floor(program: &TypedTrees, state: &State, symbol: SymbolHandle) -> bool {
+fn requires_positive_floor(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> bool {
     let owner = program.machines().iter().find(|machine| {
         program
             .machine_states(machine)
@@ -613,7 +619,7 @@ fn requires_positive_floor(program: &TypedTrees, state: &State, symbol: SymbolHa
 /// One requires fact's contribution: `&&`-conjuncts decompose, then a plain
 /// comparison must bound the named formal's literal floor at 1 or above.
 fn positive_floor_fact(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -652,7 +658,7 @@ fn positive_floor_fact(
 /// The state-edge judgment's guarded-edge reader collects the
 /// same occurrence set; discovery must not enumerate a different one.
 fn state_call_occurrences<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
 ) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
     crate::machine_calls::call_cycles::runtime_ranking::internal_arrivals(program, machine)
@@ -663,7 +669,7 @@ fn state_call_occurrences<'program>(
 /// query independently proves equality among required scalar copies on every
 /// arrival; discovering shared ancestry does not establish equal values.
 fn argument_mapping(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     target: &State,
@@ -818,7 +824,7 @@ fn argument_mapping(
 /// own referent record when this position is the unique carrier, so a
 /// discovered lineage through that exact record still outranks the claim.
 fn fresh_record_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     target: &State,
     position: usize,
@@ -875,7 +881,7 @@ fn fresh_record_carrier(
 /// claim. Scalar or role-less selections cannot serve a record slot and do
 /// not block the claim.
 fn entry_is_record_of(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry: SymbolHandle,
     owner: SymbolHandle,
@@ -897,7 +903,7 @@ fn entry_is_record_of(
 /// nested auxiliary arithmetic must not select an operand merely by position.
 /// A literal subtree contributes no subject of its own.
 fn argument_subjects(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

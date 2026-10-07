@@ -11,7 +11,7 @@ use super::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &FlowBuildContext,
     machine_symbol: SymbolHandle,

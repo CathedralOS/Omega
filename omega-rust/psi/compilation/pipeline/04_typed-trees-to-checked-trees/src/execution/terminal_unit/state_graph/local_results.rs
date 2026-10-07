@@ -3,14 +3,13 @@
 use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
 use super::{
     CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypeReferenceNode,
-    TypedTrees,
 };
 
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
 /// operands still observe its original home before selected-edge cleanup.
 pub(super) fn permits_disposal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     result: &CheckedUnitStructuralResultBindingPlan,
     successors: &[&CheckedStructuralControlSuccessorPlan],
@@ -20,7 +19,7 @@ pub(super) fn permits_disposal(
 }
 
 fn validate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     result: &CheckedUnitStructuralResultBindingPlan,
     successors: &[&CheckedStructuralControlSuccessorPlan],

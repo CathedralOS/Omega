@@ -9,7 +9,7 @@ use super::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transport(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     write: &super::write_target::StatementWrite,

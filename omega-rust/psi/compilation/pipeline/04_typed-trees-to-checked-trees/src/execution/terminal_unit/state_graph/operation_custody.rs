@@ -7,12 +7,12 @@
 use super::result_custody::{call_owns_result, retained_structural_result};
 use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    Multiplicity, StatementNode, TypedTrees, control,
+    Multiplicity, StatementNode, control,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
 pub(super) fn admit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     operations: &mut [CheckedUnitEffectOperationPlan],
     trace: &control::LocalConstructionTrace,

@@ -1,6 +1,5 @@
 //! Canonical place paths and their overlap.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn canonical_path_pair(left: String, right: String) -> (String, String) {
@@ -17,7 +16,10 @@ pub(crate) fn place_paths_overlap(left: &str, right: &str) -> bool {
 
 /// The straight-line place path an expression denotes (`self.v`, `count`), for
 /// the value environment. `None` for non-place expressions.
-pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+pub(crate) fn place_path(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<String> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);

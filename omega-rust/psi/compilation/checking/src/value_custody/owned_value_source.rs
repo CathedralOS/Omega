@@ -3,14 +3,13 @@
 //! availability and each selected transfer's residual ownership independently.
 
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
 /// Resolve a whole local or parameter without erasing a borrow, qualification,
 /// or nominal type. A projection is not its containing owner's whole value.
 pub fn plain_owned_value_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
@@ -30,7 +29,7 @@ pub fn plain_owned_value_source(
 /// walls as the plain rule — no loans, slices, nominal cleanup, or recursive
 /// storage — while letting a `[linear]` member remain a tracked claim.
 pub fn affine_owned_value_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
@@ -48,7 +47,7 @@ pub fn affine_owned_value_source(
 /// the whole value, and the caller's claim accounting (not this predicate)
 /// decides whether the move is available on every path that needs it.
 pub fn linear_owned_value_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
@@ -66,7 +65,7 @@ pub fn linear_owned_value_source(
 /// Contents and multiplicity remain the caller's question: a shared borrow,
 /// a linear claim, and a plain affine value all resolve to the same place.
 pub(crate) fn whole_owned_value_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {

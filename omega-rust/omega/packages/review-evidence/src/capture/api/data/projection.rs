@@ -129,7 +129,7 @@ pub(crate) fn project_public_data(
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
     require_rederived_data_definition_facts(compilation)?;
-    let quotient_formations = validation::validate_quotient_formations(compilation)?;
+    let quotient_formations = validation::validate_quotient_formations(compilation.checking_input)?;
     let mut rows = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|row| {
         row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)

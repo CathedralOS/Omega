@@ -121,7 +121,6 @@ use proof_admission::{
 };
 use source::SourceSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataProperties, TypeParameter, TypeParameterKind};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::mathematical::{MathematicalBody, MathematicalDefinition};
@@ -173,7 +172,7 @@ struct ScopeEntry {
 }
 
 struct Elaborator<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     arena: TermArena,
     /// Signature-order declarations: lazily interned carrier assumptions
     /// each land immediately before the authored declaration whose
@@ -263,7 +262,7 @@ struct Elaborator<'a> {
 /// signature and re-decide it. Returns the checked signature, or the
 /// elaboration/checking diagnostics for the first declaration that fails.
 pub(crate) fn check_mathematical_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
     let mut elaborator = Elaborator {
         program,

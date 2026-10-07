@@ -21,14 +21,13 @@ pub use service_reach::{fixed_installation_boundary_service_reach, infer_service
 /// service requirement, falling back to its type's head symbol; a service
 /// target names itself.
 pub(super) fn invocation_service_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[&typed_trees::signature::StateParameter],
     target: &flow_effects::InvocationTarget,
 ) -> Option<symbols::SymbolHandle> {
     match target {
-        flow_effects::InvocationTarget::Parameter(index) => parameters
-            .get(*index as usize)
-            .map(|parameter| {
+        flow_effects::InvocationTarget::Parameter(index) => {
+            parameters.get(*index as usize).map(|parameter| {
                 typed_trees::service::exact_bound_service_requirement(
                     program,
                     parameter.type_reference,
@@ -39,7 +38,8 @@ pub(super) fn invocation_service_symbol(
                         .type_reference(parameter.type_reference)
                         .type_symbol(&program.type_reference_table)
                 })
-            }),
+            })
+        }
         flow_effects::InvocationTarget::Service(symbol) => Some(*symbol),
     }
 }

@@ -4,7 +4,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId as OccurrenceId,
 };
 use source::SourceSpan;
-use typed_trees::TypedTrees;
 
 use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
@@ -14,7 +13,7 @@ use checked_trees::{FlowCallResult, FlowCallSite};
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn bind_checked_body_call_source_spans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &mut checked_trees::FlowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let machines_by_symbol = program
@@ -174,7 +173,7 @@ pub(crate) fn bind_checked_body_call_source_spans(
 }
 
 fn validate_checked_call_join(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     checked: &checked_trees::FlowCallFact,
@@ -265,7 +264,7 @@ fn validate_checked_call_join(
 }
 
 fn authored_call_span(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     site: &CallSite<'_>,
 ) -> Result<Option<SourceSpan>, Vec<Diagnostic>> {
     match site {
@@ -330,7 +329,7 @@ fn authored_call_span(
 }
 
 fn authored_attached_call_span(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     occurrence: Option<OccurrenceId>,
     source_span: SourceSpan,
     origin: language_semantics::CallOperationalAcknowledgementOrigin,
@@ -362,7 +361,7 @@ fn authored_attached_call_span(
 }
 
 fn validate_occurrence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     occurrence: OccurrenceId,
     expected_span: Option<SourceSpan>,
     form: &str,
@@ -397,7 +396,7 @@ fn nonempty_span(source_span: SourceSpan) -> Option<SourceSpan> {
 /// selected named target. A paired unconditional arm after guarded ones is a
 /// guarded tail's fallthrough instead.
 fn closing_invocation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> bool {

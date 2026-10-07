@@ -54,7 +54,7 @@ impl FormedLeaf<'_> {
         }
     }
 
-    fn label(&self, program: &typed_trees::TypedTrees) -> String {
+    fn label(&self, program: &dyn ::validation::CheckingInput) -> String {
         facts::canonical_place_label_from_parts(
             program,
             facts::PlaceRoot::Symbol(self.root_symbol),
@@ -64,7 +64,7 @@ impl FormedLeaf<'_> {
 }
 
 pub(super) fn check_formed_aggregates<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_state: &StateBorrowFact,
@@ -170,7 +170,7 @@ pub(super) fn check_formed_aggregates<'p>(
 /// Judge every pair of leaves formed together at one statement. `subject`
 /// renders the diagnostic's subject and verb for the leaves' owner.
 fn check_formed_leaves<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,

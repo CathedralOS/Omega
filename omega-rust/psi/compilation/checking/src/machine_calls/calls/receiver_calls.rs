@@ -8,7 +8,6 @@ use super::{
     validate_result_use,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateSignature;
@@ -181,7 +180,7 @@ pub(super) fn validate_receiver_call(
 /// receiver resolved to `state` of `machine`.
 #[allow(clippy::too_many_arguments)]
 fn validate_resolved_state_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     symbols: &super::TopLevelSymbols<'_>,
     machine: &typed_trees::machine::Machine,
@@ -224,7 +223,7 @@ fn validate_resolved_state_call(
 /// top of it.
 #[allow(clippy::too_many_arguments)]
 fn validate_signature_result_and_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     signature: &StateSignature,
     current_machine: &typed_trees::machine::Machine,
@@ -361,7 +360,7 @@ fn validate_resolved_receiver_call(
 /// destination with no selection to bind, which later stages would otherwise
 /// have to reject without a source diagnostic.
 fn validate_native_callback_selections(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     signature: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,

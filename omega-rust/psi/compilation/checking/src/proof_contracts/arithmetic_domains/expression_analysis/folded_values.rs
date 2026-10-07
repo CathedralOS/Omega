@@ -12,7 +12,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, Machine, PrimitiveType, State,
-    TypeReferenceNode, TypedTrees, declared_place_type_raw,
+    TypeReferenceNode, declared_place_type_raw,
 };
 use crate::value_custody::literals;
 
@@ -46,7 +46,7 @@ pub(super) fn analyze(
 }
 
 fn collection_length_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,

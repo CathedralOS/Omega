@@ -16,11 +16,10 @@ use super::{AdmittedGuarantee, Arrival, Header};
 use crate::checks::termination::{machine_adjacency, strongly_connected_components};
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use validation::{ScopedArithmeticExpression, ScopedArithmeticHypothesis};
 
 pub(super) fn admitted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
 ) -> Vec<AdmittedGuarantee> {

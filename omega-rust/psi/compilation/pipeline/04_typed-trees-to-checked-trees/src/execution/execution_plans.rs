@@ -5,7 +5,6 @@ use checked_trees::{
     CheckedUnitEffectPlans,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 pub(crate) struct ExecutionPlans {
     pub boundary_returns: CheckedBoundaryScalarReturnPlans,
@@ -20,7 +19,7 @@ pub(crate) struct ExecutionPlans {
 /// Diagnostics remain owned output so initial checking can aggregate its later
 /// affine-cleanup failures before deciding whether to publish checked trees.
 pub(crate) fn build_execution_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> ExecutionPlans {

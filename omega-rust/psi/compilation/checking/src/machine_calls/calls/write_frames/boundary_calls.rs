@@ -30,7 +30,6 @@ use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -42,7 +41,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// invalid prefix or ambiguous member on a cached trait receiver must not
 /// regain a complete frame through the signature-free fallback.
 pub(super) fn receiver_requires_boundary_frame(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -98,12 +97,11 @@ pub(super) fn receiver_requires_boundary_frame(
 /// ensures seeding the value environment). Arbitrary prefixes cannot select a cached
 /// field, and a sibling state's same-named parameter supplies no authority.
 pub(crate) fn boundary_trait_signature<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let receiver_members =
-
         crate::program_scope::call_targets::call_receiver_member_names(program, call);
     boundary_trait_signature_for_parts(
         program,
@@ -126,12 +124,11 @@ pub(crate) fn boundary_trait_signature<'program>(
 /// substitution for their formals, and fact seeding (the monomorphic
 /// `boundary_trait_signature`) must not read uninstantiated contracts.
 pub(crate) fn boundary_trait_call_signature<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let receiver_members =
-
         crate::program_scope::call_targets::call_receiver_member_names(program, call);
     boundary_trait_signature_and_receiver_inner(
         program,
@@ -145,7 +142,7 @@ pub(crate) fn boundary_trait_call_signature<'program>(
 }
 
 pub(super) fn boundary_trait_signature_for_parts<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],
     target: &str,
@@ -159,7 +156,7 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
 /// Both static and receiver calls keep the same exact signature selection and
 /// exclusive-argument origin rules.
 fn boundary_trait_signature_and_receiver<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],
     target: &str,
@@ -200,7 +197,7 @@ struct BoundaryWriteSignature<'program> {
 /// Resolve a receiver head without discarding its application arguments:
 /// callers retain the original reference for exact owner substitution.
 fn boundary_receiver_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
@@ -232,7 +229,7 @@ fn boundary_receiver_type_symbol(
 /// argument binds keeps the named leaf and fails the same single-origin
 /// gates.
 fn boundary_write_signature_and_receiver<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],
     target: &str,
@@ -249,7 +246,7 @@ fn boundary_write_signature_and_receiver<'program>(
 }
 
 fn boundary_trait_signature_and_receiver_inner<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver_members: &[String],
     target: &str,
@@ -406,7 +403,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
 /// A static machine's lexical owner supplies no implicit receiver. Resolve
 /// parameter projections from the call's retained root and field identities.
 fn parameter_boundary_receiver_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     members: &[String],
     leaf: SymbolHandle,
@@ -465,7 +462,7 @@ fn parameter_boundary_receiver_type(
 /// statement call stores both symbols directly; a value call carries the
 /// target and rejoins the receiver symbol from its receiver expression.
 fn call_site_symbols(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     site: CallerWriteSite<'_>,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     match site {
@@ -501,7 +498,7 @@ fn call_site_symbols(
 /// opaque, and a target that names a real machine state belongs to the
 /// internal callee summary.
 pub(super) fn requirement_signature_by_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<&typed_trees::signature::StateSignature> {
     if !target_symbol.is_valid()
@@ -528,7 +525,7 @@ pub(super) fn requirement_signature_by_target(
 /// The unique requirement `choose` selects on a non-boundary, non-generic
 /// trait, or None. Signatures without closed `Type` binders stay opaque.
 fn requirement_signature_in_trait<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &'program typed_trees::trait_definition::TraitDefinition,
     mut choose: impl FnMut(&typed_trees::signature::StateSignature) -> bool,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
@@ -568,7 +565,7 @@ fn requirement_signature_in_trait<'program>(
 /// rather than manufacture a receiver-only approximation.
 #[allow(clippy::too_many_arguments)]
 fn boundary_written_argument_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -621,7 +618,7 @@ fn boundary_written_argument_paths(
 }
 
 fn requirement_signature_for_receiver_path<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: &[String],
     target: &str,
@@ -677,7 +674,7 @@ fn requirement_signature_for_receiver_path<'program>(
 /// not annotate — the receiver place's declared leaf trait still selects
 /// the requirement by name.
 pub(super) fn requirement_signature_for_site<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: &[String],
     target: &str,
@@ -689,7 +686,7 @@ pub(super) fn requirement_signature_for_site<'program>(
 
 /// Resolve the exact requirement independently of its explicit argument storage.
 fn requirement_signature_for_target<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
     receiver: &[String],
     target: &str,
@@ -716,7 +713,7 @@ fn requirement_signature_for_target<'program>(
 /// reach is the complete caller-visible evidence: every exclusive
 /// parameter writes its argument's proven origins.
 pub(super) fn known_requirement_call_written_paths_for_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -783,7 +780,7 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
 /// seed its bindings.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn signature_state_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -814,7 +811,7 @@ pub(super) fn signature_state_call_written_paths(
 /// Generic binding and exact declaration selection belong to the caller.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn signature_parameters_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -842,7 +839,7 @@ pub(super) fn signature_parameters_written_paths(
 }
 
 pub(super) fn receiver_type_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
     loop {
@@ -857,7 +854,7 @@ pub(super) fn receiver_type_symbol(
 }
 
 pub(super) fn expression_receiver_requires_boundary_frame(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     receiver: ExpressionHandle,
 ) -> bool {
@@ -873,7 +870,7 @@ pub(super) fn expression_receiver_requires_boundary_frame(
 }
 
 pub(super) fn expression_receiver_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
 ) -> SymbolHandle {
     match program.expression_table.expression(receiver) {
@@ -893,7 +890,10 @@ pub(super) fn expression_receiver_symbol(
     }
 }
 
-pub(super) fn selected_boundary_signature(program: &TypedTrees, target: SymbolHandle) -> bool {
+pub(super) fn selected_boundary_signature(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> bool {
     target.is_valid()
         && program.traits().iter().any(|definition| {
             definition.is_boundary
@@ -913,7 +913,7 @@ pub(super) fn selected_boundary_signature(program: &TypedTrees, target: SymbolHa
 /// exclusive result transports the caller routes its selected signature
 /// admits. Untracked reference reach stays opaque.
 pub(super) fn known_boundary_call_written_paths_for_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -972,7 +972,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
 /// is counted separately by the enclosing expression/statement walk; only
 /// its exclusive result's may-alias routes join this argument's origins.
 fn boundary_argument_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1023,7 +1023,7 @@ fn boundary_argument_origins(
 /// The signature's exclusive-result referent — `None` when the result is
 /// not an exclusive reference at all.
 fn exclusive_result_referent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     bindings: &super::type_instantiation::TypeBindings,
 ) -> Option<TypeReferenceHandle> {
@@ -1041,7 +1041,7 @@ fn exclusive_result_referent(
 }
 
 fn boundary_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1113,7 +1113,7 @@ fn boundary_result_origins(
 /// boundary and requirement walks differ only in which resolved signature
 /// they ask.
 type SignatureResultOrigins = fn(
-    &TypedTrees,
+    &dyn crate::CheckingInput,
     &Machine,
     &MachineSymbols<'_>,
     &TopLevelSymbols<'_>,
@@ -1125,7 +1125,7 @@ type SignatureResultOrigins = fn(
 #[allow(clippy::too_many_arguments)]
 fn signature_result_candidate_origins(
     origins: SignatureResultOrigins,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1158,7 +1158,7 @@ fn signature_result_candidate_origins(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn boundary_result_candidate_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1199,7 +1199,7 @@ pub(super) fn boundary_result_candidate_origins(
 /// keeps them collection-coarse.
 #[allow(clippy::too_many_arguments)]
 fn exclusive_boundary_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1268,7 +1268,7 @@ fn exclusive_boundary_result_origins(
 }
 
 fn requirement_result_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1318,7 +1318,7 @@ fn requirement_result_origins(
 /// union for the same shared consumers as `boundary_result_candidate_origins`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn requirement_result_candidate_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -1436,7 +1436,7 @@ fn caller_canonical_result_origin(
 /// frame cannot name. An applied generic carrier is inspected under its own
 /// argument bindings; an unbound parameter keeps the named leaf.
 fn owned_storage_may_hold(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
     bindings: &mut TypeBindings,
@@ -1456,7 +1456,7 @@ fn owned_storage_may_hold(
 /// `Wrap<Wrap<u64>>` — a finite shape — is not mistaken for the genuine
 /// recursion a self-referential instantiation produces.
 fn owned_storage_may_hold_inner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
     visiting: &mut Vec<TypeReferenceHandle>,
@@ -1579,7 +1579,7 @@ fn owned_storage_may_hold_inner(
 /// bound local stay exact. Any admitted deeper position — or a proof that
 /// cannot finish — leaves the referent offset unknown.
 fn storage_holds_referent_only_at_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
     bindings: &mut TypeBindings,
@@ -1606,7 +1606,7 @@ fn storage_holds_referent_only_at_root(
 /// proof cannot finish. `container` already matched `referent` at its root,
 /// so recursion only ever inspects strictly interior positions.
 fn storage_member_may_hold(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     container: TypeReferenceHandle,
     referent: TypeReferenceHandle,
     visiting: &mut Vec<TypeReferenceHandle>,
@@ -1702,7 +1702,7 @@ fn storage_member_may_hold(
 /// Every field-type a member contributes to a storage walk: an ordinary
 /// field's single type, or each payload field's type of a variant.
 fn member_field_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     member: &DataMember,
 ) -> Vec<TypeReferenceHandle> {
     match member {
@@ -1719,7 +1719,7 @@ fn member_field_types(
 /// An acyclic chain visits at most the number of stored type nodes, so this
 /// bound rejects cycles without imposing a smaller depth limit on valid types.
 fn live_unconstrained_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {

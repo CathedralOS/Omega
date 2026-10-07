@@ -4,7 +4,6 @@ use crate::declarations::traits::conformance::signature_matching::TraitTypeBindi
 use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
 use crate::declarations::traits::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
 use typed_trees::types::TypeReferenceHandle;
@@ -12,7 +11,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// Select a requirement identity, not a concrete conformance realization.
 /// Every known operand must satisfy the binder's trait-argument bindings.
 pub fn generic_bound_operator_requirement<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     spelling: OperatorSpelling,
     operands: &[Option<TypeReferenceHandle>],

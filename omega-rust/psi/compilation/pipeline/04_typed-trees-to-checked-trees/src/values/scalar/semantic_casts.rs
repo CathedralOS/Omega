@@ -1,5 +1,4 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -7,7 +6,7 @@ use typed_trees::types::TypeReferenceNode;
 use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
 
 pub(super) fn result_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -22,7 +21,10 @@ pub(super) fn result_type(
 /// domain whose membership is exactly an integer interval is not one: like a
 /// bracketed range it only bounds the value, so reading or casting it needs
 /// no qualification custody.
-pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub(super) fn has_declared_domains(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained {
             base_type,
@@ -44,7 +46,7 @@ pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenc
 }
 
 fn is_interval_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     domain: &typed_trees::types::DomainConstraint,
 ) -> bool {
@@ -57,7 +59,10 @@ fn is_interval_domain(
         .is_some()
 }
 
-pub(super) fn has_only_vacuous_tags(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub(super) fn has_only_vacuous_tags(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { .. } => program.primitive_type_reference(reference).is_some(),
         TypeReferenceNode::Constrained {
@@ -96,7 +101,7 @@ pub(super) fn has_only_vacuous_tags(program: &TypedTrees, reference: TypeReferen
 }
 
 pub(super) fn requires_custody(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {

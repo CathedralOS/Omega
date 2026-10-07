@@ -1,6 +1,5 @@
 //! Whole-type shape walks shared by program-scope judgments.
 
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{
@@ -15,7 +14,7 @@ use typed_trees::types::{
 /// read an interval. `allow_addr` admits `Addr` as the pointer-width
 /// unsigned member of the set.
 pub(crate) fn exact_integer_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     allow_addr: bool,
 ) -> Option<PrimitiveType> {
@@ -46,7 +45,7 @@ pub(crate) fn exact_integer_primitive(
 /// statically-known element count (`None` for slices and non-literal array
 /// lengths); any other shape has neither.
 pub(crate) fn collection_element_and_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     collection_type: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, Option<usize>)> {
     match program.type_reference_table.type_reference(collection_type) {
@@ -65,7 +64,10 @@ pub(crate) fn collection_element_and_length(
     }
 }
 
-pub(crate) fn has_slice_base(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+pub(crate) fn has_slice_base(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {
         visited.push(reference);
@@ -109,7 +111,7 @@ pub(crate) fn scalar_parameter_type_pair(
 /// A mutable actual reference may satisfy a shared required reference:
 /// compare their referents for that one permitted attenuation.
 pub(crate) fn attenuated_reference_pair(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
 ) -> (TypeReferenceHandle, TypeReferenceHandle) {
@@ -136,7 +138,7 @@ pub(crate) fn attenuated_reference_pair(
 /// Every `Range` constraint `reference` declares under `Constrained` shells,
 /// outermost first: `(minimum, maximum, end_inclusive)`.
 pub(crate) fn range_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Vec<(ExpressionHandle, ExpressionHandle, bool)> {
     let mut ranges = Vec::new();
@@ -163,7 +165,7 @@ pub(crate) fn range_constraints(
 
 /// `reference` with its `Constrained` shells peeled away.
 pub(crate) fn unconstrained_base(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -176,7 +178,7 @@ pub(crate) fn unconstrained_base(
 
 /// The data symbol a type reference names through its `Named`/`Generic` head.
 pub(crate) fn head_data_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     match program.type_reference_table.type_reference(reference) {
@@ -190,7 +192,7 @@ pub(crate) fn head_data_symbol(
 /// reached through `Reference` peels, outermost first. `None` when any shell
 /// demands a non-`Exact` arithmetic domain.
 pub(crate) fn exact_constrained_shells<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     mut handle: TypeReferenceHandle,
 ) -> Option<Vec<&'p [TypeConstraintNode]>> {
     let mut shells = Vec::new();

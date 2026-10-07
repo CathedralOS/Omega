@@ -12,8 +12,8 @@ use super::guard_narrowing::{comparison_bound, narrow_environment_by_condition};
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
     Machine, PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, ValueEnvironment, abstract_shift_count, division_definedness,
-    is_arithmetic, literal_i64, place_path, range_constraint_interval,
+    TypeReferenceNode, ValueEnvironment, abstract_shift_count, division_definedness, is_arithmetic,
+    literal_i64, place_path, range_constraint_interval,
 };
 use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
@@ -27,7 +27,7 @@ use language_core::is_self_receiver;
 /// become a proposition term. Explicit Exact casts remove the qualification
 /// before this check; Wrapping and Saturating retain their total denotations.
 pub(crate) fn validate_total_specification_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -88,7 +88,7 @@ pub(crate) fn validate_total_specification_arithmetic(
 }
 
 fn validate_total_specification_arithmetic_with_domain_lookup(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     owner: &str,
     expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
@@ -97,7 +97,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn selected_domain(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
     ) -> Option<ArithmeticDomain> {
@@ -134,7 +134,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
 
     #[allow(clippy::too_many_arguments)]
     fn walk(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         owner: &str,
         expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
@@ -255,7 +255,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
 }
 
 pub(crate) fn validate_machine_total_specification_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -372,12 +372,12 @@ pub(super) struct AbstractSpecificationBindings<'program> {
 }
 
 pub(super) fn abstract_specification_place_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     fn segments(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         output: &mut Vec<String>,
     ) -> Option<()> {
@@ -403,7 +403,7 @@ pub(super) fn abstract_specification_place_type(
     }
 
     fn data_field_type(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         data: &typed_trees::data::DataDefinition,
         name: &str,
     ) -> Option<TypeReferenceHandle> {
@@ -416,7 +416,7 @@ pub(super) fn abstract_specification_place_type(
     }
 
     fn named_data(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         mut type_reference: TypeReferenceHandle,
     ) -> Option<&typed_trees::data::DataDefinition> {
         let (symbol, name) = loop {
@@ -449,7 +449,7 @@ pub(super) fn abstract_specification_place_type(
 
     if let Some(domain) = bindings.domain {
         fn domain_place_type(
-            program: &TypedTrees,
+            program: &dyn crate::CheckingInput,
             domain: &typed_trees::domain::DomainDefinition,
             expression: ExpressionHandle,
         ) -> Option<TypeReferenceHandle> {
@@ -515,7 +515,7 @@ pub(super) fn abstract_specification_place_type(
 /// deliberately limited to literals and resolved places. Missing structure is
 /// not evidence of definedness: callers fail closed when this returns `None`.
 pub(super) fn abstract_specification_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
@@ -537,7 +537,7 @@ pub(super) fn abstract_specification_interval(
 /// `Interval` and the prior-fact `ValueEnvironment`, but does not guess call results or
 /// duplicate the executable expression analyzer.
 fn validate_abstract_exact_policy_erasure_formation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     owner: &str,
     bindings: AbstractSpecificationBindings<'_>,
@@ -545,7 +545,7 @@ fn validate_abstract_exact_policy_erasure_formation(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn direct_operand(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         bindings: AbstractSpecificationBindings<'_>,
         environment: &ValueEnvironment,
         expression: ExpressionHandle,
@@ -643,7 +643,7 @@ fn validate_abstract_exact_policy_erasure_formation(
 }
 
 fn narrow_abstract_specification_environment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
@@ -687,11 +687,11 @@ fn narrow_abstract_specification_environment(
 /// `ProofFact`s, and trait-requirement/conformance declarations contain names
 /// or rows rather than a second contract body.
 pub(crate) fn validate_abstract_total_specification_arithmetic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn validate_facts(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         facts: &[ProofFact],
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
@@ -770,7 +770,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     fn validate_contracts(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         contracts: &[typed_trees::signature::SignatureContract],
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
@@ -865,7 +865,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     fn validate_state_signature(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         signature: &typed_trees::signature::StateSignature,
         owner: String,
         seen: &mut Vec<ExpressionHandle>,

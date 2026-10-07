@@ -8,7 +8,6 @@
 //! their own graph evidence and must not disappear during this classification.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::{DomainDefinition, ProofFact};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::SignatureContractKind;
@@ -21,9 +20,13 @@ use typed_trees::types::{
 /// peeling `Constrained` bases until the reference stops rewrapping (with a
 /// `seen` guard against a cyclic spelling).
 fn constrained_scalar_domains(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
-    admits: impl Fn(&TypedTrees, &typed_trees::types::DomainConstraint, PrimitiveType) -> bool,
+    admits: impl Fn(
+        &dyn crate::CheckingInput,
+        &typed_trees::types::DomainConstraint,
+        PrimitiveType,
+    ) -> bool,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(primitive) = program.primitive_type_reference(reference) else {
         return Vec::new();
@@ -53,26 +56,21 @@ fn constrained_scalar_domains(
 }
 
 pub fn scalar_type_tags(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     constrained_scalar_domains(program, reference, |program, domain, primitive| {
         domain.subject == DomainConstraintSubject::Declared
             && program.domain_definitions().iter().any(|declaration| {
                 declaration.symbol == domain.symbol
-                    && exact_instance(
-                        program,
-                        declaration,
-                        &domain.arguments,
-                        domain.semantic_id,
-                    )
+                    && exact_instance(program, declaration, &domain.arguments, domain.semantic_id)
                     && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
             })
     })
 }
 
 pub fn scalar_state_contracts_are_qualifications(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
     let Some(contracts) = program.signature_contracts.span(state.contracts) else {
@@ -140,7 +138,7 @@ pub fn scalar_state_contracts_are_qualifications(
 /// (`exact_declared_domain_carrier_interval`), which states membership
 /// completely, so its restating `requires` row is carried by that range.
 pub fn scalar_interval_domains(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     constrained_scalar_domains(program, reference, |program, domain, primitive| {
@@ -151,7 +149,7 @@ pub fn scalar_interval_domains(
 }
 
 fn vacuous_scalar_tag(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declaration: &DomainDefinition,
     primitive: PrimitiveType,
     active: &mut Vec<SymbolHandle>,
@@ -188,7 +186,7 @@ fn vacuous_scalar_tag(
 }
 
 pub(super) fn exact_instance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &DomainDefinition,
     arguments: &[TypeReferenceHandle],
     semantic_domain: language_semantics::SemanticDomainId,

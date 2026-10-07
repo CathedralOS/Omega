@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 pub(crate) use crate::semantic::calls::call_target_parameters;
 
 pub(in crate::flow) fn append_call_ownership_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -107,7 +107,7 @@ pub(in crate::flow) fn append_call_ownership_events(
 }
 
 fn affine_call_result_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -144,7 +144,7 @@ fn affine_call_result_type(
 /// validity claim cannot bypass an outstanding view merely because the target
 /// is bodyless.
 pub(crate) fn owned_call_operand_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,

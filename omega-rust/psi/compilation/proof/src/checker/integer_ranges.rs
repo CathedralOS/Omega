@@ -485,7 +485,7 @@ fn guard_narrowed_operand_range(
 /// proof plan. Reusing it changes no frame result: the resolver's cache keys
 /// bind exact call nodes and owning machines from the same typed program.
 pub struct AssignmentRangeContext<'program> {
-    pub(crate) program: &'program typed_trees::TypedTrees,
+    pub(crate) program: &'program dyn ::validation::CheckingInput,
     call_frames: std::sync::OnceLock<Option<validation::CallFrameResolver<'program>>>,
 }
 

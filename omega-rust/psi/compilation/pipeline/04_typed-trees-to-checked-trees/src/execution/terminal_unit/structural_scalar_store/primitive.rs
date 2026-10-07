@@ -24,13 +24,13 @@
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, DataMember, Multiplicity,
-    PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode,
 };
 
 /// Find primitive storage established by an initializer or its declaration's
 /// plain zero value before this occurrence.
 pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -57,7 +57,7 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
 /// is not a primitive leaf this lane writes. The shared statement roster
 /// validates the complete state write frame.
 pub(super) fn store_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -121,7 +121,7 @@ pub(super) fn store_at(
 /// declared primitive. Whole-root stores keep the authored root symbol as
 /// the bound destination; every element or field store binds `invalid`.
 fn primitive_store_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -196,7 +196,7 @@ fn primitive_store_value(
 /// locals and their compositions -- so no element observes a store the
 /// literal has already made; one that reads storage keeps declining.
 pub(super) fn array_literal_stores(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -264,7 +264,7 @@ pub(super) fn array_literal_stores(
 
 /// The literal extents of a closed primitive array type, outermost first.
 fn closed_array_extents(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<u64>> {
     if !validation::is_closed_primitive_array_type(program, reference) {
@@ -302,7 +302,7 @@ fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
 /// The assignment leaf's declared type must be a named primitive, after the
 /// arithmetic-policy shell peel.
 fn primitive_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
@@ -323,7 +323,7 @@ fn primitive_leaf(
 /// carrier without validated formation keeps its own root and declines
 /// there. A shared borrow never reaches this lane.
 fn primitive_leaf_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
@@ -363,7 +363,7 @@ fn primitive_leaf_type_reference(
 /// erased or domain-constrained declaration; a runtime element names its
 /// selector's retained coordinate.
 pub(in crate::execution::terminal_unit) fn checked_unit_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selectors: &super::selectors::TargetSelectors,
     segments: &[facts::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
@@ -408,7 +408,7 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
 /// primitive locals declared before its statement — nothing missing,
 /// nothing extra.
 fn scalar_binding_symbols_exact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,
@@ -455,7 +455,7 @@ fn scalar_binding_symbols_exact(
 }
 
 pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,
@@ -496,7 +496,7 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
 /// argument lowerer cannot spell keep their retained value, as long as
 /// that value still lowers through the ordinary scalar vocabulary.
 fn scalar_store_value_is_exact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,

@@ -272,7 +272,7 @@ fn float_range_at(
 }
 
 fn resolved_place_identity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     match program.expression_table.expression(expression) {

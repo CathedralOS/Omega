@@ -1,11 +1,11 @@
 //! Exact immutable operand bounds project through the current builtin guard.
 
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, State, TypedTrees, ValueEnvironment,
-    comparison_interval, negate_comparison, place_path,
+    ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, comparison_interval,
+    negate_comparison, place_path,
 };
 pub(super) fn narrow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,

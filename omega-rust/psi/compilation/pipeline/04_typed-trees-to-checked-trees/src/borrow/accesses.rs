@@ -34,7 +34,7 @@ pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
 use read::collect_read_accesses;
 
 pub(crate) fn collect_call_argument_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     access_segments: &mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     arguments: &[ExpressionHandle],
@@ -60,7 +60,7 @@ pub(crate) fn collect_call_argument_accesses(
 /// copied out of the dispatch's saved subject before the target evaluates any
 /// argument; nested calls' rosters keep `collect_call_argument_accesses`.
 pub(crate) fn collect_transition_target_argument_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     access_segments: &mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     arguments: &[ExpressionHandle],
@@ -83,7 +83,7 @@ pub(crate) fn collect_transition_target_argument_accesses(
 }
 
 fn collect_argument_access_span(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     access_segments: &mut arena::Arena<facts::PlaceSegment>,
     argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
     arguments: &[ExpressionHandle],

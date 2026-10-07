@@ -4,7 +4,7 @@
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, ExpressionNode, ProofFact,
-    StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle, TypedTrees,
+    StaticMachineArgument, SymbolHandle, SymbolKind, TypeReferenceHandle,
     collect_statement_expression_trees, const_arguments,
 };
 
@@ -13,7 +13,7 @@ use crate::monomorphization::{
 pub(crate) struct StaticArgumentOverflow;
 
 pub(crate) fn collect_machine_proposals_for_callee(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidates: &[Candidate],
     callee: &CalleeState,
     machine_arguments: &[StaticMachineArgument],
@@ -201,7 +201,7 @@ pub(crate) fn resolve_callee(
 }
 
 pub(crate) fn state_by_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
     program.state_by_symbol(symbol)
@@ -211,7 +211,9 @@ pub(crate) fn state_by_symbol(
 /// These nodes share the global expression arena with executable bodies, but
 /// their static-machine selections quantify a proof schema and must never
 /// trigger runtime monomorphization.
-pub(crate) fn contract_expression_handles(program: &TypedTrees) -> Vec<ExpressionHandle> {
+pub(crate) fn contract_expression_handles(
+    program: &dyn ::validation::CheckingInput,
+) -> Vec<ExpressionHandle> {
     let mut handles = Vec::new();
     for machine in program.machines() {
         for contract in program.machine_contracts(machine) {
@@ -227,7 +229,7 @@ pub(crate) fn contract_expression_handles(program: &TypedTrees) -> Vec<Expressio
 }
 
 pub(crate) fn collect_contract_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: arena::HandleSpan<ProofFact>,
     handles: &mut Vec<ExpressionHandle>,
 ) {
@@ -252,7 +254,7 @@ pub(crate) fn collect_contract_facts(
 }
 
 pub(crate) fn collect_expression_tree(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {
@@ -322,7 +324,7 @@ pub(crate) fn collect_expression_tree(
 /// statement call is its own site; an expression call belongs to the
 /// statement whose expression tree contains it.
 pub(crate) fn enclosing_statement_ordinal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     site: CallSite,
 ) -> Option<usize> {

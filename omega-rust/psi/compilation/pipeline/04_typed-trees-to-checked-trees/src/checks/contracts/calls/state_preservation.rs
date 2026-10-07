@@ -17,7 +17,7 @@ use crate::labels::symbol_name;
 /// live premise rather than a stale one.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn caller_state_preserves_predicate_premise(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -92,7 +92,7 @@ pub(super) fn caller_state_preserves_predicate_premise(
 /// may still establish the fact from current evidence. Qualified `self.field`
 /// operands are covered by the field walk above, so `self` itself is skipped.
 pub(super) fn caller_state_preserves_label_names(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -134,7 +134,7 @@ pub(super) fn caller_state_preserves_label_names(
 }
 
 pub(super) fn collect_expression_self_fields(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     fields: &mut Vec<typed_trees::name::Identifier>,
 ) {
@@ -159,7 +159,7 @@ pub(super) fn collect_expression_self_fields(
 }
 
 pub(super) fn caller_state_preserves_field(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     field: &typed_trees::name::Identifier,
 ) -> bool {
@@ -181,7 +181,7 @@ pub(super) fn caller_state_preserves_field(
 /// stay with `caller_state_preserves_label_names`, which matches the root's
 /// caller-visible name.
 pub(super) fn caller_state_preserves_self_fields_against_call_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -212,7 +212,7 @@ pub(super) fn caller_state_preserves_self_fields_against_call_writes(
 }
 
 fn assignment_target_mentions_field(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: typed_trees::expression::ExpressionHandle,
     field: &typed_trees::name::Identifier,
 ) -> bool {

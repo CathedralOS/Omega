@@ -13,7 +13,6 @@ use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironm
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -22,7 +21,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// Suggest a declared range only when the exact selected callee returns an
 /// integer. Spelling is diagnostic text, never callee selection authority.
 pub(crate) fn overflow_operand_value_call_target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operand: ExpressionHandle,
 ) -> Option<String> {
     let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
@@ -36,7 +35,7 @@ pub(crate) fn overflow_operand_value_call_target(
 }
 
 pub(crate) fn call_return_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
@@ -58,7 +57,7 @@ pub(crate) fn call_return_type(
 /// its reserved `result`. Exit checking proves them on every return, so they
 /// bound each value the call produces exactly as a declared return range does.
 pub(crate) fn ensured_call_result_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     actuals: &[(SymbolHandle, Interval)],
 ) -> Option<Interval> {
@@ -95,7 +94,7 @@ thread_local! {
 /// Unioning all captured outcomes remains sound without selecting a branch.
 /// Recursive body inference declines rather than trusting its own conclusion.
 pub(crate) fn infer_return_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
     callee_state: &State,
     target_primitive: Option<PrimitiveType>,
@@ -201,7 +200,7 @@ pub(crate) fn infer_return_interval(
 /// returns are unaffected -- range-constrained return types are a new
 /// capability). `interval` is the return expression's already-analyzed interval.
 pub(crate) fn enforce_declared_return_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     return_type: TypeReferenceHandle,
     interval: Interval,
     owner: &str,
@@ -232,7 +231,7 @@ pub(crate) fn enforce_declared_return_range(
 /// the narrowing store obligation. Returns the analyzed interval.
 #[allow(clippy::too_many_arguments)]
 fn analyzed_return_interval_and_narrowing(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     return_expression: ExpressionHandle,
@@ -284,7 +283,7 @@ fn analyzed_return_interval_and_narrowing(
 /// existing plain returns are byte-for-byte unaffected.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_return_value_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     return_expression: ExpressionHandle,
@@ -358,7 +357,7 @@ pub(crate) fn validate_return_value_range(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn enforce_symbolic_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     return_type: TypeReferenceHandle,

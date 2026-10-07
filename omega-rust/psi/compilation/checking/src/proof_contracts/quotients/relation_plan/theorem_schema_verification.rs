@@ -17,7 +17,6 @@ use super::theorem_schema::{
 };
 use super::{RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContractKind, StateParameter};
@@ -46,7 +45,7 @@ pub(in crate::proof_contracts::quotients) struct VerifiedTheoremSchema {
 }
 
 pub(super) fn verify_selected_theorem_schema(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     theorem: &SelectedTheoremTelescope,
     expected: &ExpectedTheoremSchema,
@@ -189,7 +188,7 @@ pub(super) fn verify_selected_theorem_schema(
     })
 }
 fn representative_fact<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     premise: &TheoremLegalityPremise,
 ) -> Option<&'a ProofFact> {
@@ -212,7 +211,7 @@ fn representative_fact<'a>(
 }
 
 fn conclusion_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     actual: &ProofFact,
     representative: &RepresentativeTelescope,
     theorem_parameters: &[StateParameter],
@@ -246,7 +245,7 @@ fn conclusion_matches(
 }
 
 fn representative_application_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     representative: &RepresentativeTelescope,
     theorem_parameters: &[StateParameter],
@@ -289,7 +288,7 @@ fn representative_application_matches(
 }
 
 fn expression_is_parameter(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     position: usize,
@@ -302,7 +301,7 @@ fn expression_is_parameter(
 }
 
 pub(super) fn verify_parameters(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     theorem: &SelectedTheoremTelescope,
     theorem_parameters: &[StateParameter],

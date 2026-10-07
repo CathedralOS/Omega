@@ -4,10 +4,9 @@
 use checked_trees::ContextualCleanupEntryRequirements;
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPlan, ProgramPoint};
-use typed_trees::TypedTrees;
 
 pub(crate) fn seed_entry_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     requirements: &ContextualCleanupEntryRequirements,
 ) -> Result<(), Vec<Diagnostic>> {

@@ -13,7 +13,7 @@ pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises}
 use self::segments::place_segments_compatibility;
 
 pub(super) fn captured_place_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     left: &checked_trees::CapturedPlace,
     left_access: &checked_trees::BorrowAccessKind,
     right: &checked_trees::CapturedPlace,
@@ -65,7 +65,7 @@ pub(super) fn captured_place_compatibility<'p>(
 /// machine so both compare in the receiver's namespace. Any other pair keeps
 /// its own roots.
 fn receiver_namespace_places(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: &checked_trees::CapturedPlace,
     right: &checked_trees::CapturedPlace,
 ) -> Option<(checked_trees::CapturedPlace, checked_trees::CapturedPlace)> {
@@ -82,7 +82,7 @@ fn receiver_namespace_places(
 }
 
 fn attached_field_place_under_receiver(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: &checked_trees::CapturedPlace,
     field_place: &checked_trees::CapturedPlace,
 ) -> Option<checked_trees::CapturedPlace> {
@@ -155,7 +155,7 @@ pub(super) fn canonical_place_for_loan(
 }
 
 pub(super) fn canonical_place_loan_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     place: &crate::flow::CanonicalPlace,
     loan: &checked_trees::BorrowLoanFact,
     borrow: &checked_trees::BorrowFacts,
@@ -195,7 +195,7 @@ fn captured_loan_place(
 /// required: mutating the sibling would invalidate the relation that makes the
 /// borrowed projection meaningful while it remains live.
 fn place_segments_share_dependent_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root_symbol: symbols::SymbolHandle,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
@@ -257,7 +257,7 @@ fn place_segments_share_dependent_fact(
 }
 
 fn data_field_name<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     definition: &'a typed_trees::data::DataDefinition,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'a str> {
@@ -270,7 +270,7 @@ fn data_field_name<'a>(
 }
 
 fn expression_mentions_field(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     field: &str,
 ) -> bool {
@@ -295,7 +295,7 @@ fn expression_mentions_field(
 }
 
 pub(super) fn borrow_loan_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     left: &checked_trees::BorrowLoanFact,
     right: &checked_trees::BorrowLoanFact,

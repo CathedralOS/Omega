@@ -1,14 +1,13 @@
 //! A landed float's format survives delivery to storage, arguments, and results.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 pub(super) fn report_mismatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: Option<&Machine>,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -47,7 +46,7 @@ pub(super) fn report_mismatch(
 }
 
 fn source_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: Option<&Machine>,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -99,7 +98,10 @@ fn source_primitive(
     }
 }
 
-fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+fn primitive(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     let reference = crate::value_custody::places::unwrapped_type_reference(program, reference)?;
     program.primitive_type_reference(reference)
 }

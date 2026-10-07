@@ -1,13 +1,13 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, TypedTrees,
-    fields, lengths, saved_arguments,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, fields,
+    lengths, saved_arguments,
 };
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn builtin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -240,7 +240,7 @@ pub(super) fn builtin(
 /// owner still checks every operation before using the endpoint, including
 /// an overflowing intermediate quotient or an out-of-width shift count.
 pub(super) fn install_nonpolynomial_terms(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     engine: &mut super::Engine<'_>,

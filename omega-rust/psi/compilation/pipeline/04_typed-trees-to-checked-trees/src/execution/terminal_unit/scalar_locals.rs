@@ -2,10 +2,10 @@
 
 use super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedUnitScalarResultBindingPlan, TypedTrees,
+    CheckedUnitScalarResultBindingPlan,
 };
 pub(super) fn scalar_expression_local_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement_index: u32,

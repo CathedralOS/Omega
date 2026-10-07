@@ -121,7 +121,7 @@ fn value(
 }
 
 fn integer_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     declared_type: TypeReferenceHandle,
     literal: IntegerLiteral,
 ) -> Option<ExpressionNode> {

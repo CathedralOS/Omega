@@ -122,7 +122,7 @@ impl ArmWindowPlan {
     /// the enclosing context, arm values in their arm, and short-circuit
     /// right operands stay conditional on both their edge and the statement.
     pub(in crate::checks::multiplicity) fn new(
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         statement: &StatementNode,
         operators: &checked_trees::CheckedOperatorFacts,
     ) -> Self {
@@ -186,7 +186,7 @@ impl ArmWindowPlan {
     /// expression→arm map (call-flow argument moves).
     pub(in crate::checks::multiplicity) fn add_borrowed_move(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -326,7 +326,7 @@ impl ArmWindowPlan {
     /// `Invoke` crosses, so a sibling arm's reads still see the place present.
     pub(in crate::checks::multiplicity) fn verdict(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -454,7 +454,7 @@ impl ArmWindowPlan {
     /// exists only after the match commits.
     pub(in crate::checks::multiplicity) fn check_edge_use(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statements: &[StatementNode],
@@ -542,7 +542,7 @@ impl ArmWindowPlan {
     /// arm whose subtree contains the resolved call site.
     fn effective_arm(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         event: &crate::flow::DiscoveredMoveEvent,
@@ -580,7 +580,7 @@ impl ArmWindowPlan {
     /// name a statement-local call by ordinal instead.
     fn event_site_expression(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         event: &crate::flow::DiscoveredMoveEvent,
@@ -610,7 +610,7 @@ impl ArmWindowPlan {
 
     fn collect_frames(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
         enclosing_arm: ArmHandle,
         statement_conditional: bool,

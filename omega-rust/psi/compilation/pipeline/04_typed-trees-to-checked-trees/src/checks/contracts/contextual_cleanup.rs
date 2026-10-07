@@ -7,13 +7,12 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
-use typed_trees::TypedTrees;
 
 pub(crate) use super::call_values::target_machine;
 use crate::flow::CanonicalPlace;
 
 pub(crate) fn actual_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirement: &ContextualCleanupEntryRequirement,
@@ -39,7 +38,7 @@ pub(crate) fn actual_place(
 }
 
 pub(crate) fn entry_consequence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -57,7 +56,7 @@ pub(crate) fn entry_consequence(
 
 /// Preserve the selector as a formula over authenticated caller entry values.
 pub(crate) fn entry_antecedent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -74,7 +73,7 @@ pub(crate) fn entry_antecedent(
 }
 
 pub(crate) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -95,7 +94,7 @@ pub(crate) fn proves(
 }
 
 pub(super) fn check(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,

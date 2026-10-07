@@ -8,8 +8,7 @@ use super::coordinate::{Coordinate, CoordinateKind};
 use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, PrimitiveType, State, TypeReferenceNode, TypedTrees,
-    exact_integer_parameter,
+    Machine, Polynomial, PrimitiveType, State, TypeReferenceNode, exact_integer_parameter,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataField, DataMember};
@@ -26,7 +25,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// the edge judgment a flow-dependent formation proof under that edge's
 /// installed hypotheses ([`endpoint_lands_under`]).
 pub(super) fn endpoint_statically_formed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     endpoint: ExpressionHandle,
@@ -61,7 +60,7 @@ pub(super) fn endpoint_statically_formed(
 /// whole endpoint is judged ([`operations_land_under`]).
 pub(super) fn endpoint_lands_under(
     engine: &mut Engine<'_>,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     endpoint: ExpressionHandle,
@@ -99,7 +98,7 @@ pub(super) fn endpoint_lands_under(
 /// accepting a new state, without importing destination requirements.
 pub(super) fn endpoint_operations_land_after_arrival(
     engine: &mut Engine<'_>,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     endpoint: ExpressionHandle,
@@ -136,7 +135,7 @@ fn operation_value(
 /// agree; a `u8` literal next to a `u64` operand selects no shared carrier.
 fn operations_land_under(
     engine: &mut Engine<'_>,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     node: ExpressionHandle,
@@ -270,7 +269,7 @@ fn operations_land_under(
 /// exact parameter of its builtin meaning. Anonymous-natural coordinates and
 /// proof-level nodes carry none.
 fn operand_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     node: ExpressionHandle,
@@ -296,7 +295,7 @@ impl<'program> Coordinate<'program> {
     /// `subject`: the measure body's projection chain, re-resolved against
     /// the subject formal's own declaration rather than trusted from the view.
     pub(super) fn resolve_field(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         subject: ExpressionHandle,
         measure: SymbolHandle,
@@ -326,7 +325,7 @@ impl<'program> Coordinate<'program> {
     /// integer: a scalar rank subject or endpoint reads the projected
     /// natural coordinate, not only the `u64` a declared field view emits.
     pub(super) fn resolve_field_projection(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
@@ -342,7 +341,7 @@ impl<'program> Coordinate<'program> {
             .then_some(coordinate)
     }
 
-    pub(super) fn field_comparisons(&self, program: &TypedTrees) -> Vec<Comparison> {
+    pub(super) fn field_comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
         let mut comparisons = vec![(
             BinaryOperator::GreaterOrEqual,
             self.value(),
@@ -408,7 +407,7 @@ impl<'program> Coordinate<'program> {
     /// foreign record, or a missing step is not this coordinate.
     pub(super) fn field_actual(
         &self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
@@ -471,7 +470,7 @@ impl<'program> Coordinate<'program> {
     /// the carrier's declared field bounds become hypotheses.
     pub(super) fn field_actual_coordinate(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         expression: ExpressionHandle,
         arrival_borrowed: bool,
@@ -510,7 +509,7 @@ impl<'program> Coordinate<'program> {
     /// value. These are caller declaration facts, never callee requirements.
     pub(super) fn arrived_field(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
@@ -562,7 +561,7 @@ impl<'program> Coordinate<'program> {
 /// The declared type of an exact member chain rooted at a state formal:
 /// `parameter.a.b.field`, every step a resolved field of the record before it.
 pub(super) fn projected_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -598,11 +597,11 @@ pub(super) struct MemberCoordinateParts<'program> {
 }
 
 pub(super) fn member_coordinate_parts<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameter: &'program StateParameter,
     chain: &[SymbolHandle],
-    step_owner: impl Fn(&'program TypedTrees, &'program DataField) -> Option<SymbolHandle>,
-    leaf_admits: impl Fn(&'program TypedTrees, &'program DataField) -> bool,
+    step_owner: impl Fn(&'program dyn crate::CheckingInput, &'program DataField) -> Option<SymbolHandle>,
+    leaf_admits: impl Fn(&'program dyn crate::CheckingInput, &'program DataField) -> bool,
     tag: &str,
 ) -> Option<MemberCoordinateParts<'program>> {
     if parameter.is_const {
@@ -635,7 +634,7 @@ pub(super) fn member_coordinate_parts<'program>(
 }
 
 pub(super) fn member_chain<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(
@@ -675,7 +674,7 @@ pub(super) fn declared_spelling_verified<'program>(
 /// is `(x, [])`, `x.a.b` is `(x, [a, b])`. Any other shape is a computed
 /// value with no carrier root.
 pub(super) fn rooted_carrier<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(
@@ -691,7 +690,7 @@ pub(super) fn rooted_carrier<'program>(
 /// The record a formal's type declares, directly or as the referent of one
 /// reference, and whether that reference boundary is present.
 pub(super) fn record_referent(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, bool)> {
     let mut reference = unwrap_constraint_shells(program, type_reference);
@@ -718,7 +717,7 @@ pub(super) fn record_referent(
 }
 
 pub(super) fn parameter<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
@@ -743,7 +742,7 @@ pub(super) fn parameter<'program>(
 
 /// The unique field `symbol` declared by the exact record `owner`.
 pub(super) fn declared_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, &DataField)> {
@@ -768,7 +767,7 @@ pub(super) fn declared_field(
 
 /// The value of the unique `field` entry of a plain literal of exactly `owner`.
 pub(super) fn unique_literal_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     literal: ExpressionHandle,
     owner: SymbolHandle,
     field: &DataField,
@@ -799,7 +798,7 @@ pub(super) fn unique_literal_field(
 /// same role, so zero or two stay role-less rather than guess which record
 /// the arrival meant.
 pub(super) fn nested_arrival_chain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter: &StateParameter,
     root: SymbolHandle,
     steps: &[&DataField],
@@ -856,19 +855,19 @@ pub(super) fn nested_arrival_chain(
 /// the definition lookup, visited-record guard, path push/pop, and the
 /// two-path cap.
 fn for_each_record_field_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     from: SymbolHandle,
     paths: &mut Vec<Vec<SymbolHandle>>,
-    step: impl Fn(&TypedTrees, &DataField) -> (bool, Option<SymbolHandle>),
+    step: impl Fn(&dyn crate::CheckingInput, &DataField) -> (bool, Option<SymbolHandle>),
 ) {
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         owner: SymbolHandle,
         visiting: &mut Vec<SymbolHandle>,
         path: &mut Vec<SymbolHandle>,
         paths: &mut Vec<Vec<SymbolHandle>>,
         depth: usize,
-        step: &dyn Fn(&TypedTrees, &DataField) -> (bool, Option<SymbolHandle>),
+        step: &dyn Fn(&dyn crate::CheckingInput, &DataField) -> (bool, Option<SymbolHandle>),
     ) {
         if paths.len() >= 2 || depth >= 16 {
             return;
@@ -912,7 +911,7 @@ fn for_each_record_field_path(
 }
 
 pub(super) fn collect_record_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     from: SymbolHandle,
     to: SymbolHandle,
     paths: &mut Vec<Vec<SymbolHandle>>,
@@ -942,9 +941,9 @@ pub(super) fn collect_record_paths(
 /// and callers keep no coordinate rather than guess which leaf holds the
 /// role.
 pub(super) fn collect_leaf_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     from: SymbolHandle,
-    accept: impl Fn(&TypedTrees, &DataField) -> bool,
+    accept: impl Fn(&dyn crate::CheckingInput, &DataField) -> bool,
     paths: &mut Vec<Vec<SymbolHandle>>,
 ) {
     for_each_record_field_path(program, from, paths, |program, field| {
@@ -971,7 +970,7 @@ pub(super) fn collect_leaf_paths(
 /// the leaf -- membership, endpoints, and descent still prove independently,
 /// and a second admissible leaf keeps no coordinate rather than guessing.
 pub(super) fn integer_leaf_coordinate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameter: &'program StateParameter,
 ) -> Option<FieldCoordinate<'program>> {
     let (root, _) = record_referent(program, parameter.type_reference)?;
@@ -1001,7 +1000,7 @@ pub(super) fn integer_leaf_coordinate<'program>(
 /// The unique non-self formal of `state` whose telescope slot claims `entry`,
 /// or none when the role is unclaimed or contested by a second carrier.
 pub(super) fn unique_entry_carrier<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &'program State,
     entry_parameters: &[SymbolHandle],
     entry: SymbolHandle,

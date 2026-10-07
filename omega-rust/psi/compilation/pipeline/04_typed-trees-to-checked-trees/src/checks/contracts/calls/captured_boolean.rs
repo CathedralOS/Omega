@@ -5,14 +5,13 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactPayload, PlaceRoot};
-use typed_trees::TypedTrees;
 
 use super::super::call_values;
 
 /// `None` permits the ordinary source-substitution proof routes. `Some` is a
 /// capture-owned judgment, including failure: no later fallback may replace it.
 pub(super) fn judgment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -84,7 +83,7 @@ pub(super) fn judgment(
 /// their existing owner using only the selected subject's contexts.
 #[allow(clippy::too_many_arguments)]
 fn captured_contract_proven(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -173,7 +172,7 @@ fn captured_contract_proven(
 }
 
 fn actual_for_formal_place<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -199,7 +198,7 @@ fn actual_for_formal_place<'program>(
 /// types never substitutes spelling, body parameters, or another satisfied row
 /// for its declaration symbols.
 fn bound_contract_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
@@ -257,7 +256,7 @@ fn bound_contract_predicate(
 }
 
 fn source_substitution_preserves_captures(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -346,7 +345,7 @@ fn source_substitution_preserves_captures(
 /// Stored observations select their already-produced RHS captures; no
 /// initializer evaluation can manufacture a replacement epoch.
 fn capture_preserves_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -448,7 +447,7 @@ fn capture_preserves_source(
 /// frame alone does not make a call repeatable. This stage already holds
 /// fact-call projections, so those calls need no second identity derivation.
 fn computed_values_have_source_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {

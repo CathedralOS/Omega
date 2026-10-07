@@ -50,7 +50,7 @@ pub struct DynamicImplementationSelection {
 /// selector's trait application: a selection never widens, narrows or
 /// re-targets the application it was declared for.
 pub fn collect_dynamic_implementation_selections(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<Vec<DynamicImplementationSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
@@ -82,7 +82,7 @@ pub fn collect_dynamic_implementation_selections(
 }
 
 fn collect_selections_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -215,7 +215,7 @@ pub struct DynamicSlotDemand {
 /// requirement. Collection diagnostics are returned unchanged; call checking
 /// reports a malformed selector call.
 pub fn collect_dynamic_slot_demands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<Vec<DynamicSlotDemand>, Vec<Diagnostic>> {
     let mut demands: Vec<(String, DynamicSlotDemand)> = Vec::new();
     let mut push = |demand: DynamicSlotDemand| {
@@ -294,7 +294,7 @@ pub fn collect_dynamic_slot_demands(
 }
 
 fn collect_call_demands_in(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -318,7 +318,7 @@ fn collect_call_demands_in(
 
 /// [`dynamic_call_demand`] for an expression-position call.
 pub fn dynamic_expression_call_demand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
@@ -339,7 +339,7 @@ pub fn dynamic_expression_call_demand(
 /// The slot one call reaches when it is `Trait::member(selector, ...)`.
 /// Any other call, or a selector call checking rejects, demands nothing.
 pub fn dynamic_call_demand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     receiver: symbols::SymbolHandle,
@@ -366,7 +366,7 @@ pub fn dynamic_call_demand(
 /// Why `requirement` cannot be called through `dyn Trait`: its signature or
 /// contract is outside the local dynamic surface. `None` when it can.
 pub(crate) fn dynamic_requirement_ineligibility(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declaring_trait: &TraitDefinition,
     requirement: &StateSignature,
 ) -> Option<&'static str> {
@@ -398,7 +398,7 @@ pub(crate) fn dynamic_requirement_ineligibility(
 
 /// The trait and arguments of a `dyn Trait<Args>` selector type.
 pub(crate) fn dynamic_selector_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, &[TypeReferenceHandle])> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -424,7 +424,7 @@ pub(crate) fn dynamic_selector_application(
 /// when any — the `.and_then`-push-return spine the call-site validators share.
 /// Returns true when a diagnostic was emitted.
 pub(crate) fn report_dynamic_receiver_call_error(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver_type_reference: Option<TypeReferenceHandle>,
     target: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -439,7 +439,7 @@ pub(crate) fn report_dynamic_receiver_call_error(
 }
 
 pub(crate) fn dynamic_receiver_call_error(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver_type: TypeReferenceHandle,
     target: &str,
 ) -> Option<String> {
@@ -565,7 +565,7 @@ pub fn resolve_selected_dynamic_call_targets(
 }
 
 fn collect_dynamic_expression_call_updates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -661,7 +661,7 @@ fn collect_dynamic_expression_call_updates(
 }
 
 fn resolved_dynamic_requirement_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver_type: TypeReferenceHandle,
     target: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -710,7 +710,7 @@ fn resolved_dynamic_requirement_symbol(
 }
 
 fn receiver_trait_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     if let Some(requirement) =
@@ -736,7 +736,7 @@ fn receiver_trait_symbol(
 }
 
 fn collect_dynamic_requirements_named<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     trait_definition: &'program TraitDefinition,
     target: &str,
     visited: &mut Vec<symbols::SymbolHandle>,

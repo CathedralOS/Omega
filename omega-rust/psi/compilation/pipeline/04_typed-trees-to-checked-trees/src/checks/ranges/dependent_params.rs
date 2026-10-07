@@ -13,12 +13,11 @@
 
 use super::facts::RangeFacts;
 use language_core::place_label;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut RangeFacts<'_>,
     machine: &Machine,
     state: &State,
@@ -73,7 +72,7 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
 /// constraint under Exact shells (the recognizer class; mirrors the
 /// substitution gates in types.rs).
 fn dependent_maximum_of_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
     use typed_trees::types::TypeConstraintNode;
@@ -102,7 +101,7 @@ fn dependent_maximum_of_type_reference(
 /// The sibling-length bound of a declared type's Range constraint under
 /// Exact shells (the recognizer class).
 fn sibling_len_of_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::dependent_ranges::SiblingLenBound> {
     use typed_trees::types::TypeConstraintNode;

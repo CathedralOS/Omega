@@ -113,9 +113,11 @@ pub(super) fn project_contract_conformance_application(
             matching.len()
         )));
     };
-    let closed =
-        typed_trees_to_checked_trees::close_conformance_application(&compilation.typed, argument)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = typed_trees_to_checked_trees::close_conformance_application(
+        compilation.checking_input,
+        argument,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     if checked.application != closed {
         return Err(rejected(
             "whose retained checked occurrence disagrees with the authored application",

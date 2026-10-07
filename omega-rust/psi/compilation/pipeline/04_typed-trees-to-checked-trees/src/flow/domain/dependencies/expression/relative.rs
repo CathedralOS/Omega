@@ -5,7 +5,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(crate) fn relative_place_segments_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<Vec<facts::PlaceSegment>> {
@@ -57,7 +57,7 @@ pub(crate) fn relative_place_segments_from_expression(
 }
 
 fn resolve_member_symbol_from_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: Option<SymbolHandle>,
     member_name: &str,
 ) -> Option<SymbolHandle> {

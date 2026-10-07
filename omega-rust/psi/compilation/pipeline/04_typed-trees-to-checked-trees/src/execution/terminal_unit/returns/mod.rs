@@ -49,7 +49,7 @@ pub(crate) use machine_type_identities;
 /// Returns with nominal cleanup depend on the Unit plans and join only in the
 /// later `build_checked_structural_scalar_return_plans` phase.
 pub(crate) fn build_checked_scalar_callee_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut plans = build_checked_primitive_store_scalar_return_plans(program, facts);
@@ -108,7 +108,7 @@ use super::{
     CheckedStructuralCallReturnPlans, CheckedStructuralReturnPlans,
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitStructuralParameterPlan,
-    Diagnostic, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode, TypedTrees,
+    Diagnostic, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -122,7 +122,7 @@ use crate::execution::terminal_unit::returns::structural_scalar_returns::build_t
 /// passthrough and claim-free affine identity returns. Every wider ownership
 /// or control shape is omitted atomically.
 pub(crate) fn build_checked_structural_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralReturnPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -186,7 +186,7 @@ pub(crate) fn build_checked_structural_return_plans(
 /// callee's selected guarded evidence. The callee is an ordinary Unit-effect
 /// machine, not a plan of this roster.
 pub(crate) fn build_checked_structural_call_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedStructuralCallReturnPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -219,7 +219,7 @@ pub(crate) fn build_checked_structural_call_return_plans(
 /// signatures and whole-parameter transfer maps for the first terminal
 /// structural-control producer.
 pub(crate) fn build_checked_structural_scalar_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
     diagnostics: &mut Vec<Diagnostic>,
@@ -266,7 +266,7 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
 }
 
 pub(crate) fn build_checked_boundary_scalar_return_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> CheckedBoundaryScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);

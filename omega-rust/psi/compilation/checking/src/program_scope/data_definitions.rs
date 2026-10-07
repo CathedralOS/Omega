@@ -1,9 +1,7 @@
 //! Declaration lookups delegated to the `TypedTrees`-owned indexes, plus the
 //! per-scope `Rc` tables claim-frontier walks hold by reference.
 
-use super::{
-    DATA_DEF_POSITIONS_SLOT, TYPE_PARAMETER_MULTIPLICITY_SLOT, scoped_program_map,
-};
+use super::{DATA_DEF_POSITIONS_SLOT, TYPE_PARAMETER_MULTIPLICITY_SLOT, scoped_program_map};
 use std::collections::HashMap;
 
 /// The declaration-table answer for a symbol: absent, exactly one
@@ -20,7 +18,7 @@ pub(crate) enum DataDefinitionLookup {
 /// the answer — including the negative and duplicate cases — is a single
 /// index query rather than a re-scan of the whole declaration slice.
 pub(crate) fn memoized_data_definition_lookup(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> DataDefinitionLookup {
     program.with_data_definition_index(|index| match index.positions_for_symbol(symbol) {
@@ -35,7 +33,7 @@ pub(crate) fn memoized_data_definition_lookup(
 /// that require uniqueness should use [`memoized_data_definition_lookup`]
 /// directly.
 pub(crate) fn data_definition_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     program.data_definition_by_symbol(symbol)
@@ -62,7 +60,7 @@ enum DataFieldPosition {
 pub(crate) struct DataFieldIndex(symbols::SymbolKeyMap<symbols::SymbolHandle, DataFieldPosition>);
 
 impl DataFieldIndex {
-    pub(crate) fn of(program: &typed_trees::TypedTrees) -> Self {
+    pub(crate) fn of(program: &dyn crate::CheckingInput) -> Self {
         let position = |index: usize| u32::try_from(index).expect("data field position overflow");
         let mut fields = symbols::SymbolKeyMap::default();
         for (definition, data) in program.data_definitions().iter().enumerate() {
@@ -97,7 +95,7 @@ impl DataFieldIndex {
 
     pub(crate) fn field<'program>(
         &self,
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         symbol: symbols::SymbolHandle,
     ) -> Option<&'program typed_trees::data::DataField> {
         let (definition, member, payload) = match *self.0.get(&symbol)? {
@@ -126,7 +124,7 @@ impl DataFieldIndex {
 /// fingerprint — a replacement program can never inherit the table, and any
 /// declaration mutation reopens it.
 pub(crate) fn memoized_data_definition_positions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> std::rc::Rc<HashMap<symbols::SymbolHandle, usize>> {
     scoped_program_map(program, &DATA_DEF_POSITIONS_SLOT, |program| {
         program
@@ -143,7 +141,7 @@ pub(crate) fn memoized_data_definition_positions(
 /// same reason as the data-definition positions. Keyed like that slot: the
 /// program's identity plus its structural fingerprint.
 pub(crate) fn memoized_type_parameter_multiplicities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> std::rc::Rc<
     HashMap<
         symbols::SymbolHandle,
@@ -170,7 +168,7 @@ pub(crate) fn memoized_type_parameter_multiplicities(
 
 /// The named field of `definition`, when it declares one.
 pub(crate) fn data_field_named<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     name: typed_trees::name::Identifier,
 ) -> Option<&'a typed_trees::data::DataField> {
@@ -188,7 +186,7 @@ pub(crate) fn data_field_named<'a>(
 /// The declared type of the one field `symbol` names across every data
 /// definition.
 pub(crate) fn data_field_type_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     program

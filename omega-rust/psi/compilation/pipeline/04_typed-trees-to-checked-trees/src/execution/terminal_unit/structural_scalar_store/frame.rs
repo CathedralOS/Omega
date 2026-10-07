@@ -1,8 +1,7 @@
 //! Replay the complete state frame without confusing it with the local body.
 
-use super::TypedTrees;
 pub(super) fn matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     frame: &facts::NormalizedWriteFrame,

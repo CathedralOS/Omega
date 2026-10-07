@@ -4,7 +4,7 @@
 //! copy equality.
 use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeState, State, TypedTrees, comparison_proven, fields, projections,
+    RankingRangeState, State, comparison_proven, fields, projections,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
@@ -50,7 +50,7 @@ impl<'program> FieldCoordinates<'program> {
         }
     }
 
-    pub(super) fn comparisons(&self, program: &TypedTrees) -> Vec<Comparison> {
+    pub(super) fn comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
         self.coordinates()
             .flat_map(|coordinate| coordinate.field_comparisons(program))
             .collect()
@@ -60,7 +60,7 @@ impl<'program> FieldCoordinates<'program> {
     /// same-named fields remain independent by parameter and resolved chain.
     pub(super) fn install(
         &mut self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         root: &State,
         entry_parameters: Option<&[SymbolHandle]>,
@@ -116,7 +116,7 @@ impl<'program> FieldCoordinates<'program> {
     /// than a first/last-wins guess.
     pub(super) fn substitute(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         entry_parameters: Option<&[SymbolHandle]>,

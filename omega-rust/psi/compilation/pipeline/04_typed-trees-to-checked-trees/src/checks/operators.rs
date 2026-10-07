@@ -9,7 +9,7 @@ mod requires;
 pub(crate) use requires::{named_operator_route_is_false, operator_route_is_false};
 
 pub(crate) fn check_operator_resolution(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = facts
@@ -64,7 +64,7 @@ pub(crate) fn check_operator_resolution(
 /// semantic role. This use has domain candidates, none selected, and no
 /// builtin/root fallback.
 fn inadmissible_operator_diagnostic(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     issue: CheckedOperatorResolutionIssue<'_>,
 ) -> Diagnostic {
     let operand = program
@@ -91,7 +91,7 @@ fn inadmissible_operator_diagnostic(
 }
 
 fn ambiguous_operator_diagnostic(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     issue: CheckedOperatorResolutionIssue<'_>,
 ) -> Diagnostic {
     let candidates = issue

@@ -8,7 +8,6 @@ use super::place_paths::{FramePlaceOrigin, frame_place_path, split_place_root};
 use super::transparent_effects::frame_place_root_symbol;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
@@ -22,7 +21,7 @@ pub(super) struct ParameterRelativeFrameOrigin {
 }
 
 pub(super) fn expression_reborrows_transparent_alias_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],

@@ -7,7 +7,6 @@ use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
@@ -56,7 +55,7 @@ fn parameter_symbols_fingerprint(parameters: &[StateParameter]) -> usize {
     fingerprint
 }
 
-fn structural_rosters_revision(program: &TypedTrees) -> u64 {
+fn structural_rosters_revision(program: &dyn ::validation::CheckingInput) -> u64 {
     // Freshness is the sum of the revisions of every arena the rosters read.
     // Each arena's revision only ever moves forward — appends, frees, and
     // in-place rewrites alike — so the sum moves exactly when a read table
@@ -81,7 +80,7 @@ thread_local! {
 }
 
 fn with_structural_rosters<R>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reader: impl FnOnce(&StructuralRosters) -> R,
 ) -> R {
     STRUCTURAL_ROSTERS.with(|slot| {
@@ -189,14 +188,17 @@ fn with_structural_rosters<R>(
     })
 }
 
-fn machine_positions_by_symbol(program: &TypedTrees, symbol: symbols::SymbolHandle) -> Vec<u32> {
+fn machine_positions_by_symbol(
+    program: &dyn ::validation::CheckingInput,
+    symbol: symbols::SymbolHandle,
+) -> Vec<u32> {
     with_structural_rosters(program, |rosters| {
         rosters.machines.get(&symbol).cloned().unwrap_or_default()
     })
 }
 
 fn local_data_positions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Vec<(u32, u32, u32)> {
     with_structural_rosters(program, |rosters| {
@@ -205,7 +207,7 @@ fn local_data_positions(
 }
 
 fn rostered_data_member(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_index: u32,
     member_index: u32,
 ) -> &typed_trees::data::DataMember {
@@ -213,7 +215,7 @@ fn rostered_data_member(
 }
 
 fn data_field_positions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Vec<(u32, u32, u32)> {
     with_structural_rosters(program, |rosters| {
@@ -226,7 +228,7 @@ fn data_field_positions(
 }
 
 fn rostered_data_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     position: (u32, u32, u32),
 ) -> Option<&typed_trees::data::DataField> {
     let member = rostered_data_member(program, position.0, position.1);
@@ -246,7 +248,7 @@ fn rostered_data_field(
 }
 
 pub(super) fn structural_sequence_length(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
@@ -415,7 +417,7 @@ pub(super) fn structural_sequence_length(
 /// local's view was established before this use, and lowering resolves the
 /// symbol to its published place or refuses.
 pub(super) fn view_local_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
@@ -452,7 +454,7 @@ pub(super) fn view_local_root(
 /// place was established before this use; lowering resolves the symbol to
 /// that place or refuses.
 pub(super) fn owned_local_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
@@ -482,7 +484,7 @@ pub(super) fn owned_local_root(
 /// not just at a parameter or at the local's root. Retain each exact projection;
 /// later source replay checks availability at the actual observation site.
 pub(super) fn owned_local_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(
@@ -562,7 +564,7 @@ pub(super) fn owned_local_place(
 /// selected collection's declared type. The whole local selects its
 /// referent itself with an empty path.
 pub(super) fn view_local_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(
@@ -600,7 +602,7 @@ pub(super) fn view_local_place(
 /// Empty spelling resolution is builtin only when the exact operand types
 /// independently carry the builtin index meaning.
 pub(super) fn indexed_read_is_builtin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -624,7 +626,7 @@ pub(super) fn indexed_read_is_builtin(
 }
 
 fn indexed_read_has_builtin_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     collection_type: TypeReferenceHandle,
@@ -674,7 +676,7 @@ fn indexed_read_has_builtin_meaning(
 }
 
 pub(super) fn structural_parameter_field_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
@@ -791,7 +793,7 @@ pub(super) fn structural_parameter_field_path(
 /// mutable storage can be reborrowed through a pointee type that drops them,
 /// so only the live snapshots speak for it.
 pub(crate) fn resolve_structural_parameter_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     position: u32,
     path: &[CheckedStructuralPredicatePathSegment],
@@ -891,7 +893,7 @@ pub(crate) fn resolve_structural_parameter_path(
 /// Whether this reference resolves through an exclusive borrow (`&mut`/`&w`).
 /// Shared references keep their referent frozen for the borrow's lifetime.
 pub(crate) fn exclusive_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> bool {
     loop {
@@ -911,7 +913,7 @@ pub(crate) fn exclusive_reference(
 /// carrier, so an index selects no static element
 /// (wiki/spec/language/domains.md, "Byte containers and encoding domains").
 fn peeled_indexed_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     loop {
@@ -931,7 +933,7 @@ fn peeled_indexed_carrier(
 }
 
 pub(super) fn fixed_index_element_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     element_index: u64,
 ) -> Option<TypeReferenceHandle> {
@@ -954,7 +956,7 @@ pub(super) fn fixed_index_element_type(
 /// same unwrap `fixed_index_element_type` walks, with no literal to prove
 /// against the extent — the read's own obligation checks the bound.
 pub(super) fn runtime_index_element_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let carrier = peeled_indexed_carrier(program, reference)?;
@@ -970,7 +972,7 @@ pub(super) fn runtime_index_element_type(
 }
 
 pub(crate) fn structural_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let (symbol, name) = loop {
@@ -1022,7 +1024,7 @@ pub(crate) fn structural_data(
 }
 
 pub(super) fn lower_structural_parameter_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
@@ -1073,7 +1075,7 @@ pub(super) fn lower_structural_parameter_field(
 }
 
 pub(super) fn structural_parameter_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(
@@ -1233,7 +1235,7 @@ pub(super) fn structural_parameter_place(
 /// from the declarations, and Terminal checks the stored permission separately.
 /// Returns the path and the leaf's declared type.
 pub(super) fn element_field_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     element: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<(
@@ -1288,7 +1290,7 @@ pub(super) fn element_field_path(
 /// parameter: its symbol and declared local-data row. Both whole-name local
 /// root lookups peel the same authored-name shape before their kind gates.
 fn whole_local_binding<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(

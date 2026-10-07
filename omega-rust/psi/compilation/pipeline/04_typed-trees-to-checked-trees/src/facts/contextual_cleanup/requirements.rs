@@ -16,7 +16,7 @@ use diagnostics::Diagnostic;
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment};
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceNode};
+use typed_trees::{expression::ExpressionHandle, types::TypeReferenceNode};
 
 use crate::checks::contracts::{boolean_value_at_place, contextual_cleanup as calls};
 use crate::execution::terminal_unit::cleanup::{
@@ -37,7 +37,7 @@ struct Pending {
 }
 
 pub(crate) fn infer_entry_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
@@ -185,7 +185,7 @@ struct SelectedRequirement {
 }
 
 impl SelectedRequirement {
-    fn proven(&self, program: &TypedTrees, facts: &CheckFacts) -> bool {
+    fn proven(&self, program: &dyn ::validation::CheckingInput, facts: &CheckFacts) -> bool {
         let mut retained =
             boolean_predicates::retained(program, &facts.semantic, &self.current.contexts);
         retained.extend(self.current.guarantees.iter().cloned());
@@ -210,7 +210,10 @@ impl SelectedRequirement {
         })
     }
 
-    fn transportable_subject(&self, program: &TypedTrees) -> Option<(CanonicalPlace, bool)> {
+    fn transportable_subject(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<(CanonicalPlace, bool)> {
         let hook = program.machine_by_symbol(self.hook)?;
         let state = program.machine_states(hook).first()?;
         let receiver = program.state_parameters(state).first()?;
@@ -234,7 +237,7 @@ impl SelectedRequirement {
 // source checking. A Terminal planner declining a shape must not silently
 // authorize cleanup whose source premise was never established.
 fn selected_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<Vec<SelectedRequirement>, Vec<Diagnostic>> {
     let mut result = Vec::new();
@@ -360,7 +363,7 @@ fn selected_requirements(
 }
 
 pub(crate) fn check_cleanup_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Vec<Diagnostic> {
     let selected = match selected_requirements(program, facts) {
@@ -392,7 +395,7 @@ pub(crate) fn check_cleanup_requirements(
 }
 
 fn transport(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -466,7 +469,7 @@ fn covers(symbolic: &[PlaceSegment], concrete: &[PlaceSegment]) -> bool {
 }
 
 fn has_symbolic_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     statement: usize,
     place: &CanonicalPlace,
@@ -502,7 +505,7 @@ fn has_symbolic_origin(
 }
 
 pub(super) fn occurrence_contexts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     disposition: &checked_trees::ContextualCleanupDisposition,

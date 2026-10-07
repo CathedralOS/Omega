@@ -6,7 +6,6 @@
 //! second expression-local effect inference.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod normal_return;
@@ -25,7 +24,7 @@ pub(crate) use normal_return::plain_value_call_target;
 /// for, so a stage with its own projection table does not re-derive identity
 /// here. Pass `&|_| false` with no such table.
 pub fn expression_values_have_call_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -67,10 +66,10 @@ pub fn expression_values_have_call_identity(
 /// `machine_symbol`; `admits` returning `false` — or a machine the index
 /// cannot resolve — refuses the whole walk.
 fn each_reachable_checked_machine(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
-    admits: impl Fn(&TypedTrees, &typed_trees::machine::Machine) -> bool,
+    admits: impl Fn(&dyn crate::CheckingInput, &typed_trees::machine::Machine) -> bool,
 ) -> bool {
     let mut pending = vec![machine_symbol];
     let mut visited = Vec::new();
@@ -96,7 +95,7 @@ fn each_reachable_checked_machine(
 }
 
 pub(crate) fn has_observation_free_checked_closure(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
@@ -156,7 +155,7 @@ pub(crate) fn has_observation_free_checked_closure(
 }
 
 fn transition_is_fact_observation_free(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     transition: &typed_trees::statement::TableTransition,
 ) -> bool {
     use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
@@ -180,7 +179,10 @@ fn transition_is_fact_observation_free(
     guard && target(transition.target) && target(transition.continuation)
 }
 
-fn expression_is_fact_observation_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn expression_is_fact_observation_free(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
@@ -233,7 +235,7 @@ fn expression_is_fact_observation_free(program: &TypedTrees, expression: Express
 }
 
 pub(crate) fn unconditionally_terminates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> bool {
     let Some(machine) = program
@@ -347,7 +349,7 @@ fn push_checked_machine_call_targets(
 /// makes the call partial in the fact language, even though the route is
 /// separately covered for executable use.
 pub(crate) fn has_no_crash_routes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     operational: &flow_effects::OperationalPlan,
 ) -> bool {

@@ -28,7 +28,7 @@ struct MachineOverloadIndex {
 }
 
 impl MachineOverloadIndex {
-    fn new(program: &TypedTrees) -> Self {
+    fn new(program: &dyn crate::CheckingInput) -> Self {
         let mut entry_to_group = HashMap::default();
         let mut family_to_group: HashMap<(CallablePathId, CallableParametersId), usize> =
             HashMap::default();
@@ -80,7 +80,7 @@ impl MachineOverloadIndex {
     }
 }
 
-fn expression_owner_source_spans(program: &TypedTrees) -> HashMap<u32, SourceSpan> {
+fn expression_owner_source_spans(program: &dyn crate::CheckingInput) -> HashMap<u32, SourceSpan> {
     let mut owners = HashMap::default();
     for machine in program.machines() {
         let Some(source_span) = program.symbols.symbol_source_span(machine.symbol) else {
@@ -100,7 +100,7 @@ fn expression_owner_source_spans(program: &TypedTrees) -> HashMap<u32, SourceSpa
 }
 
 fn record_expression_owner(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     source_span: SourceSpan,
     owners: &mut HashMap<u32, SourceSpan>,
@@ -327,7 +327,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
 /// `provisional_identity`'s family, restricted to candidates `source_span`
 /// may see.
 fn family_boundary_overloads<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     candidates: impl Iterator<Item = &'program typed_trees::operator::OperatorDefinition>,
     source_span: SourceSpan,
     provisional_identity: CallableIdentityId,
@@ -353,11 +353,15 @@ fn family_boundary_overloads<'program>(
 /// visible from `source_span` and reports whether they cover every visible
 /// candidate.
 fn visible_boundary_overload_family<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     candidates: &[&'program typed_trees::operator::OperatorDefinition],
     source_span: SourceSpan,
     provisional: &'program typed_trees::operator::OperatorDefinition,
-) -> (CallableIdentityId, Vec<(SymbolHandle, CallableIdentityId)>, usize) {
+) -> (
+    CallableIdentityId,
+    Vec<(SymbolHandle, CallableIdentityId)>,
+    usize,
+) {
     let provisional_identity = program.operator_callable_identity(provisional);
     let visible_candidate_count = candidates
         .iter()
@@ -377,7 +381,7 @@ fn visible_boundary_overload_family<'program>(
 }
 
 fn selected_named_statement_callable_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     call: &typed_trees::statement::TableCall,
     source_span: SourceSpan,
@@ -400,8 +404,12 @@ fn selected_named_statement_callable_symbol(
         operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
     }) {
         let provisional_identity = program.operator_callable_identity(provisional);
-        let overloads =
-            family_boundary_overloads(program, program.operators().iter(), source_span, provisional_identity);
+        let overloads = family_boundary_overloads(
+            program,
+            program.operators().iter(),
+            source_span,
+            provisional_identity,
+        );
         if overloads.len() == 1 {
             return Some(provisional.symbol);
         }
@@ -445,7 +453,7 @@ fn selected_named_statement_callable_symbol(
 }
 
 fn selected_named_expression_callable_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     call: &TableCallExpression,
     source_span: SourceSpan,
@@ -519,7 +527,7 @@ fn selected_named_expression_callable_symbol(
 /// admitted branch's own verdict rides the inner `Option` so a declining
 /// family lookup still ends the caller early.
 fn named_callable_resolution(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     target_symbol: SymbolHandle,
     receiver_missing: bool,
@@ -537,11 +545,8 @@ fn named_callable_resolution(
             diagnostics,
         ));
     }
-    if provisional_target_is_named_non_operator_callable(
-        program,
-        machine_overloads,
-        target_symbol,
-    ) {
+    if provisional_target_is_named_non_operator_callable(program, machine_overloads, target_symbol)
+    {
         return Some(selected_named_callable_symbol(
             program,
             machine_overloads,
@@ -555,7 +560,7 @@ fn named_callable_resolution(
 }
 
 fn provisional_target_is_named_non_operator_callable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     target: SymbolHandle,
 ) -> bool {
@@ -569,7 +574,7 @@ fn provisional_target_is_named_non_operator_callable(
 }
 
 fn selected_named_callable_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     provisional_target: SymbolHandle,
     source_span: SourceSpan,
@@ -601,8 +606,12 @@ fn selected_named_callable_symbol(
         operator.symbol == provisional_target && operator.is_boundary && operator.spelling.is_none()
     }) {
         let provisional_identity = program.operator_callable_identity(provisional_operator);
-        let overloads =
-            family_boundary_overloads(program, program.operators().iter(), source_span, provisional_identity);
+        let overloads = family_boundary_overloads(
+            program,
+            program.operators().iter(),
+            source_span,
+            provisional_identity,
+        );
         return select_overload_symbol(
             program,
             provisional_identity,
@@ -650,7 +659,7 @@ fn selected_named_callable_symbol(
 }
 
 fn select_overload_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     provisional_identity: CallableIdentityId,
     overloads: &[(SymbolHandle, CallableIdentityId)],
     expected_result: Option<TypeReferenceHandle>,
@@ -706,7 +715,7 @@ fn select_overload_symbol(
 /// the free-machine entry rule, a member's state named exactly like the call
 /// is preferred over its first state.
 fn named_machine_overload_family_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_name: &str,
     source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
@@ -750,7 +759,7 @@ fn named_machine_overload_family_symbol(
 }
 
 fn collect_expected_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expected = Vec::new();
 
@@ -864,7 +873,7 @@ fn collect_expected_expression_calls(
 }
 
 fn collect_call_argument_expectations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) {
@@ -902,7 +911,7 @@ fn collect_call_argument_expectations(
 }
 
 fn push_expected_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
     expected_type: TypeReferenceHandle,
     expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -960,7 +969,7 @@ fn push_expected_call(
 }
 
 fn array_element_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {

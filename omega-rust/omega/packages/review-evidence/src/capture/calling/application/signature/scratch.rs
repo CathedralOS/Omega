@@ -17,7 +17,7 @@ use crate::capture::PackageReviewInput;
 use typed_trees::{TypedTreeTables, TypedTrees};
 
 pub(super) fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
-    let source = &compilation.typed;
+    let source = compilation.checking_input;
     let mut tables = TypedTreeTables::default();
     tables.const_declarations = source.tables.const_declarations.clone();
     tables.data_definitions = source.tables.data_definitions.clone();

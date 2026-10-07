@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn bind_proof_output_call_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
@@ -517,7 +517,7 @@ pub(crate) fn bind_proof_output_call_facts(
 }
 
 fn check_open_proof_output_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
     owner: SymbolHandle,
@@ -571,7 +571,7 @@ fn check_open_proof_output_requirement(
 /// put generic values into the witness lanes, which this rung does not
 /// instantiate.
 fn trait_parameters_are_data_types(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> bool {
     program
@@ -581,7 +581,7 @@ fn trait_parameters_are_data_types(
 }
 
 fn checked_static_requirement_dispatch<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     caller_machine: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
     realization_machine: &'program typed_trees::machine::Machine,
@@ -764,7 +764,7 @@ fn checked_static_requirement_dispatch<'program>(
 /// identity, so a dispatch declared on a parent is admitted through a
 /// conformance to its descendant.
 fn trait_requires_transitively(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     required_trait: SymbolHandle,
 ) -> bool {
@@ -792,7 +792,7 @@ fn trait_requires_transitively(
 }
 
 fn check_public_named_witness_lanes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     requirement: &typed_trees::signature::StateSignature,
 ) -> Result<(), &'static str> {
     use typed_trees::domain::ProofFact;
@@ -882,7 +882,7 @@ fn proof_output_source_term_by_name(
 }
 
 fn instantiate_proof_output_proposition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     package: &typed_trees::typed_trees::ProofOutputCall,
     call: &typed_trees::expression::TableCallExpression,
@@ -981,7 +981,7 @@ pub(crate) fn intake_checked_proof_output_propositions(
 }
 
 pub(crate) fn intake_call_ensures_propositions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::statement::TableCall,
     known: &mut std::collections::BTreeSet<String>,
 ) {

@@ -8,11 +8,11 @@ use crate::execution::terminal_unit::{
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, ContractProofFactKind,
     ContractProofFactOwner, DataMember, Diagnostic, ExpressionNode, PrimitiveType, ProofFact,
-    StateParameter, SymbolHandle, TypedTrees,
+    StateParameter, SymbolHandle,
 };
 
 pub(crate) fn nominal_cleanup_boolean_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     cleanup_machine: &typed_trees::machine::Machine,
     cleanup_state: &typed_trees::state::State,
@@ -35,7 +35,7 @@ pub(crate) fn nominal_cleanup_boolean_requirements(
 }
 
 pub(crate) fn nominal_scalar_caller_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
@@ -120,7 +120,7 @@ pub(crate) fn nominal_scalar_caller_requirements(
 }
 
 pub(crate) fn nominal_cleanup_caller_boolean_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
@@ -138,7 +138,7 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
 }
 
 pub(crate) fn direct_integer_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
@@ -423,7 +423,7 @@ pub(crate) fn canonical_nominal_cleanup_requirements(
 }
 
 pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     source_parameter: &StateParameter,
@@ -445,7 +445,7 @@ pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
 }
 
 pub(crate) fn scalar_nominal_cleanup_missing_requirement_diagnostic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     return_statement_ordinal: u32,
@@ -469,7 +469,7 @@ pub(crate) fn scalar_nominal_cleanup_missing_requirement_diagnostic(
 }
 
 pub(crate) fn checked_requires_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -484,7 +484,7 @@ pub(crate) fn checked_requires_expressions(
 }
 
 pub(crate) fn checked_contract_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -507,7 +507,7 @@ pub(crate) fn checked_contract_expressions(
 }
 
 pub(crate) fn direct_boolean_field_requirement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     root_parameter: &StateParameter,
     expression: typed_trees::expression::ExpressionHandle,

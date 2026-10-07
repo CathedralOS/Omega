@@ -285,7 +285,7 @@ impl Builder<'_, '_> {
 /// A legacy named boundary operator (`F64::from_i32`) names one requirement
 /// symbol for both its machine and state coordinates.
 pub(super) fn boundary_operator(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<&typed_trees::operator::OperatorDefinition> {
     program
@@ -297,7 +297,7 @@ pub(super) fn boundary_operator(
 /// The primitive carrier of a type that is bare or qualified only by an
 /// arithmetic policy. Declared domains and ranges keep their own custody.
 fn policy_carrier(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     if let Some(primitive) = program.primitive_type_reference(reference) {

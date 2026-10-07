@@ -4,7 +4,6 @@ use super::{
     type_references_match,
 };
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{
@@ -17,7 +16,7 @@ use typed_trees::types::{
 /// carrier), so `[u8] in Utf8` resolves to `domain [u8]::Utf8` and NOT to a
 /// `domain String::Utf8` that happens to share the `Utf8` name.
 fn domain_is_declared(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_type: TypeReferenceHandle,
     constraint: &typed_trees::types::DomainConstraint,
 ) -> bool {
@@ -44,7 +43,7 @@ fn domain_is_declared(
 }
 
 pub(super) fn validate_type_constraints_node(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_type: TypeReferenceHandle,
     constraints: arena::HandleSpan<TypeConstraintNode>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -374,7 +373,7 @@ fn validate_semantic_role_composition(
 /// until the first encode. (Contrast `[u8; N] in Utf8`, whose zero state
 /// `{len: 0}` is genuinely valid and whose write ops preserve the invariant.)
 fn validate_layout_domain_constraint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_type: TypeReferenceHandle,
     domain: &typed_trees::types::DomainConstraint,
     diagnostics: &mut Vec<Diagnostic>,
@@ -452,7 +451,7 @@ fn validate_layout_domain_constraint(
 /// whole-expression folding, not leaf shape, decides those bounds, so
 /// `0..=5 / 2` still reaches the non-constant arm below.
 pub(super) fn range_bound_pending_evaluation_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     primitive_type: PrimitiveType,
     expression: ExpressionHandle,
 ) -> (bool, bool) {
@@ -481,7 +480,7 @@ pub(super) fn range_bound_pending_evaluation_shape(
 /// declared format, or an integer literal or closed integer constant
 /// converted once.
 fn range_endpoint_closes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     primitive_type: PrimitiveType,
     endpoint: ExpressionHandle,
 ) -> bool {
@@ -499,7 +498,7 @@ fn range_endpoint_closes(
 /// with the proof plan's atom minting and the index prover's substitution
 /// through the shared `typed_trees::dependent_ranges` recognizer.
 fn dependent_state_parameter_range_error(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &TypeReferenceOwner<'_>,
     minimum: typed_trees::expression::ExpressionHandle,
     maximum: typed_trees::expression::ExpressionHandle,
@@ -625,7 +624,7 @@ fn dependent_state_parameter_range_error(
 /// refusing. Symbol identity (not spelling) decides membership, so a shadowed
 /// or out-of-scope name cannot slip through on a matching identifier.
 fn scoped_maximum_error(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &TypeReferenceOwner<'_>,
     scoped: typed_trees::dependent_ranges::ScopedNameBound,
 ) -> Option<String> {
@@ -717,7 +716,10 @@ fn scoped_maximum_error(
     ))
 }
 
-fn type_reference_is_sliceable(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+fn type_reference_is_sliceable(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             type_reference_is_sliceable(program, *referee)

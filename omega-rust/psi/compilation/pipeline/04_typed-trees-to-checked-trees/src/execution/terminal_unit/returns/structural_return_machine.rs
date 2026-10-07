@@ -10,11 +10,11 @@ use crate::execution::terminal_unit::types::{
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan,
     ExpressionNode, Multiplicity, ProofFact, SemanticDomainId, SignatureContractKind,
-    StateParameter, StatementNode, TypedTrees,
+    StateParameter, StatementNode,
 };
 
 pub(crate) fn build_structural_return_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -236,7 +236,7 @@ pub(crate) fn build_structural_return_machine(
 }
 
 pub(crate) fn state_contracts_are_exact_parameter_qualifications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter: &StateParameter,
     expected_domains: &[SemanticDomainId],

@@ -21,7 +21,6 @@ use crate::semantic::calls::CallSite;
 use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
 use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -45,7 +44,7 @@ struct Invocation<'program> {
 /// Cleanup can then retire those observations after each selected hook using
 /// the same mutation law as the rest of source flow.
 pub(crate) fn current_predicates(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
@@ -103,7 +102,7 @@ pub(crate) fn current_predicates(
 }
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
@@ -174,7 +173,7 @@ pub(super) fn proves(
 }
 
 fn capture_preserved(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     caller: &Machine,
     supplied: &Invocation<'_>,
@@ -267,7 +266,7 @@ fn capture_preserved(
 }
 
 fn invocation<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     caller: &FlowStateFact,
     statement: usize,
     ordinal: usize,
@@ -302,7 +301,10 @@ fn invocation<'program>(
     })
 }
 
-fn ordinary_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
+fn ordinary_arguments(
+    program: &dyn ::validation::CheckingInput,
+    invocation: &Invocation<'_>,
+) -> bool {
     let parameters = invocation.callable.parameters(program);
     let arguments =
         crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
@@ -333,7 +335,7 @@ fn ordinary_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool
 /// through the call-entry contexts and capture-preservation checks; this is
 /// only admission to the exact-value vocabulary, not an effect exemption.
 fn stable_predicate_inputs(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> bool {
@@ -356,7 +358,7 @@ fn stable_predicate_inputs(
 }
 
 fn stable_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     pending: &mut Vec<ExpressionHandle>,
 ) -> bool {
@@ -386,7 +388,7 @@ fn stable_value(
 /// attached-field identity the write frame carries, which the authored member
 /// gate in `checked_place` deliberately does not keep.
 fn exclusive_borrow_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
@@ -405,7 +407,7 @@ fn exclusive_borrow_place(
 }
 
 pub(in crate::checks) fn direct_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     let mut current = expression;
@@ -428,7 +430,7 @@ pub(in crate::checks) fn direct_place(
 }
 
 fn builtin_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
@@ -438,7 +440,7 @@ fn builtin_predicate(
 }
 
 fn predicates_match(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     required: &Invocation<'_>,
@@ -546,7 +548,7 @@ fn predicates_match(
 }
 
 fn same_scalar_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left_owner: &Invocation<'_>,
     left: ExpressionHandle,
     right_owner: &Invocation<'_>,
@@ -566,7 +568,7 @@ fn same_scalar_type(
 }
 
 fn actual_projection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
@@ -580,7 +582,7 @@ fn actual_projection(
 }
 
 fn bound_literal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
@@ -594,7 +596,7 @@ fn bound_literal(
 }
 
 fn bound_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
@@ -622,7 +624,7 @@ fn bound_place(
 }
 
 fn captured_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     mut place: CanonicalPlace,

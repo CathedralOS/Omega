@@ -3,7 +3,7 @@ use checked_trees::ContractProofFact;
 use facts::FactPayload;
 
 pub(super) fn semantic_contract_payload(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contract: &ContractProofFact,
 ) -> FactPayload {
     let kind = semantic_contract_fact_kind(contract.kind);

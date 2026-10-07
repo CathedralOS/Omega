@@ -2,7 +2,7 @@ use symbols::SymbolHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn fixed_array_field_lengths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<(SymbolHandle, String, usize)> {
     let mut fields = Vec::new();
     for data in program.data_definitions() {
@@ -20,7 +20,7 @@ pub(super) fn fixed_array_field_lengths(
 }
 
 pub(in crate::checks) fn fixed_array_type_length(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     if bounded_byte_type_capacity(program, type_reference).is_some() {
@@ -53,7 +53,7 @@ pub(in crate::checks) fn fixed_array_type_length(
 /// orchestration const-eval pass owns their substitution) and literals resolve
 /// on the concrete lane, so neither names a symbolic bound.
 pub(in crate::checks) fn fixed_array_type_symbolic_extent(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, typed_trees::name::Identifier)> {
     if bounded_byte_type_capacity(program, type_reference).is_some() {
@@ -78,7 +78,7 @@ pub(in crate::checks) fn fixed_array_type_symbolic_extent(
 }
 
 pub(super) fn bounded_byte_type_capacity(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match program.type_reference_table.type_reference(type_reference) {

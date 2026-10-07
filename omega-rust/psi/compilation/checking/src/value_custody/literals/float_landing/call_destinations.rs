@@ -1,13 +1,12 @@
 //! Statement-call landing follows retained target symbols, never overload names.
 
 use super::FloatLandingPair;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
 
 pub(super) fn collect(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     call: &TableCall,
     pairs: &mut Vec<FloatLandingPair>,
@@ -28,7 +27,7 @@ pub(super) fn collect(
 }
 
 fn parameters<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     call: &TableCall,
 ) -> Option<&'program [StateParameter]> {

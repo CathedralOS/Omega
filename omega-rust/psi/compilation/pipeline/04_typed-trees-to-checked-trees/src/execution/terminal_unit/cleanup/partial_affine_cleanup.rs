@@ -6,12 +6,11 @@ use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, PermissionEventKind, PrimitiveType, ScalarCalleePlans,
-    TypedTrees, control,
+    CheckedUnitStructuralTypePlan, PermissionEventKind, PrimitiveType, ScalarCalleePlans, control,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
     shapes: &mut ShapeCollector<'_>,

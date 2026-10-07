@@ -4,14 +4,13 @@ use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedUnitStructuralTypePlan,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// Fresh records and whole-place copies or moves share ordered value
 /// establishment. Structural calls, references and selected
 /// results keep their existing owners until their custody joins scalar graph
 /// emission. Scalar operands are ordinary computations.
 pub(super) fn record_value_root<'plans>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     plans: &'plans checked_trees::CheckedStructuralValuePlans,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -104,7 +103,7 @@ pub(super) fn record_value_root<'plans>(
 }
 
 pub(super) fn retain_record_locals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     plans: &checked_trees::CheckedStructuralValuePlans,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -170,7 +169,7 @@ pub(super) fn retain_record_locals(
 fn retain_case_subject_fields(
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
     plans: &CheckedScalarComputationPlans,
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     subject: &checked_trees::CheckedScalarCaseConstruction,
     pending: &mut Vec<arena::Handle<checked_trees::CheckedScalarComputation>>,
 ) -> Option<()> {
@@ -189,7 +188,7 @@ fn retain_case_subject_fields(
 }
 
 pub(super) fn retain_shapes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     plans: &CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     state: SymbolHandle,

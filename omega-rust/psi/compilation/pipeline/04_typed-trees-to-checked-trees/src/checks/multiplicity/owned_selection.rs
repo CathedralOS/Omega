@@ -44,7 +44,7 @@ pub(super) fn place_paths_overlap(
 /// live loan keeps the explicit rejection instead of guessing at referent
 /// custody across the conditional move.
 fn source_needs_loan_closure(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

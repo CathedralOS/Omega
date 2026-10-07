@@ -16,13 +16,13 @@ use super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypedTrees, checked_structural_result_type, consume_results, consume_value_places, is_unit,
+    checked_structural_result_type, consume_results, consume_value_places, is_unit,
     retain_selected_sources, statement_call_target, structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
@@ -516,7 +516,7 @@ struct ArrayLeaf {
 /// Collect the literal's leaves in row-major order against the declared
 /// array, which must be an exact literal extent at every nested level.
 fn array_leaves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     elements: &[checked_trees::CheckedStructuralValueHandle],
     declared: typed_trees::types::TypeReferenceHandle,
@@ -558,7 +558,7 @@ fn array_leaves(
 /// parameter's declared type for a parameter. Anything else is not this
 /// arm's shape.
 fn bound_value_source(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],

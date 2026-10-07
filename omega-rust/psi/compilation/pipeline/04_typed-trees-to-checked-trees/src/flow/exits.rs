@@ -44,7 +44,7 @@ pub(super) fn append_outgoing_state_fact(
 }
 
 pub(super) fn append_state_exit_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -147,7 +147,7 @@ pub(super) fn append_state_exit_facts(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transition_flow_facts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,

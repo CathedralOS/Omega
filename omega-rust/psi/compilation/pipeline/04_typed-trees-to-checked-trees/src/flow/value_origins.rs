@@ -4,7 +4,6 @@ use crate::flow::{self, CanonicalPlace};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode, TableCallExpression},
     machine::Machine,
     statement::StatementNode,
@@ -18,7 +17,7 @@ use typed_trees::{
 const CAPTURED_SOURCE_LITERAL_HOPS: usize = 16;
 
 pub(crate) fn value_origin_at_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
@@ -45,7 +44,7 @@ pub(crate) fn value_origin_at_call(
 /// Unlike the call query, it does not include any current-statement operand
 /// evaluation. Call consumers must retain the call-prefix preservation check.
 pub(crate) fn value_origin_before_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,
@@ -86,7 +85,7 @@ pub(crate) fn value_origin_before_statement(
 /// demanded storage occupies, or None to keep the literal spelling for the
 /// ordinary scan.
 pub(crate) fn value_origin_at_call_resolving<Resolve, Rebase>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
@@ -118,7 +117,7 @@ where
 }
 
 pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,
@@ -278,7 +277,7 @@ where
 /// caller place its checked callee proves; an unresolved call stays opaque.
 /// Any other expression keeps the whole projection.
 fn captured_source_place<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     statement_index: usize,
     value: ExpressionHandle,
@@ -372,7 +371,7 @@ where
 /// result-relative path is the peeled projection followed by the subject's
 /// remaining projection.
 fn result_call<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     mut expression: ExpressionHandle,
     remaining: &[PlaceSegment],
 ) -> Option<(&'program TableCallExpression, Vec<PlaceSegment>)> {
@@ -412,7 +411,7 @@ fn result_call<'program>(
 /// caller-isolation check. For consumers without a rebase hook the literal
 /// spelling still fails closed at the first reference-typed declaration.
 fn reference_storage_or_literal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -438,13 +437,17 @@ fn exact_suffix<'place>(
         .then(|| &place.segments[prefix.segments.len()..])
 }
 
-fn overlaps(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
+fn overlaps(
+    program: &dyn ::validation::CheckingInput,
+    left: &CanonicalPlace,
+    right: &CanonicalPlace,
+) -> bool {
     left.root == right.root
         && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 
 fn preserve_frame(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     statement_index: usize,

@@ -3,11 +3,11 @@
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::{
     BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact,
-    RESULT_BINDER, SignatureContractKind, SymbolHandle, TypedTrees,
+    RESULT_BINDER, SignatureContractKind, SymbolHandle,
 };
 
 pub(crate) fn checked_operator_contract_snapshot(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
 ) -> Vec<u8> {
     use std::collections::HashSet;
@@ -25,7 +25,7 @@ pub(crate) fn checked_operator_contract_snapshot(
     }
 
     fn append_expression(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         visited: &mut HashSet<(u32, u32)>,
         output: &mut Vec<u8>,
@@ -189,7 +189,7 @@ pub(crate) fn checked_operator_contract_snapshot(
 /// `result` binder maps only to itself, so renaming is harmless while swapping
 /// two parameter roles is not.
 pub(crate) fn check_operator_contract_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     operator: &typed_trees::operator::OperatorDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -348,7 +348,7 @@ pub(crate) fn check_operator_contract_conformance(
 }
 
 fn check_operator_crash_contract_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     operator: &typed_trees::operator::OperatorDefinition,
     operator_identity: &str,
@@ -396,7 +396,7 @@ struct OperatorCrashBucket {
 }
 
 fn operator_crash_bucket(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     cause: typed_trees::signature::CrashCause,
 ) -> Option<OperatorCrashBucket> {
@@ -437,7 +437,7 @@ fn operator_crash_bucket(
 }
 
 fn operator_contract_expressions_match(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     requirement: ExpressionHandle,
     provider: ExpressionHandle,
     name_map: &[(SymbolHandle, String, SymbolHandle, String)],
@@ -588,7 +588,10 @@ fn operator_contract_expressions_match(
     }
 }
 
-pub(crate) fn is_equality_conjunction(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(crate) fn is_equality_conjunction(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };

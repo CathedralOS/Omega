@@ -7,12 +7,11 @@
 //! `typed_trees::proof_only`, not refused here.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn validate_proof_only_consumption(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     classification: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

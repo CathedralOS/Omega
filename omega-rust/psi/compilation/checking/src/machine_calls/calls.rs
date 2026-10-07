@@ -17,7 +17,6 @@ use crate::value_custody::expression_types::{
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -85,7 +84,7 @@ pub(crate) use write_frames::{
 /// the flow-sensitive value environment.
 #[derive(Clone, Copy)]
 pub(super) struct CallScope<'a> {
-    pub(super) program: &'a TypedTrees,
+    pub(super) program: &'a dyn crate::CheckingInput,
     pub(super) call: &'a TableCall,
     pub(super) current_machine: &'a Machine,
     pub(super) state_name: &'a str,
@@ -102,7 +101,7 @@ pub(super) struct CallScope<'a> {
 /// receiverless target or a receiver's target.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_node(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     current_machine: &typed_trees::machine::Machine,
     state_name: &str,
@@ -220,7 +219,7 @@ fn report_callable_argument_count_mismatch(
 }
 
 fn report_argument_reference_access(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
@@ -269,7 +268,7 @@ fn report_argument_reference_access(
 }
 
 pub(crate) fn resolved_call_result_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
     if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol) {
@@ -301,7 +300,7 @@ pub(crate) struct CalleeContract<'program> {
 /// is not a machine entry or selector slot. A call to a later state is a jump
 /// inside its machine and owes no entry contract here.
 pub(crate) fn callee_entry_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<CalleeContract<'_>> {
     if let Some((machine, state)) = machine_state_by_symbol(program, target) {
@@ -342,7 +341,7 @@ pub(crate) fn callee_entry_contract(
 /// parameters name declaration-local types, so those calls stay unresolved
 /// rather than inventing a caller-side argument.
 fn requirement_call_result_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if !target.is_valid() {
@@ -369,7 +368,7 @@ fn requirement_call_result_type(
 /// Landing and constant-projection destination checks every argument runs
 /// before its permission and class gates.
 fn validate_literal_argument_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine_symbol: symbols::SymbolHandle,
     argument: ExpressionHandle,
     parameter_type: TypeReferenceHandle,
@@ -392,7 +391,7 @@ fn validate_literal_argument_destination(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_handles(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -427,7 +426,7 @@ pub(crate) fn validate_call_arguments_handles(
 /// Its sealed operation adapter retains operand policy; an ordinary named
 /// requirement cannot acquire that adapter from its namespace or result type.
 pub(crate) fn primitive_float_operator_retains_argument_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
     let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) else {
@@ -448,7 +447,7 @@ pub(crate) fn primitive_float_operator_retains_argument_policy(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_with_environments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -480,7 +479,7 @@ pub(crate) fn validate_call_arguments_with_environments(
 /// validation remain common to ordinary and bounded calls.
 #[allow(clippy::too_many_arguments)]
 fn validate_call_arguments_with_type_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     value_environment: &ValueEnvironment,
@@ -650,7 +649,7 @@ fn validate_call_arguments_with_type_correspondence(
 /// `true` if it reported. A non-primitive parameter (a data reference, a struct)
 /// or an unresolvable argument class yields `false` -- no report.
 fn report_cross_class_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     argument: ExpressionHandle,
@@ -682,7 +681,7 @@ fn report_cross_class_argument(
 /// shape gate ahead of this, so it also covers literal arguments.
 #[allow(clippy::too_many_arguments)]
 fn validate_value_call_argument_classes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
     prior_statements: &[typed_trees::statement::StatementNode],

@@ -114,7 +114,7 @@ enum Direction {
 /// per machine with the checked-fact pass's shared call-frame resolver;
 /// `seed_loop_invariant_facts` then seeds the matching states.
 pub(super) fn collect_loop_invariant_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<LoopInvariant> {
@@ -357,7 +357,7 @@ pub(super) fn collect_loop_invariant_facts(
 /// state's spelling of the storage root first. A state that reaches no
 /// attached storage can spell no such place, and is seeded nothing.
 pub(super) fn seed_loop_invariant_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     facts: &mut RangeFacts<'_>,
     state: &State,
@@ -402,7 +402,7 @@ pub(super) fn seed_loop_invariant_facts(
 /// field of the machine's attached data reached through whichever root this
 /// state binds (`self.field` or `main.field`). Returns the field symbol.
 fn assignment_counter_field(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -420,7 +420,7 @@ fn assignment_counter_field(
 /// increment `self.i = self.i + c` / `self.i = c + self.i` (`c` a positive
 /// integer literal), or anything else. A literal `c` is deliberately required.
 fn classify_counter_write(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     counter: SymbolHandle,
@@ -469,7 +469,7 @@ fn classify_counter_write(
 /// For an `Equal` whose one side is `Boolean(true)`, the other (the real subject). `None` if
 /// neither side is `Boolean(true)` (a `== false` negation, or a non-boolean equality).
 fn boolean_equality_inner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
@@ -488,7 +488,10 @@ fn boolean_equality_inner(
     }
 }
 
-fn integer_literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+fn integer_literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<i64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64(),
         _ => None,
@@ -496,7 +499,7 @@ fn integer_literal(program: &typed_trees::TypedTrees, expression: ExpressionHand
 }
 
 fn transition_target_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: TransitionTargetHandle,
 ) -> Option<SymbolHandle> {
     if !target.is_valid() {
@@ -509,7 +512,7 @@ fn transition_target_symbol(
 }
 
 fn is_positive_integer_literal(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     matches!(
@@ -521,7 +524,7 @@ fn is_positive_integer_literal(
 /// Whether `expression` is a direct attached-field member naming `counter`,
 /// reached through whichever root this state binds.
 fn expression_is_counter_member(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -542,7 +545,7 @@ fn expression_is_counter_member(
 /// Opaque or overlapping calls fail closed. Returns the common direction, or
 /// `None`.
 fn loop_modifications_direction(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],

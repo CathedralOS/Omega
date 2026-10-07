@@ -9,7 +9,6 @@
 use access_plans::AtomicPrimitiveAccessRequest;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::typed_trees::{PlacedAtomicObservingResultContract, PlacedAtomicResidentContract};
 
 /// One exact checked observing-result contract joined to the sealed Atomic
@@ -17,7 +16,7 @@ use typed_trees::typed_trees::{PlacedAtomicObservingResultContract, PlacedAtomic
 #[derive(Debug)]
 #[must_use = "checked Atomic resident access retains a non-Clone runtime request"]
 pub struct CheckedAtomicResidentAccess<'checked, 'view, 'extent> {
-    program: &'checked TypedTrees,
+    program: &'checked dyn crate::CheckingInput,
     view_symbol: SymbolHandle,
     field_symbol: SymbolHandle,
     contract: &'checked PlacedAtomicResidentContract,

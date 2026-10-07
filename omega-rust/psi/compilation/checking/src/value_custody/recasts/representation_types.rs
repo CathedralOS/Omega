@@ -1,10 +1,9 @@
 //! Exact primitive and scalar representation types.
 
-use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn exact_primitive_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let TypeReferenceNode::Named { symbol, name } =
@@ -32,7 +31,7 @@ pub(crate) fn exact_primitive_type(
 }
 
 pub(crate) fn exact_scalar_representation_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {

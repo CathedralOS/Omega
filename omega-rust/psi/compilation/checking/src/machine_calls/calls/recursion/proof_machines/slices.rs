@@ -2,10 +2,10 @@ use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 
 use super::{
     ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
-    TransitionTargetNode, TypedTrees, collect_self_entry_call_arguments,
+    TransitionTargetNode, collect_self_entry_call_arguments,
 };
 pub(super) fn guarded_slice_tail_call<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     statement: &StatementNode,

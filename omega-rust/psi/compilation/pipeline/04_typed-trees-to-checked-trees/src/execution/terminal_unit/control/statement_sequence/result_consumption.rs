@@ -6,7 +6,7 @@ use super::super::super::{CheckedUnitStructuralArgumentSourcePlan, PermissionPro
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralResultBindingPlan, Multiplicity, PermissionEventSource, StatementNode,
-    SymbolHandle, TypedTrees,
+    SymbolHandle,
 };
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
@@ -16,7 +16,7 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 /// closes descendants before earlier parent carriers at a shared boundary.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_reference_releases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -249,7 +249,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
 // one past the last ordinary statement). The completion still needs the
 // `ReleaseReference` op so the result-binding cleanup sees the disposal.
 pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

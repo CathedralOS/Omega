@@ -11,10 +11,10 @@ use std::collections::HashSet;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
-use typed_trees::{TypedTrees, expression::ExpressionNode, statement::StatementNode};
+use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 pub(crate) fn validate_selected_attached_method_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     if !program
         .machines()
@@ -190,7 +190,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
 }
 
 fn method_is_selected(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     selected: &HashSet<SymbolHandle>,
 ) -> bool {
@@ -202,7 +202,7 @@ fn method_is_selected(
 }
 
 fn collect_expression_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &[typed_trees::expression::ExpressionHandle],
     selected: &mut HashSet<SymbolHandle>,
 ) {

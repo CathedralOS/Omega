@@ -116,7 +116,7 @@ impl ClaimIdentityAllocator {
 }
 
 pub(crate) fn check_linear_obligations(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -139,7 +139,7 @@ pub(crate) fn check_linear_obligations(
 /// holes, and selects old referents killed by replacement. These deaths must
 /// exist before contextual cleanup derives the hooks' entry requirements.
 pub(super) fn prepare_storage_deaths(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -565,7 +565,7 @@ pub(super) fn prepare_storage_deaths(
 /// storage that crosses an entitled prefix stays rejected even when a later
 /// repair would reseat the hole.
 fn borrowed_move_crosses_nominal_drop(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
@@ -586,7 +586,7 @@ fn borrowed_move_crosses_nominal_drop(
 }
 
 pub(crate) fn type_reference_is_reference(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -599,7 +599,7 @@ pub(crate) fn type_reference_is_reference(
 }
 
 fn nominal_drop_place_name<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -623,7 +623,7 @@ fn nominal_drop_place_name<'program>(
 }
 
 fn data_name_with_nominal_drop<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     name: &str,
 ) -> Option<&'program str> {
     let definition = program
@@ -640,7 +640,7 @@ fn data_name_with_nominal_drop<'program>(
 /// must agree first, preventing an unrelated same-named machine from becoming
 /// automatic cleanup authority.
 pub(crate) fn nominal_drop_machine_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let mut matches = program.machines().iter().filter(|machine| {
@@ -652,7 +652,7 @@ pub(crate) fn nominal_drop_machine_symbol(
 }
 
 pub(super) fn move_event_is_production_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
@@ -699,7 +699,7 @@ pub(super) fn move_event_is_production_target(
 }
 
 fn nominal_drop_type_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&str> {
     let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {

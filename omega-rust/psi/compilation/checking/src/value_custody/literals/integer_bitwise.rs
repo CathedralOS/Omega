@@ -13,14 +13,14 @@
 //! only that the program entry "rejoins 0 Terminal attachment identities".
 
 use diagnostics::Diagnostic;
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::integer_remainder::is_anonymous_numeric_expression;
 
-pub(crate) fn validate_anonymous_bitwise(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_anonymous_bitwise(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for (expression, node) in program.expression_table.iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {
             continue;
@@ -44,7 +44,7 @@ pub(crate) fn validate_anonymous_bitwise(program: &TypedTrees, diagnostics: &mut
 /// leaves the operation undefined; the symmetric bit operations need either
 /// operand typed and land the other.
 fn untyped_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operator: BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,

@@ -5,11 +5,10 @@ use crate::checks::ranges::expressions::{ensured_call_result_bounds, expression_
 use crate::checks::ranges::types::{
     expression_enforced_declared_range, expression_is_unsigned_integer,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 pub(super) fn prove(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

@@ -10,7 +10,7 @@ use typed_trees::statement::StatementNode;
 use crate::labels::semantic_fact_requirement_label;
 
 fn selected_transition_call<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
 ) -> Option<(
@@ -66,7 +66,7 @@ fn selected_transition_call<'program>(
 /// Query one original Boolean conjunct through the same selected-arm and
 /// operand-currentness gates as the complete contract fact.
 pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -124,7 +124,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
 /// only while the arm's own operands, evaluated after the guard and before
 /// the jump, leave the guard's storage unwritten (`guard_operands`).
 pub(super) fn transition_guard_proves_requires(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -216,7 +216,7 @@ pub(super) fn guard_preserves_values<'program>(
 }
 
 pub(super) fn guard_conjunct_matches(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: typed_trees::expression::ExpressionHandle,
     required_label: &str,
 ) -> bool {
@@ -251,7 +251,7 @@ pub(super) fn guard_conjunct_matches(
 /// label their complement operator spells (`!(v >= n)` reads `v < n`). The
 /// caller owes the guard's builtin-operator gate separately.
 pub(super) fn negated_guard_conjunct_matches(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     guard: typed_trees::expression::ExpressionHandle,
     required_label: &str,
 ) -> bool {

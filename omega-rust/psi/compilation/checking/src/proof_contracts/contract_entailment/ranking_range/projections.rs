@@ -1,11 +1,9 @@
 //! Expressions whose exact metadata/field coordinates enter one range judgment.
-use super::{
-    ExpressionHandle, Machine, RankingRangeMeasure, RankingRangePremises, State, TypedTrees,
-};
+use super::{ExpressionHandle, Machine, RankingRangeMeasure, RankingRangePremises, State};
 use typed_trees::expression::{ExpressionNode, TableRangeExpression};
 
 pub(super) fn expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
     range: &TableRangeExpression,
@@ -36,7 +34,7 @@ pub(super) fn expressions(
 /// `extra_arm` walks each site's extra node kinds. `None` ends the walk
 /// early on the arm's refusal or a depth/validity breach.
 pub(super) fn for_each_projection_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expressions: &[ExpressionHandle],
     mut member_arm: impl FnMut(
         &typed_trees::expression::TableMemberExpression,
@@ -75,7 +73,7 @@ pub(super) fn for_each_projection_expression(
 }
 
 pub(super) fn entry_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
 ) -> Vec<ExpressionHandle> {

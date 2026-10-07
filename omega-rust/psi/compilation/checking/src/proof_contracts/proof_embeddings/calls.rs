@@ -4,8 +4,8 @@ use std::collections::HashSet;
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, collect_expression_nodes, expression_type_reference,
-    is_exact_embed_call, primitive_range,
+    TypeReferenceNode, collect_expression_nodes, expression_type_reference, is_exact_embed_call,
+    primitive_range,
 };
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedIntegerEmbeddingCall {
@@ -15,7 +15,7 @@ pub struct ValidatedIntegerEmbeddingCall {
 }
 
 pub(crate) fn validate_integer_embedding_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedIntegerEmbeddingCall> {
     let mut nodes = Vec::new();
@@ -143,7 +143,7 @@ pub(crate) fn validate_integer_embedding_calls(
 }
 
 fn argument_has_exact_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {

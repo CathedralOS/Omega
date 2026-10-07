@@ -2,7 +2,6 @@
 
 use facts::{FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
@@ -11,7 +10,7 @@ use crate::flow::CanonicalPlace;
 /// None leaves unrelated computed-value proof paths unchanged. A recognized
 /// place requirement returns Some(false) on mismatch and cannot use labels.
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     caller_state: SymbolHandle,
@@ -69,7 +68,7 @@ pub(super) fn proves(
 }
 
 fn has_explicit_formal_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -95,7 +94,7 @@ fn has_explicit_formal_root(
 }
 
 pub(super) fn checked_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     crate::flow::projected_leaf_place(program, expression)

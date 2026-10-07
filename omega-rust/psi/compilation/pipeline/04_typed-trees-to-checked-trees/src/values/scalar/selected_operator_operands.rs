@@ -18,7 +18,6 @@ use checked_trees::{
     CheckedLocatedScalarExpression, CheckedOperatorFacts, CheckedScalarExpressionRole,
     CheckedValueOrigin, CheckedValueStatementRole,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -28,7 +27,7 @@ use typed_trees::types::PrimitiveType;
 /// applies no selected boundary operator yield nothing.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_selected_operator_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

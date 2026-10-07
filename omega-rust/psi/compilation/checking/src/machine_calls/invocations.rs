@@ -1,11 +1,10 @@
 use super::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 
 pub(crate) fn validate_invocation_contracts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_declared_targets(program, diagnostics);
@@ -42,7 +41,10 @@ pub(crate) fn validate_invocation_contracts(
     }
 }
 
-fn validate_declared_targets(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_declared_targets(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             validate_target_names(
@@ -71,7 +73,7 @@ fn validate_declared_targets(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
 }
 
 fn validate_target_names(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &str,
     targets: &[typed_trees::signature::AuthoredInvocation],
     parameters: &[StateParameter],
@@ -127,7 +129,7 @@ fn validate_target_names(
 }
 
 fn validate_conformance_refinement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     summary: &flow_effects::MachineInvocationInference,
     diagnostics: &mut Vec<Diagnostic>,
@@ -225,7 +227,7 @@ fn validate_conformance_refinement(
 }
 
 fn report_missing_targets(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     actual: &[flow_effects::InvocationTarget],
     allowed: &[flow_effects::InvocationTarget],
@@ -247,7 +249,7 @@ fn report_missing_targets(
 }
 
 fn invocation_target_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     target: flow_effects::InvocationTarget,
 ) -> String {
@@ -271,7 +273,7 @@ fn invocation_target_label(
 /// Callers then admit the symbol against the boundary trait table their own
 /// way (`.find` for the definition, `.any().then_some` for the symbol).
 pub(crate) fn boundary_requirement_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
     typed_trees::service::classify_exact_service_parameter_carrier(program, type_reference)
@@ -287,7 +289,7 @@ pub(crate) fn boundary_requirement_symbol(
 }
 
 fn boundary_trait_for_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
     let symbol = boundary_requirement_symbol(program, type_reference);

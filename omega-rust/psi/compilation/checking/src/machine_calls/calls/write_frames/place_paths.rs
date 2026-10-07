@@ -6,7 +6,6 @@
 //! composition; it performs no call resolution or frame traversal.
 
 use crate::proof_contracts::arithmetic_domains;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod source_places;
@@ -86,7 +85,7 @@ pub(super) fn append_place_suffix(base: &str, suffix: &str) -> String {
 /// `self.cells`). The string/path frame algebra deliberately does not retain
 /// element identity; structured mutation places own exact fixed-index facts.
 pub(super) fn coarse_place_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     raw_frame_place_path(program, expression).map(|(path, _)| path)
@@ -97,7 +96,7 @@ pub(super) fn coarse_place_path(
 /// callee/member suffix and accidentally manufacture `self.cells.value` from
 /// a write through `self.cells[i].value`.
 pub(super) fn frame_place_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
     let (path, precision) = raw_frame_place_path(program, expression)?;
@@ -111,7 +110,7 @@ pub(super) fn frame_place_path(
 /// String-only callers do not need a structural plan. Recover the coarse
 /// footprint first and normalize source selectors once, only when requested.
 fn raw_frame_place_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(String, FramePathPrecision)> {
     match program.expression_table.expression(expression) {

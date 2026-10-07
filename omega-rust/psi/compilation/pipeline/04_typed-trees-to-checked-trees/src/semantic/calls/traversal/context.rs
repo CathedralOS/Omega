@@ -1,7 +1,7 @@
 // Callers select one statement before entering traversal. Ordinals belong to
 // that walk; source statement coordinates remain on the authored call facts.
 pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
-    pub(super) program: &'program typed_trees::TypedTrees,
+    pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
     pub(super) target_call_ordinal: usize,
@@ -20,7 +20,7 @@ pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
 
 impl<'program> CallSiteTraversal<'program, '_> {
     pub(in crate::semantic::calls) fn new<'ordinal>(
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
         target_call_ordinal: usize,
@@ -41,7 +41,7 @@ impl<'program> CallSiteTraversal<'program, '_> {
     /// Traversal that records every call site of one statement in ordinal
     /// order instead of stopping at the first ordinal match.
     pub(in crate::semantic::calls) fn collecting<'ordinal>(
-        program: &'program typed_trees::TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,
         collected: &'ordinal mut Vec<super::super::CallSite<'program>>,

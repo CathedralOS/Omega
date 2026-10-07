@@ -48,7 +48,7 @@ pub(super) fn rewrite_selected_call(
 /// telescope order. A rewritten call passes each as an appended ordinary
 /// argument matching the specialization's realized trailing parameters.
 pub(super) fn runtime_value_subjects(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine_arguments: &[StaticMachineArgument],
 ) -> Vec<(typed_trees::name::Identifier, SymbolHandle)> {
@@ -66,7 +66,7 @@ pub(super) fn runtime_value_subjects(
 /// Only sibling calls in the new expression region need these subjects; owned
 /// initializers and contract-only expressions deliberately acquire no body owner.
 pub(super) fn cloned_runtime_call_subjects(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     states: HandleSpan<typed_trees::state::State>,
     state_symbols: &[(SymbolHandle, SymbolHandle)],
     expression_start: usize,

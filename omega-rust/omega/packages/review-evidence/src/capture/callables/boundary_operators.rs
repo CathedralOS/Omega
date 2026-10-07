@@ -33,7 +33,7 @@ pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
             "reviewed checked adapter `{}` realizes fixed-token boundary operator `{}` with unsupported dispatch shape `{}` and {operand_count} normalized operands",
             machine.name,
             typed_trees::operator::boundary_operator_requirement_identity(
-                &compilation.typed,
+                compilation.checking_input,
                 operator,
             ),
             spelling.symbol(),
@@ -55,8 +55,10 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
         )]);
     }
-    let slot =
-        typed_trees::operator::boundary_operator_requirement_identity(&compilation.typed, operator);
+    let slot = typed_trees::operator::boundary_operator_requirement_identity(
+        compilation.checking_input,
+        operator,
+    );
     let matches = plans
         .iter()
         .zip(provenance)
@@ -119,7 +121,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
                     .filter(|specialization| specialization.instance == machine.symbol)
                     .any(|specialization| {
                         validation::machine_specialization_matches_template_identity(
-                            &compilation.typed,
+                            compilation.checking_input,
                             specialization,
                             machine_identity,
                             *machine_package_identity,
@@ -158,8 +160,10 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
             "selected boundary-operator provider plans are not aligned with retained declaration provenance",
         )]);
     }
-    let slot =
-        typed_trees::operator::boundary_operator_requirement_identity(&compilation.typed, operator);
+    let slot = typed_trees::operator::boundary_operator_requirement_identity(
+        compilation.checking_input,
+        operator,
+    );
     let matches = plans
         .iter()
         .zip(provenance)

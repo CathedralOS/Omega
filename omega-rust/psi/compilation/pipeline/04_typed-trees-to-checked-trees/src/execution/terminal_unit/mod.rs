@@ -150,7 +150,6 @@ use language_semantics::{
 };
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::{
-    TypedTrees,
     data::{DataMember, DataShapeKind},
     domain::ProofFact,
     expression::ExpressionNode,
@@ -195,7 +194,7 @@ pub(crate) struct ScalarCalleePlans<'plans> {
 }
 
 pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -880,7 +879,10 @@ enum BodyRoute {
     Graph,
 }
 
-fn body_route(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> BodyRoute {
+fn body_route(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> BodyRoute {
     // A bodied boundary adapter is planned as a sequence: the graph builder
     // admits only ordinary checked bodies.
     if machine.supply_mode != MachineSupplyMode::CheckedBody {
@@ -937,7 +939,7 @@ fn body_route(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> 
 /// ordinary Unit production has root-only cleanup, so publishing partial
 /// moves through that lane would silently erase the live sibling.
 pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
 ) -> CheckedPartialAffineUnitCleanupPlans {
@@ -988,7 +990,7 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
 /// particular, the return operation publishes no trivial discard for the
 /// parameter; the separate cleanup row is the only disposal authority.
 pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1054,7 +1056,7 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
 /// slices, and named borrowed referees carry; anything else keeps the state
 /// off the graph.
 pub(crate) fn structural_scalar_graph_parameter_admission(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
     !program.state_parameters(state).iter().any(|parameter| {
@@ -1170,7 +1172,7 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
 
 /// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
 pub(super) fn structural_scalar_graph_signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -1203,7 +1205,7 @@ pub(super) fn structural_scalar_graph_signature(
 /// A computed structural operand owns its storage vocabulary independently of
 /// source parameters. Access and evaluation remain with its operation plan.
 pub(super) fn scalar_operand_shapes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     let mut shapes = ShapeCollector::new(program);
@@ -1214,7 +1216,7 @@ pub(super) fn scalar_operand_shapes(
 /// Construction and structural results share the same closed sum admission.
 /// The namespace includes real value types even when no parameter names them.
 pub(super) fn scalar_case_value_shapes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     let mut shapes = ShapeCollector::new(program);
@@ -1230,7 +1232,7 @@ pub(super) fn scalar_case_value_shapes(
 /// Scalar control retains complete fresh-record storage in the same declaration
 /// namespace as the ordinary structural value emitter, including nested bounds.
 pub(super) fn scalar_graph_record_shapes(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     if !validation::has_contents(

@@ -164,7 +164,7 @@ pub(super) fn refresh_generic_call_results(
 }
 
 fn forwarded_result_selection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     candidates: &[super::Candidate],
@@ -347,7 +347,7 @@ fn substitute_runtime_bound_result_bounds(
 /// parameters — the shape the runtime-bound specialization writes into its
 /// signature.
 fn range_endpoints_name_parameters(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, ExpressionHandle)],
 ) -> bool {

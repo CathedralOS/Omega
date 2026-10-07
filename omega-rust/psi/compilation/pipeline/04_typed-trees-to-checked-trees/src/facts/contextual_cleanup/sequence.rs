@@ -12,7 +12,7 @@ use crate::flow::{CanonicalPlace, CleanupLeaf, StateMutationSummaryCache};
 use checked_trees::{CheckFacts, ContractProofFactKind};
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, data::DataMember, expression::ExpressionHandle};
+use typed_trees::{data::DataMember, expression::ExpressionHandle};
 
 #[derive(Clone, Default)]
 pub(super) struct CurrentCleanupFacts {
@@ -41,7 +41,7 @@ impl CurrentCleanupFacts {
 
     pub(super) fn value_at_place(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         place: &CanonicalPlace,
     ) -> Option<ScalarValue> {
@@ -57,7 +57,11 @@ impl CurrentCleanupFacts {
     }
 
     /// Entry transport cannot repair a premise killed by an earlier hook.
-    pub(super) fn entry_stable(&self, program: &TypedTrees, predicate: &BoundPredicate) -> bool {
+    pub(super) fn entry_stable(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        predicate: &BoundPredicate,
+    ) -> bool {
         !self.opaque_write
             && predicate.bindings.iter().all(|binding| {
                 !self
@@ -69,7 +73,7 @@ impl CurrentCleanupFacts {
 
     pub(super) fn advance(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         summaries: &StateMutationSummaryCache,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -141,7 +145,7 @@ impl CurrentCleanupFacts {
 }
 
 fn ordinary_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
     place: &CanonicalPlace,
@@ -161,7 +165,7 @@ fn ordinary_value(
 }
 
 pub(super) fn bound_clause(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     hook: SymbolHandle,
     clause: ExpressionHandle,
@@ -214,7 +218,11 @@ fn rebase_place(
     })
 }
 
-fn overlaps(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
+fn overlaps(
+    program: &dyn ::validation::CheckingInput,
+    left: &CanonicalPlace,
+    right: &CanonicalPlace,
+) -> bool {
     left.root == right.root
         && crate::flow::canonical_place_segments_may_overlap(
             program,
@@ -233,7 +241,7 @@ pub(super) struct SelectedHook {
 /// Ancestors sort before their descendants; field/index ordinals come from
 /// declaration geometry, never symbol allocation or rendered names.
 pub(super) fn ordered_hooks(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     leaves: &[CleanupLeaf],
 ) -> Option<Vec<SelectedHook>> {
     let mut hooks = Vec::new();
@@ -266,7 +274,10 @@ pub(super) fn ordered_hooks(
     Some(hooks)
 }
 
-fn segment_order(program: &TypedTrees, segment: PlaceSegment) -> Option<usize> {
+fn segment_order(
+    program: &dyn ::validation::CheckingInput,
+    segment: PlaceSegment,
+) -> Option<usize> {
     let ordinal = match segment {
         PlaceSegment::FixedIndex { index } => index,
         PlaceSegment::Field { symbol } | PlaceSegment::Case { variant: symbol } => {

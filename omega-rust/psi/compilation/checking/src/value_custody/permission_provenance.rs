@@ -1,7 +1,6 @@
 //! Whole-expression origins share one reduction over the semantic operand vocabulary.
 
 use language_semantics::PermissionProvenance;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Calls, records and arrays retain a common existing operand origin. Operands
@@ -9,7 +8,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// The caller resolves live places and decides how a missing origin establishes
 /// a new value. Invalid expression spans and cycles remain errors.
 pub fn expression_permission_provenance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     resolve_place: &mut impl FnMut(
         ExpressionHandle,
@@ -19,7 +18,7 @@ pub fn expression_permission_provenance(
 }
 
 fn expression_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     resolve_place: &mut impl FnMut(
         ExpressionHandle,
@@ -108,7 +107,7 @@ fn expression_origin(
 }
 
 fn static_namespace_receiver(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Result<bool, &'static str> {
     if !program.expression_table.expression_is_valid(call.receiver) {

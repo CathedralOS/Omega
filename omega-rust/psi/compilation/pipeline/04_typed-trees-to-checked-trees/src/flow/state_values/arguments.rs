@@ -12,7 +12,7 @@ use facts::FactPlan;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,

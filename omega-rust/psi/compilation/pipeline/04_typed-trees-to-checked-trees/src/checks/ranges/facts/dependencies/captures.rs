@@ -1,6 +1,5 @@
 use super::{
     EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle,
-    TypedTrees,
 };
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
@@ -11,7 +10,7 @@ use crate::checks::ranges::facts::dependencies::same_reads;
 impl<'field> RangeFacts<'field> {
     pub(in crate::checks::ranges) fn alias_integer_place_value(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -47,7 +46,7 @@ impl<'field> RangeFacts<'field> {
     /// initializer later or substitute names inside rendered source.
     fn alias_captured_selector(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         captured: ExpressionHandle,
@@ -199,7 +198,7 @@ impl<'field> RangeFacts<'field> {
 /// copies in this state. Its contextual name fallback cannot supply missing
 /// typed identities for a dependency-preservation grant.
 pub(super) fn integer_value_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
     state: &State,
     mut expression: ExpressionHandle,
@@ -253,7 +252,7 @@ pub(super) fn integer_value_identity(
 }
 
 pub(super) fn is_integer_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

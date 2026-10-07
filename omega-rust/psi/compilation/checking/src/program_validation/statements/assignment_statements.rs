@@ -8,7 +8,6 @@ use crate::{
     value_custody::atomic_operations, value_custody::expression_types, value_custody::placed_views,
     value_custody::places, value_custody::struct_literals,
 };
-use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
 pub(super) fn validate<'a, 'p>(
@@ -17,7 +16,7 @@ pub(super) fn validate<'a, 'p>(
     statement: &StatementNode,
     direct_written: Option<Vec<String>>,
     bound_lookup: &mut (
-        &'p TypedTrees,
+        &'p dyn crate::CheckingInput,
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
     ),
 ) {
@@ -366,7 +365,7 @@ pub(super) fn validate<'a, 'p>(
 /// not the state walk's establishment flag: a later repairing store cannot
 /// authorize this occurrence's earlier value.
 fn checked_integer_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,

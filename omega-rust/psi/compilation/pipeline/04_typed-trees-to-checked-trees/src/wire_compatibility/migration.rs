@@ -2,13 +2,15 @@
 
 use super::demands::{EraSelection, name_leaf, select_era_path};
 use super::schemas::qualified_schema_path;
-use typed_trees::TypedTrees;
 
 /// Resolve an authored demand path to the exact ordinary data declaration it
 /// names. Era identity is the declaration symbol: the same path rules as
 /// schema dispatch apply, so a leaf must select one declaration unambiguously
 /// rather than whichever era was declared first.
-fn resolve_declared_era(typed: &TypedTrees, requested: &str) -> Option<symbols::SymbolHandle> {
+fn resolve_declared_era(
+    typed: &dyn ::validation::CheckingInput,
+    requested: &str,
+) -> Option<symbols::SymbolHandle> {
     let candidates = typed
         .data_definitions()
         .iter()
@@ -54,7 +56,7 @@ pub(super) enum MigrationRouteSearch {
 /// twice would certify whichever binding the search happened to reach first,
 /// so such a route is reported ambiguous rather than selected.
 pub(super) fn migration_route(
-    typed: &TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     lineage: &str,
     peer: &str,
     local: &str,
@@ -204,7 +206,7 @@ struct NumberScope {
 /// data declaration -- such an era declares no stable identities, so it can
 /// neither retire nor reuse one.
 fn era_number_scopes(
-    typed: &TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     era: symbols::SymbolHandle,
 ) -> Option<(String, Vec<NumberScope>)> {
     let definition = typed
@@ -275,7 +277,7 @@ fn era_number_scopes(
 /// decode stored old-era bytes under the new meaning. Returns the first reuse
 /// found along the chain, or `None` when every era's identities are fresh.
 pub(super) fn retired_identity_reuse(
-    typed: &TypedTrees,
+    typed: &dyn ::validation::CheckingInput,
     eras: &[symbols::SymbolHandle],
 ) -> Option<String> {
     let mut retired: Vec<(IdentityScope, u64, String)> = Vec::new();

@@ -13,7 +13,6 @@ use symbols::SymbolHandle;
 
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use checked_trees::{CheckedUnitPlanGap, CheckedUnitPlanGapReason};
-use typed_trees::TypedTrees;
 
 #[derive(Debug, Default)]
 pub(crate) struct LocalConstructionTrace {
@@ -65,7 +64,11 @@ impl LocalConstructionTrace {
 
     /// The gap at the last marked position. A statement mark without a state
     /// belongs to the single-state builder's only state.
-    pub(crate) fn gap(&self, program: &TypedTrees, machine: SymbolHandle) -> CheckedUnitPlanGap {
+    pub(crate) fn gap(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: SymbolHandle,
+    ) -> CheckedUnitPlanGap {
         let state = self.state.get().or_else(|| {
             program
                 .machine_by_symbol(machine)

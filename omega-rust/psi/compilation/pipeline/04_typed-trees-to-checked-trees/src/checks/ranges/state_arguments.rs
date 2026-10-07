@@ -44,7 +44,7 @@ use super::seed_state_requires;
 use self::statements::collect_state_argument_facts_from_statement;
 
 struct StateArgumentContext<'program, 'frames> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     call_frames: Option<&'frames validation::CallFrameResolver<'program>>,
@@ -209,7 +209,7 @@ impl MergedIndexProofs {
 const MAX_PROPAGATION_PASSES: usize = 64;
 
 pub(super) fn collect_state_argument_facts<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     field_lengths: &[(SymbolHandle, String, usize)],
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,

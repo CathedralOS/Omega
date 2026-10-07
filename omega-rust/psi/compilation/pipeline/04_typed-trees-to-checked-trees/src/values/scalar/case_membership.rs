@@ -5,14 +5,13 @@
 use crate::values::scalar::structural_fields::structural_parameter_field_path;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedStructuralParameterField;
-use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
 
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
@@ -117,7 +116,7 @@ pub(super) fn lower(
 /// `#<decimal>` identity an authored discriminant value writes, or the case's
 /// declared name when no identity exists.
 pub(super) fn structural_case_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     selected: symbols::SymbolHandle,
 ) -> Option<String> {
     let case = program

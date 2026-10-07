@@ -27,7 +27,7 @@ pub(crate) use static_bindings::{infer_static_bindings, same_type_identity};
 
 use super::{
     CallSite, ExpressionHandle, ExpressionNode, Handle, StatementNode, StaticMachineArgument,
-    SymbolHandle, TypeReferenceHandle, TypedTrees,
+    SymbolHandle, TypeReferenceHandle,
 };
 use crate::monomorphization::{
     CallSelection, CalleeState, Candidate, collect_statement_expression_trees, const_arguments,
@@ -42,7 +42,7 @@ pub(super) enum ExplicitArgumentCapacity {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_call_proposals(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     candidates: &[Candidate],
@@ -166,7 +166,7 @@ pub(super) fn collect_call_proposals(
 }
 
 pub(super) fn collect_call_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidates: &[Candidate],
     callee_states: &[CalleeState],
     contract_expressions: &[ExpressionHandle],

@@ -11,7 +11,6 @@
 
 use super::super::indexes::{NormalizedBound, normalized_bound};
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::proposition::{PropositionApplication, PropositionBody, PropositionFormula};
@@ -21,7 +20,7 @@ use typed_trees::state::State;
 /// Decompose a proposition-spelled requires row when the proposition owns a
 /// transparent Boolean formula. Every other body kind contributes nothing.
 pub(super) fn append_proposition_premises(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
@@ -70,7 +69,7 @@ pub(super) fn append_proposition_premises(
 /// single symbol or integer bound, makes the bound unprovable rather than
 /// silently approximate.
 pub(super) fn substitute_bound(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     lookup: &validation::ImmutableBoundLookup<'_>,
     bound: NormalizedBound,
     parameters: &[StateParameter],

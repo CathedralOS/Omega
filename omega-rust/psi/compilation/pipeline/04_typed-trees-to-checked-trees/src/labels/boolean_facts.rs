@@ -3,7 +3,6 @@
 //! incoming rows; this module only matches a retained true fact's label.
 
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::semantic_boolean_fact_label;
@@ -11,7 +10,7 @@ use crate::checks::contracts::labels::domain_proves_expression_label;
 
 /// A retained true clause or domain requirement proves an exact rendered leaf.
 pub(crate) fn context_proves_boolean_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: FactContextHandle,
     required_label: &str,
@@ -75,7 +74,7 @@ pub(crate) fn context_proves_boolean_label(
 }
 
 fn true_expression_proves_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     required_label: &str,
 ) -> bool {

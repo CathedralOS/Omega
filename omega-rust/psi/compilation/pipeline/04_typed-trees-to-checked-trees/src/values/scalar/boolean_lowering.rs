@@ -17,7 +17,6 @@ use checked_trees::{
     CheckedScalarExpression,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -27,7 +26,7 @@ use typed_trees::types::PrimitiveType;
 /// Callers still evaluate the expression's children: a known result (such as a
 /// fixed extent) does not establish that evaluating its source is effect-free.
 pub(crate) fn evaluate_closed_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -53,7 +52,7 @@ pub(crate) fn evaluate_closed_boolean_expression(
 }
 
 pub(crate) fn lower_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
@@ -303,7 +302,7 @@ pub(crate) fn lower_boolean_expression(
 /// live length, so both decline, as do element views: they count elements,
 /// not the literal's bytes.
 fn byte_carrier_literal_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
 ) -> Option<CheckedBooleanExpression> {
@@ -334,7 +333,7 @@ fn byte_carrier_literal_equality(
 /// parameter-rooted carriers compare content through the byte-sequence
 /// equality atom instead.
 fn byte_carrier_pair_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
 ) -> Option<CheckedBooleanExpression> {
@@ -448,7 +447,7 @@ fn byte_sequence_equal_atom(
 /// bytes a content comparison may observe, or `None` when `carrier` names no
 /// such place.
 pub(super) fn comparable_byte_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     authored_parameters: &[StateParameter],
     carrier: ExpressionHandle,
 ) -> Option<(
@@ -494,7 +493,7 @@ pub(super) fn comparable_byte_carrier(
 /// readable bytes: a bounded owned byte buffer, or a shared or mutable
 /// borrowed byte view.
 pub(super) fn comparable_byte_carrier_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {
     crate::execution::terminal_unit::types::byte_sequence_carrier(program, type_reference, &[])
@@ -588,7 +587,7 @@ pub(crate) fn construct_integer_comparison(
 }
 
 pub(crate) fn lower_boolean_guard(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],

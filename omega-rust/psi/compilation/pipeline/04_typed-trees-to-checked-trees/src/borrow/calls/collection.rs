@@ -6,7 +6,7 @@ use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
 
 pub(super) struct BorrowCallCollection<'a> {
-    pub(super) program: &'a typed_trees::TypedTrees,
+    pub(super) program: &'a dyn ::validation::CheckingInput,
     pub(super) machine: &'a typed_trees::machine::Machine,
     pub(super) state: &'a typed_trees::state::State,
     pub(super) statement_index: usize,
@@ -20,7 +20,7 @@ pub(super) struct BorrowCallCollection<'a> {
 
 impl<'a> BorrowCallCollection<'a> {
     pub(super) fn new(
-        program: &'a typed_trees::TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         machine: &'a typed_trees::machine::Machine,
         state: &'a typed_trees::state::State,
         statement_index: usize,

@@ -13,7 +13,6 @@ use language_semantics::quotient_correspondence::{
     QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
     QuotientTheoremRole,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -42,7 +41,7 @@ use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
 /// canonical payload yet and is refused here rather than silently mapped onto
 /// the transport-backed row.
 pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     request_expression: ExpressionHandle,
@@ -79,7 +78,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
 
 #[allow(clippy::too_many_arguments)]
 fn canonical_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     request_expression: ExpressionHandle,
@@ -385,7 +384,7 @@ fn canonical_correspondence(
 /// name for every argument. Any adapted argument would publish a row whose
 /// "public" positions are not the caller's parameters.
 fn canonical_forwarded_result_flow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     request_expression: ExpressionHandle,
@@ -438,7 +437,7 @@ fn canonical_forwarded_result_flow(
 /// One forwarding hop preserves the public telescope exactly when it binds
 /// each target parameter to the source parameter at the same position.
 fn require_positional_state_forwarding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source: &State,
     target: &State,
 ) -> Result<(), String> {
@@ -483,7 +482,7 @@ fn require_positional_state_forwarding(
 }
 
 fn theorem_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     plan: &DirectTerminalRelationPlan,
     certificate: &QuotientCorrespondenceCertificate,
     retain_legality: bool,
@@ -714,7 +713,7 @@ fn theorem_contract_coordinate(
 }
 
 fn relation_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     relation: ExactQuotientRelation,
 ) -> Result<QuotientRelationIdentity, String> {
     let quotient = crate::program_scope::data_definitions::data_definition_by_symbol(
@@ -754,7 +753,7 @@ fn require_empty_partition(
 }
 
 fn exact_machine_state<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     label: &str,
@@ -778,7 +777,7 @@ fn exact_machine_state<'a>(
 }
 
 fn require_single_entry(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     label: &str,
@@ -793,7 +792,7 @@ fn require_single_entry(
 }
 
 fn require_empty_owner_telescope(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     label: &str,
 ) -> Result<(), String> {
@@ -816,7 +815,7 @@ fn require_plain_immutable_parameters(
 }
 
 fn machine_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Result<QuotientMachineApplication, String> {
     Ok(QuotientMachineApplication {
@@ -828,7 +827,7 @@ fn machine_application(
 }
 
 fn callable_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Result<QuotientCallableIdentity, String> {
     Ok(QuotientCallableIdentity {
@@ -839,12 +838,15 @@ fn callable_identity(
     })
 }
 
-fn canonical_symbol(program: &TypedTrees, symbol: symbols::SymbolHandle) -> Result<String, String> {
+fn canonical_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+) -> Result<String, String> {
     program.normalized_hermetic_symbol_identity(symbol)
 }
 
 fn canonical_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<String, String> {
     let identity = program.package_qualified_type_identity(type_reference);

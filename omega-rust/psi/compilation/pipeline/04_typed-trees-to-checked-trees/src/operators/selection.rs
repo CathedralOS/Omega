@@ -15,7 +15,6 @@ use checked_trees::{
     CheckedOperatorUseFact, CheckedValueOrigin,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::signature::SignatureContractKind;
@@ -27,7 +26,7 @@ use super::receiver::expression_type_reference_for_origin;
 /// proof/fact environment is accepted here, making the activation law hard to
 /// violate accidentally.
 pub(crate) fn select_pending_domain_operator_meanings(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &mut CheckedOperatorFacts,
 ) {
     let pending: Vec<_> = operators
@@ -51,7 +50,7 @@ pub(crate) fn select_pending_domain_operator_meanings(
 }
 
 fn finalize_pending_use(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
@@ -81,7 +80,7 @@ fn finalize_pending_use(
 /// primitive left operand keeps its builtin operation. A non-primitive operand
 /// with only inadmissible domain meanings has no meaning at all.
 fn inadmissible_domain_fallback(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     candidates: &[CheckedOperatorCandidateFact],
 ) -> (CheckedOperatorResolutionStatus, SymbolHandle) {
@@ -113,7 +112,7 @@ fn inadmissible_domain_fallback(
 /// Whether any operand binding statically selects `domain_symbol`'s semantic
 /// facet. This intentionally has no route to flow facts.
 fn domain_is_active_at_use(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_use: &CheckedOperatorUseFact,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -125,7 +124,7 @@ fn domain_is_active_at_use(
 }
 
 fn operand_selects_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     origin: CheckedValueOrigin,
     operand: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -137,7 +136,7 @@ fn operand_selects_domain(
 }
 
 fn expression_mint_selects_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     origin: CheckedValueOrigin,
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -162,7 +161,7 @@ fn expression_mint_selects_domain(
 }
 
 fn cast_selects_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     cast: &TableCastExpression,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -191,7 +190,7 @@ fn cast_selects_domain(
 }
 
 fn local_initializer_selects_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     origin: CheckedValueOrigin,
     symbol: SymbolHandle,
     binding_name: &str,
@@ -228,7 +227,7 @@ fn local_initializer_selects_domain(
 }
 
 fn signature_selects_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     origin: CheckedValueOrigin,
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -270,7 +269,7 @@ fn signature_selects_domain(
 }
 
 fn direct_binding_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
@@ -288,7 +287,10 @@ fn direct_binding_symbol(
 /// Whether the first operand type carries an ordinary builtin operation: a
 /// primitive scalar does, a user data type does not. Indexed core surfaces
 /// normally retain their root candidate and therefore do not need this path.
-fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUseFact) -> bool {
+fn builtin_meaning_exists(
+    program: &dyn ::validation::CheckingInput,
+    operator_use: &CheckedOperatorUseFact,
+) -> bool {
     if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
         return false;
     }
@@ -304,7 +306,10 @@ fn builtin_meaning_exists(program: &TypedTrees, operator_use: &CheckedOperatorUs
         .is_some_and(|type_reference| type_is_primitive(program, type_reference))
 }
 
-fn type_is_primitive(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn type_is_primitive(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {

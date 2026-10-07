@@ -5,12 +5,11 @@ use super::super::super::{graph, patterns};
 
 use super::{preserved_entry_prefix, protected_input_paths};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
 pub(super) fn prove<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     range: ExpressionHandle,
     measure: validation::RankingRangeMeasure,

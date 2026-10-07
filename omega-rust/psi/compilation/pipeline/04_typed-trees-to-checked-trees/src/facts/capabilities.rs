@@ -25,7 +25,6 @@ use flow_effects::{
 };
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
@@ -44,7 +43,7 @@ enum ReceiverProvenance {
 }
 
 pub(crate) fn build_capability_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     service_reaches: &ServiceReachInferencePlan,
     flow: &FlowFacts,
 ) -> CapabilityFlowPlan {
@@ -208,7 +207,7 @@ struct CallEdge {
 /// state as provenance. Iterated to a fixpoint so the verb can travel several
 /// call levels.
 fn propagate_nested_capability_flows(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     service_reaches: &ServiceReachInferencePlan,
     flows: &mut Arena<CapabilityFlowFact>,
 ) {
@@ -291,7 +290,7 @@ fn collect_call_edges(service_reaches: &ServiceReachInferencePlan) -> Vec<CallEd
 /// derivation; `acquires` requires the callee to hand the minted authority back
 /// through its capability-typed return, which places it in the caller's hands.
 fn nested_flow_reaches_caller(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     edge: &CallEdge,
     kind: CapabilityFlowKind,
 ) -> bool {
@@ -320,7 +319,10 @@ fn nested_flow_reaches_caller(
 }
 
 /// Whether `state` declares a non-self capability-typed parameter.
-fn state_has_capability_parameter(program: &TypedTrees, state: &State) -> bool {
+fn state_has_capability_parameter(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+) -> bool {
     program
         .state_parameters(state)
         .iter()
@@ -359,7 +361,7 @@ fn push_unique(
 /// caller-provided (rooted at a state parameter) or machine-owned (rooted at
 /// `self`, i.e. a retained field).
 fn call_receiver_provenance(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     statement_index: usize,
 ) -> ReceiverProvenance {
@@ -410,7 +412,7 @@ fn call_receiver_provenance(
 /// Extracts the head identifier of the receiver of a call nested in an
 /// expression (`self.x = receiver.call()` / `let y = receiver.call()`).
 fn expression_receiver_head(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     if !expression.is_valid() {
@@ -425,7 +427,7 @@ fn expression_receiver_head(
 }
 
 fn expression_path_head(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     if !receiver.is_valid() {
@@ -443,7 +445,10 @@ fn expression_path_head(
     }
 }
 
-fn machine_for_symbol(program: &TypedTrees, machine_symbol: SymbolHandle) -> Option<&Machine> {
+fn machine_for_symbol(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+) -> Option<&Machine> {
     program
         .machines()
         .iter()
@@ -451,7 +456,7 @@ fn machine_for_symbol(program: &TypedTrees, machine_symbol: SymbolHandle) -> Opt
 }
 
 fn enclosing_state<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &Machine,
     state_symbol: SymbolHandle,
 ) -> Option<&'program State> {
@@ -462,7 +467,10 @@ fn enclosing_state<'program>(
 }
 
 /// Finds a state by symbol across every machine in the program.
-fn state_for_symbol(program: &TypedTrees, state_symbol: SymbolHandle) -> Option<&State> {
+fn state_for_symbol(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+) -> Option<&State> {
     program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -473,7 +481,11 @@ fn state_for_symbol(program: &TypedTrees, state_symbol: SymbolHandle) -> Option<
 
 /// Whether the assignment at `statement_index` stores its value into a field
 /// (`self.field = ...`).
-fn call_stored_into_field(program: &TypedTrees, state: &State, statement_index: usize) -> bool {
+fn call_stored_into_field(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+    statement_index: usize,
+) -> bool {
     let Some(statement) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -490,7 +502,7 @@ fn call_stored_into_field(program: &TypedTrees, state: &State, statement_index: 
 }
 
 fn assignment_target_is_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     if !target.is_valid() {
@@ -514,7 +526,10 @@ fn assignment_target_is_field(
 
 /// Whether a boundary signature takes another capability as an argument, making
 /// its result a derived sub-capability.
-fn passes_capability_argument(program: &TypedTrees, signature: &StateSignature) -> bool {
+fn passes_capability_argument(
+    program: &dyn ::validation::CheckingInput,
+    signature: &StateSignature,
+) -> bool {
     program
         .state_signature_parameters(signature)
         .iter()
@@ -525,7 +540,7 @@ fn passes_capability_argument(program: &TypedTrees, signature: &StateSignature) 
 /// named/data type carried through boundary surfaces (e.g. `Folder`). Primitive
 /// types are never capabilities.
 fn is_capability_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     if !type_reference.is_valid() {
@@ -541,7 +556,7 @@ fn is_capability_type(
 /// signature, if any. The target may be a boundary trait signature directly, or
 /// an in-package implementation state whose machine conforms to a boundary trait.
 fn boundary_capability(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, Option<&StateSignature>)> {
     if !target_symbol.is_valid() {

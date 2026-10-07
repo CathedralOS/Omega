@@ -9,7 +9,6 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use std::fmt;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
@@ -19,7 +18,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod value_scope;
 
 pub(crate) fn validate_callable_state_signatures(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -144,7 +143,7 @@ impl fmt::Display for StateSignatureOwner<'_> {
 }
 
 fn validate_machine_parameter_signatures<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     parameters: &'program [typed_trees::data::TypeParameter],
@@ -220,7 +219,7 @@ fn validate_machine_parameter_signatures<'program>(
 
 fn validate_state_signature_types<'program>(
     signatures: impl Iterator<Item = StateSignatureView<'program>>,
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
@@ -293,7 +292,7 @@ fn validate_state_signature_types<'program>(
 }
 
 fn validate_state_signature_contracts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: StateSignatureView<'_>,
     owner: StateSignatureOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -332,7 +331,7 @@ fn validate_state_signature_contracts(
 /// parameter zipped with the machine's entry-state parameters — the
 /// substitution table conformance and law walks build identically.
 pub(crate) fn signature_entry_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     requirement: &StateSignature,
     entry_state: &State,
 ) -> Vec<(symbols::SymbolHandle, String, String)> {
@@ -351,7 +350,7 @@ pub(crate) fn signature_entry_substitutions(
 }
 
 pub(crate) fn validate_machine_contracts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -376,7 +375,7 @@ pub(crate) fn validate_machine_contracts(
 }
 
 fn validate_named_evidence_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &str,
     contract: &typed_trees::signature::SignatureContract,
     diagnostics: &mut Vec<Diagnostic>,
@@ -413,7 +412,7 @@ fn validate_named_evidence_binding(
 }
 
 fn validate_crash_route_shapes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contract: &typed_trees::signature::SignatureContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

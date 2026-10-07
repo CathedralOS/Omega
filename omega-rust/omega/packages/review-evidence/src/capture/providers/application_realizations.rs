@@ -312,7 +312,7 @@ fn project_exact_application(
                 ..
             } if *binder_owner == requirement && *binder_ordinal == expected_ordinal => {
                 validation::validate_exact_const_value_encoding(
-                    &compilation.typed,
+                    compilation.checking_input,
                     *declared_carrier,
                     value.encoding.as_str(),
                 )

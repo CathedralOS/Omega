@@ -18,7 +18,6 @@ use super::local_aliases::stable_alias_place_origins;
 use super::place_paths::{FramePlaceOrigin, coarse_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::places::declared_place_type_raw;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -28,7 +27,7 @@ use typed_trees::types::TypeReferenceNode;
 /// Whether a statement call is a synthesized wire codec entry. Recognition
 /// binds the receiver by declaration path, so a same-named machine field or
 /// user machine never claims this route.
-pub(super) fn is_wire_codec_call(program: &TypedTrees, call: &TableCall) -> bool {
+pub(super) fn is_wire_codec_call(program: &dyn crate::CheckingInput, call: &TableCall) -> bool {
     program.wire_encode_call_schema(call).is_some()
         || program.wire_decode_call_schema(call).is_some()
 }
@@ -40,7 +39,7 @@ pub(super) fn is_wire_codec_call(program: &TypedTrees, call: &TableCall) -> bool
 /// exclusive reference, or whose referent set cannot be spelled, is outside
 /// the contract this leaf models.
 pub(super) fn known_wire_codec_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     call: &TableCall,
     parameters: &[StateParameter],

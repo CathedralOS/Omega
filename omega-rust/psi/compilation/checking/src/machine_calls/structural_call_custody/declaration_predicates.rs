@@ -48,7 +48,6 @@ use checked_trees::{
 use language_core::ReferenceAccess;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -71,7 +70,7 @@ pub struct DeclarationPredicateRow {
 /// The roster of one machine state, in parameter order, then the
 /// depth-first declaration order of the storage each parameter reaches.
 pub fn state_declaration_predicates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
 ) -> Vec<DeclarationPredicateRow> {
@@ -123,7 +122,7 @@ pub fn state_declaration_predicates(
 /// resolution cannot: the declaration a lifetime-only application
 /// instantiates.
 fn parameter_data_definition<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     referee: TypeReferenceHandle,
 ) -> Option<&'program DataDefinition> {
     let TypeReferenceNode::Generic {
@@ -155,7 +154,7 @@ fn parameter_data_definition<'program>(
 /// manufacture restoration. Missing proof rejects publication instead of
 /// silently deleting a machine's declared-domain contract.
 pub fn machine_declaration_predicates(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<DeclarationPredicateRow> {
@@ -169,7 +168,7 @@ pub fn machine_declaration_predicates(
 /// Whether every `where` fact of `definition` is carried by roster rows that
 /// imply it, so Terminal re-proves its complete default domain.
 pub fn declaration_facts_carried(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
@@ -207,7 +206,7 @@ pub fn declaration_facts_carried(
 }
 
 struct RowEmitter<'a, 'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     operators: &'program CheckedOperatorFacts,
     parameter_position: u32,
     restored_on_return: bool,
@@ -225,7 +224,8 @@ impl RowEmitter<'_, '_> {
         type_reference: TypeReferenceHandle,
         visited: &mut Vec<SymbolHandle>,
     ) {
-        let carrier = crate::program_scope::type_shape::unconstrained_base(self.program, type_reference);
+        let carrier =
+            crate::program_scope::type_shape::unconstrained_base(self.program, type_reference);
         match self.program.type_reference_table.type_reference(carrier) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -276,9 +276,12 @@ impl RowEmitter<'_, '_> {
             }
             // A borrowed field's referee is not this storage.
             if matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(crate::program_scope::type_shape::unconstrained_base(self.program, field.type_reference)),
+                self.program.type_reference_table.type_reference(
+                    crate::program_scope::type_shape::unconstrained_base(
+                        self.program,
+                        field.type_reference
+                    )
+                ),
                 TypeReferenceNode::Reference { .. }
             ) {
                 continue;
@@ -418,8 +421,12 @@ impl RowEmitter<'_, '_> {
 
 /// The integer carrier a collection consequence bounds: an array field's
 /// element or a scalar field itself.
-fn field_consequence_primitive(program: &TypedTrees, field: &DataField) -> Option<PrimitiveType> {
-    let carrier = crate::program_scope::type_shape::unconstrained_base(program, field.type_reference);
+fn field_consequence_primitive(
+    program: &dyn crate::CheckingInput,
+    field: &DataField,
+) -> Option<PrimitiveType> {
+    let carrier =
+        crate::program_scope::type_shape::unconstrained_base(program, field.type_reference);
     let leaf = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
         _ => carrier,
@@ -442,18 +449,16 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
     })
 }
 
-
 /// The nominal data definition a field or parameter carrier owns inline.
 /// A `&T`/`&mut T` field is borrowed storage whose referee's facts do not
 /// ride on this storage.
 fn owned_data_definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    match program
-        .type_reference_table
-        .type_reference(crate::program_scope::type_shape::unconstrained_base(program, type_reference))
-    {
+    match program.type_reference_table.type_reference(
+        crate::program_scope::type_shape::unconstrained_base(program, type_reference),
+    ) {
         // Array traversal revisits these owners at each exact index. Reuse the
         // program's revision-checked first-match index instead of rescanning
         // every declaration; predicate enumeration and path order stay intact.
@@ -466,7 +471,7 @@ fn owned_data_definition(
 /// was retained, by authored spelling. An erased field has no storage a
 /// requirement path could observe.
 fn find_data_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &DataDefinition,
     symbol: SymbolHandle,
     name: &str,
@@ -490,7 +495,7 @@ fn find_data_field<'program>(
 /// one parameter. Operator-overloaded spellings, arithmetic, case paths,
 /// indexed reads and borrowed fields are outside the vocabulary.
 struct FactSpelling<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     operators: &'a CheckedOperatorFacts,
     parameter_position: u32,
     prefix: &'a [CheckedStructuralPredicatePathSegment],

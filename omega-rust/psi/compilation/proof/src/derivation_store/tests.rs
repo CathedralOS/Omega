@@ -3,8 +3,8 @@
 //! indexes evidence, it does not verify it.
 
 use super::{DerivationStore, DerivationStoreFull};
-use crate::test_program::{bounded_value, program};
 use crate::obligations::{ProofObligationKey, ProofPlan, proof_obligation_key};
+use crate::test_program::{bounded_value, program};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -16,7 +16,17 @@ fn key_for(
     data: SymbolHandle,
     base: TypeReferenceHandle,
 ) -> ProofObligationKey {
-    proof_obligation_key(plan, &bounded_value(machine, "Main", data, "count", base, arena::HandleSpan::empty()))
+    proof_obligation_key(
+        plan,
+        &bounded_value(
+            machine,
+            "Main",
+            data,
+            "count",
+            base,
+            arena::HandleSpan::empty(),
+        ),
+    )
 }
 
 #[test]
@@ -28,21 +38,42 @@ fn lookup_uses_semantic_identity_not_spelling() {
     let plan = ProofPlan::new(&program.typed_trees);
 
     let mut store = DerivationStore::new();
-    let obligation = bounded_value(machine, "Main", count, "count", base, arena::HandleSpan::empty());
+    let obligation = bounded_value(
+        machine,
+        "Main",
+        count,
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
     let id = store
         .store_for(&plan, &obligation, "derivation")
         .expect("unbounded store accepts");
 
     // A display rename beside the same resolved symbols is the same
     // obligation, so its candidates include the retained derivation.
-    let renamed = bounded_value(machine, "RenamedMachine", count, "renamed", base, arena::HandleSpan::empty());
+    let renamed = bounded_value(
+        machine,
+        "RenamedMachine",
+        count,
+        "renamed",
+        base,
+        arena::HandleSpan::empty(),
+    );
     let candidates = store.candidates_for(&plan, &renamed).collect::<Vec<_>>();
     assert_eq!(candidates, [(id, &"derivation")]);
     assert_eq!(store.derivation(id), Some(&"derivation"));
 
     // A different resolved owner is a different obligation: a miss, not a
     // collision.
-    let other = bounded_value(machine, "Main", program.data[1], "count", base, arena::HandleSpan::empty());
+    let other = bounded_value(
+        machine,
+        "Main",
+        program.data[1],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
     assert_eq!(store.candidates_for(&plan, &other).count(), 0);
 }
 
@@ -111,7 +142,14 @@ fn clear_drops_everything() {
     let id = store
         .store_for(
             &plan,
-            &bounded_value(machine, "Main", count, "count", base, arena::HandleSpan::empty()),
+            &bounded_value(
+                machine,
+                "Main",
+                count,
+                "count",
+                base,
+                arena::HandleSpan::empty(),
+            ),
             1,
         )
         .expect("stored");

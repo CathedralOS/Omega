@@ -76,7 +76,7 @@ pub(super) enum BoundsCheckResult {
 }
 
 pub(in crate::checks::ranges) fn is_builtin_scalar_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -103,7 +103,7 @@ pub(in crate::checks::ranges) fn is_builtin_scalar_index(
 }
 
 pub(super) fn check_indexed_access(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -255,7 +255,7 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
 /// -> "self.k + 1"), found by name among the state's `let` statements. `None`
 /// when `index_label` is not a reserved `__hoist_` name or has no initializer.
 fn hoist_temp_initializer_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     index_label: &str,
 ) -> Option<String> {
@@ -266,7 +266,7 @@ fn hoist_temp_initializer_label(
 /// The initializer of a hoisted computed-index temp (`__hoist_N`), which its
 /// synthesized `let` assigns immediately before the indexing statement.
 fn hoist_temp_initializer(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     index_label: &str,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
@@ -291,7 +291,7 @@ fn hoist_temp_initializer(
 /// Folds an index expression built ONLY from integer literals (through
 /// casts/`Mutable`/binaries) to its value -- no facts, no place reads.
 fn literal_only_integer_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     index: ExpressionHandle,
 ) -> Option<i64> {
     match program.expression_table.expression(index) {
@@ -308,7 +308,7 @@ fn literal_only_integer_value(
 }
 
 fn zero_offset_reduced_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> ExpressionHandle {
     // Carried facts are keyed on an expression's own spelling, so `x + 0`,
@@ -331,7 +331,7 @@ fn zero_offset_reduced_expression(
 }
 
 fn zero_offset_reduced_range(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     range: &TableRangeExpression,
 ) -> TableRangeExpression {
     let mut reduced = *range;
@@ -345,7 +345,7 @@ fn zero_offset_reduced_range(
 }
 
 fn check_known_length_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -503,7 +503,7 @@ fn check_known_length_index(
 }
 
 fn check_unknown_length_slice_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -549,7 +549,7 @@ fn check_unknown_length_slice_index(
 }
 
 fn check_symbolic_extent_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -611,7 +611,7 @@ fn check_symbolic_extent_index(
 /// the member's own receiver can carry that binding — a deeper projection
 /// would bind a different parameter list.
 fn extent_binds_pending_application(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
@@ -656,7 +656,7 @@ fn extent_binds_pending_application(
 /// is still marked pending — i.e. the const application occupying this slot
 /// has not folded yet.
 fn type_reference_has_pending_application(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
@@ -685,7 +685,7 @@ fn type_reference_has_pending_application(
 }
 
 fn check_known_length_range_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

@@ -18,7 +18,7 @@ use symbols::SymbolHandle;
 /// A nested direct helper call or moved/projected aggregate is then expanded
 /// under the enclosing field/index prefix with its original loan polarity.
 pub(super) fn borrow_carrying_data_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -73,7 +73,7 @@ pub(super) fn borrow_carrying_data_loans(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::borrow) fn borrowed_initializer_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -149,7 +149,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn aggregate_expression_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -266,7 +266,7 @@ pub(super) fn aggregate_expression_borrow_loans(
 }
 
 pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -367,7 +367,7 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
 }
 
 pub(super) fn transferred_aggregate_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     local_data: &checked_trees::statement::TableLocalData,
     expression: ExpressionHandle,
     source: &accesses::BorrowAccessPlace,

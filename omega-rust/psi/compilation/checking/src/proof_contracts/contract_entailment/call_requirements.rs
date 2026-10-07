@@ -20,7 +20,6 @@ use super::structural_case_arms::{
 };
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -32,7 +31,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// callee state and actual arguments, not a display-name reconstruction.
 #[allow(clippy::too_many_arguments)]
 pub fn structural_call_requirement_entailed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
@@ -113,7 +112,7 @@ impl CallRequirement<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn visit(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         judge: &StructuralJudge<'_>,
         environment: &[(String, StructuralTerm)],
@@ -177,7 +176,7 @@ impl CallRequirement<'_> {
 /// arbitrary selected operator or IEEE floating equality. Check assumptions as
 /// well as goals: misreading an assumption could manufacture vacuity.
 fn runtime_equality_fact(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -222,7 +221,7 @@ fn runtime_equality_fact(
     }
 }
 
-fn contains_case_premise(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn contains_case_premise(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
     }
@@ -234,7 +233,7 @@ fn contains_case_premise(program: &TypedTrees, expression: ExpressionHandle) -> 
 /// Establish a prior citation before a later branch can refine its arguments.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish_citation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -285,7 +284,7 @@ pub(super) fn establish_citation(
 /// refinements and citations cannot license it. A branch-dependent call needs
 /// its own path judgment and cannot provide an earlier unconditional IH.
 fn intake_state_induction(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -350,7 +349,7 @@ fn intake_state_induction(
 /// Follow exact immutable local definitions, including ordinary call hoisting.
 /// Earlier-only definition lookup supplies a strictly decreasing walk bound.
 fn immutable_value_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     mut before: usize,
     mut expression: ExpressionHandle,

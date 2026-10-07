@@ -5,13 +5,13 @@
 //! remain conjoined with every retained interval shell.
 use super::{
     CheckedUnitStructuralFieldType, PrimitiveType, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
 pub(in crate::execution::terminal_unit) fn retain_scalar_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,

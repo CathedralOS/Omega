@@ -18,7 +18,7 @@ use facts::FactPlan;
 /// path headed by the `self` keyword. Stage 01 rejects both spellings, so each
 /// was an unconditional refusal standing in front of the explicit operand.
 pub(crate) fn receiver_place_for_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     call_site: &super::CallSite<'_>,

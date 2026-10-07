@@ -10,10 +10,9 @@ use checked_trees::{
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
-use typed_trees::TypedTrees;
 
 pub(super) fn disposition_actions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
@@ -198,7 +197,7 @@ pub(super) fn disposition_actions(
 }
 
 fn selected_nominal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     targets: &[CheckedUnitCallableEntry<'_>],
     hook: symbols::SymbolHandle,
     source: CheckedUnitStructuralArgumentSourcePlan,

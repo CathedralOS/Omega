@@ -43,12 +43,14 @@
 //! the consumer that materializes it, in the SAME change.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
-pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_literal_widths(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let blessed = u64_blessed_literals(program);
     // This is a runtime consumer-width gate, not a limit on anonymous math.
     // Float landing can replace a whole exact tree while its old children
@@ -118,7 +120,7 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
 /// The u64-magnitude literals sitting in an ACCEPTED position: the direct RHS
 /// of an assignment to a u64-classed place, or a struct-literal field whose
 /// declared field type is u64-classed.
-fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
+fn u64_blessed_literals(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
     // A handful of entries at most -- a Vec beats hashing arena handles.
     let mut blessed = Vec::new();
     super::integer_landing::append_destination_literals(program, &mut blessed);
@@ -272,7 +274,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
 /// Fire G's walk: every integer literal under a fact expression, any
 /// magnitude (beyond-u64 included -- the engine is exact).
 fn bless_fact_literals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     blessed: &mut Vec<ExpressionHandle>,
 ) {
@@ -304,7 +306,7 @@ fn bless_fact_literals(
     }
 }
 
-fn oversize_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn oversize_literal(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => {
             literal.value_i64().is_none() && literal.value_u64().is_some()
@@ -314,7 +316,7 @@ fn oversize_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool 
 }
 
 fn primitive_is_u64_classed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     unwrapped: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     matches!(
@@ -324,7 +326,7 @@ fn primitive_is_u64_classed(
 }
 
 fn place_is_u64_classed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     place: ExpressionHandle,
@@ -345,7 +347,7 @@ fn place_is_u64_classed(
 /// bless oversize literals sitting in `==`/`!=` legs whose OTHER operand is
 /// a u64-classed place.
 fn bless_equality_guard_literals(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     guard: ExpressionHandle,

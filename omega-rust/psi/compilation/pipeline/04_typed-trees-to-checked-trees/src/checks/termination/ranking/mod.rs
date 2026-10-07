@@ -121,7 +121,7 @@ pub(crate) struct ProvenNatCountdownEdge {
 }
 
 pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
@@ -267,7 +267,7 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
 /// Each member still ranks its own authored formal through its own witness —
 /// the checker remains the sole recognizer.
 pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member_states: &[symbols::SymbolHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ProvenNatCountdownScc>> {
@@ -447,7 +447,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
 /// carrier. Every cyclic edge was proved above and names its exact formal;
 /// this projection introduces no additional decrease recognizer.
 pub(crate) fn proven_fused_state_natural_ranks_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     member_states: &[symbols::SymbolHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
@@ -504,7 +504,7 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
 /// Retain the existing slice-length judgment's exact subjects for shared
 /// state-graph production. This does not establish Terminal ranking authority.
 pub(crate) fn proven_slice_length_ranks_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
@@ -559,7 +559,7 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
 /// only through another tier (the relational rank-range judgment) keeps no
 /// shared ranks rather than a measure no edge proof names.
 pub(crate) fn proven_state_natural_ranks_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
@@ -689,7 +689,7 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
 /// with no range still requires its own subject. `None` for a measure whose
 /// subjects are not single names, since those keep the name-based judgment.
 fn measure_entry_mappings(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,
 ) -> Option<Vec<Vec<symbols::SymbolHandle>>> {
@@ -719,7 +719,7 @@ fn measure_entry_mappings(
 }
 
 pub(super) fn machine_decrease_outcome(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> DecreaseOutcome {
@@ -852,7 +852,7 @@ pub(super) fn machine_decrease_outcome(
 /// declared-measure path (the plan's recorded spelling). Empty when the
 /// machine carries no witness or nothing resolves.
 pub(in crate::checks::termination) fn machine_resolved_view_path(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> String {
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
@@ -896,7 +896,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
 /// for well-foundedness around the cycle, and it composes the existing
 /// single-edge ranking proofs.
 fn component_has_proven_decrease<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     adjacency: &[Vec<usize>],
     component: &[usize],
@@ -981,7 +981,7 @@ fn component_has_proven_decrease<'p>(
 /// decrease the rank. One unclassifiable or merely forwarding alternative
 /// rejects the pair because that alternative may be taken on every traversal.
 fn cycle_edge_strictly_decreases(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target: &typed_trees::state::State,
     measure: DecreaseMeasure,
@@ -1020,7 +1020,7 @@ fn cycle_edge_strictly_decreases(
 }
 
 fn state_has_proven_supported_self_loop<'p>(
-    program: &'p typed_trees::TypedTrees,
+    program: &'p dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,

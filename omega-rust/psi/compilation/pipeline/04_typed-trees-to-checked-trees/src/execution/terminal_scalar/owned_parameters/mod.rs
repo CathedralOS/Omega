@@ -9,10 +9,10 @@ use language_semantics::{
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, state::State};
+use typed_trees::state::State;
 
 pub(super) fn validate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     ownership: &FlowOwnershipFacts,
     control: &checked_trees::FlowControlFacts,
     computations: &CheckedScalarComputationPlans,

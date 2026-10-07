@@ -3,7 +3,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(in crate::flow::ownership) fn expression_requires_ownership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -48,7 +48,7 @@ pub(in crate::flow::ownership) enum OperatorResultOwnership {
 /// [`type_requires_ownership`] but is expressed in operator-result terms so the
 /// move/borrow/drop emitters and a future copy/drop policy share one decision.
 pub(in crate::flow::ownership) fn classify_operator_result_ownership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> OperatorResultOwnership {
     if !return_type.is_valid() {
@@ -84,7 +84,7 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
 }
 
 pub(in crate::flow::ownership) fn type_requires_ownership(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     type_reference.is_valid()
@@ -93,7 +93,7 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
 }
 
 fn expression_is_place_like(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {
@@ -126,7 +126,7 @@ fn expression_is_place_like(
 /// Equality observes the tags of an exact payload-free nominal sum. The shared
 /// typed classifier excludes authored and selected operator meanings first.
 pub(super) fn intrinsic_enum_equality(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {

@@ -8,7 +8,7 @@ use facts::{FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot};
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn establishes_scalar_predicates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
@@ -232,7 +232,7 @@ pub(super) struct ScalarDomainIndex {
 /// becomes a mathematical substitution. The complete tuple must reproduce the
 /// exact semantic instance the result type promises.
 pub(super) fn closed_domain_indices(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     constraint: &typed_trees::types::DomainConstraint,
 ) -> Option<Vec<ScalarDomainIndex>> {
@@ -288,7 +288,7 @@ pub(super) fn closed_domain_indices(
 }
 
 pub(super) struct ScalarReturnProof<'a> {
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     exit: &'a FlowExitFact,
     contexts: &'a [FactContextHandle],
@@ -535,7 +535,7 @@ impl ScalarReturnProof<'_> {
 /// `rows[0].bytes` at this statement -- the same place mutation invalidation
 /// retires, so corrupted evidence cannot satisfy it.
 pub(in crate::checks::contracts::exits) fn proves_result_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],

@@ -10,7 +10,7 @@ use super::super::transition_topology::strongly_connected_components;
 use super::{
     AggregateOrigins, CollectedStatementPrefix, ExpressionHandle, FrameInference,
     FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf, State, TopLevelSymbols,
-    TypeReferenceHandle, TypedTrees, instantiate_edge_origins, state_equation,
+    TypeReferenceHandle, instantiate_edge_origins, state_equation,
 };
 
 pub(super) struct Edge<'program> {
@@ -28,7 +28,7 @@ pub(super) struct Equation<'program> {
 }
 
 pub(super) fn solve<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     entry: &'program State,
     expected_result: TypeReferenceHandle,
@@ -96,34 +96,34 @@ pub(super) fn solve<'program>(
             })
         })
         .collect();
-/// The shared transfer preamble each propagate phase runs: instantiate the
-/// source equation's edge into a fresh output before the phase's own masks.
-#[allow(clippy::too_many_arguments)]
-fn instantiate_into(
-    program: &TypedTrees,
-    machine: &Machine,
-    equations: &[Equation<'_>],
-    source: usize,
-    edge: &Edge<'_>,
-    target: &mut AggregateOrigins,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    include_shared: bool,
-) -> Option<AggregateOrigins> {
-    let mut output = AggregateOrigins::default();
-    instantiate(
-        program,
-        machine,
-        &equations[source],
-        edge,
-        target,
-        &mut output,
-        symbols,
-        inference,
-        include_shared,
-    )?;
-    Some(output)
-}
+    /// The shared transfer preamble each propagate phase runs: instantiate the
+    /// source equation's edge into a fresh output before the phase's own masks.
+    #[allow(clippy::too_many_arguments)]
+    fn instantiate_into(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        equations: &[Equation<'_>],
+        source: usize,
+        edge: &Edge<'_>,
+        target: &mut AggregateOrigins,
+        symbols: &TopLevelSymbols<'_>,
+        inference: &mut FrameInference,
+        include_shared: bool,
+    ) -> Option<AggregateOrigins> {
+        let mut output = AggregateOrigins::default();
+        instantiate(
+            program,
+            machine,
+            &equations[source],
+            edge,
+            target,
+            &mut output,
+            symbols,
+            inference,
+            include_shared,
+        )?;
+        Some(output)
+    }
 
     let moves = propagate(
         &equations,
@@ -278,7 +278,7 @@ fn append_new(held: &mut AggregateOrigins, incoming: AggregateOrigins) {
 
 #[allow(clippy::too_many_arguments)]
 fn instantiate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     equation: &Equation<'_>,
     edge: &Edge<'_>,
@@ -315,7 +315,7 @@ fn instantiate(
 /// stored references and moved aggregates; writes provide no origin authority.
 #[allow(clippy::too_many_arguments)]
 fn finite_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     equations: &[Equation<'_>],
     successors: &[Vec<usize>],

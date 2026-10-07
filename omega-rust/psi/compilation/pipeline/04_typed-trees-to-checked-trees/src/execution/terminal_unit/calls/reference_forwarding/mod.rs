@@ -2,14 +2,13 @@
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::SymbolHandle;
-use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
 use typed_trees::statement::StatementNode;
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
 pub(super) fn preserves_mutable_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     borrow_call: &checked_trees::BorrowCallFact,
@@ -30,7 +29,7 @@ pub(super) fn preserves_mutable_referent(
 }
 
 fn exact_mutable_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     borrow_call: &checked_trees::BorrowCallFact,
@@ -178,7 +177,7 @@ fn exact_mutable_referent(
 /// `Record::step(record)` again), so refusing referent writes would refuse
 /// the second call of every such sequence.
 fn prefix_preserves_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     call: &checked_trees::FlowCallFact,
@@ -264,7 +263,7 @@ fn replaces_carrier(place: &crate::flow::CanonicalPlace, source_symbol: SymbolHa
 /// the same case through their view formals. This does not admit assignments
 /// or restore live loans.
 fn preceding_reborrow_preserves_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     state: &checked_trees::StateBorrowFact,
     call: &checked_trees::BorrowCallFact,

@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstIdentity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorDefinition};
@@ -31,7 +30,7 @@ pub struct ValidatedBoundaryOperatorApplication {
 /// machine, and every row must freshly reconstruct from its substituted entry
 /// signature before any commitment consumer can use it.
 pub fn canonical_closed_operator_realization_bytes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     retained: &[typed_trees::operator::ClosedOperatorRealizationApplication],
 ) -> Result<Vec<u8>, &'static str> {
@@ -155,7 +154,7 @@ pub fn canonical_closed_operator_realization_bytes(
 /// Compare one checked D29 use demand with one independently retained closed
 /// realization by semantic identity rather than private type-table handles.
 pub fn checked_operator_application_matches_realization(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     demand: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
     realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
 ) -> bool {
@@ -212,7 +211,7 @@ pub fn checked_operator_application_matches_realization(
             )
 }
 
-fn operator_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
+fn operator_symbol_identity(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
     let path = program.symbols.display_path(symbol, "::");
     let Some(package) = program.symbols.symbol_package_identity(symbol) else {
         return format!("unmanaged::{path}");
@@ -260,7 +259,7 @@ pub enum ValidatedBoundaryOperatorApplicationArgument {
 /// application. `None` is a truthful unsupported/open demand, never coverage.
 /// The returned bindings are ordered by the operator's declaration telescope.
 pub fn validate_named_operator_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     static_arguments: &[StaticMachineArgument],
@@ -352,7 +351,7 @@ pub fn validate_named_operator_application(
 /// helper rejoins the landing to the compiler-installed builtin symbol and an
 /// existing typed type-reference; spelling alone never selects the type.
 pub fn landed_integer_literal_type_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let atom = match program.expression_table.expression(expression) {
@@ -425,7 +424,7 @@ pub fn validated_boundary_operator_application(
 /// machine type binder, while nested symbolic type construction and symbolic
 /// const arguments remain unsupported.
 pub fn validated_symbolic_boundary_operator_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     site: ValidatedBoundaryOperatorApplicationUseSite,
     operator: &OperatorDefinition,
@@ -478,7 +477,7 @@ pub(crate) fn retain_validated_boundary_operator_application(
 }
 
 pub(crate) fn validate_named_statement_operator_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -532,7 +531,7 @@ pub(crate) fn validate_named_statement_operator_application(
 }
 
 fn statement_value_receiver_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &TableCall,
@@ -560,7 +559,7 @@ fn statement_value_receiver_type(
 }
 
 pub fn validate_closed_operator_application(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     operator: &OperatorDefinition,
     application: &[ClosedOperatorApplicationArgument],
@@ -641,7 +640,7 @@ pub fn validate_closed_operator_application(
 }
 
 fn static_argument_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     supplied: &StaticMachineArgument,
     inferred: &ClosedOperatorApplicationArgument,
 ) -> bool {
@@ -659,7 +658,7 @@ fn static_argument_matches(
 }
 
 fn static_const_argument_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     supplied: &StaticMachineArgument,
     declared_carrier: TypeReferenceHandle,
 ) -> Option<CanonicalConstIdentity> {
@@ -682,7 +681,7 @@ fn static_const_argument_identity(
 }
 
 fn static_type_argument_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     supplied: &StaticMachineArgument,
     inferred: TypeReferenceHandle,
 ) -> bool {

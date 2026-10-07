@@ -15,7 +15,6 @@ use std::collections::HashSet;
 use checked_trees::CheckFacts;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
@@ -29,7 +28,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// selection, so it is never reported here. `None` names a malformed
 /// statement or a call occurrence the flow facts do not number exactly once.
 pub fn transition_operand_moves(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,

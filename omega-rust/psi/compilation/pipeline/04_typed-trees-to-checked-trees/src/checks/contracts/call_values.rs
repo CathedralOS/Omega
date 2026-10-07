@@ -10,9 +10,12 @@ use checked_trees::{
 };
 use facts::FactContextHandle;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, expression::ExpressionHandle, signature::StateParameter};
+use typed_trees::{expression::ExpressionHandle, signature::StateParameter};
 
-pub(crate) fn target_machine(program: &TypedTrees, call: &FlowCallFact) -> Option<SymbolHandle> {
+pub(crate) fn target_machine(
+    program: &dyn ::validation::CheckingInput,
+    call: &FlowCallFact,
+) -> Option<SymbolHandle> {
     crate::lookup::machine_by_symbol(program, call.target_symbol)
         .map(|machine| machine.symbol)
         .or_else(|| {
@@ -29,7 +32,7 @@ pub(crate) struct Actual<'program> {
 }
 
 pub(crate) fn actual_at<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     call: &FlowCallFact,
     position: usize,
@@ -64,7 +67,7 @@ pub(crate) fn actual_at<'program>(
 /// Bind a callee observation to its actual operand, without assuming that the
 /// formal's declaration position is a dense scalar position.
 pub(crate) fn observation_actual<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     call: &FlowCallFact,
     observation: &crate::facts::boolean_predicates::BoundObservation,
@@ -83,7 +86,7 @@ pub(crate) fn observation_actual<'program>(
 }
 
 fn captured_operand<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -119,7 +122,7 @@ fn captured_operand<'facts>(
 }
 
 pub(crate) fn captured_values<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -138,7 +141,7 @@ pub(crate) fn captured_values<'facts>(
 }
 
 fn captured_value<'facts>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -157,7 +160,7 @@ fn captured_value<'facts>(
 /// The declaration's subject and its substituted place must agree with the
 /// same argument occurrence. A missing capture supplies no evidence.
 pub(crate) fn membership_contexts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -256,7 +259,7 @@ pub(crate) fn membership_contexts(
 /// A projected field observes its own completed child. A stored aggregate
 /// retains its whole-value capture; its initializer is never replayed.
 pub(crate) fn actual_contexts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -278,7 +281,7 @@ pub(crate) fn actual_contexts(
 /// Rebind a selected actual expression to exact current storage. Local slots
 /// denote stored values; their initializer expressions are never replayed.
 fn current_actual(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -342,7 +345,7 @@ fn current_actual(
 }
 
 fn bind_current(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -378,7 +381,7 @@ fn bind_current(
 }
 
 fn scalar_at(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
     place: &CanonicalPlace,
@@ -429,7 +432,7 @@ fn observed_literal(
 }
 
 pub(crate) fn proves_entry_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -461,7 +464,7 @@ pub(crate) fn proves_entry_predicate(
 /// ordinary declarations, named states and inherited rows share one captured
 /// Boolean algebra after supplying that exact correspondence.
 pub(crate) fn proves_bound_predicate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -560,7 +563,7 @@ pub(crate) fn proves_bound_predicate<'program>(
 /// Transport only entry-custodied observations. A callee selector remains a
 /// formula; it never becomes an unconditional caller cleanup demand.
 pub(crate) fn entry_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,

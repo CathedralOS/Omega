@@ -1,11 +1,11 @@
 //! Atomic assembly of state-graph Unit control plans after provider admission.
 use super::super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedProviderAttachmentRequirementPlan, TypedTrees,
+    CheckedProviderAttachmentRequirementPlan,
 };
 
 pub(in crate::execution::terminal_unit) fn finish(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     attachment_type_identity: Option<String>,

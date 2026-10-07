@@ -33,7 +33,7 @@ fn statement_value_source(
 /// selects one. `None` means no call was selected.
 #[allow(clippy::too_many_arguments)]
 fn selected_call_capture<Value: CapturedValue>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -61,7 +61,7 @@ fn selected_call_capture<Value: CapturedValue>(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_statement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -128,7 +128,7 @@ pub(super) fn capture_statement(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_bounds(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     semantic: &FactPlan,
     context: &mut FlowBuildContext,
@@ -188,7 +188,7 @@ pub(super) fn capture_bounds(
 /// caller place under the live snapshot, converted when the selection spelled
 /// conversions. The selected plan has no form for every cast policy.
 fn selected_live_capture<Value: CapturedValue>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: &FlowBuildContext<'_>,
     state: SymbolHandle,
@@ -220,7 +220,7 @@ fn selected_live_capture<Value: CapturedValue>(
 /// the operands, so only a source whose complete bound subtree retains
 /// builtin meaning may be captured as this statement's recorded evidence.
 fn builtin_bound_meaning_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     context: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state: SymbolHandle,
@@ -237,7 +237,7 @@ fn builtin_bound_meaning_source(
 }
 
 fn selected_statement<'plans>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     context: &'plans FlowBuildContext<'plans>,
     state: SymbolHandle,
     statement_index: usize,
@@ -302,7 +302,7 @@ fn selected_statement<'plans>(
 
 #[allow(clippy::too_many_arguments)]
 fn retains_values_across_unit_call<Value>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     context: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,

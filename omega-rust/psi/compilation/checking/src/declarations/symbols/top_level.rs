@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
 use std::sync::Mutex;
 use symbols::{SymbolHandle, SymbolKeyMap as HashMap, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::trait_definition::TraitDefinition;
@@ -94,7 +93,10 @@ struct TypeSymbol<'program> {
 }
 
 impl<'program> TopLevelSymbols<'program> {
-    pub fn build(program: &'program TypedTrees, diagnostics: &mut Vec<Diagnostic>) -> Self {
+    pub fn build(
+        program: &'program dyn crate::CheckingInput,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Self {
         let data_definition_count = program.data_definitions().len();
         let machine_count = program.machines().len();
         let trait_count = program.traits().len();
@@ -321,7 +323,7 @@ impl<'program> TopLevelSymbols<'program> {
 
     pub fn attached_machine_state(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         data_name: &str,
         state_name: &str,
     ) -> Option<(&'program Machine, &'program State)> {
@@ -365,7 +367,7 @@ impl<'program> TopLevelSymbols<'program> {
     }
 }
 
-fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {
+fn builtin_type_symbols(program: &dyn crate::CheckingInput) -> Vec<TypeSymbol<'_>> {
     let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
         return Vec::new();
     };

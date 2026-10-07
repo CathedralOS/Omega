@@ -19,7 +19,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetHandle};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::{TypedTrees, machine::Machine, state::State};
+use typed_trees::{machine::Machine, state::State};
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -41,7 +41,7 @@ struct Length {
 }
 
 pub(crate) struct CurrentScalarValues<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     initial: Vec<Binding>,
@@ -52,7 +52,7 @@ pub(crate) struct CurrentScalarValues<'program> {
 
 impl<'program> CurrentScalarValues<'program> {
     pub(crate) fn at(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
         state: &'program State,
         statement_index: usize,
@@ -232,7 +232,7 @@ impl<'program> CurrentScalarValues<'program> {
 
     fn invalidate_operand_effects(
         &mut self,
-        _program: &TypedTrees,
+        _program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         statement: &StatementNode,
         frames: Option<&validation::CallFrameResolver<'_>>,
@@ -265,7 +265,7 @@ impl<'program> CurrentScalarValues<'program> {
 
     fn assume(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -276,7 +276,7 @@ impl<'program> CurrentScalarValues<'program> {
 
     fn assume_at_depth(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -362,7 +362,7 @@ impl<'program> CurrentScalarValues<'program> {
 
     fn capture(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
@@ -452,7 +452,7 @@ impl<'program> CurrentScalarValues<'program> {
 
     pub(crate) fn proves_values_relation(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         operator: BinaryOperator,
         left: &ScopedArithmeticValue,
@@ -469,7 +469,7 @@ impl<'program> CurrentScalarValues<'program> {
     }
     pub(crate) fn proves(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         goal: &ScopedArithmeticExpression,
     ) -> bool {
@@ -478,7 +478,10 @@ impl<'program> CurrentScalarValues<'program> {
     }
 }
 
-fn exact_integer(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
+fn exact_integer(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(reference)?;
     if !matches!(
         primitive,
@@ -505,7 +508,7 @@ fn unsigned(primitive: PrimitiveType) -> bool {
 /// A collection type's length when no store or reseat can change it during
 /// the activation: a literal fixed array's own length, or one unsigned unknown.
 fn fixed_length(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     identity: impl FnOnce() -> String,
 ) -> Option<ScopedArithmeticValue> {
@@ -548,7 +551,7 @@ fn fixed_length(
 
 /// The fixed length a `collection.len` occurrence reads, if it reads one.
 fn length_occurrence<'lengths>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
@@ -580,7 +583,7 @@ fn length_occurrence<'lengths>(
 }
 
 fn admitted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -647,7 +650,7 @@ fn scoped(
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> Option<ScopedArithmeticExpression> {
     let mut symbols = Vec::new();
     let mut projections = Vec::new();

@@ -8,7 +8,7 @@ use super::super::{
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    MachineSupplyMode, Multiplicity, SymbolHandle, TypedTrees,
+    MachineSupplyMode, Multiplicity, SymbolHandle,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::types::{
@@ -39,7 +39,7 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
 /// when the checker retained a construction or copy rooted exactly at that
 /// expression for this statement and machine, typed to the matched formal.
 fn evaluated_value_root<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -122,7 +122,7 @@ fn evaluated_value_root<'a>(
 /// result bindings provide source custody without hoisting child evaluation.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn value_calls(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -341,7 +341,7 @@ pub(in crate::execution::terminal_unit) fn establish_value(
 }
 
 pub(in crate::execution::terminal_unit) fn for_call<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -359,7 +359,7 @@ pub(in crate::execution::terminal_unit) fn for_call<'a>(
 }
 
 pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -431,7 +431,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
 }
 
 fn collect<'a>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -545,7 +545,7 @@ fn collect<'a>(
 /// This selects only the source signature; build_call_operation still checks
 /// the complete target contract, arguments, and ownership events.
 pub(in crate::execution::terminal_unit) fn result(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     shapes: &mut ShapeCollector<'_>,
@@ -615,7 +615,7 @@ pub(in crate::execution::terminal_unit) fn result(
 /// until selection instead of executing them in its predecessor.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn plan_call_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,

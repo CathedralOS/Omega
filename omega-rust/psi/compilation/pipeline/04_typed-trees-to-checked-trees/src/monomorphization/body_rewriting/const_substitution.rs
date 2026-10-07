@@ -6,7 +6,7 @@ use crate::monomorphization::{
 };
 
 pub(crate) fn fixed_array_const_replacements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Vec<(SymbolHandle, String, usize)> {
     candidate
@@ -112,7 +112,7 @@ pub(crate) fn substitute_const_index_expression_parameters(
 }
 
 pub(crate) fn candidate_const_index_expressions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Vec<ExpressionHandle> {
     let machine = &program.machines()[candidate.template.machine_index];
@@ -217,7 +217,7 @@ pub(crate) fn candidate_const_index_expressions(
 }
 
 pub(crate) fn collect_statement_expression_trees(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
     handles: &mut Vec<ExpressionHandle>,
 ) {
@@ -256,7 +256,7 @@ pub(crate) fn collect_statement_expression_trees(
 }
 
 pub(crate) fn collect_transition_target_expression_trees(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: typed_trees::statement::TransitionTargetHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {

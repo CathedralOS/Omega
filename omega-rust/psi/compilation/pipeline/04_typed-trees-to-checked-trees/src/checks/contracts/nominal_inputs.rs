@@ -9,7 +9,6 @@ use facts::{
     ProgramPoint,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(super) struct DeclaredFieldRequirements {
     rows: Vec<(SymbolHandle, Vec<FieldRequirement>)>,
@@ -87,7 +86,7 @@ impl DeclaredFieldRequirements {
 }
 
 pub(super) fn check(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -287,7 +286,7 @@ pub(super) fn check(
 /// declared-field row only when EVERY candidate proves it; anything less is
 /// the one-exact-origin refusal the single-origin resolver already gives.
 fn candidate_referents_prove_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -345,7 +344,7 @@ fn candidate_referents_prove_domain(
 /// or manufacture establishment provenance. Both exact and candidate referents
 /// use this same judgment.
 fn prove_declared_field_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],
     subject: &crate::flow::CanonicalPlace,

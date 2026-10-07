@@ -7,7 +7,7 @@ use checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};
 use symbols::SymbolHandle;
 
 pub(super) fn append_call_boundary_edges(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
 ) -> HandleSpan<FlowBoundaryEdgeFact> {
@@ -39,7 +39,7 @@ pub(super) fn append_call_boundary_edges(
 }
 
 fn append_boundary_edges_for_trait(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
     target_state: &typed_trees::state::State,

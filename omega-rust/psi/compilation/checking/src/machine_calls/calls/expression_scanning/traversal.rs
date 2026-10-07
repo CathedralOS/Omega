@@ -10,7 +10,6 @@ use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -19,7 +18,10 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// A resolved declaration namespace selects a callee; it is not an evaluated
 /// receiver. This applies only to the namespace slot of a checked call, never
 /// to a module spelling supplied as a runtime argument or standalone value.
-fn is_declaration_namespace(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn is_declaration_namespace(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
     };
@@ -64,7 +66,7 @@ fn is_declaration_namespace(program: &TypedTrees, expression: ExpressionHandle) 
 /// which needs the complete value-call target resolver.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_position_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -270,7 +272,7 @@ pub(crate) fn validate_value_position_calls(
 /// `self.field[j]`), and a RANGE index (`sub[1..][1..]`, a nested subslice). The
 /// real fix for both-runtime is a two-index lowering op (backend feature).
 fn report_nested_runtime_indexed_read(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -357,7 +359,7 @@ fn report_nested_runtime_indexed_read(
 /// member / mutable links (the const-prefix peel folds those). Mirrors
 /// `resolve_runtime_machine_double_indexed_source_in_table`.
 fn double_indexed_machine_read_is_lowerable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     indexed: &typed_trees::expression::TableIndexedExpression,
 ) -> bool {
     // A member chain BETWEEN the two indices (`rows[i].data[j]`) is a fixed
@@ -445,7 +447,7 @@ fn double_indexed_machine_read_is_lowerable(
 /// validate machine-call type-parameter bounds for each one found.
 #[allow(clippy::too_many_arguments)]
 fn scan_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     machine_symbols: &MachineSymbols<'_>,
@@ -481,7 +483,7 @@ fn scan_expression_calls(
 /// Operands below the target are ordinary reads and keep the read reports.
 #[allow(clippy::too_many_arguments)]
 fn scan_assignment_target_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     machine_symbols: &MachineSymbols<'_>,
@@ -519,7 +521,7 @@ fn scan_assignment_target_calls(
 /// itself, so an assignment target can drop exactly those and keep every other
 /// finding the walk produced.
 fn unknown_field_read_reports(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -558,7 +560,7 @@ fn unknown_field_read_reports(
 /// remain value uses even if a malformed tree reuses that statement's handle.
 #[allow(clippy::too_many_arguments)]
 fn scan_expression_calls_at_position(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     machine_symbols: &MachineSymbols<'_>,

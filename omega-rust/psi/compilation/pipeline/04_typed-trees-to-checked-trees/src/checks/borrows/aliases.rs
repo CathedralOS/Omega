@@ -5,7 +5,7 @@ use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
 use checked_trees::{CapturedPlace, CheckFacts, FlowStateFact};
 use typed_trees::statement::StatementNode;
-use typed_trees::{TypedTrees, types::TypeReferenceNode};
+use typed_trees::types::TypeReferenceNode;
 
 pub(in crate::checks::borrows) struct ResolvedAlias {
     pub(in crate::checks::borrows) place: CapturedPlace,
@@ -18,7 +18,7 @@ pub(in crate::checks::borrows) struct ResolvedPlace {
 }
 
 pub(in crate::checks::borrows) fn resolve_receiver(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
@@ -42,7 +42,7 @@ pub(in crate::checks::borrows) fn resolve_receiver(
 }
 
 pub(in crate::checks::borrows) fn resolve_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,

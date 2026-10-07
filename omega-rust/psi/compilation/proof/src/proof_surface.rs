@@ -381,7 +381,6 @@ fn collect_bounded_type_site(
     }
 }
 
-
 fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReferenceHandle) -> String {
     match syntax_trees.type_references.type_reference(type_reference) {
         TypeReferenceNode::Reference {

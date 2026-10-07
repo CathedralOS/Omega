@@ -13,11 +13,11 @@
 //! the cycle equations substitute its actuals like any other edge.
 
 use super::caller_aliases::{CallOriginContext, CallerWriteSite};
-use super::{FrameInference, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols, TypedTrees};
+use super::{FrameInference, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols};
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) fn target(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     transition: TransitionTargetHandle,
 ) -> SymbolHandle {
@@ -41,7 +41,7 @@ pub(super) fn target(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     transition: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,

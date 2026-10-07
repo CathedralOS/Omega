@@ -8,7 +8,7 @@ use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn mutation<'program>(
     compilation: &PackageReviewInput<'_>,
-    source: &'program typed_trees::TypedTrees,
+    source: &'program dyn ::validation::CheckingInput,
     resolver: &validation::CallFrameResolver<'program>,
     machine: &Machine,
     entry: &State,

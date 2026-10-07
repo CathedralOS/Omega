@@ -5,7 +5,7 @@ use symbols::SymbolHandle;
 pub(crate) use checked_trees::CapturedPlace as BorrowAccessPlace;
 
 pub(crate) fn borrow_access_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,

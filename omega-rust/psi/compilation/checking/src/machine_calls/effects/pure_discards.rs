@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
@@ -16,7 +15,7 @@ use typed_trees::statement::StatementNode;
 /// material. Service reach and the independent operational summaries come
 /// from their recursive plans, never the lowercase compatibility set.
 pub(super) fn validate_pure_discards(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
@@ -81,7 +80,7 @@ struct DiscardCallee {
 /// reason about the CALLEE MACHINE (purity surface, proof classification),
 /// while the call site records only the state symbol.
 fn machine_owning_state(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     if !target_symbol.is_valid() {
@@ -96,7 +95,7 @@ fn machine_owning_state(
 }
 
 fn resolve_discard_callee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     target_symbol: SymbolHandle,
@@ -167,7 +166,7 @@ fn resolve_discard_callee(
 /// a boundary trait, the enclosing service identity still make the call
 /// observable without consulting a lowercase compatibility list.
 fn signature_discard_callee(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
 ) -> DiscardCallee {

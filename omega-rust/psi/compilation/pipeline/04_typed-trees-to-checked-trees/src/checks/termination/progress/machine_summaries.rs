@@ -13,7 +13,7 @@ use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee}
 use symbols::SymbolHandle;
 
 pub(crate) fn derive_machine_summary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     machine: &typed_trees::machine::Machine,
@@ -168,7 +168,7 @@ pub(crate) struct SelectedCallProgress<'a> {
 }
 
 pub(crate) fn selected_call_summary<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
     summaries: &'a [CheckedProgressSummary],
 ) -> Option<SelectedCallProgress<'a>> {
@@ -220,7 +220,7 @@ pub(crate) fn selected_call_summary<'a>(
 }
 
 fn instantiate_call_premise(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
@@ -245,7 +245,7 @@ fn instantiate_call_premise(
 }
 
 fn call_argument_subject(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
@@ -268,7 +268,7 @@ fn call_argument_subject(
 /// when a dynamic selector leaves several — `call_argument_subjects_with_parameters`
 /// is what reads that set.
 pub(crate) fn call_argument_subject_with_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
@@ -290,7 +290,7 @@ pub(crate) fn call_argument_subject_with_parameters(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn call_argument_subjects_with_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
@@ -347,7 +347,7 @@ pub(crate) fn call_argument_subjects_with_parameters(
 /// one, and the caller conjoins a premise apiece; one it cannot name leaves
 /// the whole demand unproven.
 fn dynamic_selector_subjects(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call: &FlowCallFact,
     place: &crate::flow::CanonicalPlace,
@@ -402,7 +402,7 @@ fn dynamic_selector_subjects(
 }
 
 fn is_local_state_transition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -411,7 +411,7 @@ fn is_local_state_transition(
 }
 
 pub(crate) fn local_state_transition_target<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -438,7 +438,7 @@ pub(crate) fn local_state_transition_target<'program>(
 }
 
 fn admitted_receipt_covers(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     state: &FlowStateFact,

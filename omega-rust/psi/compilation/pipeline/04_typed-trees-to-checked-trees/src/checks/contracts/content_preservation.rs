@@ -2,10 +2,9 @@
 
 use checked_trees::{CheckFacts, FlowStateFact};
 use language_semantics::content::{ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion};
-use typed_trees::TypedTrees;
 
 pub(super) fn proves_exit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     fact: &facts::Fact,

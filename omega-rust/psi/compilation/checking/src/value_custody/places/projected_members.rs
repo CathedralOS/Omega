@@ -2,14 +2,13 @@
 
 use super::{declared_place_type_raw, unwrapped_type_reference};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn contains_case_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> bool {
     loop {
@@ -23,7 +22,7 @@ pub(super) fn contains_case_projection(
 }
 
 pub(super) fn declared_case_projection_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -39,7 +38,7 @@ pub(super) fn declared_case_projection_type(
 /// Same receiver/declaration walk as the type query; returning the field keeps
 /// the declaration symbol (an operand identity) alongside its declared type.
 pub(crate) fn declared_case_projection_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -92,7 +91,7 @@ pub(crate) fn declared_case_projection_field<'program>(
 /// payload, its exact case. A missing payload symbol may be recovered from
 /// that declaration; a conflicting retained symbol cannot be replaced.
 pub fn exact_data_member_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     data: &'program typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &str,

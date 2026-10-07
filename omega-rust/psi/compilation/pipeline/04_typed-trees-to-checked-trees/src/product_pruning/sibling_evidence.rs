@@ -8,7 +8,6 @@ use std::collections::HashSet;
 
 use checked_trees::{CheckFacts, CheckedBoundaryOperatorApplicationUseSite};
 use typed_trees::{
-    TypedTrees,
     domain::ProofFact,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
@@ -27,7 +26,7 @@ pub(super) struct DeadEvidence {
 /// Every statement and expression handle reachable from `machine`'s states,
 /// statements, signature contracts, and state contracts.
 pub(super) fn collect_machine_evidence(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     dead: &mut DeadEvidence,
 ) {
@@ -70,7 +69,7 @@ fn site_is_dead(site: &CheckedBoundaryOperatorApplicationUseSite, dead: &DeadEvi
 }
 
 fn collect_contract(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &mut HashSet<ExpressionHandle>,
     contract: &SignatureContract,
 ) {
@@ -80,7 +79,7 @@ fn collect_contract(
 }
 
 fn collect_proof_fact(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &mut HashSet<ExpressionHandle>,
     fact: &ProofFact,
 ) {
@@ -96,7 +95,7 @@ fn collect_proof_fact(
 }
 
 fn collect_proposition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &mut HashSet<ExpressionHandle>,
     application: &PropositionApplication,
 ) {
@@ -109,7 +108,7 @@ fn collect_proposition(
 }
 
 fn collect_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &mut HashSet<ExpressionHandle>,
     statement: &StatementNode,
 ) {
@@ -160,7 +159,7 @@ fn collect_statement(
 }
 
 fn collect_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &mut HashSet<ExpressionHandle>,
     expression: ExpressionHandle,
 ) {

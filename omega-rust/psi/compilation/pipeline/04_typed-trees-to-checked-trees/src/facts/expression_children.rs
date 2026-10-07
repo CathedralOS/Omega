@@ -1,14 +1,13 @@
 //! Plain structural children of an expression: the descent every
 //! worklist walk shares once its own semantic arms are handled.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Pushes the expression's ordinary children onto `pending`. Covers the
 /// node kinds with no walk-specific semantics; callers match their own
 /// significant kinds first and delegate the rest here.
 pub(crate) fn push_expression_children(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     pending: &mut Vec<ExpressionHandle>,
 ) {
@@ -50,7 +49,7 @@ pub(crate) fn push_expression_children(
 /// for traversals that follow all owned subtrees, not one lane's scalar
 /// subset.
 pub(crate) fn push_every_expression_child(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     node: &ExpressionNode,
     pending: &mut Vec<ExpressionHandle>,
 ) {

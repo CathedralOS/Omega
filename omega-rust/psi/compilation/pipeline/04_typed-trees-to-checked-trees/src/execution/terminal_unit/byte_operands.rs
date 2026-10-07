@@ -11,11 +11,11 @@ use checked_trees::{
     CheckedStructuralAccess, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan as Source,
 };
-use typed_trees::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
+use typed_trees::{expression::ExpressionHandle, types::TypeReferenceHandle};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     pure: &CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -75,7 +75,7 @@ pub(crate) fn plan(
 
 #[allow(clippy::too_many_arguments)]
 fn place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -131,7 +131,7 @@ fn place(
 /// exact carrier in the same vocabulary as call arguments and scalar operands.
 /// This records types only; source custody and evaluation remain at the store.
 pub(super) fn store_operand_type_identities(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut types::ShapeCollector<'_>,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,

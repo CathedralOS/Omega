@@ -12,7 +12,6 @@ use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironm
 use crate::value_custody::places::declared_place_type_raw;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -50,7 +49,7 @@ pub fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> b
 }
 
 pub(crate) fn validate_anonymous_integer_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     destination: TypeReferenceHandle,
     expression: ExpressionHandle,
     owner: &str,
@@ -61,7 +60,7 @@ pub(crate) fn validate_anonymous_integer_range(
 }
 
 pub(crate) fn validate_anonymous_integer_primitive_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     primitive: PrimitiveType,
     expression: ExpressionHandle,
     owner: &str,
@@ -150,7 +149,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
 /// own type and arithmetic policy across a store.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -179,7 +178,7 @@ pub(crate) fn validate_value_range(
 /// branch-local premises, even if the surrounding statement has not changed.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range_retaining_decisions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -319,7 +318,7 @@ pub(crate) fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
 /// representable by u64. This structural proof closes only that representation
 /// gap; arbitrary casts and mixed targets fail closed.
 pub(crate) fn exact_unsigned_widened_multiply_fits(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -378,7 +377,10 @@ pub(crate) fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> boo
 
 /// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
 /// when the operand is not a plain integer literal.
-pub(crate) fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
+pub(crate) fn integer_literal_value(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+) -> Option<i64> {
     let mut node = program.expression_table.expression(value);
     while let ExpressionNode::Borrow(inner) = node {
         node = program.expression_table.expression(inner.target);
@@ -394,11 +396,17 @@ pub(crate) fn integer_literal_value(program: &TypedTrees, value: ExpressionHandl
 /// bounds used to silently behave UNBOUNDED). A non-constant bound is not
 /// narrowed (the caller falls back to the full type range -- sound; the
 /// declaration check in type_references.rs rejects it loudly).
-pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+pub(crate) fn literal_i64(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<i64> {
     program.expression_table.constant_integer_value(expression)
 }
 
-pub(crate) fn literal_u64(program: &TypedTrees, expression: ExpressionHandle) -> Option<u64> {
+pub(crate) fn literal_u64(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<u64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal.value_bignum()?.to_u64(),
         ExpressionNode::Borrow(inner) => literal_u64(program, inner.target),
@@ -407,7 +415,7 @@ pub(crate) fn literal_u64(program: &TypedTrees, expression: ExpressionHandle) ->
 }
 
 pub(crate) fn known_u64_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<u64> {
@@ -422,7 +430,7 @@ pub(crate) fn known_u64_value(
 /// never with a coercion's receiving type. Exact unsigned snapshots retain
 /// values beyond the signed compatibility interval.
 pub(crate) fn integer_source_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -457,7 +465,10 @@ pub(crate) fn integer_source_bounds(
 /// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
 /// whose arithmetic wraps by hardware semantics, through reference/constraint
 /// shells.
-pub(crate) fn is_atomic_type(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+pub(crate) fn is_atomic_type(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { name, .. } => name.as_str().starts_with("Atomic"),
         TypeReferenceNode::Reference { referee, .. } => is_atomic_type(program, *referee),

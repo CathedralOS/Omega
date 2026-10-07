@@ -8,14 +8,13 @@ use language_semantics::content::{
     ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) struct NormalizationContext<'program, 'contracts> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn crate::CheckingInput,
     pub(super) projections: &'program [ContentProjectionPlan],
     pub(super) parameters: &'program [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
@@ -252,7 +251,7 @@ fn normalize_projection_subject(
 }
 
 fn collect_structural_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Result<(String, SymbolHandle, Vec<ContentPlaceSegment>), String> {
     match program.expression_table.expression(expression) {
@@ -316,7 +315,7 @@ fn collect_structural_place(
 }
 
 fn push_structural_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     segments: &mut Vec<ContentPlaceSegment>,
     field_symbol: SymbolHandle,
     field_name: &str,
@@ -335,7 +334,10 @@ fn push_structural_field(
     }));
 }
 
-fn retain_payload_case_segments(program: &TypedTrees, segments: &mut Vec<ContentPlaceSegment>) {
+fn retain_payload_case_segments(
+    program: &dyn crate::CheckingInput,
+    segments: &mut Vec<ContentPlaceSegment>,
+) {
     let source = std::mem::take(segments);
     for segment in source {
         if let ContentPlaceSegment::Field(field) = &segment
@@ -355,7 +357,10 @@ fn retain_payload_case_segments(program: &TypedTrees, segments: &mut Vec<Content
     }
 }
 
-fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Option<&str> {
+fn data_variant_name(
+    program: &dyn crate::CheckingInput,
+    variant_symbol: SymbolHandle,
+) -> Option<&str> {
     program.data_definitions().iter().find_map(|definition| {
         program.data_members(definition).iter().find_map(|member| {
             let typed_trees::data::DataMember::Variant(variant) = member else {
@@ -367,7 +372,7 @@ fn data_variant_name(program: &TypedTrees, variant_symbol: SymbolHandle) -> Opti
 }
 
 fn structural_place_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut current: TypeReferenceHandle,
     segments: &mut [ContentPlaceSegment],
     self_data: SymbolHandle,
@@ -572,7 +577,7 @@ fn structural_place_matches(
 }
 
 fn type_has_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     domain: language_semantics::SemanticDomainId,
 ) -> bool {

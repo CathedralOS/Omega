@@ -76,7 +76,6 @@ use language_core::is_self_receiver;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -112,7 +111,7 @@ use type_capabilities::{type_may_carry_write, type_reference_is_reference};
 /// opaque. Authored `stores` clauses are retired; precision grows through the
 /// shared inferred complete-or-opaque frame instead.
 fn known_call_written_paths(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -121,7 +120,6 @@ fn known_call_written_paths(
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
     let receiver_members =
-
         crate::program_scope::call_targets::call_receiver_member_names(program, call);
     known_call_written_paths_for_parts_with_origins(
         program,
@@ -141,7 +139,7 @@ fn known_call_written_paths(
 
 #[allow(clippy::too_many_arguments)]
 fn known_call_written_paths_for_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
@@ -171,7 +169,7 @@ fn known_call_written_paths_for_parts(
 
 #[allow(clippy::too_many_arguments)]
 fn known_call_written_paths_for_parts_with_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
@@ -349,7 +347,7 @@ fn known_call_written_paths_for_parts_with_origins(
 
 #[allow(clippy::too_many_arguments)]
 fn summarize_resolved_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,

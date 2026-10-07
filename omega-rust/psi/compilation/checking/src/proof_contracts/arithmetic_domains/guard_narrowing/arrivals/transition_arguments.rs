@@ -1,7 +1,7 @@
 use super::super::meaning;
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State,
-    TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnvironment, analyze,
+    TransitionGuardNode, TransitionTargetNode, ValueEnvironment, analyze,
     narrow_environment_by_condition,
 };
 use typed_trees::statement::TableTransition;
@@ -10,7 +10,7 @@ use typed_trees::statement::TableTransition;
 /// Selected operators and effectful argument trees need evaluated snapshots;
 /// a call-free spelling alone does not establish that an operator is builtin.
 pub(super) fn integer_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     transition: &TableTransition,
@@ -63,7 +63,7 @@ pub(super) fn integer_bounds(
 }
 
 fn stable_builtin_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -84,9 +84,7 @@ fn stable_builtin_value(
                 .state_parameters(state)
                 .iter()
                 .any(|parameter| parameter.symbol == symbol);
-            let is_local = program
-                .state_local_declaration(state, symbol)
-                .is_some();
+            let is_local = program.state_local_declaration(state, symbol).is_some();
             is_parameter || is_local
         }
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,

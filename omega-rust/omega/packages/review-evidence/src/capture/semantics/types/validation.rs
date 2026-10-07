@@ -2,7 +2,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_package_type_identity_input(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
@@ -10,7 +10,7 @@ pub(crate) fn validate_package_type_identity_input(
 }
 
 pub(crate) fn validate_package_type_identity_input_inner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     allow_const_value: bool,
@@ -165,7 +165,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
 }
 
 fn validate_package_named_type_leaf(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     spelling: &str,
     binders: &[(SymbolHandle, String)],
@@ -197,7 +197,7 @@ fn validate_package_named_type_leaf(
 }
 
 fn validate_package_const_binder(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     spelling: &str,
     binders: &[(SymbolHandle, String)],
@@ -217,7 +217,7 @@ fn validate_package_const_binder(
 }
 
 fn validate_package_index_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {

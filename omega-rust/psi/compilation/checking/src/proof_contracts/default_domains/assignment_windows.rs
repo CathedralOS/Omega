@@ -20,7 +20,6 @@ use crate::proof_contracts::default_domains::symbolic_values::{
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -75,7 +74,7 @@ pub(crate) fn refuse_open_windows(
 }
 
 pub(crate) fn handle_assignment<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
@@ -442,7 +441,7 @@ pub(crate) fn handle_assignment<'program>(
 
 /// The tracked place a store's receiver names, created on first write.
 pub(super) fn tracked_receiver<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     tracked: &mut Vec<TrackedPlace<'program>>,
     receiver_spelling: String,
     definition: &'program typed_trees::data::DataDefinition,
@@ -508,7 +507,7 @@ pub(super) fn tracked_receiver<'program>(
 /// (or whose facts ignore the field) contributes nothing -- an omitted case
 /// clause contributes true.
 fn case_fact_spans_mentioning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     place: &TrackedPlace<'_>,
     field_name: &str,
 ) -> Vec<arena::HandleSpan<typed_trees::domain::ProofFact>> {

@@ -10,7 +10,6 @@
 use super::boundary_calls::boundary_trait_signature_for_parts;
 use crate::declarations::symbols::TopLevelSymbols;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
@@ -19,7 +18,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// unresolved target leaves that context absent, without inventing a type or
 /// changing admission of existing pure places and direct-call trees.
 pub(super) fn call_argument_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     target_symbol: SymbolHandle,
     target_name: &str,
@@ -72,7 +71,7 @@ pub(super) fn call_argument_types(
 /// machine's implicit entry state `entry`; explicit entry states matching the
 /// call target name win first.
 pub(crate) fn free_machine_entry_state<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'program>,
     target: &str,
 ) -> Option<(&'program Machine, &'program State)> {
@@ -91,7 +90,7 @@ pub(crate) fn free_machine_entry_state<'program>(
 }
 
 pub(crate) fn machine_state_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&Machine, &State)> {
     if !symbol.is_valid() {
@@ -109,7 +108,7 @@ pub(crate) fn machine_state_by_symbol(
 /// A signature's formal types in declaration order — the argument context
 /// either signature lane supplies.
 fn signature_parameter_types(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<TypeReferenceHandle> {
     program

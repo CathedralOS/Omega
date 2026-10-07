@@ -7,7 +7,6 @@
 //! storage admission remain independent checks at their existing owners.
 
 use super::expression_types::declared_reference_access;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -31,7 +30,7 @@ pub(crate) enum ReferenceAccessRefusal {
 /// This is the call's existing access rule generalized to receiving fields;
 /// it grants no loan and never derives permission from a destination type.
 pub(crate) fn receiving_reference_access_refusal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
@@ -75,7 +74,7 @@ pub(crate) fn receiving_reference_access_refusal(
 }
 
 pub(crate) fn is_reference_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     required: TypeReferenceHandle,
 ) -> bool {
     declared_reference_access(program, required).is_some()
@@ -87,7 +86,7 @@ pub(crate) fn is_reference_destination(
 /// (`validate_call_arguments_handles`) and the value-position path
 /// (`validate_value_call_argument_classes`).
 fn supplied_reference_access(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
     match program.expression_table.expression(argument) {
@@ -107,7 +106,7 @@ fn supplied_reference_access(
 /// binding. Every enclosing reference still limits access: reading that same
 /// leaf through a shared aggregate cannot recover its exclusive permission.
 fn value_forwards_mutable_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
@@ -134,7 +133,7 @@ fn value_forwards_mutable_reference(
 /// recast (`&mut place as &mut [T]`) lends the place it views, exactly as
 /// borrow admission resolves it; the viewed type grants no writability.
 fn explicit_borrow_source_refusal(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
@@ -166,7 +165,7 @@ fn explicit_borrow_source_refusal(
 }
 
 fn source_place_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],

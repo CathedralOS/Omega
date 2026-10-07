@@ -7,7 +7,6 @@
 //! replay still checks the authored occurrence and the retained scalar value.
 
 use symbols::SymbolKind;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -16,7 +15,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// constructors, optionally nested in constant arrays. An array root retains
 /// its complete declaration type; no runtime place is created.
 pub fn closed_record_scalar_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, PrimitiveType)> {
     let (selected, selected_type) = closed_scalar_projection(program, expression)?;
@@ -26,7 +25,7 @@ pub fn closed_record_scalar_projection(
 /// A projected integer is already landed at its declared field, even when its
 /// constructor spelled that leaf anonymously. Bounds retain that exact carrier.
 pub(crate) fn closed_record_integer_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::closed_numeric::ClosedIntegerValue> {
     let (selected, reference) = closed_scalar_projection(program, expression)?;
@@ -59,7 +58,7 @@ pub(crate) fn closed_record_integer_projection(
 }
 
 pub(super) fn closed_scalar_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
     let mut projections = Vec::new();
@@ -165,7 +164,7 @@ pub(super) fn closed_scalar_projection(
 }
 
 fn builtin_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     collection: TypeReferenceHandle,
 ) -> bool {
@@ -204,7 +203,7 @@ fn builtin_index(
 }
 
 fn record_constructor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(&TableStructLiteral, &DataDefinition)> {
     if !program.expression_table.expression_is_valid(expression) {
@@ -241,7 +240,7 @@ fn record_constructor(
 }
 
 fn closed_record(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     active: &mut Vec<ExpressionHandle>,
 ) -> bool {
@@ -292,7 +291,7 @@ fn closed_record(
 }
 
 fn closed_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     active: &mut Vec<ExpressionHandle>,

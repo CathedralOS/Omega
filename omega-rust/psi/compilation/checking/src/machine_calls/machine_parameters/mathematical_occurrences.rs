@@ -3,13 +3,12 @@
 
 use std::collections::HashSet;
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
 use crate::expression_traversal::collect_expression_nodes;
 
-pub(super) fn expression_nodes(program: &TypedTrees) -> Vec<ExpressionHandle> {
+pub(super) fn expression_nodes(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
     let mut expressions_seen = HashSet::new();
     let mut types = Vec::new();

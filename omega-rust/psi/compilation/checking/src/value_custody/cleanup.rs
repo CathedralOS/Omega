@@ -12,7 +12,6 @@ use language_semantics::{
 };
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -24,7 +23,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// `::drop`. Borrowed views do not own referent cleanup; callers assessing an
 /// owned receiver must pass its referent type rather than its loan type.
 pub fn type_graph_requires_nominal_drop(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     type_graph_requires_nominal_drop_with_substitutions(
@@ -36,7 +35,7 @@ pub fn type_graph_requires_nominal_drop(
 }
 
 fn type_graph_requires_nominal_drop_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visited: &mut BTreeSet<String>,
@@ -144,14 +143,14 @@ fn type_graph_requires_nominal_drop_with_substitutions(
 /// An implicit `Self` type names its machine, so receiver provisioning uses
 /// the machine's resolved data declaration rather than inspecting the loan.
 pub fn data_requires_nominal_drop(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> bool {
     data_graph_requires_nominal_drop_with_substitutions(program, data, &[], &mut BTreeSet::new())
 }
 
 fn data_graph_requires_nominal_drop_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visited: &mut BTreeSet<String>,
@@ -192,7 +191,7 @@ fn data_graph_requires_nominal_drop_with_substitutions(
 }
 
 pub(crate) fn validate_cleanup_machine_declarations(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines().iter().filter(|machine| {
@@ -208,7 +207,7 @@ pub(crate) fn validate_cleanup_machine_declarations(
 /// cannot reject compiler-planned cleanup. Spelling is never sufficient: an
 /// unattached ordinary machine named `drop` remains callable.
 pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Reserved cleanup machines are few; find them once rather than testing
@@ -248,7 +247,7 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
 /// callable hook. Join the exact retained occurrence and resolved state owner;
 /// a same-spelled call, static argument or external state path gains no access.
 fn internal_cleanup_transitions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     cleanups: &[&Machine],
 ) -> BTreeSet<AuthoredDeclarationSelectionOccurrenceId> {
     let mut transitions = BTreeSet::new();
@@ -286,7 +285,9 @@ fn internal_cleanup_transitions(
     transitions
 }
 
-pub fn validate_reserved_cleanup_selections(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_reserved_cleanup_selections(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
     if diagnostics.is_empty() {
@@ -298,7 +299,7 @@ pub fn validate_reserved_cleanup_selections(program: &TypedTrees) -> Result<(), 
 
 /// A `drop` machine attached to known data: the compiler selects it and
 /// source may not.
-fn is_reserved_cleanup(program: &TypedTrees, machine: &Machine) -> bool {
+fn is_reserved_cleanup(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     let owner = machine.attached_data_symbol;
     machine.attached_data.is_some()
         && owner.is_valid()
@@ -311,7 +312,10 @@ fn is_reserved_cleanup(program: &TypedTrees, machine: &Machine) -> bool {
 /// Specialization keeps the template's reserved role and the instance's owner;
 /// an attached borrowed method or a similarly named free function gains none.
 /// Declaration validation separately enforces the full owner and hook contract.
-pub fn nominal_cleanup_owner(program: &TypedTrees, symbol: SymbolHandle) -> Option<SymbolHandle> {
+pub fn nominal_cleanup_owner(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
     let machine = program
         .machines()
         .iter()
@@ -342,7 +346,7 @@ pub fn nominal_cleanup_owner(program: &TypedTrees, symbol: SymbolHandle) -> Opti
 /// The first reserved cleanup machine, in program order, that
 /// `selected_symbol` names.
 fn reserved_cleanup_selected_by<'program>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     cleanups: &[&'program Machine],
     selected_symbol: SymbolHandle,
 ) -> Option<&'program Machine> {
@@ -370,7 +374,7 @@ fn reserved_cleanup_selected_by<'program>(
 }
 
 fn validate_cleanup_machine(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -462,7 +466,7 @@ fn validate_cleanup_machine(
 }
 
 fn mutable_reference_targets(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     attached_symbol: symbols::SymbolHandle,
 ) -> bool {
@@ -483,7 +487,7 @@ fn mutable_reference_targets(
 /// written as `&mut Guard`. The symbol identifies the storage, so the
 /// spelling is not compared.
 fn named_type_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     attached_symbol: symbols::SymbolHandle,
 ) -> bool {

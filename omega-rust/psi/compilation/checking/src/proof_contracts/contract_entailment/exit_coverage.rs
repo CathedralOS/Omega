@@ -1,11 +1,13 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
-    TypedTrees,
 };
 /// Arm-wise entailment judges listed arms. Reusing that result for every
 /// callable exit additionally requires that no implicit path was omitted.
 /// Unsupported coverage stays with the path-sensitive exit prover.
-pub(crate) fn entailment_covers_all_exits(program: &TypedTrees, machine: &Machine) -> bool {
+pub(crate) fn entailment_covers_all_exits(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> bool {
     program.machine_states(machine).iter().all(|state| {
         let guards: Vec<_> = program
             .statement_table
@@ -29,12 +31,11 @@ pub(crate) fn entailment_covers_all_exits(program: &TypedTrees, machine: &Machin
     })
 }
 
-
 /// The `when` guards' equality comparisons as (left, mapped-right) pairs: a
 /// non-`when`, non-binary, or non-`==` guard contributes nothing, and
 /// `map_right` decides which right-operand shapes each caller reads.
 fn equality_comparisons<T>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     guards: &[TransitionGuardNode],
     map_right: impl Fn(&typed_trees::expression::TableBinaryExpression) -> Option<T>,
 ) -> Vec<(ExpressionHandle, T)> {
@@ -57,7 +58,10 @@ fn equality_comparisons<T>(
         .collect()
 }
 
-fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) -> bool {
+fn complementary_boolean_guards(
+    program: &dyn crate::CheckingInput,
+    guards: &[TransitionGuardNode],
+) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
         let ExpressionNode::Boolean(polarity) =
             program.expression_table.expression(comparison.right)
@@ -73,7 +77,10 @@ fn complementary_boolean_guards(program: &TypedTrees, guards: &[TransitionGuardN
     })
 }
 
-fn complete_case_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) -> bool {
+fn complete_case_guards(
+    program: &dyn crate::CheckingInput,
+    guards: &[TransitionGuardNode],
+) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
         let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right)
         else {
@@ -103,7 +110,11 @@ fn complete_case_guards(program: &TypedTrees, guards: &[TransitionGuardNode]) ->
     })
 }
 
-fn same_condition(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {
+fn same_condition(
+    program: &dyn crate::CheckingInput,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
     match (
         program.expression_table.expression(left),
         program.expression_table.expression(right),
@@ -144,7 +155,7 @@ fn same_condition(program: &TypedTrees, left: ExpressionHandle, right: Expressio
         }
         _ => {}
     }
-    fn scalar(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    fn scalar(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
             ExpressionNode::Name(path) => path.symbol.is_valid(),

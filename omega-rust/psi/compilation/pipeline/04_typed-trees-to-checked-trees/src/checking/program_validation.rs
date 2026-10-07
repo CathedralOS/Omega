@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
 use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
 use proof::obligations::ProofPlan;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -14,7 +13,7 @@ pub(crate) struct PreparedTypedProgram<'program> {
 }
 
 pub(crate) fn prepare_typed_program<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
 ) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
@@ -49,7 +48,9 @@ pub(crate) fn prepare_typed_program<'program>(
 /// out of this gate; only the outermost `Named`/`DynamicTrait`/`Generic` head
 /// (through `Constrained` shells) is inspected, so `Binding<Console>` itself is
 /// never mistaken for a bare trait.
-fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+fn validate_no_bare_boundary_trait_values(
+    program: &dyn ::validation::CheckingInput,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut check = |position: String, type_reference: TypeReferenceHandle| {
         if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
@@ -142,7 +143,7 @@ fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Ve
 }
 
 fn bare_boundary_trait_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<String> {
     loop {

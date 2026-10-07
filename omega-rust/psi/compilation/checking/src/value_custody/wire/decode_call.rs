@@ -3,7 +3,6 @@ use super::value_fields::{
 };
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::wire::{WireField, WireMember, WireSchema};
 
@@ -28,7 +27,7 @@ use typed_trees::wire::{WireField, WireMember, WireSchema};
 /// re-resolves every place and an unresolved one surfaces as an
 /// emission-planning blocker.
 pub(super) fn validate_wire_decode_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     schema: &WireSchema,
     call: &typed_trees::statement::TableCall,
     current_machine: &typed_trees::machine::Machine,
@@ -117,7 +116,9 @@ pub(super) fn validate_wire_decode_call(
             // a doubly-nested body would each need another staging/end-bound
             // story).
             if program.wire_schema_scalar_body_worst_case(child).is_none() {
-                diagnostics.push(nested_schema_must_be_scalar_diagnostic(schema, field, child));
+                diagnostics.push(nested_schema_must_be_scalar_diagnostic(
+                    schema, field, child,
+                ));
                 schema_rejects = true;
                 continue;
             }
@@ -224,7 +225,10 @@ pub(super) fn validate_wire_decode_call(
 /// The decode verdict contract: a data definition NAMED `WireVerdict` whose
 /// members are exactly the cases `Invalid` then `Sound` (declaration order is
 /// the tag order -- Invalid must be the ZII zero case).
-fn type_is_wire_verdict(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn type_is_wire_verdict(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     let TypeReferenceNode::Named { name, .. } =
         program.type_reference_table.type_reference(type_reference)
     else {

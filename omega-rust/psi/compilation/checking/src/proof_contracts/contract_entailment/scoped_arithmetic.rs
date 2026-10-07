@@ -19,7 +19,6 @@
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 use super::inductive_judgment::negated_comparison;
 use super::strict_arithmetic::StrictArithmeticImplicationJudgment;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -99,7 +98,7 @@ pub struct ScopedArithmeticComparison {
 /// value; no source spelling or previously invalidated fact supplies identity.
 /// Unknown terms/operators decline even when another comparison is impossible.
 pub fn scoped_arithmetic_comparisons_unsatisfiable(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     comparisons: &[ScopedArithmeticComparison],
 ) -> bool {
@@ -132,7 +131,7 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
 /// asserted hypothesis contributes the conjuncts the engine can read; a
 /// hypothesis or goal whose roster fails to install answers `Unknown`.
 pub fn scoped_arithmetic_implication(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ScopedArithmeticHypothesis],
     goal: &ScopedArithmeticExpression,
@@ -178,7 +177,7 @@ fn read_comparisons(
 }
 
 fn install_hypotheses(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     engine: &mut Engine<'_>,
     hypotheses: &[ScopedArithmeticHypothesis],
 ) -> bool {
@@ -230,7 +229,7 @@ fn install_hypotheses(
 /// Compare independent scoped values through the existing integer judgment.
 /// The caller retains exact source carrier, policy and observation custody.
 pub fn scoped_arithmetic_values_relation(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ScopedArithmeticHypothesis],
     operator: BinaryOperator,

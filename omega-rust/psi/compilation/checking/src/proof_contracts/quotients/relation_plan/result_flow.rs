@@ -5,7 +5,6 @@
 //! checked-tree, or executable authority.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -47,7 +46,7 @@ pub(in crate::proof_contracts::quotients) struct StateForwardingEdge {
 }
 
 pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<ImmutableAliasFallthroughRoot> {
     let direct = program
@@ -74,7 +73,7 @@ pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
 /// state-fallthrough result. This deliberately excludes transitions,
 /// assignments, side statements, mutable locals, and type drift.
 pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<ImmutableAliasFallthroughRoot> {
     if !state.return_type.is_valid() {
@@ -123,7 +122,7 @@ pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
 /// exits only for one exact, transition-free state. This says nothing about
 /// effects, termination, contract correspondence, or executable admission.
 pub(in crate::proof_contracts::quotients) fn complete_single_state_result_flow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     root: ImmutableAliasFallthroughRoot,
@@ -172,7 +171,7 @@ pub(in crate::proof_contracts::quotients) fn complete_single_state_result_flow(
 /// and every path must reach the state owning the unchanged quotient result
 /// root. This grants no authority for conditional, cyclic, or mixed bodies.
 pub(in crate::proof_contracts::quotients) fn complete_state_forwarding_result_flow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     result_state: &State,
     root: ImmutableAliasFallthroughRoot,
@@ -280,7 +279,7 @@ pub(in crate::proof_contracts::quotients) fn complete_state_forwarding_result_fl
 /// are mutually exclusive because one requires exactly one state and the
 /// other at least two.
 pub(in crate::proof_contracts::quotients) fn complete_result_flow(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     result_state: &State,
     root: ImmutableAliasFallthroughRoot,
@@ -294,7 +293,7 @@ pub(in crate::proof_contracts::quotients) fn complete_result_flow(
 }
 
 fn exact_local_name_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

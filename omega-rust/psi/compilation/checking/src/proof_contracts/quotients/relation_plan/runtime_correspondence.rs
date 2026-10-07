@@ -23,7 +23,6 @@ use super::{
 };
 use numerics::literals::{FloatFormat, IntegerLanding, IntegerLiteral, LandedIntegerType};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -138,7 +137,7 @@ pub(in crate::proof_contracts::quotients) struct DirectLiftRuntimeCorrespondence
 }
 
 pub(super) fn derive_define_runtime_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -159,7 +158,7 @@ pub(super) fn derive_define_runtime_correspondence(
 }
 
 pub(super) fn derive_direct_lift_runtime_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -262,7 +261,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
 /// Close every literal element under the shared leaf shape — the element
 /// mapping both fixed-array lanes of the correspondence walk run.
 fn closed_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     elements: &[ExpressionHandle],
     element_type: TypeReferenceHandle,
     leaf_type: TypeReferenceHandle,
@@ -285,7 +284,7 @@ fn closed_array_elements(
 }
 
 fn derive_define_position_runtime_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -363,7 +362,7 @@ fn derive_define_position_runtime_correspondence(
 }
 
 pub(super) fn closed_lift_literal_for_representative(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     representative_type: TypeReferenceHandle,
     position: usize,
@@ -658,7 +657,10 @@ pub(super) fn closed_lift_literal_for_representative(
     }
 }
 
-fn exact_shared_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+fn exact_shared_byte_slice(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = program.type_reference_table.type_reference(type_reference)
@@ -682,7 +684,7 @@ fn exact_shared_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHa
 }
 
 fn exact_primitive_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let TypeReferenceNode::Named { name, .. } =
@@ -694,7 +696,7 @@ fn exact_primitive_type(
 }
 
 fn literal_fixed_array_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(usize, TypeReferenceHandle, PrimitiveType)> {
     let mut depth = 0;
@@ -715,7 +717,7 @@ fn literal_fixed_array_leaf(
 }
 
 fn closed_recursive_array_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     target_type: TypeReferenceHandle,
     leaf_type: TypeReferenceHandle,
@@ -801,7 +803,7 @@ fn closed_recursive_array_element(
 /// elements, rejecting a row that is not itself a literal or whose width
 /// disagrees with the declared shape.
 fn nested_literal_rows<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     elements: &[ExpressionHandle],
     row_width: usize,
     position: usize,
@@ -824,7 +826,7 @@ fn nested_literal_rows<'program>(
 }
 
 fn closed_integer_array_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     element: ExpressionHandle,
     element_type: TypeReferenceHandle,
     primitive: PrimitiveType,
@@ -842,7 +844,7 @@ fn closed_integer_array_element(
 
 /// The shared float-element arm of the flat and nested float array lifts.
 fn closed_float_array_element(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     element: ExpressionHandle,
     primitive: PrimitiveType,
     position: usize,
@@ -860,7 +862,7 @@ fn closed_float_array_element(
 /// The shared boolean-element arm of the flat and nested boolean array
 /// lifts: every element an exact boolean literal.
 fn closed_boolean_array_elements(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     elements: &[ExpressionHandle],
 ) -> Option<Vec<bool>> {
     elements
@@ -875,7 +877,10 @@ fn closed_boolean_array_elements(
         .collect()
 }
 
-fn canonical_fixed_bytes(program: &TypedTrees, elements: &[ExpressionHandle]) -> Option<Vec<u8>> {
+fn canonical_fixed_bytes(
+    program: &dyn crate::CheckingInput,
+    elements: &[ExpressionHandle],
+) -> Option<Vec<u8>> {
     elements
         .iter()
         .map(|element| {
@@ -892,7 +897,7 @@ fn canonical_fixed_bytes(program: &TypedTrees, elements: &[ExpressionHandle]) ->
 }
 
 fn exact_integer_landing(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_type: TypeReferenceHandle,
     primitive: PrimitiveType,
     literal: &IntegerLiteral,
@@ -977,7 +982,7 @@ fn has_duplicate_parameter_symbols(symbols: impl IntoIterator<Item = SymbolHandl
 }
 
 pub(super) fn direct_public_parameter_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let expression = match program.expression_table.expression(expression) {
@@ -997,7 +1002,7 @@ pub(super) fn direct_public_parameter_symbol(
 }
 
 fn input_relation_matches_representative_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     relation: InputRelation,
     representative_type: TypeReferenceHandle,
     substitutions: &[RepresentativeStaticBinding],
@@ -1013,7 +1018,7 @@ fn input_relation_matches_representative_type(
 }
 
 fn input_relation_matches_public_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     relation: InputRelation,
     public_type: TypeReferenceHandle,
 ) -> bool {
@@ -1025,7 +1030,7 @@ fn input_relation_matches_public_type(
 }
 
 fn quotient_carrier_matches_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     relation: ExactQuotientRelation,
     representative_type: TypeReferenceHandle,
     substitutions: &[RepresentativeStaticBinding],

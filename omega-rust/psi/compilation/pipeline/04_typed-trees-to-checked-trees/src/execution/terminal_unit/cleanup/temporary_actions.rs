@@ -11,10 +11,9 @@ use checked_trees::{
 };
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 fn selected_actions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
@@ -41,7 +40,7 @@ fn selected_actions(
 /// independent, already selected disposition; only anonymous operand owners
 /// belong to this call-continuation roster.
 pub(in crate::execution::terminal_unit) fn operations(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
@@ -177,7 +176,10 @@ pub(in crate::execution::terminal_unit) fn install(
 /// Complete the computed-call roster in the same contextual action namespace.
 /// Action storage is rebuilt once: scratch geometry never remains as a second
 /// published cleanup stream beside the selected hooks.
-pub(crate) fn finalize_scalar_actions(program: &TypedTrees, facts: &mut CheckFacts) -> Option<()> {
+pub(crate) fn finalize_scalar_actions(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) -> Option<()> {
     let targets = facts
         .flow
         .terminal_unit_effects

@@ -40,7 +40,7 @@ pub(crate) fn crash(
     // Concrete machines own a MachineContractPlan. Separate capsules belong
     // only to trait/static signatures, as in the checked call-target owner.
     let derived = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
-        &compilation.typed,
+        compilation.checking_input,
         machine,
     );
     if envelope.machine != machine.symbol

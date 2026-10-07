@@ -1,5 +1,4 @@
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use crate::proof_contracts::contract_entailment::RankingRangeCallSite;
@@ -13,7 +12,7 @@ pub(super) enum Comparison {
 }
 
 pub(super) fn argument_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     rank: &RankProjection,
     argument: ExpressionHandle,
@@ -77,7 +76,7 @@ pub(super) fn argument_comparison(
 /// entry-state call unchanged. A formal with no discovered role answers
 /// invalid rather than borrowing an entry premise it never carried.
 fn site_role(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     site: &RankingRangeCallSite<'_>,
     symbol: SymbolHandle,
 ) -> SymbolHandle {
@@ -90,7 +89,7 @@ fn site_role(
 }
 
 fn component_comparison(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     rank: &RankProjection,
     value: ExpressionHandle,
@@ -125,7 +124,7 @@ fn component_comparison(
 /// any constant arithmetic tree. A value that does not fold closed reads as
 /// no amount, not an approximated one.
 fn integer(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<i64> {
@@ -143,7 +142,7 @@ fn integer(
 /// over the same unchanged entry binding. No rendered-name cache or facts
 /// from another state/caller contribute to this lower-bound proof.
 fn guard_proves_lower_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     rank: &RankProjection,
     guard: ExpressionHandle,

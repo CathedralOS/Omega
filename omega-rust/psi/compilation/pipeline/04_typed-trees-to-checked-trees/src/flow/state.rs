@@ -22,7 +22,7 @@ use checked_trees::{
 use facts::{FactPlan, ProgramPoint};
 
 pub(super) fn build_state_flow_fact<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,

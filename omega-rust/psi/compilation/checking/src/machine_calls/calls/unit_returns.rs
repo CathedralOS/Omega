@@ -2,7 +2,6 @@
 
 use super::{
     ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees,
 };
 use language_semantics::declaration_selection::BuildOperation;
 /// A standalone call may perform Unit work before later statements. The final
@@ -10,7 +9,7 @@ use language_semantics::declaration_selection::BuildOperation;
 /// statement root; recursive validators must also retain the current use
 /// position, since a reused handle does not make a nested operand a statement.
 pub fn unit_statement_call_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -36,7 +35,7 @@ pub fn unit_statement_call_is_supported(
 }
 
 pub fn unit_return_call_is_supported(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -54,7 +53,7 @@ pub fn unit_return_call_is_supported(
 }
 
 pub(in crate::machine_calls::calls) fn call_returns_unit(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
@@ -106,7 +105,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
 /// the target owner separately admits default declaration operations. Neither
 /// token authorizes execution on a fabricated Build value.
 pub(super) fn admitted_build_declaration_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::{
@@ -169,7 +168,7 @@ pub(super) fn admitted_build_declaration_call(
     }) && selections.next().is_none()
 }
 
-fn has_inferred_value_return(program: &TypedTrees, machine: &Machine) -> bool {
+fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
     program.machine_states(machine).iter().any(|state| {
         (state.return_type.is_valid() && !unit_type(program, state.return_type))
@@ -194,7 +193,7 @@ fn has_inferred_value_return(program: &TypedTrees, machine: &Machine) -> bool {
     })
 }
 
-fn unit_type(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+fn unit_type(program: &dyn crate::CheckingInput, mut reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Unit => return true,

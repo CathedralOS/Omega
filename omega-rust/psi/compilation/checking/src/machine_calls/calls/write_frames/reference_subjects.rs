@@ -3,8 +3,8 @@ use super::place_paths::{push_unique_origin, single_place_origin};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
     FrameSourcePlace, Machine, MachineSymbols, State, StatementNode, StoredLocalOrigins,
-    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
+    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, caller_aliases,
+    frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
@@ -23,7 +23,7 @@ mod results;
 /// type walk only: selecting a reference field still requires a seeded leaf
 /// whose binding survives every statement before the query.
 pub(super) fn carrier_storage_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -48,7 +48,7 @@ pub(super) fn carrier_storage_type(
 /// effects and binding exposure. Write-capable carriers must remain opaque to
 /// the whole query because their unknown origin can hide a caller write.
 pub(super) fn unknown_readonly_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     name: &str,
 ) -> Option<FramePlaceOrigin> {
@@ -61,7 +61,7 @@ pub(super) fn unknown_readonly_origin(
 }
 
 pub(super) fn replaces_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     statement: &StatementNode,
 ) -> Option<bool> {
@@ -95,7 +95,7 @@ pub(super) fn replaces_binding(
 /// assignment writes through it. This query classifies the actual typed place,
 /// including a projected slot, without changing bare-local alias transfer.
 pub(super) fn replaces_reference_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     statement: &StatementNode,
 ) -> Option<bool> {
@@ -125,7 +125,7 @@ pub(super) fn replaces_reference_binding(
 }
 
 pub(super) fn local_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     before: &StatementNode,
@@ -177,7 +177,7 @@ pub(super) fn local_origin(
 }
 
 pub(super) fn value_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -201,7 +201,7 @@ pub(super) fn value_origin(
 /// Every exact captured referent of one reference value. Singleton consumers
 /// collapse this set only when its complete candidates identify the same place.
 pub(super) fn value_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -248,7 +248,7 @@ pub(super) fn value_origins(
 /// custody and exact nominal prefixes remain mandatory. This relation carries
 /// lifetime/mutation obligations, never descriptor equality or predicates.
 pub(super) fn backing_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -267,7 +267,7 @@ pub(super) fn backing_origin(
 /// stable alias-initializer origins for an expression write site — the
 /// shared walk every captured-value scan starts from.
 fn caller_isolated_initializer_origins<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     inference: &mut FrameInference,
@@ -315,7 +315,7 @@ fn caller_isolated_initializer_origins<'program>(
 }
 
 pub(super) fn backing_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -366,7 +366,7 @@ pub(super) fn backing_origins(
 /// Alias rows are captured reference values. Resolve fresh field loads only
 /// beyond the reference boundary already crossed by the original alias.
 fn captured_value_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
@@ -386,7 +386,7 @@ fn captured_value_origins(
 }
 
 fn declared_initializer_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     mut expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
@@ -465,7 +465,7 @@ fn declared_initializer_origins(
 /// A loaded slot has identity only through a matching declaration-time leaf.
 /// Type-derived overlap and a similarly spelled reference field are insufficient.
 fn frozen_reference_origin(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     index: usize,
@@ -526,7 +526,7 @@ fn frozen_reference_origin(
 /// body before exporting that boundary for caller substitution. Neither query
 /// supplies a qualification merely from the input's declared type.
 pub(super) fn validate_source_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     index: usize,
@@ -577,7 +577,7 @@ pub(super) fn validate_source_projection(
 }
 
 fn source_root_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     index: usize,
     root: SymbolHandle,
@@ -607,7 +607,7 @@ fn source_root_type(
 }
 
 pub(super) fn validate_owned_projection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<()> {

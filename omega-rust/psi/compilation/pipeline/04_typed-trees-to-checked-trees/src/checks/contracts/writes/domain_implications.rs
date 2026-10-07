@@ -11,7 +11,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// statement, otherwise its entry context; never read the destination binding's
 /// post-statement facts or equate places by their display names.
 pub(super) fn value_proves_qualification(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -80,7 +80,7 @@ pub(super) fn statement_semantic_contexts(
 /// can consume its field facts. Use the same completed-operand contexts as
 /// routed membership, never an initializer or a post-assignment destination.
 pub(super) fn value_case_path_is_selected(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -116,7 +116,7 @@ pub(super) fn value_case_path_is_selected(
 /// Prove an assigned value from live membership or an independently checked
 /// predicate. A declared field alone cannot license an inactive payload read.
 pub(super) fn value_proves_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -155,7 +155,7 @@ pub(super) fn value_proves_domain(
 }
 
 pub(super) fn construction_value_proves_qualification(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -218,7 +218,7 @@ pub(super) fn construction_value_proves_qualification(
 }
 
 pub(super) fn value_proves_domain_in_contexts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -382,7 +382,7 @@ pub(super) fn value_proves_domain_in_contexts(
 /// Whether `value` is a state place whose declared leaf type carries a
 /// ZII-admitting domain that implies `domain_symbol`.
 fn declared_value_domain_implies(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -419,7 +419,7 @@ fn declared_value_domain_implies(
 /// Whether `value` is a value-position call whose resolved target state declares
 /// a return type carrying a domain that implies `domain_symbol`.
 fn value_call_return_domain_implies(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -452,7 +452,7 @@ fn value_call_return_domain_implies(
 /// `x as T`, a place read, or any other shape -- yields `None` and keeps the
 /// ordinary discharge paths.
 fn recast_view_source_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut current = value;
@@ -478,7 +478,7 @@ fn recast_view_source_expression(
 /// or a carried `DomainMembership`/`ContractDomainMembership` fact at the
 /// place (a minted local, a contract-proven parameter, a checked prior write).
 fn recast_source_proves_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -514,7 +514,7 @@ fn recast_source_proves_domain(
 /// the zero value violates stays a write-time obligation rather than an
 /// invariant, so its reads must still follow a proven write.
 fn recast_source_declared_domain_implies(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     source: ExpressionHandle,
     domain_symbol: SymbolHandle,
@@ -572,7 +572,7 @@ fn recast_source_declared_domain_implies(
 /// storage case as a machine field -- and any other root conservatively
 /// reports unestablished.
 fn state_place_is_established(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     source: ExpressionHandle,
 ) -> bool {
@@ -596,7 +596,7 @@ fn state_place_is_established(
 /// it through `attached_data_field_type` first), so a `self`-headed name is
 /// not special-cased here.
 fn state_place_root_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(expression) {
@@ -622,14 +622,14 @@ fn state_place_root_symbol(
 /// -- conservatively refuses, so an unproven domain stays a write-time
 /// obligation rather than an invariant.
 fn domain_admits_zero_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
     domain_admits_zero_value_inner(program, domain_symbol, &mut Vec::new())
 }
 
 fn domain_admits_zero_value_inner(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
     active: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -681,7 +681,7 @@ fn domain_admits_zero_value_inner(
 /// scalar here, so the leaf stays unresolved and the enclosing evaluation
 /// fails closed.
 fn zero_value_scalar_leaf(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     leaf: ExpressionHandle,
 ) -> Option<super::super::prover::ScalarValue> {
@@ -711,7 +711,7 @@ fn zero_value_scalar_leaf(
 /// target value. A membership fact over any other subject (a constant, an
 /// unrelated place) is not evidence about the domain's own zero value.
 fn expression_is_subject_relative(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
@@ -739,7 +739,7 @@ fn expression_is_subject_relative(
 /// of that domain. A value with no resolvable declared type, or one carrying a
 /// different domain, answers `false` and leaves every other route to decide.
 fn value_declared_type_carries_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,

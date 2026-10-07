@@ -5,7 +5,6 @@
 //! validator controls traversal and diagnostic ordering.
 
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -23,7 +22,7 @@ pub(crate) use proof_machines::validate_proof_machine_recursion;
 /// tail. A remaining whole terminal call lacks the receiver or selection
 /// evidence required for that normalization and must not emit another frame.
 pub(crate) fn validate_self_recursive_call_positions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -99,7 +98,7 @@ pub(crate) fn validate_self_recursive_call_positions(
 /// The rendered call when `expression` IS a self-call to the machine's own
 /// entry (the terminal-position tail shape); None otherwise.
 fn whole_expression_self_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<String> {
@@ -110,7 +109,7 @@ fn whole_expression_self_call(
 }
 
 fn is_current_entry_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     call: &TableCallExpression,
 ) -> bool {
@@ -126,7 +125,11 @@ fn is_current_entry_call(
 
 // The proof-machine subterm collector retains its existing authored-self
 // selection. Runtime position checks below use the exact resolved entry.
-fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallExpression) -> bool {
+fn is_self_entry_call(
+    program: &dyn crate::CheckingInput,
+    entry_name: &str,
+    call: &TableCallExpression,
+) -> bool {
     if call.target.as_str() != entry_name {
         return false;
     }
@@ -141,7 +144,7 @@ fn is_self_entry_call(program: &TypedTrees, entry_name: &str, call: &TableCallEx
 /// Reject every self-entry call in this expression tree: any hit here is
 /// embedded in a larger computation, so the frame outlives the call.
 fn reject_embedded_self_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,

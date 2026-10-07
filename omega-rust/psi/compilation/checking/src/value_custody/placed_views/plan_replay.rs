@@ -2,7 +2,6 @@ use access_plans::{AccessFieldEntry, FieldAccess};
 use diagnostics::Diagnostic;
 use language_core::atomic::AtomicObservingCompareExchangeOperation;
 use language_semantics::Multiplicity;
-use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum RetainedFieldIdentity {
@@ -75,7 +74,10 @@ fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
 
 /// Independently replay the compiler-derived nominal and stable-member joins
 /// before any placed accessor is accepted as an ordinary typed operation.
-pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+pub(crate) fn validate_plans(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for view in &program.placed_view_plans {
         let Some(view_data) = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,

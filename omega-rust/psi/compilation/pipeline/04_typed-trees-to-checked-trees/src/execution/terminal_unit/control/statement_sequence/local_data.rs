@@ -22,14 +22,14 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypedTrees, checked_structural_result_type, consume_value_places, is_record_pattern_marker,
+    checked_structural_result_type, consume_value_places, is_record_pattern_marker,
     retain_selected_sources, scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::types::parameter_qualifications;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
-    pub(super) program: &'program TypedTrees,
+    pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
     pub(super) scalar_callees: ScalarCalleePlans<'a>,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
@@ -761,7 +761,7 @@ pub(super) fn plan(
 /// referent may be a record as well as a primitive, because the projection
 /// check below pins the loaned storage either way.
 fn is_exclusive_place_loan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -786,7 +786,7 @@ fn is_exclusive_place_loan(
 /// matches the declared one.
 #[allow(clippy::too_many_arguments)]
 fn borrowed_local_named_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
@@ -834,7 +834,7 @@ fn borrowed_local_named_root(
 }
 
 fn exclusive_place_loan_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -900,7 +900,7 @@ fn exclusive_place_loan_referent(
 /// index admission — minus write authority: the loan is `&`, never `&mut`,
 /// and the referent may still be a record or a primitive.
 fn is_shared_place_loan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -919,7 +919,7 @@ fn is_shared_place_loan(
 }
 
 fn shared_place_loan_referent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -989,7 +989,7 @@ fn shared_place_loan_referent(
 /// Primitive and record referents both have real carriers when a value root is
 /// present; their observations must keep that carrier's captured address.
 fn established_reference_borrow(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -1021,7 +1021,7 @@ fn established_reference_borrow(
 /// Calls that did leave a flow row are ordinary call results and still plan
 /// a call with a structural result.
 fn is_call_view_loan_binding(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -1095,7 +1095,7 @@ fn is_call_view_loan_binding(
 /// ordinal the same way established values do.
 #[allow(clippy::too_many_arguments)]
 fn establish_declared_home(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     binders: &[(SymbolHandle, String)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
@@ -1144,11 +1144,11 @@ fn establish_declared_home(
 /// carrier's access matches `expected`. `parts` selects the borrow flavor
 /// (mutable / shared place) the caller loans.
 fn immutable_local_borrowed_referee(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
     expected: CheckedStructuralAccess,
     parts: fn(
-        &typed_trees::TypedTrees,
+        &dyn ::validation::CheckingInput,
         typed_trees::types::TypeReferenceHandle,
     ) -> Option<(
         typed_trees::types::TypeReferenceHandle,

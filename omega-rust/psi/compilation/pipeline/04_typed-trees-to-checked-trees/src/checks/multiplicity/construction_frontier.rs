@@ -8,7 +8,6 @@
 //! not a runtime liveness map or a second ownership replay.
 
 use facts::PlaceSegment;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -19,7 +18,10 @@ pub(super) struct ConstructionFrontier {
 }
 
 impl ConstructionFrontier {
-    pub(super) fn new(program: &TypedTrees, reference: TypeReferenceHandle) -> Self {
+    pub(super) fn new(
+        program: &dyn ::validation::CheckingInput,
+        reference: TypeReferenceHandle,
+    ) -> Self {
         let mut frontier = Self {
             reference,
             established: Vec::new(),
@@ -30,7 +32,7 @@ impl ConstructionFrontier {
 
     fn seed_zero_values(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         reference: TypeReferenceHandle,
         path: &mut Vec<PlaceSegment>,
     ) {
@@ -67,7 +69,11 @@ impl ConstructionFrontier {
             .retain(|established| !established.starts_with(path));
     }
 
-    pub(super) fn establish(&mut self, program: &TypedTrees, path: &[PlaceSegment]) {
+    pub(super) fn establish(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        path: &[PlaceSegment],
+    ) {
         if self
             .established
             .iter()
@@ -101,7 +107,7 @@ impl ConstructionFrontier {
 
     fn complete(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         reference: TypeReferenceHandle,
         path: &[PlaceSegment],
     ) -> bool {
@@ -131,7 +137,10 @@ impl ConstructionFrontier {
     }
 }
 
-fn record_children(program: &TypedTrees, reference: TypeReferenceHandle) -> Vec<Vec<PlaceSegment>> {
+fn record_children(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<Vec<PlaceSegment>> {
     let Some(reference) = program.unwrapped_type_reference(reference) else {
         return Vec::new();
     };

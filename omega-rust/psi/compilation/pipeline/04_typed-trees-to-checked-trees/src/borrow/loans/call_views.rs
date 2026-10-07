@@ -12,7 +12,7 @@ use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
 
 pub(crate) fn helper_call_borrow_loan_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -86,7 +86,7 @@ pub(crate) fn helper_call_borrow_loan_place(
 }
 
 pub(super) fn call_view_return_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> ViewReturnSource {
     let Some((parameters, return_type, _)) = call_view_signature(program, target_symbol) else {
@@ -101,7 +101,7 @@ pub(super) fn call_view_return_source(
 /// each returned view leaf borrows. Calls without closed bindings — concrete
 /// states and still-open signatures — keep the declaration-level decision.
 pub(in crate::borrow) fn call_view_return_source_at(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> ViewReturnSource {
@@ -128,7 +128,7 @@ pub(in crate::borrow) fn call_view_return_source_at(
 /// signature under — the same `closed_static_call_type_bindings` the
 /// call-admission gate proves before the call may produce a returned view.
 pub(super) fn call_site_substitutions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
     call: &checked_trees::expression::TableCallExpression,
@@ -150,7 +150,7 @@ pub(super) fn call_site_substitutions(
 /// the name-matched slice/view builtins, carrier-field sources, ambiguous
 /// signatures, and view-free calls all stay deliberately unretained.
 pub(crate) fn call_declares_direct_view_source(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> bool {
     matches!(
@@ -160,7 +160,7 @@ pub(crate) fn call_declares_direct_view_source(
 }
 
 pub(in crate::borrow) fn call_view_signature(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<(
     &[typed_trees::signature::StateParameter],
@@ -202,7 +202,7 @@ pub(in crate::borrow) fn call_view_signature(
 /// view-producing calls (`bag.cells.as_mut_slice()`, or a nested one-ref-input
 /// machine call) by recursing into the call's own loan place.
 pub(crate) fn argument_borrow_loan_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
@@ -243,7 +243,7 @@ pub(crate) fn argument_borrow_loan_place(
 }
 
 pub(super) fn rebase_borrow_places_through_local_loans(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<RebasedBorrowPlace> {
@@ -327,7 +327,7 @@ pub(super) fn retained_reference_lineage(
 /// names — the shared prologue both indexed-recast borrow places peel before
 /// validating their source.
 pub(super) fn indexed_recast_loan_parts<'a>(
-    program: &'a typed_trees::TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<(

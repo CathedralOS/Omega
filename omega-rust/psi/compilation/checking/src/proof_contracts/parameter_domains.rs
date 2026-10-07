@@ -6,13 +6,12 @@
 
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Every normalized declared domain on a parameter, through its reference and
 /// qualification shells. Arithmetic policy is not a membership contract.
 pub fn parameter_domain_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(
     SymbolHandle,
@@ -28,7 +27,7 @@ pub fn parameter_domain_constraints(
 /// again inside it. Qualifications outside and inside that selection both stay
 /// in the roster; callers own their ordinary proof and provenance obligations.
 pub fn parameter_domain_constraints_with_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     mut substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Vec<(

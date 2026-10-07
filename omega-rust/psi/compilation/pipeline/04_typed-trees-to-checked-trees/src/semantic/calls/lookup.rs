@@ -3,7 +3,7 @@ use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
 pub(crate) fn call_site_argument_expressions<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     call_site: &CallSite<'program>,
 ) -> &'program [ExpressionHandle] {
     match call_site {
@@ -18,7 +18,7 @@ pub(crate) fn call_site_argument_expressions<'program>(
 }
 
 pub(crate) fn find_state_in_machine(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
@@ -30,7 +30,7 @@ pub(crate) fn find_state_in_machine(
 }
 
 pub(crate) fn find_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
     find_state_with_machine(program, state_symbol).map(|(_, state)| state)
@@ -44,7 +44,7 @@ pub(crate) fn find_state(
 /// candidates, mutation summaries — take this pair instead of resolving the
 /// state and then rescanning every machine for the container.
 pub(crate) fn find_state_with_machine(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     if !state_symbol.is_valid() {
@@ -81,7 +81,7 @@ pub(crate) fn find_state_with_machine(
 /// state inside the machine — so the state arm still verifies the resolved
 /// state is stored first.
 pub(crate) fn find_machine_head(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol) {
@@ -103,7 +103,7 @@ pub(crate) fn find_machine_head(
 /// declaration. States owned by this activation remain internal control edges,
 /// including a machine-named re-entry of this activation's entry state.
 pub(crate) fn terminal_callable_target(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     target: SymbolHandle,
 ) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
@@ -123,7 +123,7 @@ pub(crate) fn terminal_callable_target(
 /// is wider than those sites resolve, so they keep this narrower lookup
 /// rather than silently growing their admission.
 pub(crate) fn find_machine_by_entry_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     program.machines().iter().find_map(|machine| {
@@ -144,7 +144,7 @@ pub(crate) fn find_machine_by_entry_state(
 /// the entry state. In a well-formed program the two arms name one machine:
 /// a symbol cannot be a machine and a machine's member at once.
 pub(crate) fn find_machine(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     if !symbol.is_valid() {
@@ -162,7 +162,7 @@ pub(crate) fn find_machine(
 /// for a call through a trait-typed receiver (boundary trait machines) or a
 /// boundary-trait receiver -- the owning signature's parameters.
 pub(crate) fn call_target_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
     // A selector call's slot pairs the selector operand and the
@@ -211,7 +211,7 @@ pub(crate) fn call_target_parameters(
 /// against these bounds, not against an unrelated caller's same-spelled type
 /// parameter and not as an invented concrete type.
 pub(crate) fn call_target_type_parameters(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> &[typed_trees::data::TypeParameter] {
     if let Some(machine) = program.machines().iter().find(|machine| {

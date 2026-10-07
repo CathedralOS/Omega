@@ -9,13 +9,13 @@
 use super::{readable_fixed_array_elements, readable_nominal_definition, readable_type_reference};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, data::DataMember, types::TypeReferenceHandle};
+use typed_trees::{data::DataMember, types::TypeReferenceHandle};
 
 /// All declared field rows beneath an established readable data value. Exact
 /// domain identities and evidence-only extent rows survive until each consumer
 /// selects the obligations it owns.
 pub(crate) fn declared_data_field_domain_rows(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> Vec<FieldDomainRow> {
     let mut rows = Vec::new();
@@ -35,7 +35,7 @@ pub(crate) fn declared_data_field_domain_rows(
 /// returns, so a parameter whose type nests many fields does not copy its
 /// prefix for every field.
 fn collect_data_field_domain_rows(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     transfer: bool,
     data: &typed_trees::data::DataDefinition,
     path: &mut Vec<PlaceSegment>,
@@ -143,7 +143,7 @@ pub(crate) const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
 /// leading reference exactly as `readable_fixed_array_elements` does for fixed
 /// arrays. `None` for non-slice or write-only types.
 pub(crate) fn readable_slice_element(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program

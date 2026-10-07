@@ -12,7 +12,7 @@ pub(super) struct GuardedSelfLoop<'program> {
 }
 
 pub(super) fn guarded_self_loop<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement: &StatementNode,
 ) -> Option<GuardedSelfLoop<'program>> {
@@ -58,7 +58,7 @@ pub(super) struct GuardedEdge<'program> {
 /// fallback retains failed earlier tests; a continuation refutes its own test.
 /// Intervening statements discard earlier facts instead of assuming no write.
 pub(super) fn edges_to_state<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     source: &typed_trees::state::State,
     target_symbol: symbols::SymbolHandle,
 ) -> Vec<GuardedEdge<'program>> {
@@ -132,7 +132,7 @@ pub(super) fn edges_to_state<'program>(
 /// owner separately requires the prefix to preserve every parameter path, so
 /// a mutable parameter's observed value still holds at the next transition.
 fn stable_guard(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -166,7 +166,7 @@ fn stable_guard(
 }
 
 fn target_symbol_matches_state(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     target_symbol: symbols::SymbolHandle,
 ) -> bool {
@@ -174,7 +174,7 @@ fn target_symbol_matches_state(
 }
 
 fn target_symbol_matches_state_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: symbols::SymbolHandle,
     target_symbol: symbols::SymbolHandle,
 ) -> bool {
@@ -199,7 +199,7 @@ fn target_symbol_matches_state_symbol(
 }
 
 pub(super) fn parameter_matched_by_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateParameter> {
@@ -210,7 +210,7 @@ pub(super) fn parameter_matched_by_expression<'program>(
 }
 
 pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<(&'program typed_trees::signature::StateParameter, usize)> {
@@ -225,7 +225,7 @@ pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
 }
 
 pub(super) fn non_self_parameter_index(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<usize> {
@@ -236,7 +236,7 @@ pub(super) fn non_self_parameter_index(
 }
 
 pub(super) fn expression_is_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -253,7 +253,7 @@ pub(super) fn expression_is_parameter(
 }
 
 pub(super) fn expression_is_parameter_member(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
@@ -267,7 +267,7 @@ pub(super) fn expression_is_parameter_member(
 }
 
 pub(super) fn expression_matches_parameter(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {

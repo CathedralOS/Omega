@@ -17,8 +17,8 @@ use crate::monomorphization::{
 
 fn bound_type_displays(
     bindings: &[Option<TypeReferenceHandle>],
-    source: Option<&TypedTrees>,
-    program: &TypedTrees,
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<String> {
     bindings
         .iter()
@@ -32,8 +32,8 @@ fn bound_type_displays(
 
 fn bound_type_identities(
     bindings: &[Option<TypeReferenceHandle>],
-    source: Option<&TypedTrees>,
-    program: &TypedTrees,
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &dyn ::validation::CheckingInput,
 ) -> Vec<String> {
     bindings
         .iter()
@@ -47,7 +47,7 @@ fn bound_type_identities(
 }
 
 pub(super) fn clone_specialized_machine(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     candidate: &Candidate,
     ordinal: usize,
@@ -598,7 +598,7 @@ pub(super) fn clone_specialized_machine(
 // Existing cross-table copiers retain recursive graph shape and source spans.
 // Staging visits only the selected graph, never the complete program arenas.
 pub(super) fn copy_statements(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     statements: HandleSpan<StatementNode>,
 ) -> HandleSpan<StatementNode> {
@@ -634,7 +634,7 @@ pub(super) fn copy_statements(
 }
 
 pub(super) fn copy_expression(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     expression: ExpressionHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
@@ -661,7 +661,7 @@ pub(super) fn copy_expression(
 /// before binder substitution; otherwise a cloned cast would still point into
 /// the authored template's type nodes, and substitution would mutate both.
 pub(super) fn copy_cloned_expression_type_payloads(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
@@ -742,7 +742,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
 }
 
 fn copy_static_argument_type_payloads(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     arguments: &mut [typed_trees::expression::StaticMachineArgument],
     symbols: &[(SymbolHandle, SymbolHandle)],
@@ -764,7 +764,7 @@ fn copy_static_argument_type_payloads(
 }
 
 pub(super) fn copy_type_reference(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     type_reference: TypeReferenceHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
@@ -806,7 +806,7 @@ pub(super) fn copy_type_reference(
 }
 
 pub(super) fn copy_signature_contract(
-    source: Option<&TypedTrees>,
+    source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     contract: typed_trees::signature::SignatureContract,
     symbols: &[(SymbolHandle, SymbolHandle)],
@@ -1012,7 +1012,7 @@ fn rebind_realized_member_symbols(
 /// `Value` receiver. Only receivers rooted at a realized parameter qualify —
 /// an unresolved member on any other place keeps its authored identity.
 fn realized_receiver_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     realized: &[(SymbolHandle, SymbolHandle)],
     receiver: ExpressionHandle,
@@ -1027,7 +1027,7 @@ fn realized_receiver_field(
 /// turn so `V.outer.inner` resolves against the same carriers an authored
 /// parameter chain would.
 fn realized_receiver_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     realized: &[(SymbolHandle, SymbolHandle)],
     expression: ExpressionHandle,
@@ -1068,7 +1068,7 @@ fn realized_receiver_type(
 /// borrow/constraint shells a realized parameter's declared carrier may wear,
 /// then require a single data definition so the field identity is exact.
 fn carrier_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     name: &str,
 ) -> Option<typed_trees::data::DataField> {

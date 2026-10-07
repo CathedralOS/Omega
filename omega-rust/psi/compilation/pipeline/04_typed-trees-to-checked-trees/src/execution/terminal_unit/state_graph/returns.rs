@@ -9,7 +9,7 @@ use super::super::{
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
-    StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, TypedTrees, control,
+    StatementNode, TransitionExit, TransitionTargetNode, TypeReferenceNode, control,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{
@@ -28,7 +28,7 @@ use checked_trees::{
 };
 
 pub(in crate::execution::terminal_unit) fn signature(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     reference: TypeReferenceHandle,
 ) -> Option<CheckedControlResultPlan> {
@@ -223,7 +223,7 @@ pub(in crate::execution::terminal_unit) fn signature(
 /// so none of them completes here.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn scalar_completion(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -258,7 +258,7 @@ pub(super) fn scalar_completion(
 }
 
 pub(super) fn constructor(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     statement_ordinal: u32,
@@ -329,7 +329,7 @@ pub(super) fn constructor(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn guarded(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -455,7 +455,7 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
 /// no statement sequence of their own to pre-plan them.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn return_value_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
@@ -593,7 +593,7 @@ pub(super) fn return_value_operation(
 /// The result ordinal shares the ordinary producer roster; only the selected
 /// return arm executes this operation.
 pub(super) fn literal_result_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     count: &mut usize,
@@ -670,7 +670,7 @@ pub(super) fn literal_result_operation(
 /// Result provenance separately proves that the backing survives the return.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn view_result_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
@@ -711,7 +711,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
 /// a carried reference forwards its existing loan rather than borrowing
 /// the reference carrier itself.
 fn shared_reference_result_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -780,7 +780,7 @@ fn shared_reference_result_operation(
 /// signature's `add_reference_type` spells and the affine multiplicity
 /// `result_multiplicity` records.
 fn mutable_reference_result_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -870,7 +870,7 @@ fn mutable_reference_result_operation(
 /// the storage the projection bottoms out in must be exactly the referee.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

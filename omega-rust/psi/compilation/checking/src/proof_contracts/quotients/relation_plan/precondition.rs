@@ -17,7 +17,6 @@ use super::{
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -64,7 +63,7 @@ pub(in crate::proof_contracts::quotients) struct DefinePreconditionCorrespondenc
 }
 
 pub(super) fn derive_public_precondition_partition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     input_relations: &[InputRelation],
@@ -84,7 +83,7 @@ pub(super) fn derive_public_precondition_partition(
 }
 
 pub(super) fn derive_direct_lift_public_precondition_partition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     input_relations: &[InputRelation],
@@ -108,7 +107,7 @@ pub(super) fn derive_direct_lift_public_precondition_partition(
 }
 
 fn derive_public_precondition_partition_from_positions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     input_relations: &[InputRelation],
@@ -152,7 +151,7 @@ fn derive_public_precondition_partition_from_positions(
 }
 
 pub(super) fn derive_representative_precondition_partition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     input_relations: &[InputRelation],
     representative: &RepresentativeTelescope,
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
@@ -172,7 +171,7 @@ pub(super) fn derive_representative_precondition_partition(
 }
 
 fn derive_precondition_partition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_contracts: HandleSpan<SignatureContract>,
     state_contracts: HandleSpan<SignatureContract>,
     varying_parameters: &[SymbolHandle],
@@ -218,7 +217,7 @@ fn derive_precondition_partition(
 }
 
 pub(super) fn derive_define_precondition_correspondence(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
     representative: &RepresentativeTelescope,
@@ -274,7 +273,7 @@ pub(super) fn derive_define_precondition_correspondence(
 
 #[allow(clippy::too_many_arguments)]
 fn pair_precondition_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     public_machine_contracts: HandleSpan<SignatureContract>,
     public_state_contracts: HandleSpan<SignatureContract>,
     representative_machine_contracts: HandleSpan<SignatureContract>,
@@ -335,7 +334,7 @@ fn pair_precondition_facts(
 }
 
 pub(super) fn precondition_fact_at(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_contracts: HandleSpan<SignatureContract>,
     state_contracts: HandleSpan<SignatureContract>,
     location: RepresentativeContractFactLocation,
@@ -359,7 +358,7 @@ pub(super) fn precondition_fact_at(
 }
 
 fn proof_fact_depends_on_any(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     fact: &ProofFact,
     parameters: &[SymbolHandle],
 ) -> Result<bool, RelationPlanError> {
@@ -383,7 +382,7 @@ fn proof_fact_depends_on_any(
 }
 
 fn expression_depends_on_any(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     parameters: &[SymbolHandle],
 ) -> Result<bool, RelationPlanError> {

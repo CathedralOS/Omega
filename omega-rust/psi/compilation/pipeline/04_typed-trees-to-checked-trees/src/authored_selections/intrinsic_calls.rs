@@ -5,14 +5,13 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
 
 /// Only an exact compiler operation grants declaration-description operands.
 /// The same classification drives dependency traversal and static conformance
 /// validation; an ordinary same-named callable keeps host value dependencies.
 pub(crate) fn static_argument_role(
-    program: &TypedTrees,
+    program: &typed_trees::TypedTrees,
     call: StaticArgumentCall<'_>,
 ) -> StaticArgumentRole {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
@@ -35,7 +34,7 @@ pub(crate) fn static_argument_role(
 }
 
 pub(crate) fn checked_statement_call_intrinsic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::statement::TableCall,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
@@ -72,7 +71,7 @@ pub(crate) fn checked_intrinsic_call_target(
 }
 
 pub(crate) fn checked_expression_call_intrinsic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     if super::provider_selection::is_provider_selection_call(program, call) {
@@ -133,7 +132,7 @@ fn checked_call_intrinsic(
 }
 
 pub(crate) fn type_reference_names_exact_prelude_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     name: &str,
 ) -> bool {
@@ -152,7 +151,7 @@ pub(crate) fn type_reference_names_exact_prelude_data(
 }
 
 pub(crate) fn exact_build_prelude_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     name: &str,
 ) -> bool {

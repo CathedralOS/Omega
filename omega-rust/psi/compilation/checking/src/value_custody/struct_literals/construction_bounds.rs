@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeSet;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -55,7 +54,7 @@ pub(super) enum Truth {
 /// retains prefix assignments and guards only across non-overlapping writes.
 /// A sibling operand's later effects cannot change an already copied scalar.
 fn value_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -124,7 +123,7 @@ fn value_bounds(
 /// TRI-STATE truth encoded as bounds ([1,1] true / [0,0] false / [0,1]
 /// unknown) so `&&`/`||` compose; arithmetic uses saturating interval ops.
 pub(super) fn bounds_fold(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     valuation: &[(&str, Bounds)],
     declared: &BTreeSet<&str>,
     expression: ExpressionHandle,
@@ -138,7 +137,7 @@ pub(super) fn bounds_fold(
 }
 
 fn bounds_eval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     valuation: &[(&str, Bounds)],
     declared: &BTreeSet<&str>,
     expression: ExpressionHandle,
@@ -322,7 +321,7 @@ fn tri(truth: Truth) -> Bounds {
 /// refuses naming it; a fact that cannot fold (a runtime-valued field)
 /// refuses as unverifiable.
 pub(super) fn validate_literal_default_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
@@ -354,7 +353,7 @@ pub(super) fn validate_literal_default_domain(
 /// literal's named fields ARE the payload bindings, and omitted payload
 /// fields read the ZII zero exactly like omitted common fields.
 pub(super) fn validate_literal_case_constraints(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
@@ -409,7 +408,7 @@ pub(super) fn validate_literal_case_constraints(
 
 /// The names of `data`'s common (non-case) fields.
 fn common_field_names<'a>(
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     data_definition: &'a DataDefinition,
 ) -> BTreeSet<&'a str> {
     program
@@ -427,7 +426,7 @@ fn common_field_names<'a>(
 /// mirroring the leaf shapes `bounds_eval` resolves against the literal's
 /// field valuation. Other leaf kinds carry no field name.
 fn collect_out_of_scope_leaf_names(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declared: &BTreeSet<&str>,
     expression: ExpressionHandle,
     out_of_scope: &mut Vec<String>,
@@ -464,7 +463,7 @@ fn collect_out_of_scope_leaf_names(
 }
 
 fn fold_literal_facts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
@@ -544,7 +543,7 @@ fn fold_literal_facts(
 }
 
 fn membership_domain_label(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: arena::HandleSpan<typed_trees::name::Identifier>,
 ) -> String {
     program

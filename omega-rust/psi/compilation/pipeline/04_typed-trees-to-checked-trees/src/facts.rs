@@ -53,7 +53,7 @@ pub(crate) use dynamic_conformance::normalized_dynamic_row_identities;
 /// `crash_entry_values` stays the only owner of that answer, so this
 /// forwards without re-deriving provenance in the check layer.
 pub(crate) fn crash_entry_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     before_statement: usize,
@@ -87,7 +87,6 @@ use checked_trees::CheckFacts;
 use flow_effects::OperationalPlan;
 use proof::obligations::ProofPlan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {
@@ -124,7 +123,7 @@ fn project_operational_rows(
 }
 
 pub(crate) fn build_check_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof_plan: &ProofPlan<'_>,
     integer_assignments: &[proof::checker::CheckedIntegerAssignment],
     operational: OperationalPlan,

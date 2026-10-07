@@ -74,7 +74,7 @@ use statements::check_statement;
 pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     borrows: &checked_trees::BorrowFacts,
     flow: &checked_trees::FlowFacts,

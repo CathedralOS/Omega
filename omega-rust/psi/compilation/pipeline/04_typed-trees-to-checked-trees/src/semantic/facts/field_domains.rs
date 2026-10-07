@@ -35,7 +35,6 @@ use facts::{
     QualificationEvidence,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -53,7 +52,7 @@ use crate::facts::field_domain::{
 /// declared field obligations — premises a `requires <place> in D` discharge
 /// consumes — never reads of the incoming value.
 fn lent_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     while reference.is_valid() {
@@ -83,7 +82,7 @@ fn lent_type_reference(
 /// zeroed storage is the evidence -- see `append_local_zii_field_domain_facts`).
 #[allow(clippy::too_many_arguments)]
 fn append_zero_initialized_field_domain_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     root_symbol: symbols::SymbolHandle,
     point: ProgramPoint,
@@ -255,7 +254,10 @@ fn append_zero_initialized_field_domain_facts(
 /// the seeded rows are the caller's declared invariants, and the lent place's
 /// `requires <place> in D` obligation at a nested `&write` subloan discharges
 /// against them.
-pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+pub(super) fn append_state_parameter_domain_facts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut FactPlan,
+) {
     let mut field_domain_walks = std::collections::HashMap::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -471,7 +473,7 @@ fn append_independent_place_contexts(
 }
 
 fn state_parameter_domain_is_resource_claim(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -536,7 +538,7 @@ fn append_state_parameter_carry_origin(
 }
 
 fn carry_constraint_permissions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Vec<language_semantics::CarryPermission> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -580,7 +582,7 @@ fn append_state_parameter_carry_fact(
 }
 
 fn data_field_domain_rows(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     walks: &mut std::collections::HashMap<SymbolHandle, std::rc::Rc<[FieldDomainRow]>>,
 ) -> std::rc::Rc<[FieldDomainRow]> {
@@ -677,7 +679,10 @@ fn append_state_parameter_domain_fact(
 /// constructed as one specific case; its `cmd.<other-payload>` obligation shares
 /// the same canonical place label, so it discharges only when the domains agree
 /// (a mixed-domain dead arm would be rejected -- sound, just incomplete).
-pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+pub(super) fn append_local_case_payload_domain_facts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut FactPlan,
+) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
@@ -793,7 +798,10 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
 /// An initializer (`let value: T = expr;`) gets its domain evidence from the
 /// assignment transfer instead; seeding the zero here too would be wrong
 /// because the initializer replaces the zero before any observation.
-pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+pub(super) fn append_local_zii_field_domain_facts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut FactPlan,
+) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
@@ -885,7 +893,7 @@ pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &
 /// leading reference (`&[u8] in Utf8 & NoNul`). Semantic-only constraints do
 /// not become flow facts.
 fn field_domain_symbols(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     crate::facts::field_domain::predicate_domain_constraint_symbols(program, type_reference)

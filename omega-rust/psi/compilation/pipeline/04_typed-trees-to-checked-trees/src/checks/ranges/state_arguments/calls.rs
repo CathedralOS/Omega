@@ -14,7 +14,7 @@ use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 use language_core::is_rooted_at;
 
 pub(super) fn collect_state_argument_facts_for_call(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,
@@ -369,7 +369,7 @@ fn distinct_seeds(lengths: Vec<ReceiverLength>) -> Vec<ReceiverLength> {
 }
 
 fn argument_is_proven_index_for_collection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     facts: &RangeFacts<'_>,

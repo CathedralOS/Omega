@@ -20,7 +20,7 @@ pub(super) enum PermissionStep {
 }
 
 pub(super) fn walk<S: Clone>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     mut custody: S,
     mut visit: impl FnMut(PermissionStep, &mut S),
@@ -112,7 +112,7 @@ pub(super) fn walk<S: Clone>(
 
 /// Case alternatives narrow custody on the same chosen edge as its moves.
 pub(super) fn select_cases(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     step: PermissionStep,
     places: &mut [super::linear_obligations::LinearPlace],

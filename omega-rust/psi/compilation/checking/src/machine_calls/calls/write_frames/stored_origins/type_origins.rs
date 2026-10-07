@@ -8,12 +8,11 @@ use super::super::isolation::concrete_nominal_type;
 use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(in crate::machine_calls::calls::write_frames) fn declared_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &str,
     reference: TypeReferenceHandle,
@@ -22,7 +21,7 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins(
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &str,
     reference: TypeReferenceHandle,
@@ -42,7 +41,7 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
 /// admission rules as `declared_origins`. It walks the same structure but
 /// builds no leaf paths.
 pub(in crate::machine_calls::calls::write_frames) fn declares_cases(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     walk_declared_origins(
@@ -138,7 +137,7 @@ impl TypeWalk {
 }
 
 fn walk_declared_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     name: &str,
     reference: TypeReferenceHandle,
@@ -313,7 +312,7 @@ fn walk_declared_origins(
 }
 
 fn storage_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     name: &str,
     segments: &[PlaceSegment],
 ) -> (String, FramePathPrecision) {
@@ -334,7 +333,7 @@ fn storage_path(
 /// A disjoint owned field has no reference leaves, but an unknown field is
 /// not evidence of an empty frame. Validate the demand before filtering leaves.
 pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     suffix: &str,
 ) -> bool {
@@ -388,14 +387,14 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
 /// one is open — the type walk otherwise re-scans the declaration table per
 /// nominal node it descends into.
 fn data_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
 }
 
 fn push_field(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     walk: &mut TypeWalk,
     pending: &mut Vec<u32>,
     parent: u32,

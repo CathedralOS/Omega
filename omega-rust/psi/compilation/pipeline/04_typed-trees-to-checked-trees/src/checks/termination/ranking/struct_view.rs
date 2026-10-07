@@ -1,5 +1,4 @@
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -16,7 +15,7 @@ use super::write_preservation::prefix_preserves_path;
 /// borrowed subject arrives as a borrow of that literal, and the ranked path
 /// through the binding must stay unwritten like any other input path.
 pub(super) fn state_has_proven_self_loop(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     decreases: ExpressionHandle,
@@ -175,7 +174,7 @@ pub(super) fn state_has_proven_self_loop(
 }
 
 fn exact_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -188,7 +187,7 @@ fn exact_parameter(
 /// projection, every step by resolved field symbol and spelling, rooted at
 /// the exact subject parameter (owned or borrowed).
 fn exact_projection(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     subject: SymbolHandle,
     path: &[ProjectionStep],
@@ -220,7 +219,7 @@ fn exact_projection(
 
 /// The value of the unique `field` entry of a plain literal of exactly `owner`.
 fn unique_literal_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     literal: ExpressionHandle,
     owner: SymbolHandle,
     field_symbol: SymbolHandle,
@@ -246,7 +245,7 @@ fn unique_literal_field(
 /// Declared bounds remain valid only while every input path survives the prefix.
 /// Step inputs may change on arrival; they are not invocation-fixed endpoints.
 fn preserved_bounds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

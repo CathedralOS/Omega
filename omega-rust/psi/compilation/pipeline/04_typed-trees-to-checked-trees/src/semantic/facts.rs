@@ -14,7 +14,7 @@ use field_domains::{
 use points::proof_obligation_point;
 
 pub(crate) fn build_semantic_facts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
 ) -> FactPlan {
     let mut facts = validation::build_definition_fact_plan(program);

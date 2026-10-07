@@ -8,7 +8,7 @@ use super::{
     ContractProofFactOwner, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
     PermissionAccess, PermissionClaimIdentity, PrimitiveType, ProofFact, SemanticDomainId,
     SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 use checked_trees::{
     CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
@@ -39,7 +39,7 @@ pub(crate) use views::*;
 /// unwrap qualifications and mutable borrows to the named or trait symbol.
 /// A shared `&` borrow is not a provider handle.
 pub(crate) fn mutable_boundary_trait_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let mut unwrapped = type_reference;

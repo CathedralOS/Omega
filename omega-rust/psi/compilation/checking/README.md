@@ -16,8 +16,13 @@ entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the 
 Shared program queries have explicit owners beside that coordinator.
 [program_scope.rs](src/program_scope.rs) owns scoped memo lifetimes; its children
 serve declaration indexes, value properties, call targets and effect plans.
-[frozen_program.rs](src/frozen_program.rs) retains the separate immutable-program
-cache lifetime. [expression_traversal.rs](src/expression_traversal.rs) owns the
+[frozen_program.rs](src/frozen_program.rs) owns `CheckingContext`: stage 04 borrows
+its prepared typed program with invocation memos in one immutable checking input.
+Read-only consumers take `CheckingInput`, preserving that context through queries;
+bare typed programs used during construction have no frozen memos. Ending the
+context releases that borrow and scratch, never attaching memos to an IR or product.
+No thread or program address selects this state. The independent program-plan
+memo scope remains separate. [expression_traversal.rs](src/expression_traversal.rs) owns the
 ordered expression-child roster, while each checker keeps its own visitation and
 pruning policy. [Operator namespaces](src/declarations/operators/namespaces.rs)
 are declaration resolution, consumed by call checking and local-value checks.

@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use super::{
     CheckedProviderAttachmentRequirementPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember, TypedTrees,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, DataMember,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::calls::{
 };
 
 pub(super) fn checked_provider_attachment_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -364,7 +364,7 @@ fn shape_fields(
 /// the call/operation facts it contributes were recorded under that machine,
 /// not the dispatch one whose identity publishes the plan.
 pub(super) fn checked_composed_provider_attachment_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     shapes: &ShapeCollector<'_>,
     attachment_type_identity: &str,
     leaves: &[(

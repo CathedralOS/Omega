@@ -83,7 +83,7 @@ use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
 
 pub(super) fn check_flow_call_contracts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -227,7 +227,7 @@ pub(super) fn check_flow_call_contracts(
 }
 
 pub(crate) fn bind_call_evidence_arguments(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

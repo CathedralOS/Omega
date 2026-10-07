@@ -8,7 +8,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(crate) fn contextual_canonical_place_from_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -118,7 +118,7 @@ pub(crate) fn contextual_canonical_place_from_expression(
 }
 
 fn resolve_contextual_name_path_root(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -139,7 +139,7 @@ fn resolve_contextual_name_path_root(
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
 pub(super) fn resolve_member_symbol_from_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     place: &CanonicalPlace,
     member_name: &str,
     case_variant: Option<&str>,

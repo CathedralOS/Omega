@@ -9,13 +9,12 @@
 use super::source_liveness::{expression_uses_symbol, statement_uses_symbol};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     diagnostics: &mut Vec<Diagnostic>,
@@ -56,7 +55,10 @@ pub(crate) fn validate(
 
 /// The local a whole-local assignment target names: a bare name with no
 /// member path. A field or element store does not establish the descriptor.
-fn whole_local_target(program: &TypedTrees, target: ExpressionHandle) -> Option<SymbolHandle> {
+fn whole_local_target(
+    program: &dyn crate::CheckingInput,
+    target: ExpressionHandle,
+) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
         return None;
     };
@@ -69,7 +71,10 @@ fn whole_local_target(program: &TypedTrees, target: ExpressionHandle) -> Option<
     .then_some(path.symbol)
 }
 
-fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
+fn is_reference(
+    program: &dyn crate::CheckingInput,
+    mut type_reference: TypeReferenceHandle,
+) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,

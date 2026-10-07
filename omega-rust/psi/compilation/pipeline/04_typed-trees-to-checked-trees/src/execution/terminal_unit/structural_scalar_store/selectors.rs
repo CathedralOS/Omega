@@ -9,7 +9,7 @@
 //! element: Terminal re-proves `index < extent` for the segment's obligation.
 use super::super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitStructuralPathSegment, ExpressionNode,
-    PrimitiveType, TypeReferenceNode, TypedTrees,
+    PrimitiveType, TypeReferenceNode,
 };
 use typed_trees::expression::ExpressionHandle;
 
@@ -33,7 +33,7 @@ impl TargetSelectors {
     /// extent, so its steps leave every index unproven here for the
     /// segment's Terminal obligation.
     pub(in crate::execution::terminal_unit) fn resolve(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,

@@ -3,11 +3,10 @@
 use crate::value_custody::recasts::raw_byte_region::record_view_type_is_fact_free;
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
 use std::collections::HashSet;
-use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn closed_fact_free_record_symbol_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
     fact_free_record_graph_is_eligible(program, symbol, false)
@@ -44,7 +43,7 @@ pub(crate) const MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH: usize = 2;
 /// Explicit exit markers detect cycles without host recursion, while completed
 /// symbols make shared diamonds linear in the distinct schema graph.
 fn fact_free_record_graph_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     root: symbols::SymbolHandle,
     permit_root_lifetime_parameters: bool,
 ) -> bool {
@@ -223,7 +222,7 @@ fn fact_free_record_graph_is_eligible(
 /// lifetime identity. Graph eligibility, nesting depth, cycles, and physical
 /// non-emptiness are checked separately by the bounded recast traversal.
 pub(crate) fn phantom_lifetime_record_symbol_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     let TypeReferenceNode::Generic {
@@ -283,7 +282,7 @@ pub(crate) fn phantom_lifetime_record_symbol_shape(
 /// The graph walk may admit one further record shell below this root, but
 /// arrays and a third lifetime shell remain fail closed.
 pub(crate) fn direct_phantom_lifetime_record_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     let symbol = phantom_lifetime_record_symbol_shape(program, type_reference)?;
@@ -291,7 +290,7 @@ pub(crate) fn direct_phantom_lifetime_record_symbol(
 }
 
 pub(crate) fn direct_record_view_type_is_fact_free(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     direct_phantom_lifetime_record_symbol(program, type_reference).is_some()
@@ -299,7 +298,7 @@ pub(crate) fn direct_record_view_type_is_fact_free(
 }
 
 fn unique_data_definition_by_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     if !symbol.is_valid() {
@@ -314,7 +313,7 @@ fn unique_data_definition_by_symbol(
 }
 
 fn closed_record_generic_origin_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     instance: &typed_trees::data::DataDefinition,
 ) -> bool {
     let Some(origin) = instance.generic_instance else {
@@ -368,7 +367,7 @@ fn closed_record_generic_origin_is_eligible(
 }
 
 fn closed_raw_generic_const_argument_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameter_type: TypeReferenceHandle,
     argument: TypeReferenceHandle,
 ) -> bool {
@@ -405,7 +404,7 @@ fn closed_raw_generic_const_argument_is_eligible(
 }
 
 fn closed_raw_generic_type_argument_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     argument: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(argument) {

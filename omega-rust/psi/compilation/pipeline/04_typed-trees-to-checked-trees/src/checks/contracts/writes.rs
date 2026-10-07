@@ -33,7 +33,7 @@ use domain_implications::{
 use member_domains::initializer_satisfies_predicate_domain;
 
 pub(super) fn check_domain_field_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
@@ -355,7 +355,7 @@ pub(super) fn check_domain_field_writes(
 /// may appear, possibly nested). The exhaustive set keeps the construction walk
 /// in step with the statement shapes.
 fn statement_root_expressions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
@@ -381,7 +381,7 @@ fn statement_root_expressions(
 /// in that domain (reusing the assignment discharge `value_proves_domain`).
 /// Walk `expression` for `StructLiteral` constructions; for each constructed
 fn scan_construction_field_domains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -709,7 +709,7 @@ fn scan_construction_field_domains(
 /// Mirrors validation `struct_literals::construction_field_type` + domain
 /// extraction.
 fn construction_field_domain_identities(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
@@ -744,7 +744,7 @@ fn construction_field_domain_identities(
 /// Resolve the selected definition, not the authored spelling: a qualified
 /// foreign construction must establish that exact owner's field contracts.
 fn construction_field_type_by_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
@@ -760,7 +760,7 @@ fn construction_field_type_by_symbol(
 }
 
 fn construction_field_type(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_definition: &typed_trees::data::DataDefinition,
     case_name: Option<&str>,
     field_name: &str,

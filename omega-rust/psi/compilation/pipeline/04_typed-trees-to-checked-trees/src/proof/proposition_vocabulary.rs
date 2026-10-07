@@ -6,7 +6,7 @@ use symbols::SymbolHandle;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn contract_proposition_labels(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
     kind: typed_trees::signature::SignatureContractKind,
     substitutions: &[(SymbolHandle, String, String)],
@@ -36,7 +36,7 @@ pub(crate) fn contract_proposition_labels(
 /// Binder and argument labels for one proposition application under the
 /// caller's parameter substitutions.
 pub(crate) fn proposition_label_parts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> (Vec<String>, Vec<String>) {
@@ -64,7 +64,7 @@ pub(crate) fn proposition_label_parts(
 }
 
 pub(crate) fn proposition_application_label(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
     substitutions: &[(SymbolHandle, String, String)],
 ) -> Option<String> {
@@ -82,7 +82,7 @@ pub(crate) fn proposition_application_label(
 }
 
 pub(crate) fn build_checked_proposition_vocabulary(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::CheckedPropositionVocabulary {
     let declarations = program
         .propositions()

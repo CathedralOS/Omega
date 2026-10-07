@@ -13,7 +13,6 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_place_expression_origins;
 use language_core::is_self_receiver;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -22,7 +21,7 @@ pub(super) mod aggregate_arguments;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_written_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     relative: &str,
     receiver_base: Option<&str>,
@@ -53,7 +52,7 @@ pub(super) fn instantiate_written_path(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_written_path_with_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     relative: &str,
     receiver_base: Option<&FramePlaceOrigin>,

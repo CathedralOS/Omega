@@ -8,7 +8,6 @@
 use arena::HandleSpan;
 use language_semantics::{ServiceReachId, ServiceReachInterface};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::declaration_index::CallTargetIndex;
 
 use flow_effects::{
@@ -76,19 +75,22 @@ struct DirectServiceReach {
 // caller-side freshness key is needed and a dropped program can never serve
 // a replacement its index.
 
-fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
+fn with_call_target_index<R>(
+    program: &dyn crate::CheckingInput,
+    run: impl FnOnce(&CallTargetIndex) -> R,
+) -> R {
     program.with_call_target_index(run)
 }
 
 pub fn infer_service_reaches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
     crate::program_scope::effects::memoized_service_reach_plan(program, operational)
 }
 
 pub(crate) fn infer_service_reaches_uncached(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
     let mut work = Vec::new();
@@ -490,7 +492,7 @@ fn with_operational_index<R>(
 }
 
 pub(crate) fn required_boundary_services(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
     machine: SymbolHandle,
 ) -> Vec<ServiceReachId> {
@@ -509,7 +511,7 @@ pub(crate) fn required_boundary_services(
 }
 
 fn indexed_contract_view<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     index: &CallTargetIndex,
     contract: &'program typed_trees::data::MachineParameterContract,
 ) -> Option<typed_trees::data::MachineParameterContractView<'program>> {
@@ -538,7 +540,7 @@ fn indexed_contract_view<'program>(
 }
 
 fn retained_contract_view<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     index: &CallTargetIndex,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::data::MachineParameterContractView<'program>> {
@@ -554,7 +556,7 @@ fn retained_contract_view<'program>(
 }
 
 fn direct_service_reach_for_operational_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &flow_effects::CallOperational,
 ) -> DirectServiceReach {
     let mut reach = direct_service_reach_for_call(program, call.target_state_symbol);
@@ -573,7 +575,7 @@ fn direct_service_reach_for_operational_call(
     reach
 }
 
-fn is_nominal_parameter(program: &TypedTrees, parameter: SymbolHandle) -> bool {
+fn is_nominal_parameter(program: &dyn crate::CheckingInput, parameter: SymbolHandle) -> bool {
     with_call_target_index(program, |index| {
         matches!(
             retained_contract_view(program, index, parameter),
@@ -592,7 +594,7 @@ fn extend_parameter_set(destination: &mut Vec<SymbolHandle>, source: &[SymbolHan
 /// fixed requirement, and opaque selected machines contribute their published
 /// bound. Nested static applications consume their own exact binding spans.
 fn substitute_dependency(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
     machines: &[MachineReachWork],
     dependency: &DependencyWork,
@@ -650,7 +652,7 @@ fn substitute_dependency(
 /// is already concrete. This projection must not reinterpret an ordinary
 /// callable contract as a newly authored nominal boundary invocation.
 pub fn fixed_installation_boundary_service_reach(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: SymbolHandle,
 ) -> Option<Vec<ServiceReachId>> {
     let trait_requirements = program
@@ -695,7 +697,10 @@ pub fn fixed_installation_boundary_service_reach(
     Some(direct_service_reach_for_call(program, target).concrete_services)
 }
 
-fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {
+fn direct_service_reach_for_call(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> DirectServiceReach {
     // Checked calls to an exact intrinsic realization retain the boundary
     // requirement's identity. Infer its nominal reach at the same boundary,
     // even when the realization's own declaration has no authored reach row.
@@ -821,7 +826,7 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
 /// The signature's declared service row joined into reach's nominal set —
 /// and its concrete set unless the reach is installation-bound.
 fn extend_signature_service_rows(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     reach: &mut DirectServiceReach,
 ) {
@@ -844,7 +849,7 @@ fn extend_signature_service_rows(
 /// The signature's installation reach plus the services its invoked bindings
 /// themselves declare.
 fn record_signature_reach(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     reach: &mut DirectServiceReach,
 ) {
@@ -887,7 +892,7 @@ fn normalize_installation_reaches(rows: &mut Vec<InstallationReachRequirement>) 
 }
 
 fn extend_invoked_binding_services(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     services: &mut Vec<ServiceReachId>,
 ) {
@@ -904,7 +909,7 @@ fn extend_invoked_binding_services(
 }
 
 fn extend_machine_invoked_binding_services(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     services: &mut Vec<ServiceReachId>,
 ) {
@@ -924,7 +929,7 @@ fn extend_machine_invoked_binding_services(
 }
 
 fn extend_invocation_target_services(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     parameters: &[&typed_trees::signature::StateParameter],
     invocations: &[flow_effects::InvocationTarget],
     services: &mut Vec<ServiceReachId>,

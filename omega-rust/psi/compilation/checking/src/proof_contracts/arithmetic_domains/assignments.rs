@@ -9,7 +9,6 @@ use crate::proof_contracts::arithmetic_domains::range_constraints::range_constra
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -46,7 +45,7 @@ pub(crate) fn record_assignment(
 /// interval endpoint window. Call only after invalidating the old assignment;
 /// the ordinary environment write/arrival rules retire this fact as well.
 pub(crate) fn record_unsigned_literal_assignment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     environment: &mut ValueEnvironment,
     path: Option<String>,
     primitive: Option<PrimitiveType>,
@@ -67,7 +66,7 @@ pub(crate) fn record_unsigned_literal_assignment(
 /// deliberately permissive at stores), so clamping its precise environment fact
 /// against the range would fabricate an in-range claim -- return None there.
 pub(crate) fn enforced_declared_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     if is_atomic_type(program, handle)
@@ -106,7 +105,7 @@ fn carrier_spelling(primitive: PrimitiveType, domain: Option<ArithmeticDomain>) 
 /// unranged call stored into a `Wrapping` slot while the same call with an
 /// `ensures` row still lands there.
 pub(crate) fn stored_value_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -219,7 +218,7 @@ pub(crate) fn check_narrowing_assignment(
 /// statement `value_environment` for flow-sensitive positions, or `&ValueEnvironment::new()` where
 /// no per-statement environment is threaded (construction).
 pub(crate) fn check_value_narrowing(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,

@@ -17,7 +17,6 @@ use crate::execution::terminal_unit::types::{
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
-use crate::execution::terminal_unit::TypedTrees;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     projected_argument_path_with_identity, projected_borrowed_path,
@@ -32,7 +31,7 @@ pub(crate) use anonymous_shared::validate as validate_shared_temporary;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -835,7 +834,7 @@ pub(super) fn argument(
 /// authored `Name` expression, or a method-spelled receiver that the call
 /// fact names by symbol because no argument expression exists for it.
 fn names_whole_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &checked_trees::FlowCallFact,
     value_expression: typed_trees::expression::ExpressionHandle,
     symbol: SymbolHandle,
@@ -852,7 +851,7 @@ fn names_whole_local(
 /// The declared type of the local that binds `result` when the receiver
 /// place is exactly that whole local.
 fn receiver_local_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source_state: &typed_trees::state::State,
     place: &crate::flow::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,

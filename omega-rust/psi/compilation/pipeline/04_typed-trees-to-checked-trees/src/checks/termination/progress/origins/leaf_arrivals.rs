@@ -5,15 +5,15 @@ use super::FlowStateFact;
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::{TypedTrees, machine::Machine};
 
 /// The declared type of the `LocalData` declaring `root` before `bound`, when
 /// `root` is a local at all — parameters and members have no declaration
 /// statement.
 pub(super) fn statements_local_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     root: symbols::SymbolHandle,
     bound: usize,
@@ -52,7 +52,7 @@ pub(super) enum LeafArrival {
 /// writes, so the referent is the one held at the copy, not the one the
 /// source slot holds at the call.
 pub(super) fn shared_reference_leaf_origin<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -228,7 +228,7 @@ where
 /// write-capable leaves rebase through the prefix's stored origins — and an
 /// unresolvable projection leaves the literal place for the delegated scan.
 pub(super) fn shared_reference_boundary(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root_type: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<usize> {
@@ -250,7 +250,7 @@ pub(super) fn shared_reference_boundary(
 /// conditional routes, opaque projections — is refused rather than borrowed
 /// as a same-shaped guess.
 pub(super) fn leaf_value_candidate<Resolve>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     index: usize,
     value: ExpressionHandle,
@@ -293,7 +293,7 @@ where
 /// lands on a shared reference is another carrier's leaf slot: the scan
 /// relocates to it. Anything else is the referent itself.
 pub(super) fn leaf_candidate_arrival(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
@@ -336,7 +336,7 @@ pub(super) fn leaf_candidate_arrival(
 /// The reference access a type reference names after peeling `Constrained`
 /// shells, or none when it names no reference at all.
 pub(super) fn reference_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
     loop {
@@ -351,7 +351,7 @@ pub(super) fn reference_type(
 /// Whether `statement`'s own write frame may touch `slot` — operand calls
 /// embedded in any statement run first, so the frame's writes decide.
 pub(super) fn statement_may_touch_slot(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,

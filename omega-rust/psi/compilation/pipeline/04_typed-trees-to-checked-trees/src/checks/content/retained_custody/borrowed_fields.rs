@@ -19,13 +19,12 @@ use super::{DomainApplication, domain_name};
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn check_structural_borrow_sources(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     label: &str,
     callable: SymbolHandle,

@@ -6,7 +6,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(super) fn call_operands_have_builtin_coordinates(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     site: &CallSite<'_>,
@@ -34,7 +34,7 @@ pub(super) fn call_operands_have_builtin_coordinates(
 }
 
 fn place_operands_are_builtin(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,

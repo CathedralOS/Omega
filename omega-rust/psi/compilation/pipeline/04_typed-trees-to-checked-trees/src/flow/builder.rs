@@ -19,7 +19,7 @@ use facts::{FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_flow_facts_with_service_reaches(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     semantic: &mut FactPlan,

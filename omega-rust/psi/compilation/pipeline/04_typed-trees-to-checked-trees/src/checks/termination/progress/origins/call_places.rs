@@ -5,10 +5,10 @@ use super::{FlowCallFact, FlowStateFact, ProgressSubject};
 use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
-use typed_trees::{TypedTrees, machine::Machine};
 
 /// The subjects a demanded call result descends from when the callee's routes
 /// DISAGREE, or `None` when they do not.
@@ -21,7 +21,7 @@ use typed_trees::{TypedTrees, machine::Machine};
 /// This reaches a demand that names the bound local itself; a projection the
 /// trace still has to walk keeps the single-origin path.
 pub(super) fn disagreeing_call_result_subjects(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -75,7 +75,7 @@ pub(super) fn disagreeing_call_result_subjects(
 /// the replay cannot prove stays unproven rather than borrowing a same-shaped
 /// root.
 pub(in crate::checks::termination::progress) fn call_argument_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     statement_index: usize,
     actual: ExpressionHandle,
@@ -105,7 +105,7 @@ pub(in crate::checks::termination::progress) fn call_argument_place(
 /// scan cannot prove keeps the literal place, which the field-only premise
 /// surface then refuses the way it refuses an index selector.
 pub(in crate::checks::termination::progress) fn call_argument_boundary_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -161,7 +161,7 @@ pub(super) struct CalleeBody<'a> {
 /// write frames stay opaque: a declared result type or a matching spelling is
 /// never evidence of a caller identity.
 pub(super) fn call_result_value_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     statement_index: usize,
@@ -199,7 +199,7 @@ pub(super) fn single_route(places: Option<Vec<CanonicalPlace>>) -> Option<Canoni
 /// returned expression that is itself a checked call keeps proving through
 /// that nested callee instead of stopping at an opaque leaf.
 pub(super) fn call_result_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     call: &TableCallExpression,
@@ -295,7 +295,7 @@ pub(super) fn call_result_place(
 /// One route's result place, mapped back to the caller's actual argument.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn call_route_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     call: &TableCallExpression,
@@ -367,7 +367,7 @@ pub(super) fn call_route_place(
 /// itself a call result; inside a proven callee the argument is a callee-side
 /// expression that recurses through that callee's locals and nested calls.
 pub(super) fn scope_argument_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     scope: ArgumentScope<'_>,
     actual: ExpressionHandle,
@@ -409,7 +409,7 @@ pub(super) fn scope_argument_place(
 /// own returned expression. A bare constructor under no demanded projection
 /// names several operands, so it is not one exact origin.
 pub(super) fn caller_argument_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     state: &FlowStateFact,
     statement_index: usize,

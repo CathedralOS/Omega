@@ -3,7 +3,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use super::super::patterns;
 
 pub(super) fn argument_is_parameter_minus_one(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
@@ -21,7 +21,7 @@ pub(super) fn argument_is_parameter_minus_one(
 }
 
 pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
@@ -50,7 +50,7 @@ pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
 }
 
 fn argument_is_parameter_member_minus_one(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,

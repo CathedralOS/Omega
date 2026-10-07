@@ -13,11 +13,10 @@ use crate::execution::terminal_unit::types::{
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralAccess,
     CheckedStructuralResultPlan, ExpressionNode, Multiplicity, PrimitiveType, StatementNode,
-    TypedTrees,
 };
 
 pub(crate) fn build_claim_free_affine_structural_return_machine(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

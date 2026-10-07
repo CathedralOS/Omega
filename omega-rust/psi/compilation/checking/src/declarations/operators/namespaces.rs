@@ -1,11 +1,9 @@
 //! Distinguish a resolved operator declaration namespace from a storage receiver.
 
-use typed_trees::TypedTrees;
-
 /// A named operator's complete declaration namespace is not a storage read.
 /// Retained value identities never acquire namespace status from spelling.
 pub(crate) fn is_named_operator_namespace(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver_symbols: &[symbols::SymbolHandle],
     namespace: &[&str],
     target_symbol: symbols::SymbolHandle,
@@ -40,7 +38,7 @@ pub(crate) fn is_named_operator_namespace(
 }
 
 pub(crate) fn expression_call_has_operator_namespace(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     let table = &program.expression_table;

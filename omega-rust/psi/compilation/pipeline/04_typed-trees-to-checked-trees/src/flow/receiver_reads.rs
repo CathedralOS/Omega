@@ -86,7 +86,7 @@ struct StateReceiverReads {
 /// footprint is known or a read cannot be placed. Empty when the receiver
 /// itself has no place.
 pub(crate) fn call_receiver_read_accesses(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
@@ -165,7 +165,7 @@ struct FootprintOwner<'program> {
 }
 
 fn build_state_receiver_reads(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
 ) -> Vec<StateReceiverReads> {
     let mut footprints = Vec::new();
@@ -279,7 +279,7 @@ fn build_state_receiver_reads(
 /// footprint grows. Unions are monotone, so the visiting order does not
 /// change the settled sets.
 fn settle_receiver_call_reads(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     owners: &[FootprintOwner<'_>],
     receiver_calls: &[Vec<ReceiverCall<'_>>],
@@ -358,7 +358,7 @@ impl FootprintOwner<'_> {
     /// `MAXIMUM_PLACE_DEPTH`.
     fn instantiate(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         borrow: &BorrowFacts,
         receiver_call: &ReceiverCall<'_>,
         target_reads: Option<&[CanonicalPlace]>,
@@ -399,7 +399,7 @@ impl FootprintOwner<'_> {
     /// Whether `place` is storage this state reaches through its data binding.
     /// Named roots stay distinct from the machine and from other records of
     /// the same type; instantiation supplies their exact caller-side identity.
-    fn reaches(&self, program: &typed_trees::TypedTrees, place: &CanonicalPlace) -> bool {
+    fn reaches(&self, program: &dyn ::validation::CheckingInput, place: &CanonicalPlace) -> bool {
         let facts::PlaceRoot::Symbol(root) = place.root else {
             return false;
         };
@@ -423,7 +423,7 @@ struct DelegatedReceivers {
 
 /// One state's directly named receiver places.
 struct DirectReads<'walk, 'program> {
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     owner: &'walk FootprintOwner<'program>,
     statement_index: usize,
     delegated: &'walk DelegatedReceivers,

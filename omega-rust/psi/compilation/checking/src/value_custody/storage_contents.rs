@@ -11,7 +11,6 @@
 
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -134,7 +133,7 @@ pub enum ContentsRequirement {
 
 /// Whether `reference`'s contents answer `requirement`.
 pub fn has_contents(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     requirement: ContentsRequirement,
 ) -> bool {
@@ -155,13 +154,16 @@ pub fn has_contents(
 /// predicates nor extends the loan, so this answers only whether a whole copy
 /// is a value transfer.
 pub fn has_owned_or_shared_view_fields(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     owned_or_shared_view_fields(program, reference)
 }
 
-fn owned_or_shared_view_fields(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn owned_or_shared_view_fields(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     let symbol = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         // A lifetime-parameterized record is a `Generic` node whose type
@@ -225,7 +227,7 @@ fn owned_or_shared_view_fields(program: &TypedTrees, reference: TypeReferenceHan
 }
 
 fn check_contents_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     requirement: ContentsRequirement,
@@ -249,7 +251,7 @@ fn check_contents_requirement(
 }
 
 fn resolve(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     arguments: &[(SymbolHandle, ContentType)],
     requirement: ContentsRequirement,
@@ -532,7 +534,10 @@ fn resolve(
 /// `owned_or_shared_view_fields` peels them one record deep: constraint
 /// wrappers ride the loan's declared type and change neither the viewed
 /// shape nor which owner keeps the backing.
-fn peeled_referee(program: &TypedTrees, mut referee: TypeReferenceHandle) -> TypeReferenceHandle {
+fn peeled_referee(
+    program: &dyn crate::CheckingInput,
+    mut referee: TypeReferenceHandle,
+) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(referee)
     {
@@ -542,7 +547,7 @@ fn peeled_referee(program: &TypedTrees, mut referee: TypeReferenceHandle) -> Typ
 }
 
 pub(crate) fn is_plain_value_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,
 ) -> bool {
     // Pure value refinements do not add storage or mutation authority. Their
@@ -570,7 +575,7 @@ pub(crate) fn is_plain_value_domain(
         })
 }
 
-fn is_boundary_provider(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn is_boundary_provider(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
     program
         .traits()
         .iter()
@@ -578,7 +583,7 @@ fn is_boundary_provider(program: &TypedTrees, symbol: SymbolHandle) -> bool {
 }
 
 fn definition(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     if !symbol.is_valid() {
@@ -594,12 +599,12 @@ fn definition(
 
 /// Whether a machine attached to `symbol` realizes `::drop`, resolved
 /// through the build-scope memo when one is open.
-fn owns_drop_hook(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn owns_drop_hook(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
     crate::program_scope::value_properties::memoized_owns_drop_hook(program, symbol)
 }
 
 fn check_contents(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     resolved: &ContentType,
     active: &mut Vec<ContentType>,
     complete: &mut Vec<ContentType>,

@@ -1,8 +1,10 @@
 use super::{CalleeState, Candidate, CandidateTemplate};
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 
-pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candidate<'static> {
+pub(super) fn from_machine(
+    program: &dyn ::validation::CheckingInput,
+    machine_index: usize,
+) -> Candidate<'static> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
     let mut type_parameters = Vec::new();
@@ -76,7 +78,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
     }
 }
 
-pub(super) fn collect(program: &TypedTrees) -> Vec<Candidate<'static>> {
+pub(super) fn collect(program: &dyn ::validation::CheckingInput) -> Vec<Candidate<'static>> {
     program
         .machines()
         .iter()
@@ -86,7 +88,10 @@ pub(super) fn collect(program: &TypedTrees) -> Vec<Candidate<'static>> {
         .collect()
 }
 
-pub(super) fn callees(program: &TypedTrees, candidates: &[Candidate]) -> Vec<CalleeState> {
+pub(super) fn callees(
+    program: &dyn ::validation::CheckingInput,
+    candidates: &[Candidate],
+) -> Vec<CalleeState> {
     candidates
         .iter()
         .enumerate()

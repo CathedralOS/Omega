@@ -1,11 +1,9 @@
 //! Evidence argument and requirement rewrites.
 
-use crate::monomorphization::{
-    Candidate, StateSignature, StaticMachineArgument, SymbolHandle, TypedTrees,
-};
+use crate::monomorphization::{Candidate, StateSignature, StaticMachineArgument, SymbolHandle};
 
 pub(crate) fn evidence_argument_rewrites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Vec<(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)> {
     candidate
@@ -40,7 +38,7 @@ pub(crate) struct EvidenceRequirementRewrite {
 }
 
 pub(crate) fn evidence_requirement_rewrites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Vec<EvidenceRequirementRewrite> {
     let mut rewrites = Vec::new();
@@ -118,7 +116,7 @@ pub(crate) fn evidence_requirement_rewrites(
 }
 
 pub(crate) fn collect_evidence_requirement_closure<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     trait_definition: &'program typed_trees::trait_definition::TraitDefinition,
     visited: &mut Vec<SymbolHandle>,
     output: &mut Vec<&'program StateSignature>,

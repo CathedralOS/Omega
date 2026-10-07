@@ -4,12 +4,11 @@
 
 use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
 pub fn has_builtin_parameter_bound_expression_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner_symbol: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -75,9 +74,7 @@ pub fn has_builtin_parameter_bound_expression_meaning(
 
 /// The spelling an authored binary operator supplies to overloadable
 /// meaning; membership and the non-overloadable operators have none.
-pub(crate) fn spelled_binary_operator(
-    operator: BinaryOperator,
-) -> Option<OperatorSpelling> {
+pub(crate) fn spelled_binary_operator(operator: BinaryOperator) -> Option<OperatorSpelling> {
     match operator {
         BinaryOperator::Equal => Some(OperatorSpelling::Equal),
         BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),

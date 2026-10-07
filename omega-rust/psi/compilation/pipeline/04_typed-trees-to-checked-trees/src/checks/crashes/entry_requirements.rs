@@ -3,10 +3,7 @@
 //! not the invocation snapshot, and must never enter this collection.
 
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
-use typed_trees::{
-    TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 mod consequences;
 
@@ -17,7 +14,7 @@ pub(super) struct EntryRequirements {
 }
 
 pub(super) fn collect(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
@@ -118,7 +115,7 @@ pub(super) fn collect(
 }
 
 fn has_exact_entry_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],

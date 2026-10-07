@@ -8,7 +8,6 @@ mod prefix;
 mod projection;
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
@@ -51,7 +50,7 @@ pub struct ValidatedRuntimeNaturalComponent {
 }
 
 pub(super) fn extend_runtime_adjacency(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     adjacency: &mut [Vec<usize>],
 ) {
@@ -91,7 +90,9 @@ pub(super) fn extend_runtime_adjacency(
 /// enter: the rows, for the slot's requirement, of every implementation
 /// selected for the slot's interface. A selector names its table at runtime,
 /// so termination must treat the call as an edge to each of them.
-fn dispatched_implementations(program: &TypedTrees) -> Vec<(SymbolHandle, Vec<usize>)> {
+fn dispatched_implementations(
+    program: &dyn crate::CheckingInput,
+) -> Vec<(SymbolHandle, Vec<usize>)> {
     if program.dynamic_slots.is_empty() {
         return Vec::new();
     }
@@ -130,7 +131,7 @@ fn dispatched_implementations(program: &TypedTrees) -> Vec<(SymbolHandle, Vec<us
 }
 
 pub(super) fn admitted_components(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     adjacency: &[Vec<usize>],
 ) -> Vec<Vec<usize>> {
@@ -147,7 +148,7 @@ pub(super) fn admitted_components(
 }
 
 pub(super) fn check_component(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     adjacency: &[Vec<usize>],
     component: &[usize],
 ) -> Result<(), &'static str> {
@@ -155,7 +156,7 @@ pub(super) fn check_component(
 }
 
 pub(super) fn project_component(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     adjacency: &[Vec<usize>],
     component: &[usize],
 ) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
@@ -708,7 +709,7 @@ fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
 /// under discover different correspondences: then no single telescope is
 /// known proven at this site and the site abstains.
 pub(crate) fn ranged_member_site_invariant(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
 ) -> Option<(RankingRangeMeasure, ExpressionHandle, Vec<SymbolHandle>)> {
@@ -848,7 +849,7 @@ fn carrier_direction(rank: &RankProjection, role: SymbolHandle) -> CarrierBound 
 /// EVERY arrival into it preserves the bound, so an unwitnessed shape fails
 /// closed to `None` rather than borrowing an equality no judgment ran for.
 fn carrier_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     mappings: &[Vec<SymbolHandle>],
     rank: &RankProjection,
@@ -909,7 +910,7 @@ fn carrier_bounds(
 /// proved that arrival's rank coordinate, and the slot's fresh atom is what
 /// the site reads.
 fn carrier_arrival_bound(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     source_bounds: &[CarrierBound],
@@ -1051,7 +1052,7 @@ fn carrier_arrival_bound(
 /// role consumed through an arrival this walk did not see would name a value
 /// the member's own judgment never established.
 pub(crate) fn internal_arrivals<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
     let states = program.machine_states(machine);
@@ -1092,7 +1093,7 @@ pub(crate) fn internal_arrivals<'program>(
 /// the machine's declared entry names the machine symbol, while transitions
 /// to subordinate states name the state symbol.
 pub(crate) fn internal_state_index(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,
 ) -> Option<usize> {
@@ -1115,7 +1116,7 @@ pub(crate) fn internal_state_index(
         .position(|state| state.symbol == target_symbol)
 }
 
-fn target_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<usize> {
+fn target_machine(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<usize> {
     if !symbol.is_valid() {
         return None;
     }
@@ -1133,7 +1134,7 @@ fn target_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<usize> {
 }
 
 fn expression_is_inert(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
@@ -1147,7 +1148,7 @@ fn expression_is_inert(
 /// covered, while every subterm that is not a call must still be inert the
 /// way it would be with no call present.
 fn expression_is_inert_or_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: ExpressionHandle,

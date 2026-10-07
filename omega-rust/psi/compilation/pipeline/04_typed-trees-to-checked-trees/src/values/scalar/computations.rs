@@ -21,7 +21,6 @@ use checked_trees::{
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
@@ -48,7 +47,7 @@ use builder::Builder;
 mod builder;
 
 pub(crate) fn build_checked_value_computation_plans(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     borrow: &checked_trees::BorrowFacts,

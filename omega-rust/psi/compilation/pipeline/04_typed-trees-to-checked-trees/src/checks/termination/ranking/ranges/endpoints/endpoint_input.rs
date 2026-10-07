@@ -1,7 +1,6 @@
 //! Exact scalar or member-chain inputs of an independently formed endpoint.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::signature::StateParameter;
@@ -21,7 +20,7 @@ impl<'program> EndpointInput<'program> {
     /// The caller has already proved this whole expression's invariant bounds.
     /// Resolve its leaves again for exact arrival identity, not value inference.
     pub fn resolve(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
@@ -119,7 +118,7 @@ impl<'program> EndpointInput<'program> {
     /// here the endpoint's own preservation judgment supplies the storage
     /// evidence, so the leaf's store-enforced field range bounds the read.
     pub(super) fn declared_member_bounds(
-        program: &'program TypedTrees,
+        program: &'program dyn ::validation::CheckingInput,
         state: &'program State,
         expression: ExpressionHandle,
     ) -> Option<(i64, i64)> {
@@ -143,7 +142,7 @@ impl<'program> EndpointInput<'program> {
     /// initializer in statement order; later shadows simply resolve further.
     pub fn preserved_by(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         actual: ExpressionHandle,
         locals: &[(SymbolHandle, ExpressionHandle)],
     ) -> bool {
@@ -180,7 +179,7 @@ impl<'program> EndpointInput<'program> {
     /// endpoint's chain — the forwarded subtree still contains the leaf.
     fn is_prefixed_by(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         actual: ExpressionHandle,
         locals: &[(SymbolHandle, ExpressionHandle)],
     ) -> bool {
@@ -194,7 +193,7 @@ impl<'program> EndpointInput<'program> {
     /// as a nested literal that preserves the remaining chain the same way.
     fn literal_preserves_at(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         literal: &TableStructLiteral,
         depth: usize,
         locals: &[(SymbolHandle, ExpressionHandle)],
@@ -229,7 +228,7 @@ impl<'program> EndpointInput<'program> {
     /// `expression` spells the member path `param.chain[0..=depth]` exactly.
     fn is_prefix_path(
         &self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         mut cursor: ExpressionHandle,
         depth: usize,
     ) -> bool {
@@ -249,7 +248,11 @@ impl<'program> EndpointInput<'program> {
         self.is_parameter(program, cursor)
     }
 
-    fn is_parameter(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    fn is_parameter(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
         matches!(program.expression_table.expression(expression), ExpressionNode::Name(name)
             if name.symbol == self.parameter.symbol && name.head_symbol == name.symbol
                 && matches!(program.expression_table.name_path_members(name.members),
@@ -261,7 +264,7 @@ impl<'program> EndpointInput<'program> {
 /// hop lands on a strictly earlier binding's initializer, so the walk cannot
 /// cycle and needs no extra depth budget beyond the local count.
 fn resolve_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut expression: ExpressionHandle,
     locals: &[(SymbolHandle, ExpressionHandle)],
 ) -> ExpressionHandle {

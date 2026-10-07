@@ -4,7 +4,7 @@
 //! Terminal operation obligations still independently discharge Exact arithmetic.
 use super::{
     BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, OperatorSpelling, PrimitiveType,
-    StateParameter, SymbolHandle, TypeReferenceHandle, TypedTrees,
+    StateParameter, SymbolHandle, TypeReferenceHandle,
 };
 use crate::checks::contracts::call_bounds::context::comparison_is_supported;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
@@ -13,7 +13,7 @@ use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(super) fn primitive_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     parameters: &[StateParameter],
@@ -25,7 +25,7 @@ pub(super) fn primitive_type(
 /// A numeric actual is evaluated before later operands. Current call-entry
 /// atoms represent that captured value only if those operands preserve it.
 pub(super) fn capture_is_current<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &'program typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -81,7 +81,7 @@ pub(super) fn capture_is_current<'program>(
 /// Admit ordinary calls and independently builtin scalar operands only;
 /// other forms need their own complete expression-effect interpretation.
 fn operand_effects_are_known(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     parameters: &[StateParameter],
@@ -129,7 +129,7 @@ struct Meaning {
 }
 
 fn meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
     parameters: &[StateParameter],
@@ -271,7 +271,10 @@ fn meaning(
     }
 }
 
-pub(super) fn is_unlanded_integer(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(super) fn is_unlanded_integer(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     program.expression_table.expression_is_valid(expression)
         && matches!(program.expression_table.expression(expression),
             ExpressionNode::Integer(literal) if literal.landing().is_none())

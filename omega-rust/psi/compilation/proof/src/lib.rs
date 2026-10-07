@@ -32,10 +32,7 @@ pub use proof_surface::{
 /// Test-only `IntegerRange` construction shared by the checker and
 /// obligation suites.
 #[cfg(test)]
-pub(crate) fn integer_range(
-    minimum: i64,
-    maximum: i64,
-) -> obligations::IntegerRange {
+pub(crate) fn integer_range(minimum: i64, maximum: i64) -> obligations::IntegerRange {
     obligations::IntegerRange {
         minimum: numerics::bignum::BigInt::from_i64(minimum),
         maximum: numerics::bignum::BigInt::from_i64(maximum),

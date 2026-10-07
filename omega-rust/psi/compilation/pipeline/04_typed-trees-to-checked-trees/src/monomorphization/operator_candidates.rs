@@ -33,7 +33,9 @@ impl OperatorCandidateTemplates {
     /// Build chooses among them only after Terminal publication. Discover the
     /// authored edges before ordinary specialization can mutate their binders;
     /// the existing fixed point materializes only actual closed demands.
-    pub(crate) fn candidate_requests(program: &TypedTrees) -> Vec<GenericOperatorCandidate> {
+    pub(crate) fn candidate_requests(
+        program: &dyn ::validation::CheckingInput,
+    ) -> Vec<GenericOperatorCandidate> {
         let mut requests = Vec::new();
         for machine in program.machines() {
             if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -71,7 +73,7 @@ impl OperatorCandidateTemplates {
     }
 
     pub(crate) fn prepare(
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         selected: &[GenericOperatorCandidate],
     ) -> Option<Self> {
         if selected.is_empty() {
@@ -81,7 +83,7 @@ impl OperatorCandidateTemplates {
         // can redirect a call to an instance owned only by the live program.
         let operational = validation::infer_operational_may(program);
         let service_reaches = validation::infer_service_reaches(program, &operational);
-        let mut authored = program.clone();
+        let mut authored = program.typed_program().clone();
         materialize_static_argument_types(&mut authored);
         Some(Self {
             authored,
@@ -303,8 +305,8 @@ pub(crate) fn specialize_operator_candidates(
 }
 
 fn materialized_application(
-    program: &TypedTrees,
-    templates: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
+    templates: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     template: &Candidate,
     requirement: SymbolHandle,
@@ -351,7 +353,7 @@ fn materialized_application(
 }
 
 fn copy_application_types(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     source: &mut TypedTrees,
     application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
 ) -> Vec<typed_trees::operator::ClosedOperatorApplicationArgument> {
@@ -384,7 +386,7 @@ fn copy_application_types(
 }
 
 fn has_materialized_specialization(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     template: SymbolHandle,
     requirement: SymbolHandle,
     key: &SpecializationKey,
@@ -406,7 +408,7 @@ fn has_materialized_specialization(
 }
 
 fn selected_operator_candidate_for_application<'template>(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     template: &'template Candidate<'_>,
     machine: &typed_trees::machine::Machine,
     application: &[typed_trees::operator::ClosedOperatorApplicationArgument],
@@ -469,7 +471,7 @@ fn selected_operator_candidate_for_application<'template>(
 }
 
 fn const_identity_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<TypeReferenceHandle> {
     let language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } =
@@ -486,7 +488,7 @@ fn const_identity_type_reference(
 }
 
 fn selected_operator_applications(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<Vec<Vec<typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>> {
     let mut symbol_diagnostics = Vec::new();
@@ -538,7 +540,7 @@ fn selected_operator_applications(
 }
 
 pub(super) fn executable_statement_expression_roots(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     program
@@ -553,7 +555,7 @@ pub(super) fn executable_statement_expression_roots(
 }
 
 fn selected_operator_application_at_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbols: &validation::TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     machine: &typed_trees::machine::Machine,

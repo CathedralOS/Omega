@@ -39,7 +39,7 @@ use typed_trees::statement::TransitionGuardNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_guard_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -115,7 +115,7 @@ pub(super) fn append_guard_context(
 /// that do not all prove it.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_comparison_bounds_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -354,7 +354,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
 /// their carriers.
 #[allow(clippy::too_many_arguments)]
 fn append_case_constraint_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -446,7 +446,7 @@ fn append_case_constraint_context(
 /// peel the arm-test `<expr> == true` wrappers. `expr == false` under a true
 /// arm is contradictory and contributes nothing.
 fn append_true_arm_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     conjuncts: &mut Vec<ExpressionHandle>,
 ) {
@@ -476,7 +476,7 @@ fn append_true_arm_conjuncts(
 }
 
 fn flatten_and_conjuncts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     conjuncts: &mut Vec<ExpressionHandle>,
 ) {
@@ -495,7 +495,7 @@ fn flatten_and_conjuncts(
 /// case-membership `in` test lowers to, and return the subject with the
 /// resolved variant and its data definition.
 fn case_membership_claim(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
@@ -541,7 +541,7 @@ fn case_membership_claim(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_predicate_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -627,7 +627,7 @@ pub(in crate::flow) fn append_predicate_context(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_match_pattern_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -710,7 +710,7 @@ pub(in crate::flow) fn append_match_pattern_context(
 }
 
 fn match_input_has_builtin_meaning(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
@@ -757,7 +757,7 @@ fn match_input_has_builtin_meaning(
 /// contributes nothing, a refused probe is not a positive class.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn append_byte_predicate_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -795,7 +795,7 @@ pub(in crate::flow) fn append_byte_predicate_context(
 
 #[allow(clippy::too_many_arguments)]
 fn append_observation_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
@@ -843,7 +843,7 @@ fn append_observation_context(
 }
 
 fn expression_is_stable_predicate(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
@@ -875,7 +875,7 @@ fn expression_is_stable_predicate(
 
 #[allow(clippy::too_many_arguments)]
 fn append_entry_path_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     state: SymbolHandle,

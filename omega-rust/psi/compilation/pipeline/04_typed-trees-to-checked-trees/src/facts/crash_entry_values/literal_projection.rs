@@ -14,13 +14,12 @@
 use super::{MAX_ENTRY_PROVENANCE_DEPTH, PlaceSegment, entry_operand_at, member_hop_path};
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 pub(super) fn entry_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -42,7 +41,7 @@ pub(super) fn entry_value(
 /// statement prefix. Following a saved local changes that prefix; consulting
 /// the eventual consumer's facts would replay a newer selector value.
 pub(super) fn entry_value_with_selector(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -64,7 +63,10 @@ pub(super) fn entry_value_with_selector(
     )
 }
 
-fn literal_index(program: &TypedTrees, expression: ExpressionHandle) -> Option<usize> {
+fn literal_index(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<usize> {
     let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -78,7 +80,7 @@ fn literal_index(program: &TypedTrees, expression: ExpressionHandle) -> Option<u
 }
 
 fn projected_entry_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     before_statement: usize,

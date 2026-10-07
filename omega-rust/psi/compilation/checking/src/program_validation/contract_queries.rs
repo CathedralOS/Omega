@@ -4,7 +4,6 @@ use crate::program_validation::finish_diagnostics;
 use crate::proof_contracts::contract_entailment;
 use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 /// Exact source-independent coordinate of a contract-entailment goal that the
 /// current proof engines declined to judge. Ordinary compilation may continue
@@ -46,7 +45,7 @@ impl ContractEntailmentStandDownReason {
 /// failure, while this function supplies only successful-compilation admission
 /// accounting.
 pub fn collect_contract_entailment_stand_downs(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<ContractEntailmentStandDown> {
     let mut stand_downs = Vec::new();
     let mut diagnostics = Vec::new();
@@ -83,7 +82,7 @@ pub fn collect_contract_entailment_stand_downs(
 /// Rejudging the current typed program preserves expression identity after
 /// specialization; proof from a different template or program is not reused.
 pub fn proven_machine_contract_expressions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine_symbol: ::symbols::SymbolHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let Some(machine) = program.machines().iter().find(|machine| {
@@ -114,7 +113,7 @@ pub fn proven_machine_contract_expressions(
 /// selected operator and establish a retained checked baseline separately; this
 /// reruns the contract-coverage judgment as the final semantic gate.
 pub fn validate_checked_operator_realization_contract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -132,7 +131,7 @@ pub fn validate_checked_operator_realization_contract(
 /// conformance. The bytes are compiler-private custody for equality within one
 /// checked compilation; they are deliberately not a persisted format or hash.
 pub fn checked_operator_contract_snapshot(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
 ) -> Vec<u8> {
     contract_entailment::checked_operator_contract_snapshot(program, contracts)
@@ -141,7 +140,7 @@ pub fn checked_operator_contract_snapshot(
 /// Prove machine-generic contracts before specialization. Static selections
 /// must already have been checked against their declared callable contracts.
 pub fn validate_generic_machine_contract_entailment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for machine in program.machines() {

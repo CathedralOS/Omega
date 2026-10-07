@@ -5,7 +5,6 @@
 
 use numerics::literals::FloatFormat;
 use semantic_vocabulary::IeeeFloatValue;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
@@ -18,7 +17,7 @@ use typed_trees::types::PrimitiveType;
 /// (`constraint_validation`) refuses a floating range whose endpoint this
 /// reader does not close.
 pub fn closed_float_range_endpoint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     primitive_type: PrimitiveType,
 ) -> Option<IeeeFloatValue> {

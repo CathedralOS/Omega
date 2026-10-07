@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, ProofFact,
     SignatureContractKind, StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    TypeReferenceNode,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -87,7 +87,7 @@ pub(crate) fn checked_call_scalar_arguments(
 /// erased proof-formal order. Each term's constructed (or forwarded) data
 /// identity must match the formal's canonical `Nat`-style identity.
 pub(crate) fn checked_call_erased_proof_arguments(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
@@ -115,7 +115,7 @@ pub(crate) fn checked_call_erased_proof_arguments(
 /// The construction or forwarded formal carries exactly the formal's declared
 /// proof-only data identity.
 fn proof_term_type_matches(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller_state: SymbolHandle,
     term: &checked_trees::CheckedProofTerm,
     type_identity: &str,
@@ -181,7 +181,7 @@ pub(crate) fn checked_call_erased_scalar_arguments(
 /// admits exact mutable byte-view presentations as well as equal normalized
 /// identity; each call owner retains its own access and path restrictions.
 pub(crate) fn projected_argument_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -202,7 +202,7 @@ pub(crate) fn projected_argument_path(
 /// carries no interval. Every other caller keeps rejecting runtime indexes
 /// through `projected_argument_path`.
 pub(crate) fn projected_borrowed_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -227,7 +227,7 @@ pub(crate) fn projected_borrowed_path(
 /// in the observing computation's own scalar namespace. Only the observation
 /// owner holds that namespace, so no other lane admits local selectors.
 pub(crate) fn projected_observed_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -254,7 +254,7 @@ pub(crate) fn projected_observed_path(
 /// A computation owner supplies executable selectors at the same projected
 /// storage join. Other callers pass no evaluator and cannot invent a value.
 pub(crate) fn projected_evaluated_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
@@ -269,7 +269,7 @@ pub(crate) fn projected_evaluated_path(
 }
 
 fn projected_argument_path_impl(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -493,7 +493,7 @@ fn projected_argument_path_impl(
 /// to `FixedIndex`, a bare parameter or field selector mints the runtime
 /// coordinate Terminal re-proves against the container's extent.
 pub(crate) fn borrowed_index_segment(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -517,7 +517,7 @@ pub(crate) fn borrowed_index_segment(
 /// immutable binding with a constant initializer folds here; every other
 /// shape stays on the runtime-selector routes.
 fn constant_local_index(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<usize> {
@@ -551,7 +551,7 @@ fn constant_local_index(
 /// hold before the operation (the state's published requires, a dominating
 /// guard), so admission here only resolves the selector.
 fn runtime_index_parameter_position(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<u32> {
@@ -603,7 +603,7 @@ fn runtime_index_parameter_position(
 /// holding before the call; admission here only resolves the selector's
 /// subject.
 fn runtime_index_field_selector(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -663,7 +663,7 @@ fn runtime_index_field_selector(
 /// The shared owner under the ordinary rule: the projected type must carry the
 /// target parameter's exact normalized identity.
 pub(crate) fn projected_argument_path_with_identity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -682,7 +682,7 @@ pub(crate) fn projected_argument_path_with_identity(
 /// way an emitted segment's Terminal obligation re-proves it against the
 /// view's own witness; every other container declines.
 fn fixed_index_within_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     container: typed_trees::types::TypeReferenceHandle,
     index: usize,
 ) -> Option<()> {
@@ -697,7 +697,7 @@ fn fixed_index_within_extent(
 /// unlike the index arm a runtime-length slice cannot carry it — a stored
 /// `&[u8]` has no literal bound to re-prove against.
 pub(crate) fn fixed_byte_range_within_extent(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     container: typed_trees::types::TypeReferenceHandle,
     start: usize,
     end: usize,
@@ -728,7 +728,7 @@ pub(crate) fn fixed_byte_range_within_extent(
 /// The container is a slice through any number of domain constraints and
 /// borrows.
 fn slice_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     while let TypeReferenceNode::Constrained { base_type, .. }
@@ -745,7 +745,7 @@ fn slice_type_reference(
 }
 
 fn fixed_array_literal_length(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
     while let TypeReferenceNode::Constrained { base_type, .. }
@@ -770,7 +770,7 @@ fn fixed_array_literal_length(
 /// manufactured. Runtime endpoints need separate extent evidence; this route
 /// retains only canonical fixed bounds and rechecks the actual array extent.
 pub(crate) fn fixed_byte_array_range_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -800,7 +800,7 @@ pub(crate) fn fixed_byte_array_range_path(
 /// constant. An end that survived canonicalization names a dynamic bound and
 /// is not a fixed range.
 pub(crate) fn open_byte_range_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -838,7 +838,7 @@ pub(crate) fn open_byte_range_path(
 }
 
 fn byte_array_range_path(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
@@ -886,7 +886,7 @@ fn byte_array_range_path(
 /// retains the remaining content-contract limitation: executing a projection
 /// cannot invent the missing correspondence for a content-qualified contract.
 pub(crate) fn projected_call_contracts_are_represented(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
@@ -948,7 +948,7 @@ pub(crate) fn projected_call_contracts_are_represented(
 }
 
 pub(crate) fn target_contract_mentions_projected_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
@@ -1048,7 +1048,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
 /// projected-contract representation. Other memberships and all exit
 /// contracts still need theirs.
 fn byte_parameter_qualification_carries_membership(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     membership: &typed_trees::domain::ProofMembershipFact,
 ) -> bool {
@@ -1169,7 +1169,7 @@ pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
 }
 
 pub(crate) fn byte_sequence_literal_argument(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {

@@ -10,13 +10,13 @@ use super::super::reference_origins::{
 use super::super::stored_origins::{declared_origins_for_query, place_suffix, source_reaches_leaf};
 use super::super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, Machine,
-    StateParameter, TopLevelSymbols, TypedTrees, append_place_suffix, split_place_root,
+    StateParameter, TopLevelSymbols, append_place_suffix, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     parameter: &StateParameter,
     actual: ExpressionHandle,

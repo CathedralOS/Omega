@@ -30,7 +30,7 @@ use crate::borrow::view_link::returns_borrow;
 use checked_trees::CheckFacts;
 
 pub(super) fn check_view_return_escape(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -143,7 +143,7 @@ pub(super) fn check_view_return_escape(
 /// `Expression` or a transition `Value` target. Other statements/targets do not
 /// return a value.
 pub(super) fn return_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     match statement {
@@ -186,7 +186,7 @@ fn state_loans(
 }
 
 fn local_name(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     symbol: SymbolHandle,
 ) -> String {

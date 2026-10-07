@@ -21,7 +21,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// only when the complete type-side owner plan is eligible. Its contextual row
 /// still carries hook effects and requirements through ordinary admission.
 pub(crate) fn append_owned_cleanup_permission_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -142,7 +142,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
 /// recorded consumption. This keeps cleanup authority attached to the exact
 /// source owner and claim rather than treating any StateExit consume as proof.
 pub(crate) fn apply_recorded_cleanup_events(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -191,7 +191,7 @@ pub(crate) fn apply_recorded_cleanup_events(
 }
 
 fn exit_evaluation(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     coordinate: FlowClaimJoinExit,
 ) -> FlowPermissionEvaluation {

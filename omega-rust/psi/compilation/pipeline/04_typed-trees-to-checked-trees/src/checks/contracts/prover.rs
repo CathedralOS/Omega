@@ -52,7 +52,7 @@ use self::booleans::{
 use super::evaluator::call_site_proves_boolean_contract_expression;
 
 pub(super) fn semantic_contexts_prove_boolean_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
@@ -71,7 +71,7 @@ pub(super) fn semantic_contexts_prove_boolean_expression(
 }
 
 pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -177,7 +177,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 }
 
 pub(super) fn semantic_contexts_prove_contract_fact(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     entry_contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
@@ -321,7 +321,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
 /// Nominal field contracts are checked separately and retain conditional paths
 /// below a whole-sum actual instead of extracting all its alternatives.
 pub(super) fn contract_membership_place_is_accessible(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
@@ -368,7 +368,7 @@ pub(super) fn contract_membership_place_is_accessible(
 /// a runtime `Index`; a finite range covers contained indices -- see
 /// `assigned_values::segments_cover_subject`).
 fn place_covers_subject(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     candidate: facts::PlaceHandle,
     subject: facts::PlaceHandle,
@@ -383,7 +383,10 @@ fn place_covers_subject(
         )
 }
 
-pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: FactPayload) -> bool {
+pub(super) fn indexed_membership(
+    program: &dyn ::validation::CheckingInput,
+    payload: FactPayload,
+) -> bool {
     let (FactPayload::DomainMembership { domain_symbol, .. }
     | FactPayload::ContractDomainMembership { domain_symbol, .. }) = payload
     else {
@@ -398,7 +401,7 @@ pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: Fac
 /// The caller actual a case test's subject names: the positional argument for
 /// an ordinary formal, or the receiver for `self`.
 fn case_test_subject_actual(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call_site: &crate::semantic::calls::CallSite<'_>,
     parameters: &[typed_trees::signature::StateParameter],
     subject: typed_trees::expression::ExpressionHandle,
@@ -419,7 +422,7 @@ fn case_test_subject_actual(
 /// Call `requires` resolution uses the same admission as the contract prover.
 pub(crate) fn contexts_prove_proposition_label(
     semantic: &facts::FactPlan,
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     contexts: &[facts::FactContextHandle],
     required_label: &str,
 ) -> bool {

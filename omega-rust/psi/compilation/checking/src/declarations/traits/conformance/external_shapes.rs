@@ -5,7 +5,6 @@ use crate::declarations::standard_declarations::is_core_vector;
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
@@ -18,7 +17,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// Without one, private slice/text/vector carriers must stop at a checked
 /// adapter rather than silently inheriting the compiler's storage layout.
 pub(crate) fn validate_external_leaf_native_shapes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -96,7 +95,7 @@ pub(crate) fn validate_external_leaf_native_shapes(
 /// validates the compiler-owned `Binding` return vocabulary and normalizes its
 /// object-format locator.
 pub(crate) fn validate_external_via_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
     diagnostics: &mut Vec<Diagnostic>,
@@ -187,7 +186,7 @@ pub(crate) fn validate_external_via_expression(
 }
 
 fn boundary_has_explicit_calling_policy(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     trait_definition: &TraitDefinition,
 ) -> bool {
     crate::declarations::standard_declarations::standard_calling_traits(program).is_some_and(
@@ -218,7 +217,7 @@ impl PrivateNativeCarrier {
 }
 
 fn private_native_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<PrivateNativeCarrier> {
@@ -273,7 +272,7 @@ fn private_native_carrier(
 }
 
 fn private_record_carrier(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<PrivateNativeCarrier> {
@@ -294,7 +293,7 @@ fn private_record_carrier(
 }
 
 fn carrier_is_slice_or_fixed_array(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
@@ -308,7 +307,7 @@ fn carrier_is_slice_or_fixed_array(
 }
 
 fn native_carrier_diagnostic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,

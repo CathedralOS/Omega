@@ -5,7 +5,6 @@
 //! neither these queries nor that effect scan depend on obligation collection.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -13,7 +12,7 @@ use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -69,7 +68,7 @@ pub(crate) fn expression_type_reference(
 /// The ELEMENT type of an array/slice type reference, through reference and
 /// constraint shells: `[T; N]` / `[T]` / `&[T]` -> `T` (constraints intact).
 fn element_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     if !type_reference.is_valid() {
@@ -97,7 +96,7 @@ fn element_type_reference(
 /// `field_domain::attached_data_field_type` -- both sides must agree so a nested
 /// domained field is trusted at reads exactly where it is enforced at writes.
 fn attached_data_field_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -123,7 +122,10 @@ fn attached_data_field_type(
 /// The segments of a `self.a.b.c` field-access path AFTER `self`, or `None` if
 /// not a `self`-rooted field access. Handles the nested `Member` chain and a flat
 /// `Name` path alike.
-fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<Vec<String>> {
+fn self_field_path(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<Vec<String>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
             let mut path = self_field_path(program, member.receiver)?;
@@ -145,7 +147,7 @@ fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option
 }
 
 pub(crate) fn data_field_type_by_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
@@ -166,7 +168,7 @@ pub(crate) fn data_field_type_by_name(
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a
 /// domain `Constrained` wrapper), for descending a nested field path.
 fn type_reference_data_name(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -184,7 +186,7 @@ fn type_reference_data_name(
 /// `Mutable`): `__hoist_N` -> `tallies[self.k]`. Anything else (calls,
 /// arithmetic, non-locals) stays as-is.
 pub(crate) fn dehoisted_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     operand: ExpressionHandle,
 ) -> ExpressionHandle {
@@ -206,7 +208,7 @@ pub(crate) fn dehoisted_operand(
 /// so a bare-name condition resolves through any call-free initializer shape
 /// (Binary comparisons included).
 pub(crate) fn dehoisted_condition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     condition: ExpressionHandle,
 ) -> ExpressionHandle {
@@ -218,7 +220,7 @@ pub(crate) fn dehoisted_condition(
 /// later same-spelled local (a const binder `N` read ahead of `let N = ...`)
 /// is not that local, and its initializer says nothing about the read.
 fn dehoisted_initializer(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     operand: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
@@ -242,7 +244,7 @@ fn dehoisted_initializer(
 }
 
 fn type_reference_for_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     symbol: SymbolHandle,
@@ -300,7 +302,7 @@ fn type_reference_for_symbol(
 }
 
 fn data_field_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
     member_name: &Identifier,
@@ -335,7 +337,7 @@ fn data_field_type_reference(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     name: &Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
@@ -345,7 +347,7 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 pub(crate) fn data_field_in_definition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data_definition: &typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &Identifier,
@@ -365,7 +367,7 @@ pub(crate) fn data_field_in_definition(
 }
 
 pub(crate) fn call_expression_return_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _machine: &Machine,
     _state: &State,
     call: &typed_trees::expression::TableCallExpression,
@@ -374,7 +376,7 @@ pub(crate) fn call_expression_return_type(
 }
 
 fn callable_return_type_by_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     if !target_symbol.is_valid() {
@@ -407,7 +409,7 @@ fn callable_return_type_by_symbol(
 /// Whether any `Call` node appears in the expression tree (an opaque effect:
 /// a value-machine call may mutate fields through `&mut self`).
 pub(crate) fn expression_contains_call_node(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     if !expression.is_valid() {

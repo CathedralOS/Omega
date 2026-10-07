@@ -3,12 +3,12 @@
 //! source checking owns eligibility and contextual hook requirements.
 use super::{
     ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, SymbolHandle, TypedTrees,
+    PermissionEventSource, SymbolHandle,
 };
 use crate::execution::terminal_unit::MachineSupplyMode;
 
 pub(crate) fn validate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

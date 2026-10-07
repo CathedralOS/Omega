@@ -19,14 +19,13 @@
 //! selector, so re-reading the selector at each arm observes the element the
 //! borrow named. Anything else keeps the ordinary local planning, which
 //! declines a reference local it cannot establish.
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TableLocalData, TransitionGuardNode};
 
 /// The borrowed place `local` erases to, when it is a runtime-indexed case
 /// dispatch subject: its initializer's borrow target.
 pub(crate) fn erased_subject(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     local_statement: usize,
     local: &TableLocalData,
@@ -84,7 +83,7 @@ pub(crate) fn erased_subject(
 /// The borrowed place a membership subject names through an erased dispatch
 /// subject, with the statement index of the erased `let`.
 pub(crate) fn observed_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     subject: ExpressionHandle,
 ) -> Option<(ExpressionHandle, usize)> {

@@ -16,7 +16,6 @@
 //!   the same contract the view's read side composes from.
 use super::super::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, PrimitiveType,
-    TypedTrees,
 };
 use super::destination::{Carrier, Destination};
 use super::value::{self, AssignmentSource};
@@ -31,7 +30,7 @@ use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_fie
 /// view's live extent has no declared footprint bound to distribute the
 /// per-byte obligations against, so it stays refused.
 pub(super) fn plan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -129,7 +128,7 @@ pub(super) fn plan(
 /// record prefix only — the field's own segment is appended here, and the
 /// caller appends the literal or runtime element segment after it.
 fn byte_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     destination: &Destination<'_>,
     carriers: &[facts::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {

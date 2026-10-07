@@ -16,7 +16,7 @@ pub(crate) fn resolved_contract_call_symbol(
         .is_valid()
         .then_some(call.target_symbol)
         .or_else(|| {
-            typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+            typed_trees::operator::resolve_named_expression_call(compilation.checking_input, call)
                 .map(|operator| operator.symbol)
         })
 }
@@ -36,7 +36,7 @@ pub(crate) fn contract_call_value_receiver(
     }
     if !call.target_symbol.is_valid()
         && let Some(operator) =
-            typed_trees::operator::resolve_named_expression_call(&compilation.typed, call)
+            typed_trees::operator::resolve_named_expression_call(compilation.checking_input, call)
         && let typed_trees::expression::ExpressionNode::Name(path) =
             compilation.expression_table.expression(call.receiver)
     {
@@ -122,7 +122,7 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
             compilation.expression_table.expression(*argument),
             typed_trees::expression::ExpressionNode::Borrow(_)
         ) && !validation::checked_argument_matches_type_reference(
-            &compilation.typed,
+            compilation.checking_input,
             *argument,
             parameter.type_reference,
         ) {
@@ -261,7 +261,7 @@ pub(crate) fn exact_checked_contract_call_target(
     }
     let retained_symbol = resolved_contract_call_symbol(compilation, call);
     let owner_derived_symbol = typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-        &compilation.typed,
+        compilation.checking_input,
         &compilation.facts,
         expression,
     );
@@ -341,7 +341,7 @@ pub(crate) fn exact_checked_contract_call_target(
             };
             let Some(expected) =
                 typed_trees_to_checked_trees::derive_checked_collection_view_intrinsic(
-                    &compilation.typed,
+                    compilation.checking_input,
                     &compilation.facts,
                     expression,
                 )

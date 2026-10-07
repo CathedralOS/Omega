@@ -43,7 +43,7 @@ pub fn validate_boundary_calls(
 /// calling a requirement introduces no capacity (`wiki/spec/resources/
 /// authority.md`, "External roots and issuance"). Data never implements a
 /// whole capability, so no declaration revokes approval.
-fn approved_boundary_traits(program: &typed_trees::TypedTrees) -> Vec<SymbolHandle> {
+fn approved_boundary_traits(program: &dyn crate::CheckingInput) -> Vec<SymbolHandle> {
     let mut approved = Vec::new();
     for definition in program
         .traits()
@@ -346,7 +346,7 @@ fn checked_boundary_call_coordinates(
 }
 
 fn exact_direct_boundary_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Result<Option<(SymbolHandle, SymbolHandle)>, Diagnostic> {
     let matches = program
@@ -381,7 +381,7 @@ fn exact_direct_boundary_requirement(
 }
 
 fn validate_exact_boundary_requirement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     boundary_trait_symbol: SymbolHandle,
     boundary_signature_symbol: SymbolHandle,
     context: &str,
@@ -435,7 +435,7 @@ fn validate_exact_boundary_requirement(
     Ok(())
 }
 
-fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
+fn symbol_name(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "unknown".to_owned();
     }

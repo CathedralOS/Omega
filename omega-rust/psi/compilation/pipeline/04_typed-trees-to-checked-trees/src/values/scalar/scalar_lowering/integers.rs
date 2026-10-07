@@ -9,7 +9,6 @@ use checked_trees::{CheckedIntegerRange, CheckedScalarExpression};
 use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
@@ -118,7 +117,7 @@ pub(crate) fn construct_integer_bitwise_not(
 /// Retain cast meaning and any partial-conversion proof at the original source
 /// occurrence even when the operand is a completed computation-plan value.
 pub(crate) fn construct_integer_cast(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     operand: CheckedScalarExpression,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -244,7 +243,7 @@ pub(crate) fn construct_integer_cast(
 /// landed `u64` here lets later checked control replay the exact initializer
 /// without consulting a target representation.
 pub(super) fn exact_inline_literal_subslice_length(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {

@@ -8,12 +8,13 @@ use language_semantics::const_value::{
 };
 use std::collections::HashSet;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind};
+use typed_trees::data::{
+    DataField, DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
+};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn validate_machine_data_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_symbol: SymbolHandle,
     base_name: &str,
     parameter: &TypeParameter,
@@ -70,7 +71,7 @@ pub(super) fn validate_machine_data_argument(
 }
 
 pub(super) fn machine_argument_name<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'program>,
 ) -> Option<&'program str> {
@@ -95,7 +96,7 @@ pub(super) fn machine_argument_name<'program>(
 }
 
 pub(super) fn validate_symbolic_array_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     length: &FixedArrayLength,
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -151,7 +152,7 @@ pub(super) fn validate_symbolic_array_length(
 /// admits neither unresolved binders nor unevaluated expressions and applies
 /// even when the selected binder has no body occurrences.
 pub fn validate_closed_const_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &str,
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
@@ -196,7 +197,7 @@ pub fn validate_closed_const_argument(
 }
 
 pub(super) fn validate_const_data_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
     parameter_type: TypeReferenceHandle,
@@ -347,7 +348,7 @@ pub(super) fn validate_const_data_argument(
 /// rules remain with the broader producer judgment until their typed replay is
 /// shared too.
 pub(crate) fn validate_exact_typed_structured_const_argument(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
     value: &CanonicalConstValue,
 ) -> Result<(), String> {
@@ -371,7 +372,7 @@ pub(crate) fn validate_exact_typed_structured_const_argument(
 }
 
 pub(crate) fn validate_exact_const_identity(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
     identity: &CanonicalConstIdentity,
 ) -> Result<(), String> {
@@ -410,7 +411,7 @@ pub(crate) fn validate_exact_const_identity(
 /// carrier. This syntax-free entry is for downstream compiler stages: names
 /// embedded in the encoding are consistency claims, never type authority.
 pub fn validate_exact_const_value_encoding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
     encoding: &str,
 ) -> Result<(), String> {
@@ -440,7 +441,10 @@ pub fn validate_exact_const_value_encoding(
 /// Canonical labels follow the independently resolved carrier declaration.
 /// A caller's qualification or import alias cannot change a value encoding;
 /// the label still supplies no nominal authority without the exact typed slot.
-fn canonical_carrier_label(program: &TypedTrees, reference: TypeReferenceHandle) -> String {
+fn canonical_carrier_label(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> String {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
@@ -461,7 +465,7 @@ fn canonical_carrier_label(program: &TypedTrees, reference: TypeReferenceHandle)
 }
 
 fn exact_structured_const_data_carrier_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     let TypeReferenceNode::Named { symbol, .. } =
@@ -476,7 +480,7 @@ fn exact_structured_const_data_carrier_is_eligible(
 }
 
 fn exact_structured_const_carrier_is_eligible(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
@@ -547,12 +551,11 @@ fn exact_structured_const_carrier_is_eligible(
     }
 }
 
-
 /// The data definition a `Named` carrier's decoded node names: an
 /// unresolved or recursive symbol and a declared type name mismatch are
 /// errors; `node_kind` is `record` or `variant` in the diagnostic.
 fn structured_const_carrier_definition<'p>(
-    program: &'p TypedTrees,
+    program: &'p dyn crate::CheckingInput,
     symbol: &symbols::SymbolHandle,
     type_name: &str,
     node_kind: &str,
@@ -563,9 +566,7 @@ fn structured_const_carrier_definition<'p>(
     }
     let definition =
         crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-            .ok_or_else(|| {
-                "structured const carrier symbol has no data definition".to_owned()
-            })?;
+            .ok_or_else(|| "structured const carrier symbol has no data definition".to_owned())?;
     if type_name != definition.name.as_str() {
         return Err(format!(
             "{node_kind} node names `{type_name}`, expected `{}`",
@@ -576,7 +577,7 @@ fn structured_const_carrier_definition<'p>(
 }
 
 fn validate_decoded_structured_const(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expected_type: TypeReferenceHandle,
     value: &DecodedCanonicalConstValue,
     visiting: &mut Vec<symbols::SymbolHandle>,
@@ -752,7 +753,7 @@ fn validate_decoded_structured_const(
 /// field's name, then the value recurses through the structured-const
 /// validation with the visiting guard intact.
 fn validate_named_field_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     encoded_name: &str,
     field: &DataField,
     encoded_value: &DecodedCanonicalConstValue,
@@ -765,16 +766,11 @@ fn validate_named_field_value(
             field.name
         ));
     }
-    validate_decoded_structured_const(
-        program,
-        field.type_reference,
-        encoded_value,
-        visiting,
-    )
+    validate_decoded_structured_const(program, field.type_reference, encoded_value, visiting)
 }
 
 fn exact_const_primitive(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let TypeReferenceNode::Named { symbol, name } =
@@ -801,7 +797,7 @@ fn exact_const_primitive(
 }
 
 fn validate_typed_const_index_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<String>,
 ) -> Result<(), String> {
@@ -882,7 +878,7 @@ fn validate_typed_const_index_type(
 }
 
 fn validate_const_integer_range(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,
     mut parameter_type: TypeReferenceHandle,
@@ -942,7 +938,7 @@ fn validate_const_integer_range(
 /// range a closed interval that index proofs read without a spelling.
 /// Preliminary checking tolerates an endpoint whose evaluation is pending.
 pub(crate) fn validate_const_binder_carriers(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &str,
     parameters: &[TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
@@ -1014,7 +1010,7 @@ pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value
 /// on in-scope type parameters count, so `data Outer<U [copy]>` may store a
 /// `Box<U>`.
 pub(super) fn validate_generic_argument_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     base_symbol: SymbolHandle,
     base_name: &str,

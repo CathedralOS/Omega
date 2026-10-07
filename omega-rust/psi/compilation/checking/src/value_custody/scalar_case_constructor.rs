@@ -6,7 +6,6 @@
 //! fully authored scalar-payload sum route is described here.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -29,7 +28,7 @@ pub struct StructuralCaseConstructor {
 /// Classify value sequencing before permission checking. A named source is not
 /// evidence of an available owner; selected transfers require checked receipts.
 pub fn is_scalar_case_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> bool {
@@ -45,7 +44,7 @@ pub fn is_scalar_case_value(
 }
 
 fn is_case_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
     allow_existing: bool,
@@ -91,7 +90,7 @@ fn is_case_value(
 /// Resolve a whole local/parameter occurrence without erasing a borrow or
 /// qualification. The caller independently checks its scope and live custody.
 pub fn scalar_case_value_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
@@ -127,7 +126,7 @@ pub fn scalar_case_value_source(
 /// `reference` supplies for `owner`'s type parameters — `None` when the
 /// reference does not name `owner` or its argument count disagrees.
 pub fn member_type_substitutions(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     owner: &DataDefinition,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
@@ -158,7 +157,7 @@ pub fn member_type_substitutions(
 /// arguments nested deeper in the declared type stay in declared form, which
 /// the checked route declines downstream.
 pub fn substituted_member_reference(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     declared: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
@@ -178,7 +177,7 @@ pub fn substituted_member_reference(
 /// it the owner must be a closed data definition, matching the previous
 /// bare-named lookup.
 fn case_constructor_parts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     expected: Option<TypeReferenceHandle>,
     erased_member_owner: bool,
@@ -359,7 +358,7 @@ fn case_constructor_parts(
 }
 
 pub fn scalar_case_constructor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ScalarCaseConstructor> {
     let (reference, selected, operands) = case_constructor_parts(program, expression, None, false)?;
@@ -380,7 +379,7 @@ pub fn scalar_case_constructor(
 /// members are admitted instead -- constructing a case writes its tag and
 /// runtime fields, the erased members never materialize.
 pub fn structural_case_constructor(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> Option<StructuralCaseConstructor> {

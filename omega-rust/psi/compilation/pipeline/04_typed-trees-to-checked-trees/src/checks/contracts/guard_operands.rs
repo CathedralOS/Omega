@@ -32,7 +32,7 @@ enum RequirementRead {
 /// An operand call whose write frame the checked facts cannot bound is
 /// treated as writing everything.
 pub(super) fn requirement_reads_survive_earlier_operand_writes(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -158,7 +158,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
 
 /// The symbols a boolean contract expression names at its roots.
 pub(super) fn boolean_requirement_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     let mut mentioned = Vec::new();
@@ -172,7 +172,7 @@ pub(super) fn boolean_requirement_mentions(
 /// the caller subject and names no target parameter, so mentioning it could
 /// never locate the operand position the requirement actually reads.
 pub(super) fn fact_requirement_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     _facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Vec<SymbolHandle> {
@@ -209,7 +209,7 @@ fn requirement_reads(
 }
 
 fn collect_root_mentions(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     mentioned: &mut Vec<SymbolHandle>,
 ) {
@@ -281,7 +281,7 @@ fn collect_root_mentions(
 
 /// Whether `needle` occurs anywhere inside `expression`.
 fn expression_contains(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     needle: ExpressionHandle,
 ) -> bool {

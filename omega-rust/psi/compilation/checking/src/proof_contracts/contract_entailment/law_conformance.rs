@@ -28,8 +28,8 @@ pub(crate) use slot_bindings::{
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
-    SignatureContractKind, StateSignature, StructuralTerm, TraitDefinition, TypedTrees,
-    structural_term, unfold_constant_applications,
+    SignatureContractKind, StateSignature, StructuralTerm, TraitDefinition, structural_term,
+    unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
     bindings_are_forall_general, check_proposition_law_conformance,
@@ -39,7 +39,7 @@ use crate::proof_contracts::contract_entailment::law_conformance::slot_bindings:
 };
 
 pub(crate) fn check_law_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance_alias: Option<&str>,
     trait_definition: &TraitDefinition,
@@ -60,7 +60,7 @@ pub(crate) fn check_law_conformance(
 }
 
 fn check_law_conformance_with_matches(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance_alias: Option<&str>,
     trait_definition: &TraitDefinition,

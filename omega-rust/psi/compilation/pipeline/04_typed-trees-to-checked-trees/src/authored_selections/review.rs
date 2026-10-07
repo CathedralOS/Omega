@@ -1,11 +1,11 @@
 use checked_trees::CheckFacts;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
-use typed_trees::{TypedTrees, expression::ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 
 /// Rederive one exact compiler-owned collection view from the typed call and
 /// the checked environments that own it.
 pub(crate) fn derive_checked_collection_view_intrinsic(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {

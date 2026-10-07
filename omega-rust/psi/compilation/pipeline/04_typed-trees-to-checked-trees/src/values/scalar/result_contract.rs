@@ -16,7 +16,6 @@ use checked_trees::{
     CheckedIntegerMathTerm,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
@@ -30,7 +29,7 @@ use typed_trees::types::TypeReferenceNode;
 /// Entry scalar parameters precede the reserved ensures-only result position.
 /// The caller owns the shared work budget, including unsuccessful reads.
 pub(crate) fn lower_scalar_contract_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     expression: ExpressionHandle,
@@ -56,7 +55,7 @@ pub(crate) fn lower_scalar_contract_predicate(
 /// indexes the subjects; no result position exists on an arrival contract.
 /// The machine still owns the builtin-meaning checks inside the predicate.
 pub(crate) fn lower_state_scalar_contract_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -79,7 +78,7 @@ pub(crate) fn lower_state_scalar_contract_predicate(
 /// algebra. A result belongs to the supplied declaration, never a synthetic
 /// machine created to lower a requirement signature.
 pub(crate) fn lower_callable_scalar_contract_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     owner: symbols::SymbolHandle,
     parameters: &[StateParameter],
@@ -101,7 +100,7 @@ pub(crate) fn lower_callable_scalar_contract_predicate(
 }
 
 struct ContractPredicates<'program, 'budget> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     operators: &'program CheckedOperatorFacts,
     owner: symbols::SymbolHandle,
     result_type: TypeReferenceHandle,
@@ -648,7 +647,7 @@ impl ContractPredicates<'_, '_> {
 /// Keeping these phases distinct avoids excluding owned fields from requires
 /// merely because their callee-local post-state is not a caller observation.
 fn contract_storage_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     allow_result: bool,
 ) -> bool {
@@ -671,7 +670,7 @@ fn contract_storage_root(
 /// Subject readers retain their own namespace custody. Comparison selection,
 /// contextual literal landing, and same-carrier construction have one owner.
 pub(super) fn lower_integer_contract_comparison(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
@@ -742,7 +741,7 @@ pub(super) fn lower_integer_contract_comparison(
 /// literal can supply this operand: typed operations retain their own policy
 /// and remain with `integer_term`, rather than being reinterpreted as constants.
 fn lower_contract_integer_literal(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     primitive: PrimitiveType,
@@ -794,7 +793,7 @@ pub(crate) struct ParameterRangeRequirements {
 /// windows retain their authored IEEE endpoints and boundary kind verbatim —
 /// the exclusive end stays authored, never an integer predecessor.
 pub(crate) fn lower_scalar_parameter_range_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> ParameterRangeRequirements {
     let Some(entry) = program.machine_states(machine).first() else {
@@ -812,7 +811,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
 /// Parameter ranges belong to the declared callable signature, whether its
 /// owner has a machine body or is a bodyless operator requirement.
 pub(crate) fn lower_callable_parameter_range_requirements(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
 ) -> ParameterRangeRequirements {
     let mut ranges = ParameterRangeRequirements {
@@ -1009,7 +1008,7 @@ impl ParameterRangeRequirements {
 /// to: the same interval clause a bracketed range produces, indexed in the
 /// state's scalar parameter roster.
 pub(crate) fn lower_state_interval_predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     parameter: symbols::SymbolHandle,
     minimum: numerics::bignum::BigInt,
@@ -1035,7 +1034,7 @@ pub(crate) fn lower_state_interval_predicate(
 /// row for one integer parameter's interval, whether a bracketed range or an
 /// exactly-interval domain stated it.
 fn closed_integer_entry_range(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     position: usize,
     low: numerics::bignum::BigInt,
@@ -1099,7 +1098,7 @@ fn closed_integer_entry_range(
 /// interval rows keep an unsupported slot until their endpoint owner joins
 /// the predicate representation; core value domains already use predicates.
 pub(crate) fn lower_scalar_parameter_refinement_predicates(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<Option<CheckedBooleanExpression>> {
     lower_scalar_parameter_range_requirements(program, machine).scalar_predicates

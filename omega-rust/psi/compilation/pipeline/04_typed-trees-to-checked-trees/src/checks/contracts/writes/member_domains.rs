@@ -15,7 +15,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// establishment never survives a rewrite, and a foreign case or owner fails
 /// the exact variant-symbol comparison.
 pub(super) fn initializer_satisfies_predicate_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -104,7 +104,7 @@ pub(super) fn initializer_satisfies_predicate_domain(
 /// `self.f` predicates compare a member's scalar. Anything else is not
 /// decidable here and falls back to the membership proof.
 fn predicate_expression_holds_on_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -249,7 +249,7 @@ fn predicate_expression_holds_on_value(
 /// case evidence exists for the subject.
 #[allow(clippy::too_many_arguments)]
 fn case_membership_decision(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -290,7 +290,7 @@ fn case_membership_decision(
 /// `case_symbol`. A place answers from live case evidence; a construction
 /// literal answers from its own selected variant and member initializers.
 fn selected_case_is(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -332,7 +332,7 @@ fn selected_case_is(
 /// a `T::Case(...)` call, or a bare variant name. Record literals and
 /// non-construction expressions have no selected case.
 fn construction_selected_case(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     match program.expression_table.expression(value) {
@@ -372,7 +372,7 @@ fn construction_selected_case(
 /// initializers. An empty segment list is the literal itself; a non-field
 /// segment or a non-literal member value cannot be descended into.
 fn literal_member_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<ExpressionHandle> {
@@ -399,7 +399,7 @@ fn literal_member_value(
 /// the place's member segments, or the literal field's own constant.
 #[allow(clippy::too_many_arguments)]
 fn member_scalar_at_subject(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -437,7 +437,7 @@ fn member_scalar_at_subject(
 }
 
 fn expression_constant_scalar(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
     match program.expression_table.expression(expression) {
@@ -455,7 +455,7 @@ fn expression_constant_scalar(
 /// constant leads, the operator is mirrored so the member stays the subject.
 #[allow(clippy::too_many_arguments)]
 fn member_comparison_holds_on_value(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,
@@ -529,7 +529,7 @@ fn member_comparison_holds_on_value(
 /// ordinary way.
 #[allow(clippy::too_many_arguments)]
 fn member_subject_satisfies_domain(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement_index: usize,

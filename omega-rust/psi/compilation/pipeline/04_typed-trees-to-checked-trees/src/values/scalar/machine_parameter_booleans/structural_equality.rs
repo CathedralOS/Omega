@@ -15,7 +15,6 @@ use checked_trees::{
     CheckedScalarExpression, CheckedStructuralParameterField,
     CheckedStructuralPredicatePathSegment,
 };
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
@@ -24,7 +23,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// `left == right` over two structural parameter places of one data type, or
 /// `None` when either side is not such a place or the type cannot decompose.
 pub(super) fn lower(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     left: ExpressionHandle,
     right: ExpressionHandle,
@@ -64,7 +63,7 @@ pub(super) fn lower(
 /// types already on the path (recursion is refused), and the nested
 /// mixed-shape allowance.
 struct Decomposition<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     left_parameter: u32,
     right_parameter: u32,
     /// A mixed-shape value (fields and cases) nested under record fields is
@@ -281,7 +280,7 @@ fn disjunction(parts: Vec<CheckedBooleanExpression>) -> Option<CheckedBooleanExp
 }
 
 fn append_direct_structural_leaf_equality(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     left_parameter: u32,
     right_parameter: u32,
     type_reference: TypeReferenceHandle,

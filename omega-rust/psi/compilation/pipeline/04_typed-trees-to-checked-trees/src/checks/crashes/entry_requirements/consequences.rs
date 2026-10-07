@@ -3,11 +3,10 @@
 //! are intersected rather than joined as simultaneous assumptions.
 
 use super::{
-    BinaryOperator, CrashPredicateIdentity, ExpressionHandle, ExpressionNode, TypedTrees,
-    UnaryOperator,
+    BinaryOperator, CrashPredicateIdentity, ExpressionHandle, ExpressionNode, UnaryOperator,
 };
 pub(super) struct Consequences<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     parameter_names: &'a [String],
     content_conservation: &'a [validation::ContentConservationSourcePlan],
     integer_types: &'a super::super::IntegerTypeClassification,
@@ -22,7 +21,7 @@ enum Structure {
 
 impl<'a> Consequences<'a> {
     pub(super) fn new(
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         parameter_names: &'a [String],
         content_conservation: &'a [validation::ContentConservationSourcePlan],
         integer_types: &'a super::super::IntegerTypeClassification,
@@ -141,7 +140,11 @@ impl<'a> Consequences<'a> {
     }
 }
 
-fn structure(program: &TypedTrees, expression: ExpressionHandle, negated: bool) -> Structure {
+fn structure(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    negated: bool,
+) -> Structure {
     match program.expression_table.expression(expression) {
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             Structure::Operand(unary.operand, !negated)

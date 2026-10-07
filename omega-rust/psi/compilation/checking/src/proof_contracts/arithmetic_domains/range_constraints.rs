@@ -2,7 +2,6 @@
 
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -21,7 +20,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// obligations enforce it) or keep the domain (defined overflow, full type
 /// range), never both.
 pub(crate) fn check_range_under_non_exact_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
     owner: crate::value_custody::type_references::TypeReferenceOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -31,7 +30,7 @@ pub(crate) fn check_range_under_non_exact_domain(
     // [Domain]), where the shallow per-node accessors see only one
     // constraint set each.
     fn has_range_constraint(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         handle: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         match program.type_reference_table.type_reference(handle) {
@@ -63,7 +62,7 @@ pub(crate) fn check_range_under_non_exact_domain(
 }
 
 pub(crate) fn range_constraint_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     // Integral-looking IEEE endpoints are still floating bounds. Applying an
@@ -130,7 +129,7 @@ pub(crate) fn range_constraint_interval(
 }
 
 fn closed_range_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     minimum: ExpressionHandle,
     maximum: ExpressionHandle,
     end_inclusive: bool,
@@ -161,7 +160,7 @@ fn closed_range_interval(
 /// (this helper has no machine context; the declaration gate has already
 /// verified the binding machine's own field is ranged).
 fn dependent_maximum_substituted(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     maximum: typed_trees::expression::ExpressionHandle,
     end_inclusive: bool,
 ) -> Option<i64> {
@@ -193,7 +192,7 @@ fn dependent_maximum_substituted(
 /// range as an invariant, so an unknown store cannot establish it. Non-Exact
 /// shells and unranged targets remain deliberately permissive.
 pub(crate) fn check_range_containment(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_type: TypeReferenceHandle,
     interval: Interval,
     owner: &str,
@@ -257,7 +256,7 @@ pub(crate) fn check_where_interval_containment(
 /// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
 /// Constrained shells (non-Exact ranges are deliberately permissive).
 pub(crate) fn enforced_declared_range_interval(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     if floating_range_carrier(program, handle) {
@@ -280,7 +279,10 @@ pub(crate) fn enforced_declared_range_interval(
         .reduce(Interval::intersect)
 }
 
-fn floating_range_carrier(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn floating_range_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
     crate::unwrapped_type_reference(program, reference)
         .and_then(|carrier| program.primitive_type_reference(carrier))
         .is_some_and(|primitive| {
@@ -295,7 +297,10 @@ fn floating_range_carrier(program: &TypedTrees, reference: TypeReferenceHandle) 
 /// shells, as opposed to carrying its bound through a declared domain. Both
 /// now yield an interval, so a check that owns only the bracketed spelling
 /// must ask this before speaking.
-pub(crate) fn declares_bracketed_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+pub(crate) fn declares_bracketed_range(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => declares_bracketed_range(program, *referee),
         TypeReferenceNode::Constrained {

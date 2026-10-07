@@ -18,7 +18,7 @@ pub(super) struct StatementWrite {
 }
 
 pub(super) fn statement_write(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -143,7 +143,7 @@ pub(super) fn statement_write(
 /// value is pinned in the active contexts, and report whether the narrowed
 /// place is stable enough to carry value facts.
 pub(super) fn narrow_pinned_selectors(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     state_symbol: SymbolHandle,
     statement_index: usize,

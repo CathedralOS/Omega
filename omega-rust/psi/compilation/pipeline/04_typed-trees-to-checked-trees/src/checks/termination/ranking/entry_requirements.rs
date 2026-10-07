@@ -8,7 +8,7 @@ use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::ranges;
 
 pub(crate) fn proves_ranked_entry_requirement_with_call_frames(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     goal: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -17,7 +17,7 @@ pub(crate) fn proves_ranked_entry_requirement_with_call_frames(
 }
 
 fn prove(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     goal: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

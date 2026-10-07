@@ -17,7 +17,6 @@ use crate::values::{AssignmentObservation, prepare_assignment_observations};
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use facts::{FactContextHandle, FactPayload, FactPlan, ScalarValue};
-use typed_trees::TypedTrees;
 
 #[derive(Default)]
 struct PreparedContext {
@@ -41,7 +40,7 @@ impl AssignmentObservations {
 
     fn payloads<'a>(
         &'a mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: &'a [FlowSemanticContextRef],
         subject: &'a CanonicalPlace,
@@ -92,7 +91,7 @@ impl AssignmentObservations {
 
     fn scalar_value(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: &[FlowSemanticContextRef],
         subject: &CanonicalPlace,
@@ -106,7 +105,7 @@ impl AssignmentObservations {
 
     fn integer_bounds(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: &[FlowSemanticContextRef],
         subject: &CanonicalPlace,
@@ -122,7 +121,7 @@ impl AssignmentObservations {
 impl FlowBuildContext<'_> {
     pub(super) fn scalar_value_at_place(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: HandleSpan<FlowSemanticContextRef>,
         subject: &CanonicalPlace,
@@ -137,7 +136,7 @@ impl FlowBuildContext<'_> {
 
     pub(super) fn integer_bounds_at_place(
         &mut self,
-        program: &TypedTrees,
+        program: &dyn ::validation::CheckingInput,
         semantic: &FactPlan,
         contexts: HandleSpan<FlowSemanticContextRef>,
         subject: &CanonicalPlace,

@@ -470,7 +470,14 @@ fn kernel_rejected_candidates_are_passed_over_not_accepted() {
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
-    let obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
+    let obligation = bounded_value(
+        program.machine,
+        "Main",
+        program.data[0],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
 
     // A stale or hostile entry under the right key gets the same treatment
     // as an honest one: the kernel re-decides it. This package's own claim
@@ -501,7 +508,14 @@ fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
     let base = program.int_reference();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::with_capacity(0);
-    let obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
+    let obligation = bounded_value(
+        program.machine,
+        "Main",
+        program.data[0],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
 
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 65)
@@ -524,12 +538,26 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate");
-    let count = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
+    let count = bounded_value(
+        program.machine,
+        "Main",
+        program.data[0],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
     DerivationConsultation::new(&plan, &count, &mut cache).retain(certificate);
 
     // A dependency change — here a different resolved owner — produces a
     // different key: the stale row is never consulted, not even to reject.
-    let moved = bounded_value(program.machine, "Main", program.data[1], "count", base, arena::HandleSpan::empty());
+    let moved = bounded_value(
+        program.machine,
+        "Main",
+        program.data[1],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
     assert!(
         DerivationConsultation::new(&plan, &moved, &mut cache)
             .recheck()
@@ -540,7 +568,14 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     // key-granularity invalidate reclaims it; neighbors survive untouched.
     // `total` on `data[1]` is a distinct row — `moved` consulted earlier
     // before anything was retained under its key, so it stayed a miss.
-    let total = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
+    let total = bounded_value(
+        program.machine,
+        "Main",
+        program.data[1],
+        "total",
+        base,
+        arena::HandleSpan::empty(),
+    );
     let neighbor =
         closed_bounds_certificate(literal_term(3), math_literal(0), math_literal(10), 67)
             .expect("certificate");
@@ -565,7 +600,14 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
             .is_some(),
         "the surviving row still discharges its leg"
     );
-    let ghost = bounded_value(program.machine, "Main", program.int_type, "ghost", base, arena::HandleSpan::empty());
+    let ghost = bounded_value(
+        program.machine,
+        "Main",
+        program.int_type,
+        "ghost",
+        base,
+        arena::HandleSpan::empty(),
+    );
     assert_eq!(cache.invalidate(&proof_obligation_key(&plan, &ghost)), 0);
 
     let report = cache.report();
@@ -581,8 +623,22 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
-    let count_obligation = bounded_value(program.machine, "Main", program.data[0], "count", base, arena::HandleSpan::empty());
-    let total_obligation = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
+    let count_obligation = bounded_value(
+        program.machine,
+        "Main",
+        program.data[0],
+        "count",
+        base,
+        arena::HandleSpan::empty(),
+    );
+    let total_obligation = bounded_value(
+        program.machine,
+        "Main",
+        program.data[1],
+        "total",
+        base,
+        arena::HandleSpan::empty(),
+    );
     DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate"),
@@ -608,7 +664,14 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
 
     // A dependency-identical obligation hits a miss: the affected evidence
     // is gone, so the producer decides the leg fresh.
-    let renamed = bounded_value(program.machine, "Renamed", program.data[0], "renamed", base, arena::HandleSpan::empty());
+    let renamed = bounded_value(
+        program.machine,
+        "Renamed",
+        program.data[0],
+        "renamed",
+        base,
+        arena::HandleSpan::empty(),
+    );
     assert!(
         DerivationConsultation::new(&plan, &renamed, &mut cache)
             .recheck()
@@ -616,7 +679,14 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     );
 
     // The unaffected row still discharges its obligation.
-    let total_again = bounded_value(program.machine, "Main", program.data[1], "total", base, arena::HandleSpan::empty());
+    let total_again = bounded_value(
+        program.machine,
+        "Main",
+        program.data[1],
+        "total",
+        base,
+        arena::HandleSpan::empty(),
+    );
     assert!(
         DerivationConsultation::new(&plan, &total_again, &mut cache)
             .recheck()

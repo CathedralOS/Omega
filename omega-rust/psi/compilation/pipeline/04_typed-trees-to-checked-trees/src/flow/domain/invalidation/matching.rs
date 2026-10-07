@@ -6,7 +6,7 @@ use checked_trees::{DomainDependencyFact, DomainFacts};
 use facts::{Fact, FactPayload, FactPlan};
 
 pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &'a DomainFacts,
     fact: &Fact,
@@ -43,7 +43,7 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
 }
 
 fn matching_dependency_segments<'a>(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     domain_dependencies: &'a DomainFacts,
     dependency: Option<&'a DomainDependencyFact>,
     fact_place: &CanonicalPlace,

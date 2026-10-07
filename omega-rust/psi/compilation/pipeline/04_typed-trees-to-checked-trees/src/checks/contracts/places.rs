@@ -1,5 +1,5 @@
 pub(super) fn expression_is_boolean_place_like(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
@@ -14,7 +14,7 @@ pub(super) fn expression_is_boolean_place_like(
 }
 
 pub(super) fn expression_place_matches(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &facts::FactPlan,
     expression: typed_trees::expression::ExpressionHandle,
     candidate_place: facts::PlaceHandle,

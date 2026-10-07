@@ -134,7 +134,10 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
 /// A membership can only disappear. A float predicate can additionally
 /// weaken among the five positive comparisons at authored endpoints, then
 /// non-NaN, then absence. Joins never manufacture new numeric endpoints.
-pub(super) fn height(program: &typed_trees::TypedTrees, inputs: &[QualifiedInput]) -> usize {
+pub(super) fn height(
+    program: &dyn ::validation::CheckingInput,
+    inputs: &[QualifiedInput],
+) -> usize {
     let float_height = program
         .expression_table
         .expression_count()
@@ -149,7 +152,7 @@ pub(super) fn height(program: &typed_trees::TypedTrees, inputs: &[QualifiedInput
 }
 
 fn unconstrained(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -163,7 +166,7 @@ fn unconstrained(
 /// A field chain may pass through owned records, but never another reference.
 /// The final qualified value must itself be isolated from referenced storage.
 fn owned_projection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     frames: &validation::CallFrameResolver<'_>,
     mut reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
@@ -226,7 +229,7 @@ fn owned_projection(
 /// only the part below the argument.
 #[allow(clippy::too_many_arguments)]
 fn capture_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     flow_context: &FlowBuildContext,
     source_root: facts::PlaceRoot,
@@ -314,7 +317,7 @@ fn capture_place(
 /// fails closed.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn capture_argument(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     flow_context: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,

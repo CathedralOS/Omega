@@ -63,7 +63,7 @@ pub(super) fn field_predicate_ceiling<'a>(
 }
 
 fn entry_state<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Option<&'program typed_trees::state::State> {
     let index = crate::checks::termination::named_transition_target_state_index(
@@ -76,7 +76,7 @@ fn entry_state<'program>(
 
 fn reachable(
     build: &FlowBuildContext,
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: SymbolHandle,
 ) -> bool {
@@ -88,7 +88,7 @@ fn reachable(
 }
 
 fn join(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     destination: &typed_trees::state::State,
@@ -167,7 +167,7 @@ fn join(
     }
 }
 
-pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValues> {
+pub(super) fn unknown_inputs(program: &dyn ::validation::CheckingInput) -> Vec<StateValues> {
     program
         .machines()
         .iter()
@@ -192,7 +192,10 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
         .collect()
 }
 
-fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> Option<ScalarValue> {
+fn literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -205,7 +208,7 @@ fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> O
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn record_transition(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
@@ -328,7 +331,7 @@ pub(super) fn record_transition(
 
 /// Ordinary invocations are not narrowed by the internal transition proof.
 pub(super) fn record_invocation<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+    program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -388,7 +391,7 @@ pub(super) fn record_invocation<'plans>(
 }
 
 pub(super) fn append_entry_context(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,

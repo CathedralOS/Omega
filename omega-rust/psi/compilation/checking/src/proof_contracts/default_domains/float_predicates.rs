@@ -5,7 +5,6 @@
 
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
-use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -16,7 +15,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// decimal approximation. This proves only the expression: membership,
 /// containment, first-case validity and binding custody remain independent.
 pub fn data_float_predicate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
@@ -33,7 +32,10 @@ pub fn data_float_predicate(
 /// instead holds when exploring the predicate's checked body at the zeroed
 /// fields returns `true` on every path. This does not establish contained
 /// fields, memberships, cases or binding custody.
-pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinition) -> bool {
+pub fn data_predicates_admit_zero(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> bool {
     if !definition.type_parameters.is_empty()
         || definition.where_facts.is_empty()
         || program
@@ -86,7 +88,7 @@ pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinit
 /// comparison must select the builtin or sealed float meaning; a user-supplied
 /// comparison states no interval. `None` for any other conjunct shape.
 pub(crate) fn float_field_literal_bound_meaning(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     conjunct: ExpressionHandle,
 ) -> Option<FloatMeaning> {
@@ -142,7 +144,7 @@ pub(crate) fn float_field_literal_bound_meaning(
 }
 
 fn predicate(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
@@ -232,7 +234,7 @@ fn predicate(
 }
 
 fn operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
     field_value: &impl Fn(SymbolHandle, PrimitiveType) -> Option<FloatMeaning>,
@@ -290,12 +292,11 @@ fn operand(
 }
 
 fn declared_field<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     definition: &DataDefinition,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
     else {
         return None;
     };

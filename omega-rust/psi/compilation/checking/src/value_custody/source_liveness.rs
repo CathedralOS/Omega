@@ -7,7 +7,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
 pub fn statement_uses_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     statement: &StatementNode,
     symbol: SymbolHandle,
 ) -> bool {
@@ -55,7 +55,7 @@ pub fn statement_uses_symbol(
 }
 
 pub(crate) fn expression_uses_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
@@ -144,7 +144,7 @@ pub(crate) fn expression_uses_symbol(
 }
 
 fn transition_guard_uses_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     guard: typed_trees::statement::TransitionGuardNode,
     symbol: SymbolHandle,
 ) -> bool {
@@ -157,7 +157,7 @@ fn transition_guard_uses_symbol(
 }
 
 fn transition_target_uses_symbol(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: &typed_trees::statement::TransitionTargetNode,
     symbol: SymbolHandle,
 ) -> bool {

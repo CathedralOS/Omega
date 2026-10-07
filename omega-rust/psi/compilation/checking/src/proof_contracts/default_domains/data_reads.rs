@@ -16,7 +16,6 @@ use crate::proof_contracts::default_domains::place_queries::{
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
 use language_core::place_label;
-use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -26,7 +25,7 @@ use typed_trees::statement::StatementNode;
 /// Scan value-position reads against construction establishment and open
 /// invariant windows, including facts transported from predecessor states.
 pub(crate) fn scan_statement_reads(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -127,7 +126,7 @@ pub(crate) fn scan_statement_reads(
 }
 
 fn scan_expression_reads(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -155,7 +154,7 @@ fn scan_expression_reads(
 /// Its final value does: taking `sample.child` observes that whole child,
 /// whereas reading `sample.child.value` may use the raw scalar during repair.
 fn scan_expression_use(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -551,7 +550,7 @@ fn scan_expression_use(
 }
 
 fn validate_data_read(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     definition: &DataDefinition,
@@ -638,7 +637,7 @@ fn validate_data_read(
 /// The resolved storage root of a projection, without rendering a place or
 /// treating a same-spelled local as the incoming parameter.
 fn expression_root_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> symbols::SymbolHandle {
     while expression.is_valid() {
@@ -659,7 +658,7 @@ fn expression_root_symbol(
 /// the parent carries no independent ceremony when its own authored default
 /// domain accepts zero.
 pub(crate) fn attached_value_established(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     tracked: &[TrackedPlace<'_>],
@@ -751,7 +750,10 @@ fn direct_place_established(
 /// by the ordinary literal valuation. Nested data and arrays are established
 /// by whole-value construction for now; a scalar field write cannot fabricate
 /// evidence for them.
-pub(crate) fn range_gates_hold(program: &TypedTrees, place: &TrackedPlace<'_>) -> bool {
+pub(crate) fn range_gates_hold(
+    program: &dyn crate::CheckingInput,
+    place: &TrackedPlace<'_>,
+) -> bool {
     for member in program.data_members(place.definition) {
         let typed_trees::data::DataMember::Field(field) = member else {
             continue;

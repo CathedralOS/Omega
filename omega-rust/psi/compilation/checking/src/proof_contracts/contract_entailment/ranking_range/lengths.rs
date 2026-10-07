@@ -10,7 +10,7 @@ use super::fields::{
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, TypedTrees, projections,
+    Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
     unwrap_constraint_shells,
 };
 use language_semantics::declaration_selection::CollectionViewOperation;
@@ -20,12 +20,12 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
-pub(super) fn is_slice(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub(super) fn is_slice(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
     crate::program_scope::type_shape::has_slice_base(program, reference)
 }
 
 pub(super) fn parameter<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
@@ -44,7 +44,7 @@ pub(super) fn parameter<'program>(
 }
 
 pub(super) fn bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     entry_parameters: Option<&[SymbolHandle]>,
@@ -115,7 +115,7 @@ pub(super) fn bindings(
 }
 
 pub(super) fn install(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     root: &State,
@@ -142,7 +142,7 @@ pub(super) fn install(
 }
 
 fn install_expression(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     root: &State,
@@ -220,7 +220,7 @@ fn install_expression(
 }
 
 pub(super) fn actual(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -231,7 +231,7 @@ pub(super) fn actual(
 }
 
 fn evaluate_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -382,7 +382,7 @@ fn evaluate_length(
 /// ordinary length composition with an empty arithmetic environment so saved
 /// initializers never borrow facts established after their evaluation.
 pub(super) fn produced_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -401,7 +401,7 @@ pub(super) fn produced_length(
 /// deliberately state-wide -- the caller's obligation order is not the
 /// statement order -- and covers every carrier that can hold an expression.
 pub(super) fn binding_is_exclusively_exposed(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -430,7 +430,7 @@ pub(super) fn binding_is_exclusively_exposed(
 /// name cannot be an actual afterwards. The scan is state-wide for the same
 /// reason as the borrow scan: obligation order is not statement order.
 pub(super) fn binding_is_written(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -477,13 +477,19 @@ pub(super) fn binding_is_written(
 
 /// Unknown callees conservatively invalidate a receiver observation. Resolved
 /// static calls carry every writable place through their explicit arguments.
-fn call_receiver_is_mutable(program: &TypedTrees, target_symbol: SymbolHandle) -> bool {
+fn call_receiver_is_mutable(
+    program: &dyn crate::CheckingInput,
+    target_symbol: SymbolHandle,
+) -> bool {
     crate::machine_calls::calls::machine_state_by_symbol(program, target_symbol).is_none()
 }
 
 /// Every expression root a statement of `state` can carry: the channels a
 /// nested borrow or receiver call could reach an observed carrier through.
-fn statement_expression_roots(program: &TypedTrees, state: &State) -> Vec<ExpressionHandle> {
+fn statement_expression_roots(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+) -> Vec<ExpressionHandle> {
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -496,7 +502,7 @@ fn statement_expression_roots(program: &TypedTrees, state: &State) -> Vec<Expres
 /// The root symbol a borrowable place path descends from: `view`, `view.field`,
 /// or `view[i]` all root at `view`'s local symbol.
 fn borrow_root_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut visited = 0;
@@ -518,7 +524,7 @@ fn borrow_root_symbol(
 /// authored arguments or evidence, or a dispatch/layout request names a
 /// different operation that keeps no produced length here.
 fn slice_view_call_length(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -560,7 +566,7 @@ impl<'program> Coordinate<'program> {
     /// a slice leaf reached through a reference boundary inside the chain is
     /// not a projected coordinate (the field owner has the same rule).
     pub(super) fn resolve_length(
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Self> {
@@ -588,7 +594,7 @@ impl<'program> Coordinate<'program> {
     /// coordinate.
     pub(super) fn arrived_length(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
@@ -646,7 +652,7 @@ impl<'program> Coordinate<'program> {
 /// prove independently -- and a second slice leaf keeps no coordinate rather
 /// than guessing which collection holds the role.
 pub(super) fn slice_leaf_coordinate<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameter: &'program StateParameter,
 ) -> Option<SliceCoordinate<'program>> {
     let (root, _) = record_referent(program, parameter.type_reference)?;
@@ -729,7 +735,7 @@ impl<'program> SliceCoordinates<'program> {
     /// same-named leaves remain independent by formal and resolved chain.
     pub(super) fn install(
         &mut self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         root: &State,
@@ -798,7 +804,7 @@ impl<'program> SliceCoordinates<'program> {
     /// substitution rather than a first/last-wins guess.
     pub(super) fn substitute(
         &self,
-        program: &'program TypedTrees,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         entry_parameters: Option<&[SymbolHandle]>,

@@ -46,7 +46,6 @@ use language_core::operator_spelling::OperatorSpelling;
 use numerics::bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::{FloatFormat, FloatLiteral};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::operator::OperatorDefinition;
@@ -67,7 +66,7 @@ use invocation::InvocationContexts;
 /// Only Boolean structure and exact evaluated predicate facts supply polarity;
 /// selected comparisons have no inferred arithmetic/complement laws here.
 pub(crate) fn operator_route_is_false(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
     operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
@@ -98,7 +97,7 @@ pub(crate) fn operator_route_is_false(
 /// all; the caller applies its entry-context fallback instead.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn named_operator_route_is_false(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     semantic: &FactPlan,
     named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
@@ -121,7 +120,10 @@ pub(crate) fn named_operator_route_is_false(
 
 /// Operand labels as the spelled surface renders them. The named-call seam
 /// supplies its own referent-naming labels instead.
-fn operand_labels(program: &TypedTrees, operands: &[ExpressionHandle]) -> Vec<String> {
+fn operand_labels(
+    program: &dyn ::validation::CheckingInput,
+    operands: &[ExpressionHandle],
+) -> Vec<String> {
     operands
         .iter()
         .map(|operand| {
@@ -135,7 +137,7 @@ fn operand_labels(program: &TypedTrees, operands: &[ExpressionHandle]) -> Vec<St
 
 #[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -162,7 +164,7 @@ fn expression_has_polarity(
 }
 
 fn leaf_has_polarity(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -206,7 +208,7 @@ fn leaf_has_polarity(
 /// deliberately excluded — including a named call whose selected operator
 /// carries that spelling.
 pub(super) fn selected_binary_requires_diagnostics(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -433,7 +435,7 @@ pub(super) fn selected_binary_requires_diagnostics(
 /// The selected operator's definition; candidates record only the symbol, so
 /// resolve it back to the declaration (root surface or domain-owned).
 fn operator_definition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator_symbol: SymbolHandle,
 ) -> Option<&OperatorDefinition> {
     program
@@ -452,7 +454,7 @@ fn operator_definition(
 /// e.g. `Quantity::Additive::add` for a domain-owned meaning or `Slice::index`
 /// for a root surface declaration.
 fn operator_path_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operator: Option<&OperatorDefinition>,
     domain_symbol: SymbolHandle,
     operator_symbol: SymbolHandle,
@@ -485,7 +487,7 @@ fn operator_path_label(
 /// Push one diagnostic per requires fact the invocation does not prove.
 #[allow(clippy::too_many_arguments)]
 fn check_requires_facts(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     invocation_contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -515,7 +517,7 @@ fn check_requires_facts(
 }
 
 fn requires_fact_proven(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -618,7 +620,7 @@ fn requires_fact_proven(
 /// proven by a matching instantiated fact (directly, or derived from a domain
 /// membership whose body states the clause) or is a closed-literal claim.
 fn contexts_prove_boolean_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -705,7 +707,7 @@ fn contexts_prove_boolean_expression(
 }
 
 fn contexts_prove_boolean_leaf(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -728,7 +730,7 @@ fn contexts_prove_boolean_leaf(
 /// a context fact placing the same value in a domain that implies the required
 /// one.
 fn context_proves_membership_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     context: FactContextHandle,
     value_label: &str,
@@ -774,7 +776,7 @@ fn context_proves_membership_label(
 /// use kinds pass their own operand labels: a spelled use renders operands as
 /// written, while a named call names the referent under a reference formal.
 fn requires_clause_label(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operand_labels: &[String],
     fact: &ProofFact,
@@ -847,7 +849,7 @@ enum ClosedScalar {
 /// no reflexivity law. Floats are excluded because NaN is not equal to
 /// itself, and any other name keeps the ordinary discharge.
 fn reflexive_comparison_holds(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     type_parameters: &[typed_trees::data::TypeParameter],
     expression: ExpressionHandle,
@@ -899,7 +901,7 @@ fn reflexive_comparison_holds(
 }
 
 fn instantiated_leaf_is_closed_true(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
@@ -913,7 +915,7 @@ fn instantiated_leaf_is_closed_true(
 /// closed value. Formal `Name` leaves substitute their operand expression;
 /// anything not reducible to literals yields `None`.
 fn closed_clause_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -970,7 +972,7 @@ fn closed_clause_value(
 /// operand's own names are caller-local symbols, which never match a formal —
 /// keeping substitution structurally finite and caller names uninterpreted.
 fn closed_scalar_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -994,7 +996,7 @@ fn closed_scalar_value(
 /// mirrors the label instantiation: a captured receiver operand rides its
 /// formal's ordinal; without one, operands count only the non-self formals.
 fn operand_for_parameter(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     path: &typed_trees::expression::TableNamePath,
@@ -1030,7 +1032,7 @@ fn operand_for_parameter(
 /// an explicitly suffixed literal decides otherwise, and f64 is the default
 /// when no float context exists at all.
 fn clause_comparison_format(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     left: ExpressionHandle,
@@ -1153,7 +1155,7 @@ fn closed_exact_float(scalar: &ClosedScalar, format: FloatFormat) -> Option<Exac
 /// evaluated. A checked or boundary-operator selection keeps the label/fact
 /// path: its meaning is not inferred from the spelling here.
 fn closed_operators_are_builtin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
@@ -1179,7 +1181,7 @@ fn closed_operators_are_builtin(
 }
 
 fn operator_use_is_builtin_meaning(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     operator_use: &checked_trees::CheckedOperatorUseFact,
 ) -> bool {
@@ -1200,7 +1202,7 @@ fn operator_use_is_builtin_meaning(
 /// the installed case at the operand place the subject names. The assigned
 /// tag, not a value comparison, is the evidence.
 fn contexts_prove_case_membership(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],

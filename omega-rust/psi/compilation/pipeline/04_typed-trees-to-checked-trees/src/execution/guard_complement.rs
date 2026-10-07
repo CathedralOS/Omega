@@ -8,12 +8,11 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, CheckedStructuralParameterField,
 };
-use typed_trees::TypedTrees;
 
 /// The Guard row at `ordinal + 1` is the exact complement of the row at
 /// `ordinal`, both in `state`.
 pub(crate) fn complementary(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &CheckedScalarExpressionPlans,
     state: &typed_trees::state::State,
     ordinal: u32,
@@ -54,7 +53,7 @@ fn guard_pair(
 /// authored state parameter, or `None` unless every member of that sum is a
 /// case.
 fn declared_cases(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     subject: &CheckedStructuralParameterField,
 ) -> Option<Vec<String>> {

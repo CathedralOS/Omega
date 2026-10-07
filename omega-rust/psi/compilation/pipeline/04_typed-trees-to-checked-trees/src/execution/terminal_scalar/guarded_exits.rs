@@ -1,11 +1,11 @@
 //! Ordered scalar exits retain every reachable authored guard and selected destination.
 //! Coverage is separate from evaluation: a final case guard is not a wildcard.
-use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode, TypedTrees};
+use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode};
 use crate::execution::terminal_scalar::checked_branch_destination;
 use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 
 pub(super) fn build(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> (
@@ -176,7 +176,7 @@ fn tuple_conjunction(boolean: &checked_trees::CheckedBooleanExpression, row: &mu
 /// admits the tuple's value — a subject the row does not constrain is a
 /// wildcard — and rows carrying a residual prove no slice.
 fn tuple_rows_cover(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     rows: &[Option<TupleRow>],
 ) -> Option<()> {
@@ -265,7 +265,7 @@ fn tuple_rows_cover(
 }
 
 fn tail(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expressions: &checked_trees::CheckedScalarExpressionPlans,

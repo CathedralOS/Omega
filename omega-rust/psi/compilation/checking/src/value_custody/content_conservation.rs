@@ -17,7 +17,6 @@ use language_semantics::content::{
 };
 use std::collections::{HashMap, HashSet};
 use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -30,7 +29,7 @@ pub struct ContentConservationSourcePlan {
 }
 
 pub(crate) fn validate_content_conservation_contracts(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let projections =
@@ -42,7 +41,7 @@ pub(crate) fn validate_content_conservation_contracts(
 /// check facts, crash contracts and package evidence each ask for the whole
 /// table, some once per declaration.
 pub fn content_conservation_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> std::sync::Arc<Vec<ContentConservationSourcePlan>> {
     crate::frozen_program::frozen_memo(
         program,
@@ -52,7 +51,7 @@ pub fn content_conservation_plans(
 }
 
 pub fn build_content_conservation_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
 ) -> Vec<ContentConservationSourcePlan> {
     let projections =
         crate::value_custody::content_projections::build_content_projection_plans(program);
@@ -61,7 +60,7 @@ pub fn build_content_conservation_plans(
 }
 
 fn collect_content_conservation_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     projections: &[ContentProjectionPlan],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ContentConservationSourcePlan> {
@@ -146,7 +145,7 @@ fn collect_content_conservation_plans(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_callable_plans(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     projections: &[ContentProjectionPlan],
     owner_kind: ContentConservationOwnerKind,
     owner: SymbolHandle,
@@ -229,7 +228,7 @@ fn collect_callable_plans(
 }
 
 fn projection_plan_for_call<'a>(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     projections: &'a [ContentProjectionPlan],
     call: &TableCallExpression,
 ) -> Option<&'a ContentProjectionPlan> {
@@ -258,7 +257,7 @@ fn projection_plan_for_call<'a>(
 }
 
 fn receiver_selects_domain(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     receiver: ExpressionHandle,
     domain: SymbolHandle,
 ) -> bool {
@@ -279,16 +278,16 @@ fn receiver_selects_domain(
     spelled.as_str() == expected.rsplit("::").next().unwrap_or(expected.as_str())
 }
 
-fn is_old_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
+fn is_old_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {
     is_builtin_call(program, call, BuiltinFunction::ContentOld)
 }
 
-fn is_separate_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
+fn is_separate_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {
     is_builtin_call(program, call, BuiltinFunction::ContentSeparate)
 }
 
 fn is_builtin_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     function: BuiltinFunction,
 ) -> bool {
@@ -302,7 +301,7 @@ fn is_builtin_call(
 }
 
 fn expression_uses_content_surface(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     projections: &[ContentProjectionPlan],
     expression: ExpressionHandle,
 ) -> bool {
@@ -375,7 +374,7 @@ fn expression_uses_content_surface(
 }
 
 fn collect_expression_nodes(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     nodes: &mut HashSet<(u32, u32)>,
 ) {
@@ -401,7 +400,10 @@ fn algebra_key(algebra: &ContentAlgebraIdentity) -> String {
     }
 }
 
-fn projection_label(program: &TypedTrees, projection: &ContentProjectionPlan) -> String {
+fn projection_label(
+    program: &dyn crate::CheckingInput,
+    projection: &ContentProjectionPlan,
+) -> String {
     program
         .machines()
         .iter()
@@ -410,7 +412,7 @@ fn projection_label(program: &TypedTrees, projection: &ContentProjectionPlan) ->
         .unwrap_or_else(|| format!("projection#{}", projection.machine.arena_index()))
 }
 
-fn domain_label(program: &TypedTrees, domain: SymbolHandle) -> String {
+fn domain_label(program: &dyn crate::CheckingInput, domain: SymbolHandle) -> String {
     program
         .domain_definitions()
         .iter()

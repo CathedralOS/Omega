@@ -2,7 +2,6 @@
 //! each `Range` constraint's endpoints report to the caller's hook, and either
 //! hook may stop the walk early.
 
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -11,10 +10,14 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// receives each `Range` constraint's endpoints; returning true from either
 /// stops the walk and propagates true.
 pub(crate) fn for_each_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     roots: &[TypeReferenceHandle],
-    mut on_node: impl FnMut(&TypedTrees, &TypeReferenceNode) -> bool,
-    mut on_range: impl FnMut(&TypedTrees, ExpressionHandle, ExpressionHandle) -> bool,
+    mut on_node: impl FnMut(&dyn ::validation::CheckingInput, &TypeReferenceNode) -> bool,
+    mut on_range: impl FnMut(
+        &dyn ::validation::CheckingInput,
+        ExpressionHandle,
+        ExpressionHandle,
+    ) -> bool,
 ) -> bool {
     let mut pending = roots.to_vec();
     let mut visited = std::collections::HashSet::new();

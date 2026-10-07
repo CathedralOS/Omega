@@ -9,7 +9,7 @@
 use super::*;
 
 pub(crate) struct ShapeCollector<'program> {
-    pub(in crate::execution::terminal_unit) program: &'program TypedTrees,
+    pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
     pub(in crate::execution::terminal_unit) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     in_progress: BTreeSet<String>,
@@ -20,7 +20,7 @@ pub(crate) struct ShapeCollector<'program> {
 }
 
 impl<'program> ShapeCollector<'program> {
-    pub(crate) fn new(program: &'program TypedTrees) -> Self {
+    pub(crate) fn new(program: &'program dyn ::validation::CheckingInput) -> Self {
         Self {
             program,
             types: BTreeMap::new(),
@@ -1160,7 +1160,7 @@ impl<'program> ShapeCollector<'program> {
 /// provider — the carrier itself for a fused service, the unwrapped
 /// boundary-trait referent for a `&'a mut <boundary trait>` field.
 pub(super) fn provider_backed_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(
     Option<checked_trees::CheckedFusedServiceErasureReceipt>,

@@ -6,7 +6,6 @@ use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_resul
 use language_core::OperatorSpelling;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
-    TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
@@ -289,7 +288,7 @@ fn interval_comparison(
 }
 
 fn exact_integer_carrier(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let mut carrier = reference;

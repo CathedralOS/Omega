@@ -15,7 +15,7 @@ use super::path_instantiation::aggregate_arguments::reference_leaves_with_origin
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
-use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
+use super::{Machine, SymbolHandle, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use facts::PlaceSegment;
 use typed_trees::statement::TableLocalData;
@@ -30,7 +30,7 @@ mod type_origins;
 /// Case evidence also matters for payloads with no exclusive references. It
 /// cannot be discovered by asking whether a local contributes writes.
 pub(super) fn has_aggregate_case_shape(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     reference: super::TypeReferenceHandle,
 ) -> bool {
     type_origins::declares_cases(program, reference)
@@ -73,7 +73,7 @@ pub(super) struct StoredLocalOrigins {
 /// Retiring before call traversal is conservative: it supplies no new origin,
 /// and the ordinary exposure fence and complete call frame are still required.
 pub(super) fn retire_private_call_argument_cases(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
     aliases: &[(String, FramePlaceOrigin)],
@@ -160,7 +160,7 @@ pub(super) struct StoredWriteOrigin {
 /// The type supplies a reference frontier even when value transfer cannot
 /// establish its sources. This is unknown evidence, never an empty footprint.
 pub(super) fn unresolved_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     local: &TableLocalData,
     include_shared: bool,
@@ -185,7 +185,7 @@ pub(super) fn unresolved_origins(
 /// transfer and type-only inventory must name this actual live declaration,
 /// not a same-spelled local in another state or a stale symbol generation.
 fn local_declaration_state<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     local: &TableLocalData,
 ) -> Option<&'program typed_trees::state::State> {
@@ -214,7 +214,7 @@ fn local_declaration_state<'program>(
 /// the local and stored rosters — a no-write value's missing case recovery
 /// does not invalidate its writes.
 pub(super) fn record_declaration_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     local: &TableLocalData,
     aliases: &[(String, FramePlaceOrigin)],
@@ -223,9 +223,8 @@ pub(super) fn record_declaration_origins(
     inference: &mut FrameInference,
 ) {
     if has_aggregate_case_shape(program, local.type_reference)
-        && let Some(origins) = declaration_origins(
-            program, machine, local, aliases, stored, symbols, inference,
-        )
+        && let Some(origins) =
+            declaration_origins(program, machine, local, aliases, stored, symbols, inference)
     {
         inference.record_local(&origins);
         stored.push(origins);
@@ -233,7 +232,7 @@ pub(super) fn record_declaration_origins(
 }
 
 pub(super) fn declaration_origins(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     local: &TableLocalData,
     aliases: &[(String, FramePlaceOrigin)],
@@ -247,7 +246,7 @@ pub(super) fn declaration_origins(
 }
 
 pub(super) fn declaration_origins_for_query(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     local: &TableLocalData,
     aliases: &[(String, FramePlaceOrigin)],
@@ -349,7 +348,7 @@ pub(super) fn declaration_origins_for_query(
 /// Classify one exclusive borrow's replacement ceiling. Its enclosing call
 /// separately narrows that ceiling using its complete may-write frame.
 pub(super) fn borrow_target_exposes_carrier_binding(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,

@@ -4,14 +4,13 @@
 use super::type_refinement::{TypeBinding, required_type_matches_exact};
 use super::{
     ExpressionHandle, ExpressionNode, Machine, State, StaticMachineArgument, SymbolHandle,
-    TypeParameterKind, TypedTrees, machine_and_state, machine_parameter_signature,
-    machine_state_index,
+    TypeParameterKind, machine_and_state, machine_parameter_signature, machine_state_index,
 };
 use typed_trees::signature::StateSignature;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub fn closed_static_call_type_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: &State,
     signature: &StateSignature,

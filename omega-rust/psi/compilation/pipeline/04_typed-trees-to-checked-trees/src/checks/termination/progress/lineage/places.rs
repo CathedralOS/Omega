@@ -2,12 +2,12 @@
 
 use super::super::ProgressSubject;
 use symbols::SymbolHandle;
-use typed_trees::{TypedTrees, data::DataMember, machine::Machine};
+use typed_trees::{data::DataMember, machine::Machine};
 
 /// Select a finite owned prefix along this demand alone. Unused sibling fields
 /// are never enumerated, even when their type graph shares large subtrees.
 pub(super) fn partition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     subject: &ProgressSubject,
 ) -> Option<ProgressSubject> {
@@ -87,7 +87,7 @@ pub(super) fn matching_prefix<'places>(
 /// this projection's identity; the instantiated field type is itself an opaque
 /// leaf for the next projection.
 fn replay_partition_data(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     if let Some(data) = crate::lookup::declared_data_type(program, type_reference) {
@@ -111,7 +111,7 @@ fn replay_partition_data(
 /// is an opaque leaf the symbol is the only provenance available, and its own
 /// declared field type resumes the bounded replay.
 fn exact_declared_field(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataField> {
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {

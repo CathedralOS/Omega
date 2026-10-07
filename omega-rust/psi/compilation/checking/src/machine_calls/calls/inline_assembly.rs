@@ -6,7 +6,6 @@
 
 use crate::value_custody::expression_types::expression_type_name_handle;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -43,7 +42,7 @@ pub(super) fn user_asm_contract(
 }
 
 pub(super) fn validate_asm_operand_constraint(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     instruction: &str,
@@ -102,7 +101,7 @@ pub(super) fn validate_asm_operand_constraint(
 }
 
 fn asm_operand_primitive_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     operand: ExpressionHandle,
@@ -118,7 +117,7 @@ fn asm_operand_primitive_type(
 }
 
 pub(crate) fn validate_asm_value_destination(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     assignment: &typed_trees::statement::TableAssignment,

@@ -101,9 +101,7 @@ impl<'program> CallFrameResolver<'program> {
                 call.target_symbol,
                 call.target.as_str(),
                 ExpressionHandle::invalid(),
-                crate::program_scope::call_targets::call_receiver_member_names(
-                    program, call,
-                ),
+                crate::program_scope::call_targets::call_receiver_member_names(program, call),
                 program.statement_table.expression_handles(call.arguments),
             ),
             CallerWriteSite::Expression(expression) => {

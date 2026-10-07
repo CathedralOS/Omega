@@ -5,10 +5,9 @@ use super::mutable::PlaceSegment;
 use super::{entry_operand_symbol_at, field_entry_name};
 use checked_trees::{CheckedStructuralPredicatePathSegment, CrashPredicateExpression};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 fn entry_place_at_write_boundary(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -103,7 +102,7 @@ fn entry_place_at_write_boundary(
 /// replay above; every member is then authenticated against the exact entry
 /// type, including the case and field identities used by checked predicates.
 pub(crate) fn entry_parameter_place(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -122,7 +121,7 @@ pub(crate) fn entry_parameter_place(
 /// Invocation provenance at statement entry. The caller must authenticate the
 /// observed operand's evaluated write prefix before using this namespace.
 pub(crate) fn entry_parameter_place_before_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -139,7 +138,7 @@ pub(crate) fn entry_parameter_place_before_statement(
 }
 
 fn entry_parameter_place_at_write_boundary(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
@@ -275,7 +274,7 @@ fn entry_parameter_place_at_write_boundary(
 /// Every crossed descriptor validates its referee too: borrowed-storage
 /// classification alone deliberately treats shared descriptors as opaque.
 pub(super) fn projection_requires_write_scan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     root_type: typed_trees::types::TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Option<bool> {
@@ -313,7 +312,7 @@ pub(super) fn projection_requires_write_scan(
 }
 
 fn traversed_storage_requires_write_scan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<bool> {
     match program.type_reference_table.type_reference(reference) {

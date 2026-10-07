@@ -8,20 +8,19 @@
 use super::state_paths::expression_forwards_exact_symbol;
 use super::type_capabilities::parameter_may_carry_write;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) fn named_transition_subgraph_is_acyclic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     source: &State,
     target: TransitionTargetHandle,
 ) -> bool {
     fn visit(
-        program: &TypedTrees,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         visiting: &mut Vec<SymbolHandle>,
@@ -77,7 +76,7 @@ pub(super) fn named_transition_subgraph_is_acyclic(
 /// depends on the recursion stack that produced it and is valid only for the
 /// query that computed it.
 pub(crate) fn named_state_transition_subgraph_is_acyclic(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
 ) -> bool {
@@ -102,7 +101,7 @@ pub(crate) fn named_state_transition_subgraph_is_acyclic(
 }
 
 pub(super) fn named_transition_target_state<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     source: &'program State,
     target: TransitionTargetHandle,
@@ -201,7 +200,7 @@ pub(super) fn strongly_connected_components(successors: &[Vec<usize>]) -> Vec<us
 /// multi-state cycle compares each write-capable argument to the source
 /// namespace rather than requiring the target's distinct symbol.
 pub(super) fn named_transition_preserves_state_namespace(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source_state: &State,
     target_state: &State,
     arguments: &[ExpressionHandle],

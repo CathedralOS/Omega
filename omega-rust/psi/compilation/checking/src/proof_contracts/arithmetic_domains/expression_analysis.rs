@@ -26,7 +26,7 @@ mod unsigned_constants;
 
 use super::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypedTrees, ValueEnvironment, integer_ranges::literal_interval,
+    PrimitiveType, State, ValueEnvironment, integer_ranges::literal_interval,
 };
 
 /// The result of analysing an expression for the domain + overflow rules.
@@ -102,7 +102,7 @@ const BOOLEAN_INTERVAL: Interval = Interval {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn analyze(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -131,7 +131,7 @@ pub(super) fn analyze(
 /// facts hold, and which destination the enclosing statement names.
 #[derive(Clone, Copy)]
 struct ExpressionWalk<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn crate::CheckingInput,
     machine: &'a Machine,
     state: Option<&'a State>,
     environment: &'a ValueEnvironment,

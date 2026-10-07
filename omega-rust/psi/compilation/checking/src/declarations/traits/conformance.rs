@@ -9,7 +9,7 @@
 /// named for diagnostics; `None` (with the missing-summary diagnostic
 /// already pushed) when the provider has no inferred summary.
 fn disallowed_reached_service_names<'program>(
-    program: &'program typed_trees::TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     service_reaches: &'program flow_effects::ServiceReachInferencePlan,
     machine: &'program typed_trees::machine::Machine,
     allowed_services: &[language_semantics::ServiceReachId],
@@ -167,7 +167,7 @@ pub(super) enum OperationalCeilingBreach<'a> {
 /// and `blocks;`. `describe` phrases each breach for the caller's own
 /// diagnostics.
 pub(super) fn require_operational_ceiling(
-    program: &typed_trees::TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &typed_trees::machine::Machine,
     requirement_service_reach_row: language_semantics::ServiceReachRowId,

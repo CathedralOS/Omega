@@ -2,10 +2,9 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactContextHandle, FactPayload, FactPlace};
-use typed_trees::TypedTrees;
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
@@ -133,7 +132,7 @@ fn field_place(place: &crate::flow::CanonicalPlace) -> bool {
 }
 
 fn contexts_prove_domain(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: impl Iterator<Item = FactContextHandle>,
     source: &crate::flow::CanonicalPlace,

@@ -1,7 +1,7 @@
 //! Atomic read/write operand reads: carrier targets, local names, and the
 //! fetch/compare-exchange operand spellings an atomic call contributes.
 
-use super::super::{ExpressionHandle, ExpressionNode, Machine, State, TypedTrees};
+use super::super::{ExpressionHandle, ExpressionNode, Machine, State};
 use super::operands::{collect_operand_reads, collect_place_read};
 use super::root_currency::root_is_current;
 use crate::checks::ranges::facts::RangeCallContext;
@@ -32,7 +32,7 @@ use symbols::SymbolHandle;
 /// projection can carry such a binder below the argument this scan sees, so
 /// both stay unproven rather than being walked for a machine leaf.
 pub(super) fn static_application_carries_no_caller_storage(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     call.machine_arguments.iter().all(|argument| {
@@ -89,7 +89,7 @@ pub(super) fn static_application_carries_no_caller_storage(
 /// result destination that is not current local storage leaves the
 /// footprint incomplete.
 pub(super) fn collect_atomic_write_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -201,7 +201,7 @@ pub(super) fn collect_atomic_write_reads<'a, 'b>(
 /// target. An atomic not carried by the exact assignment at this statement
 /// index has no provable resident place.
 pub(super) fn atomic_carrier_target(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -230,7 +230,7 @@ pub(super) fn atomic_carrier_target(
 /// The root must still be current storage at this statement; a member path,
 /// an unresolved name, or a name bound only later is not a destination.
 pub(super) fn atomic_local_name_symbol(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
@@ -284,7 +284,7 @@ pub(super) fn atomic_local_name_symbol(
 /// its left operand is the observed-prior placeholder naming the result
 /// destination, and its right operand is the authored operand `d`.
 pub(super) fn atomic_fetch_operand(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<ExpressionHandle> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(atomic.value) else {
@@ -303,7 +303,7 @@ pub(super) fn atomic_fetch_operand(
 /// is read through placeholder positions naming the result destination, and
 /// the remaining reads are exactly the expected and replacement operands.
 pub(super) fn atomic_compare_exchange_operands(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<[ExpressionHandle; 2]> {
     let ExpressionNode::Binary(sum) = program.expression_table.expression(atomic.value) else {

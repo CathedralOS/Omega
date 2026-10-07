@@ -20,14 +20,14 @@
 use super::guard_narrowing::comparison_interval;
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, ProofFact,
-    SignatureContractKind, State, TypedTrees, ValueEnvironment, place_path,
+    SignatureContractKind, State, ValueEnvironment, place_path,
 };
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 
 /// `collection[index]` with a literal, non-negative `index` over a place
 /// collection, spelled as the value environment keys it.
 pub(crate) fn element_place_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -51,7 +51,7 @@ pub(crate) fn element_place_path(
 /// (`text[index] < 48 || text[index] > 57 -> ..` refuted gives the later
 /// `text[index] - 48` its range).
 pub(crate) fn stable_element_place_path(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -107,7 +107,7 @@ pub(crate) fn stable_element_place_path(
 /// Import the element bounds of a checked callee's `ensures` after a
 /// statement call returns.
 pub(crate) fn seed_cited_element_bounds(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
     environment: &mut ValueEnvironment,
 ) {
@@ -151,7 +151,10 @@ pub(crate) fn seed_cited_element_bounds(
 }
 
 /// A free machine whose checked body proves its own `ensures`.
-fn checked_callee(program: &TypedTrees, symbol: symbols::SymbolHandle) -> Option<&Machine> {
+fn checked_callee(
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+) -> Option<&Machine> {
     if !symbol.is_valid() {
         return None;
     }
@@ -168,7 +171,7 @@ fn checked_callee(program: &TypedTrees, symbol: symbols::SymbolHandle) -> Option
 }
 
 struct Substitution<'program> {
-    program: &'program TypedTrees,
+    program: &'program dyn crate::CheckingInput,
     parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &'program [ExpressionHandle],
 }
@@ -232,7 +235,7 @@ impl Substitution<'_> {
 }
 
 fn seed_conjunct(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     callee: &Machine,
     entry: &State,
     substitution: &Substitution<'_>,

@@ -3,7 +3,7 @@
 //! projected path selects are decided here, ahead of value production.
 
 use super::super::{
-    ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+    ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use typed_trees::types::TypeReferenceHandle;
 
@@ -12,7 +12,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// root's declaration. `canonical_place_from_expression` keeps the root and
 /// every segment exact.
 pub(super) fn borrowed_place_leaf_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     target: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let leaf = match program.expression_table.expression(target) {
@@ -49,7 +49,7 @@ pub(super) fn borrowed_place_leaf_type(
 /// producing call's declared return type. Only exact field and literal-index
 /// segments keep a statically checkable identity.
 pub(super) fn projected_leaf_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !matches!(
@@ -136,7 +136,7 @@ pub(super) fn canonical_place_is_copyable(place: &crate::flow::CanonicalPlace) -
 }
 
 pub(super) fn symbol_declared_type(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     for machine in program.machines() {
@@ -171,7 +171,10 @@ pub(super) fn symbol_declared_type(
 /// Membership observation can reconstruct such a leaf without reading any
 /// storage contents, which is exactly what a `self.bitness`-shape read needs;
 /// anything with payload storage or affine custody needs move semantics.
-pub(super) fn scalar_case_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+pub(super) fn scalar_case_place_type(
+    program: &dyn ::validation::CheckingInput,
+    expected: TypeReferenceHandle,
+) -> bool {
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
@@ -210,7 +213,7 @@ pub(super) fn scalar_case_place_type(program: &TypedTrees, expected: TypeReferen
 /// value keeps the exact canonical path so lowering can observe the held case
 /// and re-establish it -- never moving borrowed storage.
 pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -262,7 +265,10 @@ pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
 /// owned place reproduces the read a `self.scan_compare_type`-shape member
 /// access needs where moving or case-fan-out cannot apply; anything affine
 /// still needs move semantics.
-pub(super) fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+pub(super) fn copied_place_type(
+    program: &dyn ::validation::CheckingInput,
+    expected: TypeReferenceHandle,
+) -> bool {
     // Stored loan descriptors carry affine custody even when source-level
     // shared access is unrestricted. Transfer their existing Place/Projection;
     // copying the descriptor as a referent would mint a different loan.
@@ -321,7 +327,7 @@ pub(super) fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHan
 /// Retain that snapshot at the operand's evaluation point; passing an earlier
 /// constructor's result would confuse mutable storage with its initial value.
 pub(in crate::values::scalar::computations) fn needs_copied_place_root(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -398,7 +404,7 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
 /// name for an owned place source, or the producing call for a structural
 /// product source.
 pub(super) fn projection_root_expression(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let mut cursor = expression;

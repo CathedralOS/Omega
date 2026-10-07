@@ -5,14 +5,14 @@
 //! Calls may invalidate those facts, so the saved subject never restores a
 //! predicate about a place that the dispatch can mutate.
 
-use super::{Machine, State, TypedTrees, ValueEnvironment, guard_narrowing};
+use super::{Machine, State, ValueEnvironment, guard_narrowing};
 use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, MatchPattern, TableBinaryExpression, TableMatchExpression,
 };
 
 pub(crate) fn dispatch_arm_environments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,

@@ -12,7 +12,7 @@
 /// Whether `specialization` was made from the template that a ProviderPlan's
 /// split checked-adapter identity names.
 pub fn machine_specialization_matches_template_identity(
-    typed: &typed_trees::TypedTrees,
+    typed: &dyn crate::CheckingInput,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     machine_identity: &str,
     machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,

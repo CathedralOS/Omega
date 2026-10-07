@@ -18,7 +18,6 @@
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
@@ -71,18 +70,20 @@ struct DirectCallOperational {
     may_block: bool,
 }
 
-pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
+pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalPlan {
     crate::program_scope::effects::memoized_operational_plan(program)
 }
 
-pub(crate) fn infer_operational_may_uncached(program: &TypedTrees) -> OperationalPlan {
+pub(crate) fn infer_operational_may_uncached(
+    program: &dyn crate::CheckingInput,
+) -> OperationalPlan {
     infer_operational_may_with_cleanup_dependencies(program, &arena::Arena::default())
 }
 
 /// Settle the same operational graph with ownership-selected edge invocations.
 /// The caller supplies exact custody selection, never inferred source calls.
 pub fn infer_operational_may_with_cleanup_dependencies(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
 ) -> OperationalPlan {
     DIRECT_OPERATIONAL_MEMO.with(|cell| {
@@ -98,7 +99,7 @@ pub fn infer_operational_may_with_cleanup_dependencies(
     plan
 }
 
-fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
+fn build_machine_work(program: &dyn crate::CheckingInput) -> Vec<MachineWork> {
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
@@ -134,7 +135,7 @@ fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
 }
 
 fn collect_state_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     state: &State,
 ) -> Vec<CallWork> {
@@ -163,7 +164,7 @@ fn collect_state_calls(
 }
 
 fn collect_statement_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     statement: &StatementNode,
     statement_index: usize,
@@ -246,7 +247,7 @@ fn collect_statement_calls(
 }
 
 fn collect_transition_target_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: SymbolHandle,
     target: typed_trees::statement::TransitionTargetHandle,
     statement_index: usize,
@@ -305,7 +306,7 @@ fn collect_transition_target_expression_calls(
 }
 
 fn push_statement_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCall,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -336,7 +337,7 @@ fn push_statement_call(
 }
 
 fn collect_expression_calls(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -364,7 +365,7 @@ fn collect_expression_calls(
 }
 
 fn push_expression_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -395,7 +396,7 @@ fn push_expression_call(
 }
 
 fn push_call(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target_name: &str,
     target_state_symbol: SymbolHandle,
     static_machine_parameter: SymbolHandle,
@@ -431,7 +432,10 @@ fn push_call(
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
 
-fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) -> SymbolHandle {
+fn machine_symbol_for_state(
+    program: &dyn crate::CheckingInput,
+    state_symbol: SymbolHandle,
+) -> SymbolHandle {
     program
         .machine_holding_state(state_symbol)
         .map(|machine| machine.symbol)
@@ -450,7 +454,7 @@ thread_local! {
 }
 
 fn direct_operational_for_signature_symbol(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> DirectCallOperational {
     if !symbol.is_valid() {
@@ -476,7 +480,7 @@ fn direct_operational_for_signature_symbol(
 }
 
 fn direct_operational_for_signature_symbol_uncached(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> DirectCallOperational {
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
@@ -495,7 +499,7 @@ fn direct_operational_for_signature_symbol_uncached(
 }
 
 fn signature_operational(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> DirectCallOperational {
     let mut operational = DirectCallOperational {
@@ -661,7 +665,7 @@ fn propagate_operational_may(
 }
 
 fn retain_static_machine_bindings(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     target: SymbolHandle,
     arguments: &[typed_trees::expression::StaticMachineArgument],
     bindings: &mut arena::Arena<flow_effects::StaticMachineCallBinding>,
@@ -708,7 +712,7 @@ fn retain_static_machine_bindings(
     result
 }
 
-fn build_plan(program: &TypedTrees, machines: Vec<MachineWork>) -> OperationalPlan {
+fn build_plan(program: &dyn crate::CheckingInput, machines: Vec<MachineWork>) -> OperationalPlan {
     let mut plan = OperationalPlan::default();
 
     for machine in machines {

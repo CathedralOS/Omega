@@ -7,7 +7,6 @@ use checked_trees::{CheckFacts, ContractProofFactKind, ContractProofFactOwner, F
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::{
-    TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
@@ -18,7 +17,7 @@ use crate::flow::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 impl<'a> CaseObservation<'a> {
     pub(super) fn for_requirement(
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         facts: &'a CheckFacts,
         exit: &'a FlowExitFact,
         contexts: &'a [FactContextHandle],
@@ -67,7 +66,7 @@ impl<'a> CaseObservation<'a> {
     }
 
     pub(super) fn for_exit(
-        program: &'a TypedTrees,
+        program: &'a dyn ::validation::CheckingInput,
         facts: &'a CheckFacts,
         exit: &'a FlowExitFact,
         contexts: &'a [FactContextHandle],
@@ -115,7 +114,7 @@ impl<'a> CaseObservation<'a> {
 }
 
 pub(super) struct CaseObservation<'a> {
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     exit: &'a FlowExitFact,
     contexts: &'a [FactContextHandle],

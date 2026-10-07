@@ -11,7 +11,6 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::{
     IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge,
 };
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -149,7 +148,7 @@ fn report_partial(
 /// Returns whether this occurrence's formation conditions are decided.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_operands(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -207,7 +206,7 @@ pub(super) fn validate_operands(
 }
 
 fn direct_abstract_operand(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
@@ -228,7 +227,7 @@ fn direct_abstract_operand(
 }
 
 pub(super) fn validate_abstract(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     owner: &str,
     bindings: AbstractSpecificationBindings<'_>,
@@ -240,36 +239,36 @@ pub(super) fn validate_abstract(
         expression,
         &[BinaryOperator::Divide, BinaryOperator::Modulo],
         |binary| {
-        let left_operand = direct_abstract_operand(program, bindings, binary.left);
-        let right_operand = direct_abstract_operand(program, bindings, binary.right);
-        let selected = match (left_operand, right_operand) {
-            (Some((_, ArithmeticDomain::Exact)), Some((_, right))) => Some(right),
-            (Some((_, left)), Some(_)) => Some(left),
-            (Some((_, domain)), None) | (None, Some((_, domain))) => Some(domain),
-            (None, None) => None,
-        };
-        if selected.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
-            return;
-        }
-        let Some(primitive) = left_operand
-            .or(right_operand)
-            .map(|(primitive, _)| primitive)
-            .filter(|primitive| fixed_integer(*primitive))
-        else {
-            return;
-        };
-        _ = report_partial(
-            binary.operator,
-            ArithmeticDomain::Exact,
-            ProvenDefinedness::from_intervals(
-                primitive,
-                abstract_specification_interval(program, bindings, environment, binary.left),
-                abstract_specification_interval(program, bindings, environment, binary.right),
-            ),
-            owner,
-            false,
-            diagnostics,
-        );
+            let left_operand = direct_abstract_operand(program, bindings, binary.left);
+            let right_operand = direct_abstract_operand(program, bindings, binary.right);
+            let selected = match (left_operand, right_operand) {
+                (Some((_, ArithmeticDomain::Exact)), Some((_, right))) => Some(right),
+                (Some((_, left)), Some(_)) => Some(left),
+                (Some((_, domain)), None) | (None, Some((_, domain))) => Some(domain),
+                (None, None) => None,
+            };
+            if selected.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
+                return;
+            }
+            let Some(primitive) = left_operand
+                .or(right_operand)
+                .map(|(primitive, _)| primitive)
+                .filter(|primitive| fixed_integer(*primitive))
+            else {
+                return;
+            };
+            _ = report_partial(
+                binary.operator,
+                ArithmeticDomain::Exact,
+                ProvenDefinedness::from_intervals(
+                    primitive,
+                    abstract_specification_interval(program, bindings, environment, binary.left),
+                    abstract_specification_interval(program, bindings, environment, binary.right),
+                ),
+                owner,
+                false,
+                diagnostics,
+            );
         },
     );
 }

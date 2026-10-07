@@ -4,7 +4,6 @@
 use super::expression_result_type_reference as declared_value_type;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
@@ -15,7 +14,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// Find a retained subject carrier or an already-typed value-pattern peer.
 /// Anonymous patterns never choose a default width.
 pub fn match_subject_primitive_type(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     dispatch: &TableMatchExpression,
 ) -> Option<PrimitiveType> {
     retained_primitive(program, dispatch.subject).or_else(|| {
@@ -33,7 +32,10 @@ pub fn match_subject_primitive_type(
     })
 }
 
-fn retained_primitive(program: &TypedTrees, expression: ExpressionHandle) -> Option<PrimitiveType> {
+fn retained_primitive(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
     let reference = match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(_) => return Some(PrimitiveType::Bool),
         ExpressionNode::Integer(_) => {
@@ -69,7 +71,7 @@ fn retained_primitive(program: &TypedTrees, expression: ExpressionHandle) -> Opt
 /// an early evaluator erases the dispatch. The caller supplies a valid acyclic
 /// expression graph; this check does not evaluate landed arm operations.
 pub fn validate_match_dispatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -198,7 +200,7 @@ pub fn validate_match_dispatch(
 /// Fresh plain construction can join whole locals. Borrowed, projected, and
 /// parameter owners still require their own transfer and cleanup evidence.
 fn plain_local_owner_selection(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -302,11 +304,11 @@ fn plain_local_owner_selection(
 /// record fields and constant fixed indexes keep exact path identity; any
 /// other receiver shape rejects the chain instead of guessing custody.
 fn projected_leaf_chain_walk(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    mut root: impl FnMut(&TypedTrees, &Machine, &State, ExpressionHandle) -> Option<bool>,
+    mut root: impl FnMut(&dyn crate::CheckingInput, &Machine, &State, ExpressionHandle) -> Option<bool>,
 ) -> bool {
     let mut cursor = expression;
     loop {
@@ -328,13 +330,17 @@ fn projected_leaf_chain_walk(
 /// resolving the cursor to the path's own symbol, and the root an
 /// immutable initialized local or a non-const non-mutable parameter.
 fn projected_owned_name_root(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     cursor: ExpressionHandle,
     path: &typed_trees::expression::TableNamePath,
     contents: crate::value_custody::storage_contents::ContentsRequirement,
-    source: impl Fn(&TypedTrees, ExpressionHandle, TypeReferenceHandle) -> Option<symbols::SymbolHandle>,
+    source: impl Fn(
+        &dyn crate::CheckingInput,
+        ExpressionHandle,
+        TypeReferenceHandle,
+    ) -> Option<symbols::SymbolHandle>,
 ) -> bool {
     let Some(root_reference) = declared_value_type(program, machine, state, cursor) else {
         return false;
@@ -356,7 +362,7 @@ fn projected_owned_name_root(
 /// the root checks below but names the whole place, whose custody joins
 /// through the arm-level and custody-join rules instead.
 fn projected_owned_leaf(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -377,7 +383,7 @@ fn projected_owned_leaf(
 /// siblings stay live on every edge, so their contents still satisfy the
 /// linear-tolerant carrier rule rather than plain-owned storage.
 fn projected_linear_owned_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -394,37 +400,43 @@ fn projected_linear_owned_source(
     {
         return false;
     }
-    projected_leaf_chain_walk(program, machine, state, expression, |program, machine, state, cursor| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
-            // A call's structural product is a temporary: an affine residual
-            // may die with it, but a linear residual sibling has no named
-            // place to preserve its claim, so no projected linear child may
-            // leave a temporary root.
-            return None;
-        };
-        Some(projected_owned_name_root(
-            program,
-            machine,
-            state,
-            cursor,
-            path,
-            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
-            |program, cursor, root_reference| {
-                crate::value_custody::owned_value_source::whole_owned_value_source(
-                    program,
-                    cursor,
-                    root_reference,
-                )
-            },
-        ))
-    })
+    projected_leaf_chain_walk(
+        program,
+        machine,
+        state,
+        expression,
+        |program, machine, state, cursor| {
+            let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
+                // A call's structural product is a temporary: an affine residual
+                // may die with it, but a linear residual sibling has no named
+                // place to preserve its claim, so no projected linear child may
+                // leave a temporary root.
+                return None;
+            };
+            Some(projected_owned_name_root(
+                program,
+                machine,
+                state,
+                cursor,
+                path,
+                crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+                |program, cursor, root_reference| {
+                    crate::value_custody::owned_value_source::whole_owned_value_source(
+                        program,
+                        cursor,
+                        root_reference,
+                    )
+                },
+            ))
+        },
+    )
 }
 
 /// Walk an exact projection chain to its whole local root. Only record fields
 /// and constant fixed indexes keep exact path identity; a borrowed, dynamic, or
 /// otherwise opaque receiver rejects admission instead of guessing custody.
 fn projected_plain_owned_source(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -441,33 +453,38 @@ fn projected_plain_owned_source(
     {
         return false;
     }
-    projected_leaf_chain_walk(program, machine, state, expression, |program, machine, state, cursor| {
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Name(path) => Some(projected_owned_name_root(
-                program,
-                machine,
-                state,
-                cursor,
-                path,
-                crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-                |program, cursor, root_reference| {
-                    // An immutable owned parameter is a live root established
-                    // at state entry: the moved child keeps its exact path on
-                    // the transfer while the residual complement dies on the
-                    // selected edge, exactly as a local root does.
-                    crate::plain_owned_value_source(program, cursor, root_reference)
-                },
-            )),
-            // A call's structural product is its own once-evaluated owned
-            // root: the declared return type carries the affine custody whose
-            // projected child moves on the selected edge while the untouched
-            // complement dies there.
-            ExpressionNode::Call(_) => {
-                let Some(root_reference) = declared_value_type(program, machine, state, cursor)
-                else {
-                    return Some(false);
-                };
-                Some(
+    projected_leaf_chain_walk(
+        program,
+        machine,
+        state,
+        expression,
+        |program, machine, state, cursor| {
+            match program.expression_table.expression(cursor) {
+                ExpressionNode::Name(path) => Some(projected_owned_name_root(
+                    program,
+                    machine,
+                    state,
+                    cursor,
+                    path,
+                    crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+                    |program, cursor, root_reference| {
+                        // An immutable owned parameter is a live root established
+                        // at state entry: the moved child keeps its exact path on
+                        // the transfer while the residual complement dies on the
+                        // selected edge, exactly as a local root does.
+                        crate::plain_owned_value_source(program, cursor, root_reference)
+                    },
+                )),
+                // A call's structural product is its own once-evaluated owned
+                // root: the declared return type carries the affine custody whose
+                // projected child moves on the selected edge while the untouched
+                // complement dies there.
+                ExpressionNode::Call(_) => {
+                    let Some(root_reference) = declared_value_type(program, machine, state, cursor)
+                    else {
+                        return Some(false);
+                    };
+                    Some(
                     program.type_multiplicity(root_reference)
                         == language_semantics::Multiplicity::Affine
                         && crate::has_contents(
@@ -476,10 +493,11 @@ fn projected_plain_owned_source(
                             crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
                         ),
                 )
+                }
+                _ => None,
             }
-            _ => None,
-        }
-    })
+        },
+    )
 }
 
 /// A shared borrow of an exact place joins borrowed custody at the selected
@@ -505,7 +523,7 @@ fn projected_plain_owned_source(
 /// merge. It has no data declaration for the record rule to resolve, which is a
 /// fact about where its shape is declared, not about what this gate checks.
 fn selected_shared_borrow_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -563,7 +581,10 @@ fn selected_shared_borrow_place(
 /// constant fixed indexes over a named root. A dynamic index or range segment
 /// has no statically checkable ordinal, and a computed root has no place to
 /// re-derive at replay, so neither joins borrowed custody here.
-fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: ExpressionHandle) -> bool {
+fn shared_borrow_target_is_exact_place(
+    program: &dyn crate::CheckingInput,
+    mut target: ExpressionHandle,
+) -> bool {
     loop {
         match program.expression_table.expression(target) {
             ExpressionNode::Name(_) => return true,
@@ -585,7 +606,7 @@ fn shared_borrow_target_is_exact_place(program: &TypedTrees, mut target: Express
 /// canonicalizer bakes `FixedIndex`. A dynamic place read, a call, a range, or
 /// a constant that overflows or divides by zero has no fixed ordinal and keeps
 /// rejecting wherever an exact projected place is required.
-fn constant_fixed_index(program: &TypedTrees, index: ExpressionHandle) -> bool {
+fn constant_fixed_index(program: &dyn crate::CheckingInput, index: ExpressionHandle) -> bool {
     program
         .expression_table
         .constant_integer_value(index)
@@ -602,7 +623,7 @@ fn constant_fixed_index(program: &TypedTrees, index: ExpressionHandle) -> bool {
 /// predecessor result custody this gate exists to reject. A bare reference
 /// root (no projection) moves the borrow itself and keeps every rejection.
 fn expression_moves_borrowed_place(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -628,7 +649,7 @@ fn expression_moves_borrowed_place(
 }
 
 fn result_needs_custody_join(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -693,7 +714,7 @@ fn result_needs_custody_join(
 /// Resolve its actual declaration and case; an owned local with the same type
 /// is a transfer and must not inherit this construction permission.
 pub(super) fn fresh_payloadless_case(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
@@ -754,7 +775,10 @@ pub(super) fn fresh_payloadless_case(
 /// Routed provenance and references still need their separate branch custody;
 /// do not widen the plain-storage classifier used by representation-erasing
 /// construction and return paths elsewhere in the compiler.
-fn has_unrouted_scalar_contents(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+fn has_unrouted_scalar_contents(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
     let mut visited = Vec::new();
     while program
@@ -797,7 +821,7 @@ fn has_unrouted_scalar_contents(program: &TypedTrees, mut reference: TypeReferen
 }
 
 fn is_scalar_value(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -831,7 +855,7 @@ fn is_scalar_value(
 }
 
 fn selected_expression_transfers_owned(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     root: ExpressionHandle,
@@ -966,7 +990,7 @@ pub enum MatchCaseSubject {
 /// Admission here is shared with checked-tree construction: a `None` result
 /// means value dispatch's scalar gates still apply.
 pub fn match_case_dispatch(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     dispatch: &TableMatchExpression,
@@ -1027,7 +1051,7 @@ pub fn match_case_dispatch(
 /// `scalar_case_constructor`: a closed, non-generic pure sum whose contents
 /// stay within plain owned numeric-constraint shape.
 fn case_pattern(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     pattern: ExpressionHandle,
 ) -> Option<(TypeReferenceHandle, SymbolHandle)> {
     // A bare case name and a fieldless case literal both spell the same
@@ -1081,7 +1105,7 @@ fn case_pattern(
 /// reuse the case-membership place plan; fresh constructions carry their own
 /// discriminant.
 fn case_dispatch_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     subject: ExpressionHandle,
@@ -1124,7 +1148,7 @@ fn case_dispatch_subject(
 /// fields or payload cases; array indexing requires retained builtin meaning
 /// and a constant index.
 fn parameter_case_subject(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     subject: ExpressionHandle,
@@ -1175,7 +1199,7 @@ fn parameter_case_subject(
 }
 
 fn check_compatible_values(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     peer: ExpressionHandle,

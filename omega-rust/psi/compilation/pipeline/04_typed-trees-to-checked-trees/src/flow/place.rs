@@ -47,7 +47,7 @@ impl CanonicalPlace {
     }
 
     /// The canonical label diagnostics quote for this place.
-    pub(crate) fn label(&self, program: &typed_trees::TypedTrees) -> String {
+    pub(crate) fn label(&self, program: &dyn ::validation::CheckingInput) -> String {
         facts::canonical_place_label_from_parts(program, self.root, &self.segments)
     }
 }

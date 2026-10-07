@@ -24,7 +24,6 @@ use crate::checks::contracts::call_bounds::fixed_integer;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 use validation::{
@@ -33,7 +32,7 @@ use validation::{
 };
 
 pub(super) fn proves(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     contexts: &[FactContextHandle],
@@ -62,7 +61,7 @@ pub(super) fn proves(
 }
 
 pub(in crate::checks) fn proves_at_exit(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
@@ -93,7 +92,7 @@ pub(in crate::checks) fn proves_at_exit(
 }
 
 fn proves_bound(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     statement: usize,
@@ -166,7 +165,7 @@ fn proves_bound(
 }
 
 pub(super) fn at_call(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
@@ -234,7 +233,7 @@ fn invocation_fact<'facts>(
 }
 
 pub(in crate::checks) fn value_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     caller: &FlowStateFact,
     statement: usize,
     frames: &validation::CallFrameResolver<'_>,
@@ -272,7 +271,7 @@ pub(in crate::checks) fn atom(
 }
 
 pub(in crate::checks) fn proposition(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
@@ -288,7 +287,7 @@ pub(in crate::checks) fn proposition(
 }
 
 pub(in crate::checks) fn scalar_term(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
@@ -312,7 +311,7 @@ pub(in crate::checks) fn scalar_term(
 }
 
 fn bind_occurrences(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
     mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
@@ -365,7 +364,7 @@ fn bind_occurrences(
 }
 
 fn predicate(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
@@ -392,7 +391,7 @@ fn predicate(
 }
 
 fn term(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
@@ -458,7 +457,7 @@ fn term(
 /// operands share one explicit Wrapping carrier; arbitrary computed policy
 /// mixtures stay outside this source-proof vocabulary.
 fn builtin_wrapping_unsigned_remainder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     left: ExpressionHandle,
     right: ExpressionHandle,
@@ -485,7 +484,7 @@ fn builtin_wrapping_unsigned_remainder(
 /// spelling. The returned handle is authority-bearing for scoped entailment:
 /// keep every checked operator, callable meaning, carrier and cast fence here.
 fn admitted_wrapping_unsigned_remainder(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
@@ -511,7 +510,7 @@ fn admitted_wrapping_unsigned_remainder(
 /// normalized cast identity so semantic domains, recasts and carrier changes
 /// cannot borrow this policy-erasure reading.
 fn exact_same_carrier_policy_erasure(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> bool {
@@ -543,7 +542,10 @@ fn exact_same_carrier_policy_erasure(
 // The ordinary runtime result-type query deliberately does not fabricate a
 // runtime carrier for embed. Its exact builtin identity selects proof Int;
 // only mathematical composition of those terms gets this fallback.
-fn proof_integer_term(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+fn proof_integer_term(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     if validation::integer_embedding_argument(program, expression).is_some() {
         return true;
     }

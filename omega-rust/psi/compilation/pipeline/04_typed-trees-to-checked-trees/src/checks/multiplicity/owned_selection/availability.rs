@@ -20,7 +20,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(in crate::checks::multiplicity) fn record_statement(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -523,7 +523,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
 }
 
 pub(in crate::checks::multiplicity) fn apply_availability(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     receipt: &FlowOwnedSelectionReceipt,
     places: &mut [LinearPlace],
@@ -658,7 +658,7 @@ pub(in crate::checks::multiplicity) fn apply_availability(
 /// unresolvable call receiver conservatively counts as a whole-source use.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn linear_source_use_conflicts(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

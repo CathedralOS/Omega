@@ -89,7 +89,7 @@ pub(crate) fn substitute_forwarded_machine_arguments(
 }
 
 pub(crate) fn forwarded_static_argument_rewrites(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
 ) -> Vec<(SymbolHandle, StaticMachineArgument)> {
     candidate
@@ -149,7 +149,7 @@ pub(crate) fn forwarded_static_argument_rewrites(
 }
 
 pub(crate) fn static_argument_from_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<StaticMachineArgument> {
     if !program.type_reference_table.contains_type_reference(handle) || !handle.is_valid() {
@@ -198,7 +198,7 @@ pub(crate) fn static_argument_from_type_reference(
 }
 
 pub(crate) fn static_const_literal_from_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<numerics::literals::IntegerLiteral> {
     let TypeReferenceNode::Named { name, .. } = program.type_reference_table.type_reference(handle)

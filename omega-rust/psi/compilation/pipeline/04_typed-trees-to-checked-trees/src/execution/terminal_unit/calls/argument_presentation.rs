@@ -6,7 +6,7 @@ use crate::execution::terminal_unit::types::{
     base_type_identity, base_type_identity_with_substitutions, byte_sequence_carrier,
     lent_storage_identity, substituted_formal_type,
 };
-use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode, TypedTrees};
+use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 
 /// Whether caller storage may be presented at an ordinary or boundary
 /// parameter. The identity rule is the transitive lane's: the
@@ -22,7 +22,7 @@ use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode, TypedTree
 /// preservation of a mutable owner's invariants. Whole parameters and
 /// projections share this relation.
 pub(crate) fn is_admitted(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     projected_type: typed_trees::types::TypeReferenceHandle,
     parameter_type: typed_trees::types::TypeReferenceHandle,
     target_identity: &str,
@@ -77,7 +77,7 @@ pub(crate) fn is_admitted(
 /// Whether a declared field type is a shared `&[u8]` view, through any
 /// domain constraint shells.
 fn shared_view_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     mut type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     loop {

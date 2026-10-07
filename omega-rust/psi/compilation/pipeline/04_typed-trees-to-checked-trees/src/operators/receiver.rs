@@ -1,13 +1,12 @@
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
 use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_type_reference_for_origin(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
 ) -> Option<TypeReferenceHandle> {
@@ -25,7 +24,7 @@ pub(crate) fn expression_type_reference_for_origin(
 }
 
 fn expression_type_reference_in_state(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -249,7 +248,7 @@ fn expression_type_reference_in_state(
 /// not invent standalone type references; their assignment/local declaration
 /// is the checker-owned source of truth.
 fn contextual_type_reference_in_state(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
 ) -> Option<TypeReferenceHandle> {
@@ -272,7 +271,10 @@ fn contextual_type_reference_in_state(
     }
 }
 
-fn float_type_reference(program: &TypedTrees, format: FloatFormat) -> Option<TypeReferenceHandle> {
+fn float_type_reference(
+    program: &dyn ::validation::CheckingInput,
+    format: FloatFormat,
+) -> Option<TypeReferenceHandle> {
     let primitive = match format {
         FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
         FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
@@ -286,7 +288,7 @@ fn float_type_reference(program: &TypedTrees, format: FloatFormat) -> Option<Typ
 }
 
 fn symbol_type_reference_in_state(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -311,7 +313,7 @@ fn symbol_type_reference_in_state(
 }
 
 fn local_type_reference_before_statement(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
     symbol: SymbolHandle,
@@ -342,7 +344,7 @@ fn local_type_reference_before_statement(
 /// was keyed to `StateParameter::is_self`, which stage 01 rejects, so it
 /// refused for every program.
 fn data_binding_field_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
@@ -373,7 +375,7 @@ fn data_binding_field_type_reference(
 }
 
 fn field_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
@@ -434,7 +436,7 @@ fn field_type_reference(
 }
 
 fn data_field_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
@@ -452,7 +454,7 @@ fn data_field_type_reference(
 }
 
 fn indexed_element_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(type_reference) {
@@ -471,7 +473,7 @@ fn indexed_element_type_reference(
 }
 
 fn builtin_type_reference(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     atom: symbols::BuiltinTypeAtom,
 ) -> Option<TypeReferenceHandle> {
     let symbol = program

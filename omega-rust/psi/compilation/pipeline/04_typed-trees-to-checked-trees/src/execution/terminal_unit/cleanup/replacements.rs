@@ -15,10 +15,9 @@ use checked_trees::{
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 pub(super) fn actions(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,

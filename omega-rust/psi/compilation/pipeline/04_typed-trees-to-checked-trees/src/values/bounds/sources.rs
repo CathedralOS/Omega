@@ -8,11 +8,11 @@ use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::{
-    TypedTrees, expression::ExpressionNode, signature::StateParameter, types::TypeReferenceHandle,
+    expression::ExpressionNode, signature::StateParameter, types::TypeReferenceHandle,
 };
 
 pub(crate) struct PlaceIntegerBounds<'a> {
-    pub program: &'a TypedTrees,
+    pub program: &'a dyn ::validation::CheckingInput,
     pub semantic: &'a FactPlan,
     pub contexts: &'a [FactContextHandle],
     pub parameters: &'a [StateParameter],

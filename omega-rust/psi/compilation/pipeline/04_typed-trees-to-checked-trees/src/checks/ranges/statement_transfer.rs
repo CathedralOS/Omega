@@ -11,7 +11,6 @@
 //! pass merges outgoing-edge argument facts.
 
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -75,7 +74,7 @@ pub(super) trait StatementTransferSink<'program> {
 /// local/alias/window/member-store seeds, call-edge visit, write-frame
 /// invalidation, ensured-result seeds, and per-edge guard narrowing.
 pub(super) fn transfer_statement_facts<'program>(
-    program: &'program TypedTrees,
+    program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
     call_frames: Option<&CallFrameResolver<'program>>,
@@ -345,7 +344,7 @@ pub(super) fn transfer_statement_facts<'program>(
 /// comparison is read-only, so a later `has_next ->` arm seed resolves
 /// the name back to the comparison under both passes.
 fn seed_boolean_guard_local(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: Option<&CallFrameResolver<'_>>,
     facts: &mut RangeFacts<'_>,

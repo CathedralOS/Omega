@@ -17,7 +17,7 @@
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
-    ExpressionNode, Multiplicity, StateParameter, StatementNode, SymbolHandle, TypedTrees,
+    ExpressionNode, Multiplicity, StateParameter, StatementNode, SymbolHandle,
     exact_structural_argument_access, names_whole_local,
 };
 use crate::execution::terminal_unit::types::{
@@ -27,7 +27,7 @@ use checked_trees::CheckedByteSequenceCarrier;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn loan(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     source_state: &typed_trees::state::State,

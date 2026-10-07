@@ -1,6 +1,4 @@
-use super::{
-    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees,
-};
+use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
@@ -21,7 +19,7 @@ pub(crate) use root_currency::enter_root_currency_scope;
 pub(super) use root_currency::root_is_current;
 
 pub(super) fn collect_reads<'a, 'b>(
-    program: &'a TypedTrees,
+    program: &'a dyn ::validation::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,

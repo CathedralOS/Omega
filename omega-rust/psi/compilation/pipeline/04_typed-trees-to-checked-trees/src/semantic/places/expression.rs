@@ -6,7 +6,7 @@ use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(crate) fn instantiate_call_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     expression: ExpressionHandle,
@@ -15,7 +15,7 @@ pub(crate) fn instantiate_call_contract_expression_place(
 }
 
 pub(crate) fn instantiate_outcome_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result_statement_index: usize,
@@ -32,7 +32,7 @@ pub(crate) fn instantiate_outcome_contract_expression_place(
 }
 
 fn instantiate_contract_expression_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result: Option<(usize, ExpressionHandle)>,
@@ -134,7 +134,7 @@ fn instantiate_contract_expression_place(
 /// Select the captured value of an explicit formal projection using exact
 /// nominal fields. Non-constructed actuals retain their remaining field path.
 pub(crate) fn call_contract_argument_projection(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -169,7 +169,7 @@ pub(crate) fn call_contract_argument_projection(
 }
 
 fn instantiate_call_contract_name_path_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     result: Option<(usize, ExpressionHandle)>,
@@ -252,7 +252,7 @@ fn instantiate_call_contract_name_path_place(
 }
 
 fn call_argument_place(
-    program: &typed_trees::TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     expression: ExpressionHandle,

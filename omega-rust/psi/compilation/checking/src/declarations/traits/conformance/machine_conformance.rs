@@ -16,7 +16,6 @@ use crate::declarations::traits::conformance::trait_applications::validate_trait
 use crate::declarations::traits::trait_definition_by_symbol;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
@@ -27,7 +26,7 @@ use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_machine_trait_conformances(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
@@ -134,7 +133,7 @@ pub(crate) fn validate_machine_trait_conformances(
 }
 
 fn validate_machine_top_level_requirement_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     requirement: &Machine,
@@ -409,7 +408,7 @@ fn validate_machine_top_level_requirement_conformance(
 /// so a substituted requirement or provider telescope cannot inherit the
 /// earlier verdict.
 pub fn revalidate_top_level_requirement_realization(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     requirement: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
@@ -445,7 +444,7 @@ pub fn revalidate_top_level_requirement_realization(
 }
 
 fn validate_top_level_requirement_effect_ceiling(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     requirement: &Machine,
@@ -509,7 +508,7 @@ fn validate_top_level_requirement_effect_ceiling(
 /// software providers for either boundary or ordinary operators must cover the
 /// selected declaration's supported contract.
 fn validate_machine_operator_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance: &typed_trees::machine::TraitConformance,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
@@ -632,7 +631,7 @@ fn validate_machine_operator_conformance(
 /// (an `ensures` on the requirement) additionally demand a proven-ensures |=
 /// declared-law match (rung B: contract_entailment::check_law_conformance).
 fn validate_machine_single_requirement(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     trait_definition: &TraitDefinition,
@@ -748,7 +747,7 @@ fn validate_machine_single_requirement(
 /// conformance substitution carrier owns their complete identities.
 #[allow(clippy::too_many_arguments)]
 fn validate_concrete_named_evidence_contract_conformance(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry_state: &State,
     trait_definition: &TraitDefinition,
@@ -835,7 +834,7 @@ fn named_contracts(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_named_contract_lane(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     machine: &Machine,
     entry_state: &State,
     trait_definition: &TraitDefinition,
@@ -957,7 +956,7 @@ fn validate_named_contract_lane(
 /// exact forwarded parameters need no allocation and cover the canonical
 /// parent-binding form while preserving concrete/composite arguments as-is.
 pub fn compose_forwarded_trait_arguments(
-    program: &TypedTrees,
+    program: &dyn crate::CheckingInput,
     source_trait: &TraitDefinition,
     source_arguments: &[TypeReferenceHandle],
     parent_arguments: &[TypeReferenceHandle],
