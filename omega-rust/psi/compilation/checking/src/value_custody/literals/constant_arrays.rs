@@ -252,16 +252,15 @@ pub fn scalar_array_elements(
                 else {
                     return None;
                 };
-                let elements = program.expression_table.expression_handles(*elements);
-                if elements.len() != *length {
+                if !extend_fixed_array_elements(
+                    program,
+                    &mut pending,
+                    elements,
+                    element_type,
+                    *length,
+                ) {
                     return None;
                 }
-                pending.extend(
-                    elements
-                        .iter()
-                        .rev()
-                        .map(|element| (*element, *element_type, false)),
-                );
             }
             TypeReferenceNode::Named { .. } => {
                 leaves.push((expression, program.primitive_type_reference(reference)?))
@@ -308,16 +307,15 @@ pub fn closed_literal_array_elements(
                     length: typed_trees::types::FixedArrayLength::Literal(length),
                 },
             ) => {
-                let elements = program.expression_table.expression_handles(*elements);
-                if elements.len() != *length {
+                if !extend_fixed_array_elements(
+                    program,
+                    &mut pending,
+                    elements,
+                    element_type,
+                    *length,
+                ) {
                     return None;
                 }
-                pending.extend(
-                    elements
-                        .iter()
-                        .rev()
-                        .map(|element| (*element, *element_type, false)),
-                );
             }
             (
                 ExpressionNode::Integer(literal),
@@ -618,6 +616,30 @@ pub(crate) fn validate_constant_projection_destination(
         }
     }
     conflict
+}
+
+
+/// Push a fixed array's literal elements onto the pending walk when the
+/// literal count matches the declared length; `false` rejects a mismatched
+/// literal.
+fn extend_fixed_array_elements(
+    program: &TypedTrees,
+    pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle, bool)>,
+    elements: &arena::HandleSpan<ExpressionHandle>,
+    element_type: &TypeReferenceHandle,
+    length: usize,
+) -> bool {
+    let elements = program.expression_table.expression_handles(*elements);
+    if elements.len() != length {
+        return false;
+    }
+    pending.extend(
+        elements
+            .iter()
+            .rev()
+            .map(|element| (*element, *element_type, false)),
+    );
+    true
 }
 
 fn same_array_carrier(
