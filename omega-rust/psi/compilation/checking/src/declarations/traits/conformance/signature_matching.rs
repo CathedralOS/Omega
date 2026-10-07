@@ -345,23 +345,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         })
         .collect::<Vec<_>>();
     type_bindings.extend(
-        requirement_type_parameters
-            .iter()
-            .zip(actual_type_parameters.iter())
-            .filter(|&(required, actual)| {
-                matches!(
-                    (&required.kind, &actual.kind),
-                    (TypeParameterKind::Type, TypeParameterKind::Type)
-                        | (
-                            TypeParameterKind::Const { .. },
-                            TypeParameterKind::Const { .. }
-                        )
-                        | (
-                            TypeParameterKind::Value { .. },
-                            TypeParameterKind::Value { .. }
-                        )
-                )
-            })
+        super::type_parameter_binding_pairs(requirement_type_parameters, &actual_type_parameters)
             .map(|(required, actual)| TraitTypeBinding {
                 parameter_symbol: required.symbol,
                 parameter_name: required.name.as_str().to_owned(),

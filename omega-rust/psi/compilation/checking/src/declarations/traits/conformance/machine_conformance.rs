@@ -263,29 +263,14 @@ fn validate_machine_top_level_requirement_conformance(
             )));
         }
     }
-    let mut type_bindings = required_type_parameters
-        .iter()
-        .zip(actual_type_parameters)
-        .filter(|&(required, actual)| {
-            matches!(
-                (&required.kind, &actual.kind),
-                (TypeParameterKind::Type, TypeParameterKind::Type)
-                    | (
-                        TypeParameterKind::Const { .. },
-                        TypeParameterKind::Const { .. }
-                    )
-                    | (
-                        TypeParameterKind::Value { .. },
-                        TypeParameterKind::Value { .. }
-                    )
-            )
-        })
-        .map(|(required, actual)| TraitTypeBinding {
-            parameter_symbol: required.symbol,
-            parameter_name: required.name.as_str().to_owned(),
-            target: TraitTypeBindingTarget::Parameter(actual.symbol),
-        })
-        .collect::<Vec<_>>();
+    let mut type_bindings =
+        super::type_parameter_binding_pairs(required_type_parameters, actual_type_parameters)
+            .map(|(required, actual)| TraitTypeBinding {
+                parameter_symbol: required.symbol,
+                parameter_name: required.name.as_str().to_owned(),
+                target: TraitTypeBindingTarget::Parameter(actual.symbol),
+            })
+            .collect::<Vec<_>>();
     for (index, (required, actual)) in required_type_parameters
         .iter()
         .zip(actual_type_parameters)
