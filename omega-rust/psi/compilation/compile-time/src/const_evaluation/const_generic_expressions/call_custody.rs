@@ -85,7 +85,7 @@ pub(super) fn call_expressions(
 
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
     let mut contains_call = false;
-    for_each_initializer_expression(program, vec![root], |expression| {
+    for_each_initializer_expression(program, &#38;[root], |expression| {
         // A `size_of`/`align_of` request is the compiler's layout query, not
         // an invocation: it carries no callee for admission to select and no
         // machine body for replay to re-execute.
