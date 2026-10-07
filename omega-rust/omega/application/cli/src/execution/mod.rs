@@ -1,5 +1,5 @@
 //! Compile, publish, and optionally execute one project with a private output directory.
-//! Interpreter comparison observes the same checked package input. This operation
+//! Interpreter comparison observes the same produced Terminal artifact. This operation
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
@@ -15,8 +15,9 @@ pub struct RunRequest {
     pub root_path: PathBuf,
     /// An explicit target produces an image without executing it on the host.
     pub target_name: Option<String>,
-    /// Host comparison reads process stdin to EOF and replays the same bytes
-    /// to both engines. Without comparison, native execution inherits stdin.
+    /// Host comparison snapshots process stdin to EOF for native replay.
+    /// Terminal stdin imports currently decline until their exact adapters
+    /// are supplied. Without comparison, native execution inherits stdin.
     pub compare_interpreter: bool,
     pub keep_artifacts: bool,
 }
@@ -175,9 +176,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
         },
-        replay_input
-            .as_ref()
-            .map(standard_input::ReplayInput::bytes),
+        replay_input.is_some(),
     )
     .map_err(RunError::Compilation)?;
     let (report, executable) =
@@ -214,21 +213,77 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
 
 fn compare_interpretation(
     native_exit: ProcessExitObservation,
-    interpretation: Option<Result<checked_interpreter::InterpretOutcome, Vec<Diagnostic>>>,
+    interpretation: Option<
+        Result<
+            compiler::runtime::TerminalRuntimeObservation,
+            compiler::runtime::TerminalRuntimeError,
+        >,
+    >,
 ) -> InterpreterComparison {
+    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+
     match interpretation {
         None => InterpreterComparison::NotRequested,
-        Some(Err(diagnostics)) => InterpreterComparison::Failed(diagnostics),
-        Some(Ok(outcome)) => match outcome.error {
-            Some(reason) => InterpreterComparison::Declined(reason),
-            None if native_exit.matches_host_presentation(outcome.exit_code) => {
-                InterpreterComparison::Agrees {
-                    exit_code: outcome.exit_code,
+        Some(Err(error)) if comparison_unavailable(&error) => {
+            InterpreterComparison::Declined(error.to_string())
+        }
+        Some(Err(error)) => {
+            InterpreterComparison::Failed(vec![Diagnostic::error(error.to_string())])
+        }
+        Some(Ok(outcome)) => {
+            let exit_code = match outcome.status {
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => 0,
+                TerminalExecutionStatus::ExternalCompletion(completion) => completion.return_code,
+                TerminalExecutionStatus::Complete(result) => {
+                    return InterpreterComparison::Declined(format!(
+                        "program entry returned a non-process result: {result:?}"
+                    ));
+                }
+                TerminalExecutionStatus::SponsorExhausted(_) => {
+                    return InterpreterComparison::Declined(
+                        "Terminal reference execution exhausted its sponsor fuel allowance"
+                            .to_owned(),
+                    );
+                }
+                TerminalExecutionStatus::Crashed(crash) => {
+                    return InterpreterComparison::Declined(format!(
+                        "Terminal observed {:?}; host crash-presentation comparison is unavailable",
+                        crash.cause
+                    ));
+                }
+            };
+            if native_exit.matches_host_presentation(exit_code) {
+                InterpreterComparison::Agrees { exit_code }
+            } else {
+                InterpreterComparison::Disagrees {
+                    interpreter_exit_code: exit_code,
                 }
             }
-            None => InterpreterComparison::Disagrees {
-                interpreter_exit_code: outcome.exit_code,
-            },
-        },
+        }
     }
+}
+
+/// Unsupported interpretation can surface during requirement discovery,
+/// instantiation, or execution. Preserve that typed distinction at every
+/// boundary; malformed artifacts and missing custody are still failures.
+fn comparison_unavailable(error: &compiler::runtime::TerminalRuntimeError) -> bool {
+    use compiler::runtime::TerminalRuntimeError;
+    use terminal_interpreter::{
+        TerminalArtifactInterpretError, TerminalInstanceError, TerminalInterpretError,
+    };
+
+    let interpretation = match error {
+        TerminalRuntimeError::MissingProvision { .. } => return true,
+        TerminalRuntimeError::Requirements(error)
+        | TerminalRuntimeError::Artifact(TerminalArtifactInterpretError::Execution(error))
+        | TerminalRuntimeError::Execution(TerminalInstanceError::Execution(error)) => error,
+        _ => return false,
+    };
+    matches!(
+        interpretation,
+        TerminalInterpretError::UnsupportedCapability(_)
+            | TerminalInterpretError::UnsupportedSemanticVariant(_)
+            | TerminalInterpretError::ScalarEntryQualificationUnsupported
+            | TerminalInterpretError::AffineProjectionNotRepresentable
+    )
 }

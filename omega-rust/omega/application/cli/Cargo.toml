@@ -27,16 +27,7 @@ target = { path = "../../compilation/backend/target" }
 checked-trees-to-lowered-psi = { path = "../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-
-# Selected virtual host providers are interpreted only after exact Omega settlement.
-effects = { path = "../../compilation/backend/plans/provider-evidence" }
-provider-planning = { path = "../../compilation/realization/provider-planning" }
-checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
-typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-symbols = { path = "../../../psi/foundation/symbols" }
-source = { path = "../../../psi/foundation/source" }
-calling-conventions = { path = "../../compilation/backend/calling-conventions" }

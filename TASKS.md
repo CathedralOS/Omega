@@ -1741,9 +1741,8 @@ then independent claimed restoration slices -> final closure.
   rerun Build or evaluate source expressions. Restore complete operation/import
   families, not a simple-program eligibility matrix. Unsupported interpretation
   stays explicitly unavailable; actual disagreement is an error.
-  Owners: `omega-rust/omega/application/cli/src/execution/compilation.rs`,
-  `omega-rust/omega/compilation/driver/tests/corpus_runner.rs` and exact host
-  adapters. Acceptance: `omega run --both` for
+  Owners: the shared `omega-rust/omega/compilation/driver/src/runtime.rs`, CLI
+  execution and corpus adapters. Acceptance: `omega run --both` for
   `pass/float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`
   returns native/interpreter 70; restore **WINDOWS-CONSOLE-INPUT**'s Loader and
   five bounded-line controls through the common core. Missing/wrong-instance
@@ -1760,8 +1759,11 @@ then independent claimed restoration slices -> final closure.
   non-hosted roots and required receiver qualifications. General host bindings
   still need stdin/read-byte, virtual clocks, float imports and stderr support.
   Selected-reference backing retains its separate capability attribution.
-  CLI comparison still uses trees. A same-target native failure returns no
-  retained intermediate
+  CLI comparison consumes the exact native report before publication; missing
+  imports decline without reinterpreting trees or rerunning source/Build.
+  Host crash-presentation comparison remains unavailable in the CLI, which
+  compares numeric exit presentation only. A same-target native failure returns
+  no retained intermediate
   artifact; observing that Terminal program requires intermediate-artifact error
   custody rather than a second source compilation. Windows Console write-byte
   production separately lacks a closed native intrinsic catalog identity; a

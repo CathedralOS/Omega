@@ -54,7 +54,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                     201
                 }
                 InterpreterComparison::Failed(diagnostics) => {
-                    eprintln!("interp frontend compile FAILED:");
+                    eprintln!("Terminal interpretation FAILED:");
                     for diagnostic in diagnostics {
                         eprintln!("  {diagnostic}");
                     }

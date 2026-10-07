@@ -29,11 +29,20 @@ the image. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
 Ordinary host runs inherit the caller's stdin without waiting for EOF upfront.
-Interpreter comparison (`--both`) instead reads stdin to EOF before compilation
-and supplies those same bytes to both engines. Use a finite pipe or redirected
-file for comparison; interactive input must be ended with EOF. Native replay uses
-temporary storage that is deleted even with `--keep`. Target-only invocations do
-not read stdin. Stdout/stderr remain captured until native execution ends.
+Interpreter comparison (`--both`) instead snapshots stdin to EOF before compilation
+for native replay. Use a finite pipe or redirected file for comparison; interactive
+input must be ended with EOF. Temporary input storage is deleted even with `--keep`.
+Target-only invocations do not read stdin. Stdout/stderr remain captured until
+native execution ends.
+
+Comparison runs the shared Terminal runtime on the native report's exact produced
+artifact and retained entry/provider provisions before publication transfers that
+payload. It never interprets checked trees, recompiles source or repeats Build.
+The current runtime establishes an isolated hosted root, buffered output and
+domain-bound ProcessExit. Stdin, clock and other missing imports decline explicitly;
+there is no tree fallback. The CLI compares host-presented exit status only, not
+stdout/stderr or full semantic traces. Typed crashes and sponsor-fuel exhaustion
+are distinct declines, not numeric exits or divergence verdicts.
 
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must
@@ -101,8 +110,9 @@ Argument errors exit 64 (`EX_USAGE`) before any compilation starts, so they
 never read as a compile outcome. `omega run`
 keeps its own statuses: the program's exit status, 200 when compilation or
 launch fails, 202 when compilation stopped at a named private provision
-(`Incomplete`), and 201 when `--both` interpretation diverges or fails to
-compile.
+(`Incomplete`), and 201 when `--both` interpretation disagrees or encounters a
+runtime/artifact defect. An explicitly unavailable comparison reports `DECLINED`
+and retains the native program's status; it never reports agreement.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
