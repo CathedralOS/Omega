@@ -7,6 +7,14 @@ use super::super::scoped_paths::{
     invalid_symbol_pair, resolve_state_scoped_table_path,
     resolve_state_scoped_table_path_with_indexed_last_member,
 };
+/// The member kinds a receiver path may resolve through — fields, states,
+/// parameters and variants.
+const RECEIVER_MEMBER_KINDS: &[SymbolKind] = &[
+    SymbolKind::Field,
+    SymbolKind::State,
+    SymbolKind::Parameter,
+    SymbolKind::Variant,
+];
 
 pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     symbols: &SymbolTable,
@@ -30,12 +38,7 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     child_or_attached_data_child_symbol_by_kinds(
         symbols,
         receiver_symbol,
-        &[
-            SymbolKind::Field,
-            SymbolKind::State,
-            SymbolKind::Parameter,
-            SymbolKind::Variant,
-        ],
+        RECEIVER_MEMBER_KINDS,
         member.as_str(),
     )
 }
@@ -71,12 +74,7 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
             let member_symbol = child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
-                &[
-                    SymbolKind::Field,
-                    SymbolKind::State,
-                    SymbolKind::Parameter,
-                    SymbolKind::Variant,
-                ],
+                RECEIVER_MEMBER_KINDS,
                 member.member.as_str(),
             );
 
@@ -152,12 +150,7 @@ fn resolve_indexed_expression_table_receiver_path_symbols(
             let member_symbol = child_indexed_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
-                &[
-                    SymbolKind::Field,
-                    SymbolKind::State,
-                    SymbolKind::Parameter,
-                    SymbolKind::Variant,
-                ],
+                RECEIVER_MEMBER_KINDS,
                 member.member.as_str(),
                 index,
             );
