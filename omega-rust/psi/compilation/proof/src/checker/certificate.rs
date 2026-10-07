@@ -674,24 +674,7 @@ fn guarded_bounds_certificate(
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
         )),
     );
-    let conclusion = Proposition::Conjunction(vec![
-        lower_leg.conclusion.clone(),
-        upper_leg.conclusion.clone(),
-    ]);
-    let proof = ProofNode {
-        conclusion: conclusion.clone(),
-        rule: ProofRule::ConjunctionIntroduction(vec![lower_leg, upper_leg]),
-    };
-    Some(BoundedValueCertificate {
-        context,
-        obligation: Obligation {
-            id: ObligationId::new(seed)?,
-            proposition: conclusion,
-            class: ObligationClass::Derivable,
-        },
-        assumptions,
-        envelope: envelope(seed, proof)?,
-    })
+    bounded_conjunction_certificate(context, seed, lower_leg, upper_leg, assumptions)
 }
 
 /// One fact a guard or declaration establishes on a subject expression:
@@ -1082,24 +1065,7 @@ fn refold_bounds_certificate(
             IntegerMathTerm::IntegerLiteral(bigint_math_literal(&target.maximum)?),
         )),
     );
-    let conclusion = Proposition::Conjunction(vec![
-        lower_leg.conclusion.clone(),
-        upper_leg.conclusion.clone(),
-    ]);
-    let proof = ProofNode {
-        conclusion: conclusion.clone(),
-        rule: ProofRule::ConjunctionIntroduction(vec![lower_leg, upper_leg]),
-    };
-    Some(BoundedValueCertificate {
-        context,
-        obligation: Obligation {
-            id: ObligationId::new(seed)?,
-            proposition: conclusion,
-            class: ObligationClass::Derivable,
-        },
-        assumptions,
-        envelope: envelope(seed, proof)?,
-    })
+    bounded_conjunction_certificate(context, seed, lower_leg, upper_leg, assumptions)
 }
 
 /// One affine endpoint step: the kernel's direct `place +- K` bound map from
@@ -1253,24 +1219,13 @@ fn closed_bounds_certificate(
         Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(lower), term.clone());
     let upper_conjunct =
         Proposition::IntegerMathLessOrEqual(term, IntegerMathTerm::IntegerLiteral(upper));
-    let conclusion = Proposition::Conjunction(vec![lower_conjunct.clone(), upper_conjunct.clone()]);
-    let proof = ProofNode {
-        conclusion: conclusion.clone(),
-        rule: ProofRule::ConjunctionIntroduction(vec![
-            closed_relation_node(lower_conjunct),
-            closed_relation_node(upper_conjunct),
-        ]),
-    };
-    Some(BoundedValueCertificate {
-        context: PropositionContext::default(),
-        obligation: Obligation {
-            id: ObligationId::new(seed)?,
-            proposition: conclusion,
-            class: ObligationClass::Derivable,
-        },
-        assumptions: Vec::new(),
-        envelope: envelope(seed, proof)?,
-    })
+    bounded_conjunction_certificate(
+        PropositionContext::default(),
+        seed,
+        closed_relation_node(lower_conjunct),
+        closed_relation_node(upper_conjunct),
+        Vec::new(),
+    )
 }
 
 /// `lower <= v <= upper` for one opaque mathematical value `v` carrying the
@@ -1347,6 +1302,29 @@ fn declared_interval_certificate(
             IntegerMathTerm::IntegerLiteral(upper),
         )),
     );
+    bounded_conjunction_certificate(
+        context,
+        seed,
+        lower_leg,
+        upper_leg,
+        vec![lower_premise, upper_premise],
+    )
+}
+
+/// One `<=` transitivity step: the children's shared middle composes the
+/// node's conclusion.
+/// A closed integer-order primitive: the whole premise is the literal
+/// bounds comparison the kernel checks without cited context.
+/// Both legs' conclusions conjoin into the bounded certificate's
+/// proposition: the introduction carries the legs whole, and the obligation
+/// derives it under the envelope the seed stamps.
+fn bounded_conjunction_certificate(
+    context: PropositionContext,
+    seed: u64,
+    lower_leg: ProofNode,
+    upper_leg: ProofNode,
+    assumptions: Vec<Proposition>,
+) -> Option<BoundedValueCertificate> {
     let conclusion = Proposition::Conjunction(vec![
         lower_leg.conclusion.clone(),
         upper_leg.conclusion.clone(),
@@ -1362,15 +1340,11 @@ fn declared_interval_certificate(
             proposition: conclusion,
             class: ObligationClass::Derivable,
         },
-        assumptions: vec![lower_premise, upper_premise],
+        assumptions,
         envelope: envelope(seed, proof)?,
     })
 }
 
-/// One `<=` transitivity step: the children's shared middle composes the
-/// node's conclusion.
-/// A closed integer-order primitive: the whole premise is the literal
-/// bounds comparison the kernel checks without cited context.
 fn closed_relation_node(conclusion: Proposition) -> ProofNode {
     ProofNode {
         conclusion,
