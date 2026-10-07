@@ -126,7 +126,6 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     }
 }
 
-
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
         VirtualRegisterOrigin::StructuralObservation {
@@ -278,8 +277,8 @@ mod tests {
         SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{
-        BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
-        OperationId, ScalarType, ValueId,
+        BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+        ScalarType, ValueId,
     };
 
     fn plan() -> RecoveryClassificationPlan {
@@ -329,7 +328,7 @@ mod tests {
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: SelectedInstructionId(7),
                             source_value: value,
-                            value: ::Unsigned(12),
+                            value: semantic_vocabulary::IntegerValue::Unsigned(12),
                             provenance: SelectedInstructionProvenance {
                                 operations: vec![operation],
                                 values: vec![value],

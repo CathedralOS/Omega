@@ -41,7 +41,7 @@ fn wide_shape_and_fragment_offsets_round_trip_without_truncation() {
         },
     ] {
         let mut encoded = Vec::new();
-        encode_placement(&mut encoded, &placement);
+        legalized_operations::encode_placement(&mut encoded, &placement);
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_placement(&mut cursor).unwrap(), placement);
         assert_eq!(cursor.remaining(), 0);

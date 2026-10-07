@@ -608,11 +608,56 @@ pub(super) fn decode_scalar_source(
 
 #[cfg(test)]
 mod tests {
+    use super::super::declarations::encode_string;
     use super::{
         decode_call_binding, decode_locator, decode_normalized_foreign_call, decode_scalar_source,
-        decode_state_plan, encode_call_binding, encode_call_plan, encode_coordinate,
-        encode_locator, encode_normalized_foreign_call, encode_string,
+        decode_state_plan, encode_call_binding, encode_normalized_foreign_call,
     };
+    use crate::register_homes::recovery::fixed_view_copy::codec::primitives::length;
+    use legalized_operations::encode_call_plan;
+
+    /// A sealed locator coordinate: length-prefixed bytes, the same spelling
+    /// the shared call-binding encoder writes.
+    fn encode_coordinate(bytes: &mut Vec<u8>, value: &[u8]) {
+        length(bytes, value.len());
+        bytes.extend_from_slice(value);
+    }
+
+    /// The locator prefix of an encoded call binding: target profile name,
+    /// candidate case, then each coordinate.
+    fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {
+        encode_string(bytes, locator.target().target_name());
+        match locator.locator() {
+            ForeignLocatorCandidate::PeByName { library, export } => {
+                bytes.push(1);
+                encode_coordinate(bytes, library);
+                encode_coordinate(bytes, export);
+            }
+            ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                bytes.push(2);
+                encode_coordinate(bytes, library);
+                bytes.extend_from_slice(&ordinal.to_le_bytes());
+            }
+            ForeignLocatorCandidate::ElfVersioned {
+                object,
+                symbol,
+                version,
+            } => {
+                bytes.push(3);
+                encode_coordinate(bytes, object);
+                encode_coordinate(bytes, symbol);
+                encode_coordinate(bytes, version);
+            }
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name,
+                symbol,
+            } => {
+                bytes.push(4);
+                encode_coordinate(bytes, install_name);
+                encode_coordinate(bytes, symbol);
+            }
+        }
+    }
     use calling_conventions::encode_state_plan_identity;
     use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, ValueShape};
     use legalized_operations::LegalizedNormalizedForeignCall;

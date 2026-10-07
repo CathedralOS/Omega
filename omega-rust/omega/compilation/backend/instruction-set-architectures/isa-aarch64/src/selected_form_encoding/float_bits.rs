@@ -116,7 +116,8 @@ pub(super) fn validate(
 }
 #[cfg(test)]
 mod tests {
-    use super::{encode, properties, validate};
+    use super::{encode, float_bit_transfer_properties, validate};
+    use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
     use selected_instructions::MachineEncodedEffects;
     use selected_instructions::SelectedInstructionKind;

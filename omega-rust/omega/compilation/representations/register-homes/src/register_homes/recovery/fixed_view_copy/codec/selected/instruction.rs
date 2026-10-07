@@ -352,50 +352,50 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
         (SelectedInstructionKind::BitwiseXorI64, 52),
         (
             SelectedInstructionKind::SaturatingSubtract {
-                carrier: SaturatingCarrier::U64,
+                carrier: selected_instructions::SaturatingCarrier::U64,
             },
             54,
         ),
         (
             SelectedInstructionKind::SaturatingAdd {
-                carrier: SaturatingCarrier::U64,
+                carrier: selected_instructions::SaturatingCarrier::U64,
             },
             55,
         ),
         (SelectedInstructionKind::WrappingAddI64, 58),
         (
             SelectedInstructionKind::SaturatingAdd {
-                carrier: SaturatingCarrier::I32,
+                carrier: selected_instructions::SaturatingCarrier::I32,
             },
             60,
         ),
         (
             SelectedInstructionKind::SaturatingSubtract {
-                carrier: SaturatingCarrier::I32,
+                carrier: selected_instructions::SaturatingCarrier::I32,
             },
             61,
         ),
         (
             SelectedInstructionKind::SaturatingAdd {
-                carrier: SaturatingCarrier::I8,
+                carrier: selected_instructions::SaturatingCarrier::I8,
             },
             63,
         ),
         (
             SelectedInstructionKind::SaturatingSubtract {
-                carrier: SaturatingCarrier::U16,
+                carrier: selected_instructions::SaturatingCarrier::U16,
             },
             76,
         ),
         (
             SelectedInstructionKind::SaturatingMultiply {
-                carrier: SaturatingCarrier::I8,
+                carrier: selected_instructions::SaturatingCarrier::I8,
             },
             114,
         ),
         (
             SelectedInstructionKind::SaturatingMultiply {
-                carrier: SaturatingCarrier::U64,
+                carrier: selected_instructions::SaturatingCarrier::U64,
             },
             121,
         ),
@@ -1012,7 +1012,7 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
         ),
         (
             SelectedInstructionKind::SaturatingDivide {
-                carrier: SaturatingCarrier::I32,
+                carrier: selected_instructions::SaturatingCarrier::I32,
                 obligation,
                 accepted_fact,
             },
@@ -1020,7 +1020,7 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
         ),
         (
             SelectedInstructionKind::SaturatingDivide {
-                carrier: SaturatingCarrier::U64,
+                carrier: selected_instructions::SaturatingCarrier::U64,
                 obligation,
                 accepted_fact,
             },
