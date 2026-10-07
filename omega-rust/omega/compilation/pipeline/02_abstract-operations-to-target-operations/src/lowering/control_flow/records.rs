@@ -471,14 +471,7 @@ pub(super) fn establish_structural_local(
     else {
         return Err(invalid());
     };
-    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
-        return Err(invalid());
-    }
+    let result_home = established_result_home(live, psi_operation, result, types, invalid)?;
     // A declared descriptor local's home is read as a shared view once its
     // whole-slot store installs a descriptor; verification proved that store
     // reaches every read.
@@ -518,6 +511,27 @@ pub(super) fn establish_zeroed_structural(
     else {
         return Err(invalid());
     };
+    let result_home = established_result_home(live, psi_operation, result, types, invalid)?;
+    operations.push(TargetUnitOperation::EstablishZeroedStructural {
+        psi_operation: *psi_operation,
+        result_home,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+/// The establishment's aggregate home, registered as live; `invalid` when
+/// the place already holds one.
+fn established_result_home<Invalid>(
+    live: &mut LiveDefinitions,
+    psi_operation: &semantic_vocabulary::OperationId,
+    result: &terminal_psi::StructuralOperationResult,
+    types: &StructuralTypeLookup<'_>,
+    invalid: Invalid,
+) -> Result<target_operations::TargetStructuralHomeRequirement, LoweringError>
+where
+    Invalid: Fn() -> LoweringError,
+{
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if live
         .structural_homes
@@ -526,10 +540,5 @@ pub(super) fn establish_zeroed_structural(
     {
         return Err(invalid());
     }
-    operations.push(TargetUnitOperation::EstablishZeroedStructural {
-        psi_operation: *psi_operation,
-        result_home,
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(())
+    Ok(result_home)
 }
