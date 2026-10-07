@@ -64,11 +64,10 @@ fn validate_statement(
                 if expression.is_valid() {
                     // Binding still has work to do after its operand returns;
                     // it is not a terminal suspension/call position.
-                    validate_expression(
+                    validate_child(
                         program,
                         expression,
                         statement_index,
-                        false,
                         operational_calls,
                         call_ordinal,
                         diagnostics,
@@ -78,20 +77,18 @@ fn validate_statement(
         }
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
-            validate_expression(
+            validate_child(
                 program,
                 assignment.target,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
-            validate_expression(
+            validate_child(
                 program,
                 assignment.value,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
@@ -107,11 +104,10 @@ fn validate_statement(
                 diagnostics,
             );
             for argument in program.statement_table.expression_handles(call.arguments) {
-                validate_expression(
+                validate_child(
                     program,
                     *argument,
                     statement_index,
-                    false,
                     operational_calls,
                     call_ordinal,
                     diagnostics,
@@ -175,11 +171,10 @@ fn validate_statement(
                             diagnostics,
                         );
                         for argument in program.statement_table.expression_handles(*arguments) {
-                            validate_expression(
+                            validate_child(
                                 program,
                                 *argument,
                                 statement_index,
-                                false,
                                 operational_calls,
                                 call_ordinal,
                                 diagnostics,
@@ -203,6 +198,27 @@ fn validate_statement(
 }
 
 #[allow(clippy::too_many_arguments)]
+
+/// Every recursive child walk spells non-direct position identically.
+fn validate_child(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    statement_index: usize,
+    operational_calls: &[CallOperational],
+    call_ordinal: &mut usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_expression(
+        program,
+        expression,
+        statement_index,
+        false,
+        operational_calls,
+        call_ordinal,
+        diagnostics,
+    );
+}
+
 fn validate_expression(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -218,54 +234,49 @@ fn validate_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            validate_expression(
+            validate_child(
                 program,
                 dispatch.subject,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    validate_expression(
+                    validate_child(
                         program,
                         pattern,
                         statement_index,
-                        false,
                         operational_calls,
                         call_ordinal,
                         diagnostics,
                     );
                 }
-                validate_expression(
+                validate_child(
                     program,
                     arm.value,
                     statement_index,
-                    false,
                     operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
             }
         }
-        ExpressionNode::Atomic(atomic) => validate_expression(
+        ExpressionNode::Atomic(atomic) => validate_child(
             program,
             atomic.value,
             statement_index,
-            false,
             operational_calls,
             call_ordinal,
             diagnostics,
         ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                validate_expression(
+                validate_child(
                     program,
                     *value,
                     statement_index,
-                    false,
                     operational_calls,
                     call_ordinal,
                     diagnostics,
@@ -273,30 +284,27 @@ fn validate_expression(
             }
         }
         ExpressionNode::Binary(binary) => {
-            validate_expression(
+            validate_child(
                 program,
                 binary.left,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
-            validate_expression(
+            validate_child(
                 program,
                 binary.right,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
         }
-        ExpressionNode::Cast(cast) => validate_expression(
+        ExpressionNode::Cast(cast) => validate_child(
             program,
             cast.value,
             statement_index,
-            false,
             operational_calls,
             call_ordinal,
             diagnostics,
@@ -310,21 +318,19 @@ fn validate_expression(
                 call_ordinal,
                 diagnostics,
             );
-            validate_expression(
+            validate_child(
                 program,
                 call.receiver,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_expression(
+                validate_child(
                     program,
                     *argument,
                     statement_index,
-                    false,
                     operational_calls,
                     call_ordinal,
                     diagnostics,
@@ -332,58 +338,52 @@ fn validate_expression(
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            validate_expression(
+            validate_child(
                 program,
                 indexed.collection,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
-            validate_expression(
+            validate_child(
                 program,
                 indexed.index,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
         }
-        ExpressionNode::Member(member) => validate_expression(
+        ExpressionNode::Member(member) => validate_child(
             program,
             member.receiver,
             statement_index,
-            false,
             operational_calls,
             call_ordinal,
             diagnostics,
         ),
-        ExpressionNode::Borrow(inner) => validate_expression(
+        ExpressionNode::Borrow(inner) => validate_child(
             program,
             inner.target,
             statement_index,
-            false,
             operational_calls,
             call_ordinal,
             diagnostics,
         ),
         ExpressionNode::Range(range) => {
-            validate_expression(
+            validate_child(
                 program,
                 range.start,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
             );
-            validate_expression(
+            validate_child(
                 program,
                 range.end,
                 statement_index,
-                false,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
@@ -391,22 +391,20 @@ fn validate_expression(
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                validate_expression(
+                validate_child(
                     program,
                     field.value,
                     statement_index,
-                    false,
                     operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
             }
         }
-        ExpressionNode::Unary(unary) => validate_expression(
+        ExpressionNode::Unary(unary) => validate_child(
             program,
             unary.operand,
             statement_index,
-            false,
             operational_calls,
             call_ordinal,
             diagnostics,
