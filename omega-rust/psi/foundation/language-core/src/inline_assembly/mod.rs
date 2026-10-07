@@ -645,6 +645,25 @@ pub struct AsmInstructionContract {
     pub clobbers: &'static [&'static str],
 }
 
+impl AsmInstructionContract {
+    /// Contract for an instruction that demands no authority, carries no
+    /// operands, orders no memory, and touches neither interrupt flags,
+    /// status flags, nor clobbers.
+    fn without_side_effects(shape: AsmInstructionShape, target: AsmTargetApplicability) -> Self {
+        Self {
+            availability: AsmInstructionAvailability::UserChecked,
+            shape,
+            target,
+            required_authority: AsmAuthorityRequirement::None,
+            operands: NO_OPERANDS,
+            memory_ordering: AsmMemoryOrdering::None,
+            interrupt_flag_effect: AsmInterruptFlagEffect::None,
+            flags_data_flow: AsmFlagsDataFlow::None,
+            clobbers: NO_CLOBBERS,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionRefusal {
     /// A return, call, or indirect branch would bypass Omega state edges.
@@ -990,17 +1009,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     }
 
     let entry = match mnemonic {
-        "jmp" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: JumpState,
-            target: Any,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "jmp" => Contract(AsmInstructionContract::without_side_effects(JumpState, Any)),
         "hlt" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: Halt,
@@ -1139,109 +1148,46 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // authority requirement -- `serialize`/`isb` bound reordering (the
         // realized sequence is the instruction itself), while `pause`/`yield`
         // are legal to elide entirely.
-        "serialize" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: InstructionSerialization(Serialize),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "isb" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: InstructionSerialization(InstructionSynchronizationBarrier),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "pause" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(SpinPause),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "yield" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(Yield),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "nop" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(Nop),
-            target: Any,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "serialize" => Contract(AsmInstructionContract::without_side_effects(
+            InstructionSerialization(Serialize),
+            X86_64,
+        )),
+        "isb" => Contract(AsmInstructionContract::without_side_effects(
+            InstructionSerialization(InstructionSynchronizationBarrier),
+            Aarch64,
+        )),
+        "pause" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(SpinPause),
+            X86_64,
+        )),
+        "yield" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(Yield),
+            Aarch64,
+        )),
+        "nop" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(Nop),
+            Any,
+        )),
         // The remaining AArch64 architectural HINT encodings: `wfe`/`wfi`
         // suspend-until-event and `sev`/`sevl` signal one — every member is
         // architecturally permitted to complete as a no-op, so each carries
         // the same empty contract as `yield`.
-        "wfe" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(WaitForEvent),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "wfi" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(WaitForInterrupt),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "sev" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(SendEvent),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "sevl" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: SchedulingHint(SendEventLocal),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "wfe" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(WaitForEvent),
+            Aarch64,
+        )),
+        "wfi" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(WaitForInterrupt),
+            Aarch64,
+        )),
+        "sev" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(SendEvent),
+            Aarch64,
+        )),
+        "sevl" => Contract(AsmInstructionContract::without_side_effects(
+            SchedulingHint(SendEventLocal),
+            Aarch64,
+        )),
         // Cache maintenance acts on the machine's own caches rather than a
         // modeled place: serializing, machine-owner operations whose operand
         // list and clobber list are both empty. `invd` drops modified lines
@@ -1351,17 +1297,10 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // exact-type contract is the ordinary assignment's. A bracketed
         // `[address]` operand still refuses as unmodeled memory access, and
         // an authorized view spells its access as an ordinary indexed place.
-        "mov" | "movq" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: RegisterMove,
-            target: Any,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "mov" | "movq" => Contract(AsmInstructionContract::without_side_effects(
+            RegisterMove,
+            Any,
+        )),
 
         // The canonical unordered memory transfers admit once their memory
         // operand is a structured Omega place rather than a bracketed address:
@@ -1372,28 +1311,14 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // access is not a full-place copy — and offset/unscaled, ordered and
         // multi-register forms each carry their own contract, so they stay
         // refused below.
-        "ldr" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryTransfer(AsmMemoryTransferKind::Load),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "str" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryTransfer(AsmMemoryTransferKind::Store),
-            target: Aarch64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "ldr" => Contract(AsmInstructionContract::without_side_effects(
+            MemoryTransfer(AsmMemoryTransferKind::Load),
+            Aarch64,
+        )),
+        "str" => Contract(AsmInstructionContract::without_side_effects(
+            MemoryTransfer(AsmMemoryTransferKind::Store),
+            Aarch64,
+        )),
 
         // Recognize common memory-addressing spellings so they refuse for the
         // semantic reason, not as arbitrary unknown text. The list covers the
