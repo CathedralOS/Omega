@@ -19,7 +19,6 @@ pub(super) fn admit_assignment_value<'p>(
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
     >,
 ) -> bool {
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
     if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target)
         && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
@@ -213,7 +212,6 @@ fn admit_result_values_inner(
     other_elements: &mut Vec<ExpressionHandle>,
     active: &mut Vec<ExpressionHandle>,
 ) -> bool {
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return false;
     }
