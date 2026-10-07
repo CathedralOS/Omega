@@ -92,7 +92,7 @@ impl<'a> TerminalProductionRequest<'a> {
         };
         let (artifact, lowered) = observer
             .record_result(TerminalProductionStage::Publication, || {
-                publish_terminal_artifact(optimized, checked)
+                publish_terminal_artifact(optimized)
             })?;
         let receipt = match entry_receipt {
             Some(receipt) => {
@@ -145,10 +145,8 @@ impl<'a> TerminalProductionRequest<'a> {
 
 /// Publication consumes exactly the validated optimization result; retained
 /// source evidence is extracted only after canonical publication succeeds.
-///
 fn publish_terminal_artifact(
     optimized: PsiOptimizationStageResult,
-    checked: &CheckedTrees,
 ) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
 {
     let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized)
@@ -173,7 +171,9 @@ impl TerminalArtifactProductionError {
             Self::Lowering(error) => error.plan_gap().cloned(),
             _ => None,
         }
-        .unwrap_or_else(|| Diagnostic::error(format!("terminal-artifact production failed: {self}")))
+        .unwrap_or_else(|| {
+            Diagnostic::error(format!("terminal-artifact production failed: {self}"))
+        })
     }
 }
 
