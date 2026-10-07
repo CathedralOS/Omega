@@ -299,3 +299,33 @@ crashes Trap
     Parser::load_current(parser, input);
     present
 }
+
+// Whether the token after the current one is `expected` and starts exactly at
+// `end`, with no source between them.
+machine Parser::next_is_adjacent_punctuation(
+    parser: &mut Parser,
+    input: &TokenStream,
+    expected: PunctuationKind,
+    end: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let cursor: u64 in Trapping = parser.cursor;
+    parser.cursor = parser.cursor + 1;
+    let present: bool = Parser::at_punctuation(parser, input, expected);
+    transition present {
+        true -> adjacent(parser, input, cursor, end)
+        _ -> restore(parser, input, cursor, false)
+    }
+
+    state adjacent(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, end: u64 in Trapping) {
+        let token: Token = input.tokens[parser.current_index];
+        transition { _ -> restore(parser, input, cursor, token.start == end) }
+    }
+
+    state restore(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, result: bool) {
+        parser.cursor = cursor;
+        Parser::load_current(parser, input);
+        result
+    }
+}

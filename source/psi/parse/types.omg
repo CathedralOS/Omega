@@ -43,7 +43,6 @@ crashes Trap
 {
     parser.type_frame_depth = 0;
     parser.pending_type_argument_count = 0;
-    parser.type_split_greater = false;
     transition { _ -> operand(parser, input, missing) }
 
     // The start of one type: open frames for its prefixes, then read its name.
@@ -156,7 +155,7 @@ crashes Trap
     // `Named`, `Array` and `Slice` rows may close with `in Domain`.
     state domain(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
         let qualified: bool = Parser::at_word(parser, input, "in");
-        transition qualified && !parser.type_split_greater {
+        transition qualified {
             true -> domain_name(parser, input, row)
             _ -> append(parser, input, row)
         }
@@ -316,9 +315,7 @@ crashes Trap
         transition { _ -> domain(parser, input, Parser::with_children(row, frame.first_row, element, length)) }
     }
 
-    // After a static argument: `,` opens the next, `>` closes the list. A
-    // `>>` token closes two lists; the second close is owed in
-    // `type_split_greater`.
+    // After a static argument: `,` opens the next and `>` closes the list.
     state argument_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
         let argument: u64 in Trapping = parser.type_result;
         Parser::push_type_argument(parser, input, argument);
@@ -330,7 +327,7 @@ crashes Trap
 
     state argument_separator(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
         let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
-        transition comma && !parser.type_split_greater {
+        transition comma {
             true -> next_argument(parser, input)
             _ -> arguments_end(parser, input, frame)
         }
@@ -342,45 +339,13 @@ crashes Trap
     }
 
     state arguments_end(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        transition parser.type_split_greater {
-            true -> owed_close(parser, input, frame)
-            _ -> greater(parser, input, frame)
+        Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
+            ParseDiagnosticCode::ExpectedStaticArgumentEnd
+        );
+        transition parser.output.accepted {
+            true -> applied(parser, input, frame, parser.token_end)
+            _ -> done()
         }
-    }
-
-    // The second `>` of `>>` ends at the token's end.
-    state owed_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        parser.type_split_greater = false;
-        transition { _ -> applied(parser, input, frame, parser.token_end) }
-    }
-
-    state greater(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        let single: bool = Parser::at_punctuation(parser, input, PunctuationKind::Greater);
-        transition single {
-            true -> single_close(parser, input, frame)
-            _ -> double_greater(parser, input, frame)
-        }
-    }
-
-    state single_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        Parser::take_current(parser, input);
-        transition { _ -> applied(parser, input, frame, parser.token_end) }
-    }
-
-    state double_greater(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        let double: bool = Parser::at_punctuation(parser, input, PunctuationKind::GreaterGreater);
-        let nested: bool = Parser::outer_type_arguments(parser);
-        transition double && nested {
-            true -> double_close(parser, input, frame)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStaticArgumentEnd)
-        }
-    }
-
-    // The first `>` of `>>` closes this list at the token's first byte.
-    state double_close(parser: &mut Parser, input: &TokenStream, frame: TypeFrame) {
-        Parser::take_current(parser, input);
-        parser.type_split_greater = true;
-        transition { _ -> applied(parser, input, frame, parser.token_start + 1) }
     }
 
     state applied(parser: &mut Parser, input: &TokenStream, frame: TypeFrame, end: u64 in Trapping) {
@@ -595,46 +560,6 @@ crashes Trap
     }
 
     state outside() {
-        false
-    }
-}
-
-// Whether a `>>` may close the innermost argument list and owe its second
-// `>` to an enclosing one: below the innermost frame, only references may
-// stand between it and another argument list.
-machine Parser::outer_type_arguments(parser: &Parser) -> bool
-crashes Trap
-{
-    transition parser.type_frame_depth > 1 {
-        true -> scan(parser, parser.type_frame_depth - 2)
-        _ -> absent()
-    }
-
-    state scan(parser: &Parser, index: u64)
-    requires index <= 14
-    {
-        let frame: TypeFrame = parser.type_frames[index];
-        transition frame.kind {
-            TypeFrameKind::Arguments -> present()
-            TypeFrameKind::Reference -> below(parser, index)
-            TypeFrameKind::Array -> absent()
-        }
-    }
-
-    state below(parser: &Parser, index: u64)
-    requires index <= 14
-    {
-        transition index > 0 {
-            true -> scan(parser, index - 1)
-            _ -> absent()
-        }
-    }
-
-    state present() {
-        true
-    }
-
-    state absent() {
         false
     }
 }

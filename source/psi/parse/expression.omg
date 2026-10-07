@@ -379,13 +379,12 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::ExclamationEqual } -> binary(parser, input, OperatorKind::NotEqual, 3)
             Token::Punctuation { punctuation: PunctuationKind::Less } -> binary(parser, input, OperatorKind::Less, 4)
             Token::Punctuation { punctuation: PunctuationKind::LessEqual } -> binary(parser, input, OperatorKind::LessEqual, 4)
-            Token::Punctuation { punctuation: PunctuationKind::Greater } -> binary(parser, input, OperatorKind::Greater, 4)
+            Token::Punctuation { punctuation: PunctuationKind::Greater } -> greater(parser, input)
             Token::Punctuation { punctuation: PunctuationKind::GreaterEqual } -> binary(parser, input, OperatorKind::GreaterEqual, 4)
             Token::Punctuation { punctuation: PunctuationKind::Pipe } -> binary(parser, input, OperatorKind::BitOr, 5)
             Token::Punctuation { punctuation: PunctuationKind::Caret } -> binary(parser, input, OperatorKind::BitXor, 6)
             Token::Punctuation { punctuation: PunctuationKind::Ampersand } -> binary(parser, input, OperatorKind::BitAnd, 7)
             Token::Punctuation { punctuation: PunctuationKind::LessLess } -> binary(parser, input, OperatorKind::ShiftLeft, 8)
-            Token::Punctuation { punctuation: PunctuationKind::GreaterGreater } -> binary(parser, input, OperatorKind::ShiftRight, 8)
             Token::Punctuation { punctuation: PunctuationKind::Plus } -> binary(parser, input, OperatorKind::Add, 9)
             Token::Punctuation { punctuation: PunctuationKind::Minus } -> binary(parser, input, OperatorKind::Subtract, 9)
             Token::Punctuation { punctuation: PunctuationKind::Asterisk } -> binary(parser, input, OperatorKind::Multiply, 10)
@@ -393,6 +392,21 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::Percent } -> binary(parser, input, OperatorKind::Modulo, 10)
             _ -> end_operand(parser, input)
         }
+    }
+
+    // `>>` arrives as two `>` tokens; adjacent ones shift right.
+    state greater(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        let shift: bool = Parser::next_is_adjacent_punctuation(parser, input, PunctuationKind::Greater, token.end);
+        transition shift {
+            true -> shift_right(parser, input)
+            _ -> binary(parser, input, OperatorKind::Greater, 4)
+        }
+    }
+
+    state shift_right(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        transition { _ -> binary(parser, input, OperatorKind::ShiftRight, 8) }
     }
 
     state field(parser: &mut Parser, input: &TokenStream) {

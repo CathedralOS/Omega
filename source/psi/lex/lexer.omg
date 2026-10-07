@@ -1120,8 +1120,9 @@ machine Lexer::lex_punctuation(lexer: &mut Lexer) {
     state dotdot(lexer: &mut Lexer) { transition lexer.byte2 == 61 { true -> dotdot_equal(lexer) _ -> dotdot_plain(lexer) } }
     state equal(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> equal_equal(lexer) _ -> single_equal(lexer) } }
     state exclamation(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> exclamation_equal(lexer) _ -> single_exclamation(lexer) } }
-    state greater(lexer: &mut Lexer) { transition lexer.byte1 == 62 { true -> greater_greater(lexer) _ -> greater_equal_check(lexer) } }
-    state greater_equal_check(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> greater_equal(lexer) _ -> single_greater(lexer) } }
+    // `>>` stays two `>` tokens: nested static argument lists close one `>`
+    // at a time, and the expression grammar reads adjacent `>` `>` as a shift.
+    state greater(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> greater_equal(lexer) _ -> single_greater(lexer) } }
     state less(lexer: &mut Lexer) { transition lexer.byte1 == 60 { true -> less_less(lexer) _ -> less_equal_check(lexer) } }
     state less_equal_check(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> less_equal(lexer) _ -> single_less(lexer) } }
     state minus(lexer: &mut Lexer) { transition lexer.byte1 == 62 { true -> arrow(lexer) _ -> minus_equal_check(lexer) } }
@@ -1150,7 +1151,6 @@ machine Lexer::lex_punctuation(lexer: &mut Lexer) {
     state exclamation_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2); }
     state single_greater(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Greater, 1); }
     state greater_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2); }
-    state greater_greater(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::GreaterGreater, 2); }
     state single_hash(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Hash, 1); }
     state single_left_brace(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LeftBrace, 1); }
     state single_left_bracket(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LeftBracket, 1); }

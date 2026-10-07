@@ -69,7 +69,6 @@ pub data PunctuationKind [copy] {
     case ExclamationEqual;
     case Greater;
     case GreaterEqual;
-    case GreaterGreater;
     case Hash;
     case LeftBrace;
     case LeftBracket;

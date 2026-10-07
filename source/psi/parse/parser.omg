@@ -60,13 +60,11 @@ where
     type_result: u64 in Trapping;
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
-    // until their list closes; `type_split_greater` owes the second `>` of
-    // a `>>` that closed two lists.
+    // until their list closes.
     type_frames: [TypeFrame; 16] in Trapping;
     type_frame_depth: u64;
     pending_type_arguments: [u64; 32] in Trapping;
     pending_type_argument_count: u64;
-    type_split_greater: bool;
     committed_type_first: u64 in Trapping;
     committed_type_count: u64 in Trapping;
     machine_start: u64 in Trapping;
