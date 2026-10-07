@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.8, "load1_start": 6.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.68, "load1_start": 4.68, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -735,8 +735,7 @@ pass/drops/runtime_composed_nominal_output_hook_exit built 1653ms exit:0 stdout:
 pass/drops/runtime_composed_nominal_return_hook_exit built 1646ms exit:0 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit built 2808ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3588ms exit:0 @e28fa01a1e73+wt
-pass/drops/runtime_empty_array_owner_cleanup_exit rejected 3448ms @693920652f41
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("zeroed structural establishment has an invalid result shape")))
+pass/drops/runtime_empty_array_owner_cleanup_exit built 1897ms exit:0 @1cc178f9ab8f
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit built 2042ms exit:0 stdout:match @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit built 1993ms exit:0 @65e8a0783b05
 pass/drops/runtime_generic_reserved_construction_exit rejected 3371ms @693920652f41
@@ -749,6 +748,7 @@ pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3583ms exit:0
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 1780ms exit:0 @8611f9d5adf1+wt
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 1752ms exit:0 @ac7aca8a5050+wt
 pass/drops/runtime_nested_cleanup_postcondition_exit built 2659ms exit:0 @e0e325f7052d+wt
+pass/drops/runtime_nested_empty_array_owner_cleanup_exit built 1908ms exit:0 @1cc178f9ab8f
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1503ms exit:0 @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1714ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1717ms exit:0 @4cc11cbadf31+wt

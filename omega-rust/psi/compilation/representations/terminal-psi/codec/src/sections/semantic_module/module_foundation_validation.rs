@@ -1047,9 +1047,9 @@ fn block_parameter(
     })
 }
 
-/// Result cleanup may reuse an existing owned operation result place, but a
-/// merely matching type declaration does not establish that custody.
-fn is_plain_affine_call_result(
+/// Cleanup custody comes from the exact operation result declaration, not the
+/// operation's construction mechanism. A matching type alone is insufficient.
+fn is_plain_affine_operation_result(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
@@ -1078,17 +1078,7 @@ fn is_plain_affine_call_result(
     let Some(operation) = operations.next() else {
         return false;
     };
-    // An atomic record establishment is the same claim-free whole owner: a
-    // selected projected child leaves its sibling residual to die on the edge.
-    if operations.next().is_some()
-        || !matches!(
-            operation.kind,
-            OperationKind::CallStructuralWithScalarArguments { .. }
-                | OperationKind::BoundaryCall { .. }
-                | OperationKind::EstablishStructuralArray { .. }
-                | OperationKind::EstablishRecord { .. }
-        )
-    {
+    if operations.next().is_some() {
         return false;
     }
     matches!(&operation.result, OperationResult::Structural(result)

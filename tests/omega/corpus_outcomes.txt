@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.8, "load1_start": 4.96, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.56, "load1_start": 4.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2507,8 +2507,7 @@ pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target
 pass/drops/runtime_composed_nominal_return_hook_exit checked 1666ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @e28fa01a1e73+wt
-pass/drops/runtime_empty_array_owner_cleanup_exit rejected 1961ms check-target:macos_arm64 @04d0fbe9d97c
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ZeroedStructuralResultMismatch(OperationId(1))))
+pass/drops/runtime_empty_array_owner_cleanup_exit checked 1703ms check-target:macos_arm64 @1cc178f9ab8f
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 2091ms check-target:macos_arm64 @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 2027ms check-target:macos_arm64 @65e8a0783b05
 pass/drops/runtime_generic_reserved_construction_exit rejected 1990ms check-target:macos_arm64 @04d0fbe9d97c
@@ -2521,6 +2520,7 @@ pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 3671ms chec
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit checked 1690ms check-target:macos_arm64 @8611f9d5adf1+wt
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit checked 1684ms check-target:macos_arm64 @ac7aca8a5050+wt
 pass/drops/runtime_nested_cleanup_postcondition_exit checked 2342ms check-target:macos_arm64 @e0e325f7052d+wt
+pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 1703ms check-target:macos_arm64 @1cc178f9ab8f
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 1548ms check-target:macos_arm64 @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 1690ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 1733ms check-target:macos_arm64 @4cc11cbadf31+wt

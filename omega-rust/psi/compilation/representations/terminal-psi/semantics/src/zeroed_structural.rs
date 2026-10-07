@@ -1,3 +1,9 @@
+//! Zero initialization follows the value's instantiated storage, not every
+//! payload mentioned by its type graph. A fixed array with zero elements has
+//! no element value to initialize, even when that element type rejects zero.
+//! The element declaration must still exist; schema well-formedness belongs to
+//! the representation owner, independently of this zero-value judgment.
+
 use semantic_vocabulary::{
     IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralTypeId,
 };
@@ -84,11 +90,11 @@ impl ZeroedStructuralLeaf {
 /// Bounded integer fields must contain the carrier's zero; nested composites
 /// in sum payloads still need case-aware leaf paths. Bounded byte fields admit
 /// only when all declared byte predicates hold for the empty live range.
-/// References, borrowed views, whole byte carriers and erased members have no
-/// admitted zero spelling through this structural operation, so they reject.
-/// Mixed shapes admit common fields and their first case. The
-/// declaration graph walk rejects unknown members and actual cycles without
-/// expanding array elements or applying the leaf enumeration resource ceiling.
+/// Instantiated references, borrowed views, whole byte carriers and erased
+/// members have no admitted zero spelling through this structural operation.
+/// Mixed shapes admit common fields and their first case. The value traversal
+/// rejects unknown declarations and cycles on instantiated paths. It neither
+/// expands array elements nor applies the leaf enumeration resource ceiling.
 pub fn zeroed_structural_shape<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -127,10 +133,20 @@ fn zeroed_declaration_graph(
         let shape = &declarations[position].shape;
         let (fields, cases) = match shape {
             StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
-            StructuralTypeShape::FixedArray { element, .. } => {
+            StructuralTypeShape::FixedArray { element, length } => {
                 active[position] = true;
                 pending.push((current, true));
-                pending.push((*element, false));
+                // Empty arrays retain their declared element schema but
+                // instantiate no payload. Requiring its zero validity would
+                // manufacture an element that neither consumer materializes.
+                if *length != 0 {
+                    pending.push((*element, false));
+                } else if !declarations
+                    .iter()
+                    .any(|declaration| declaration.id == *element)
+                {
+                    return false;
+                }
                 continue;
             }
             StructuralTypeShape::Record { fields } => (fields.as_slice(), None),

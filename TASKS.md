@@ -719,9 +719,10 @@ defines the complete product bar.
     Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
     pre-cleanup scalar-capture and surviving call-contract control when
     extending these edges.
-    `runtime_empty_array_owner_cleanup_exit` still fails Terminal
-    production with `Optimization(InvalidSemantic(MalformedStructuralFoundation(
-    "zeroed structural establishment has an invalid result shape")))`.
+    Keep `runtime_empty_array_owner_cleanup_exit` and
+    `runtime_nested_empty_array_owner_cleanup_exit` as zero-cardinality
+    initialization and containing-owner cleanup controls. Empty element storage
+    does not owe a value initialization or element cleanup prerequisite.
     Keep `runtime_record_construction_cleanup_order_exit` as the authored-output
     corpus native control. Its public `omega run` still fails selected-provider
     admission: `Console::write_byte` has no closed native catalog identity.

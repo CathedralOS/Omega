@@ -4,7 +4,7 @@
 //! declare.
 
 use super::{
-    has_structural_type, is_plain_affine_call_result, require_known_services,
+    has_structural_type, is_plain_affine_operation_result, require_known_services,
     structural_place_type, validate_operation_foundation, validate_provider_attachment_foundation,
     validate_structural_parameters, validate_structural_path,
 };
@@ -228,7 +228,7 @@ fn validate_partial_affine_discards(
             };
             let supported_root = parameter.map_or_else(
                 || {
-                    is_plain_affine_call_result(machine, discard.place)
+                    is_plain_affine_operation_result(machine, discard.place)
                         || block_parameter().is_some_and(|parameter| {
                             parameter.multiplicity == StructuralMultiplicity::Affine
                                 && parameter.access == terminal_psi::StructuralAccess::Owned
