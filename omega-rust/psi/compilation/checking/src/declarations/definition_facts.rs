@@ -157,12 +157,15 @@ fn data_fact_dependency_places(
     dependencies
 }
 
-fn append_data_expression_dependency_places(
+/// One dependency walk over `expression`: every Name/Member/Indexed leaf
+/// becomes a dependency `leaf` builds (it also owns the place append into
+/// `facts`); every other node recurses into its operands.
+fn append_expression_dependency_places<D>(
     program: &TypedTrees,
     facts: &mut FactPlan,
-    data: &typed_trees::data::DataDefinition,
     expression: typed_trees::expression::ExpressionHandle,
-    dependencies: &mut Vec<DataDefinitionFactDependency>,
+    dependencies: &mut Vec<D>,
+    leaf: impl Fn(&mut FactPlan, typed_trees::expression::ExpressionHandle) -> D + Copy,
 ) {
     use typed_trees::expression::ExpressionNode;
 
@@ -172,7 +175,7 @@ fn append_data_expression_dependency_places(
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             for child in crate::expression_traversal::match_children(program, *dispatch) {
-                append_data_expression_dependency_places(program, facts, data, child, dependencies);
+                append_expression_dependency_places(program, facts, child, dependencies, leaf);
             }
         }
         ExpressionNode::Member(member)
@@ -181,116 +184,128 @@ fn append_data_expression_dependency_places(
                 ExpressionNode::Call(_)
             ) =>
         {
-            append_data_expression_dependency_places(
+            // A fact-call projection has no materialized result place. Its
+            // validity/revision scope is exactly the transitive union of the
+            // call's input occurrences.
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 member.receiver,
                 dependencies,
+                leaf,
             );
         }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let place = append_data_expression_place(program, facts, data, expression);
-            dependencies.push(DataDefinitionFactDependency { expression, place });
+            dependencies.push(leaf(facts, expression));
         }
-        ExpressionNode::Borrow(inner) => append_data_expression_dependency_places(
+        ExpressionNode::Borrow(inner) => append_expression_dependency_places(
             program,
             facts,
-            data,
             inner.target,
             dependencies,
+            leaf,
         ),
         ExpressionNode::Atomic(atomic) => {
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 atomic.value,
                 dependencies,
+                leaf,
             );
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 atomic.result,
                 dependencies,
+                leaf,
             );
         }
         ExpressionNode::Binary(binary) => {
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 binary.left,
                 dependencies,
+                leaf,
             );
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 binary.right,
                 dependencies,
+                leaf,
             );
         }
-        ExpressionNode::Cast(cast) => {
-            append_data_expression_dependency_places(program, facts, data, cast.value, dependencies)
-        }
+        ExpressionNode::Cast(cast) => append_expression_dependency_places(
+            program,
+            facts,
+            cast.value,
+            dependencies,
+            leaf,
+        ),
         ExpressionNode::Call(call) => {
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 call.receiver,
                 dependencies,
+                leaf,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                append_data_expression_dependency_places(
+                append_expression_dependency_places(
                     program,
                     facts,
-                    data,
                     *argument,
                     dependencies,
+                    leaf,
                 );
             }
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                append_data_expression_dependency_places(
+                append_expression_dependency_places(
                     program,
                     facts,
-                    data,
                     *value,
                     dependencies,
+                    leaf,
                 );
             }
         }
         ExpressionNode::Range(range) => {
-            append_data_expression_dependency_places(
+            append_expression_dependency_places(
                 program,
                 facts,
-                data,
                 range.start,
                 dependencies,
+                leaf,
             );
-            append_data_expression_dependency_places(program, facts, data, range.end, dependencies);
+            append_expression_dependency_places(
+                program,
+                facts,
+                range.end,
+                dependencies,
+                leaf,
+            );
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                append_data_expression_dependency_places(
+                append_expression_dependency_places(
                     program,
                     facts,
-                    data,
                     field.value,
                     dependencies,
+                    leaf,
                 );
             }
         }
-        ExpressionNode::Unary(unary) => append_data_expression_dependency_places(
+        ExpressionNode::Unary(unary) => append_expression_dependency_places(
             program,
             facts,
-            data,
             unary.operand,
             dependencies,
+            leaf,
         ),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
@@ -299,6 +314,44 @@ fn append_data_expression_dependency_places(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
+}
+
+fn append_data_expression_dependency_places(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    data: &typed_trees::data::DataDefinition,
+    expression: typed_trees::expression::ExpressionHandle,
+    dependencies: &mut Vec<DataDefinitionFactDependency>,
+) {
+    append_expression_dependency_places(
+        program,
+        facts,
+        expression,
+        dependencies,
+        |facts, expression| DataDefinitionFactDependency {
+            expression,
+            place: append_data_expression_place(program, facts, data, expression),
+        },
+    );
+}
+
+fn append_domain_expression_dependency_places(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    domain_target: typed_trees::types::TypeReferenceHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    dependencies: &mut Vec<DomainDefinitionFactDependency>,
+) {
+    append_expression_dependency_places(
+        program,
+        facts,
+        expression,
+        dependencies,
+        |facts, expression| DomainDefinitionFactDependency {
+            expression,
+            place: append_domain_expression_place(program, facts, domain_target, expression),
+        },
+    );
 }
 
 fn append_data_expression_place(
@@ -479,169 +532,6 @@ fn domain_fact_dependency_places(
         }
     }
     dependencies
-}
-
-fn append_domain_expression_dependency_places(
-    program: &TypedTrees,
-    facts: &mut FactPlan,
-    domain_target: typed_trees::types::TypeReferenceHandle,
-    expression: typed_trees::expression::ExpressionHandle,
-    dependencies: &mut Vec<DomainDefinitionFactDependency>,
-) {
-    use typed_trees::expression::ExpressionNode;
-
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                append_domain_expression_dependency_places(
-                    program,
-                    facts,
-                    domain_target,
-                    child,
-                    dependencies,
-                );
-            }
-        }
-        ExpressionNode::Member(member)
-            if matches!(
-                program.expression_table.expression(member.receiver),
-                ExpressionNode::Call(_)
-            ) =>
-        {
-            // A fact-call projection has no materialized result place. Its
-            // validity/revision scope is exactly the transitive union of the
-            // call's input occurrences.
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                member.receiver,
-                dependencies,
-            );
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let place = append_domain_expression_place(program, facts, domain_target, expression);
-            dependencies.push(DomainDefinitionFactDependency { expression, place });
-        }
-        ExpressionNode::Borrow(inner) => append_domain_expression_dependency_places(
-            program,
-            facts,
-            domain_target,
-            inner.target,
-            dependencies,
-        ),
-        ExpressionNode::Atomic(atomic) => {
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                atomic.value,
-                dependencies,
-            );
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                atomic.result,
-                dependencies,
-            );
-        }
-        ExpressionNode::Binary(binary) => {
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                binary.left,
-                dependencies,
-            );
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                binary.right,
-                dependencies,
-            );
-        }
-        ExpressionNode::Cast(cast) => append_domain_expression_dependency_places(
-            program,
-            facts,
-            domain_target,
-            cast.value,
-            dependencies,
-        ),
-        ExpressionNode::Call(call) => {
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                call.receiver,
-                dependencies,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                append_domain_expression_dependency_places(
-                    program,
-                    facts,
-                    domain_target,
-                    *argument,
-                    dependencies,
-                );
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                append_domain_expression_dependency_places(
-                    program,
-                    facts,
-                    domain_target,
-                    *value,
-                    dependencies,
-                );
-            }
-        }
-        ExpressionNode::Range(range) => {
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                range.start,
-                dependencies,
-            );
-            append_domain_expression_dependency_places(
-                program,
-                facts,
-                domain_target,
-                range.end,
-                dependencies,
-            );
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                append_domain_expression_dependency_places(
-                    program,
-                    facts,
-                    domain_target,
-                    field.value,
-                    dependencies,
-                );
-            }
-        }
-        ExpressionNode::Unary(unary) => append_domain_expression_dependency_places(
-            program,
-            facts,
-            domain_target,
-            unary.operand,
-            dependencies,
-        ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
 }
 
 fn append_domain_expression_place(
