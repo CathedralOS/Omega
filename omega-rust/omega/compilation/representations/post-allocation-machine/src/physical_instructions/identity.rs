@@ -1,5 +1,4 @@
 use register_model::{RegisterOperandAccess, RegisterUnitId, RegisterWriteSemantics};
-use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::PostAllocationMachinePlan;
 
@@ -47,7 +46,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.homes.bytes());
     bytes.extend_from_slice(&plan.post_allocation_manifest.bytes());
-    encode_target(&mut bytes, plan.target);
+    bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.physical_register_model.bytes());
     bytes.extend_from_slice(&plan.register_constraints.bytes());
@@ -255,28 +254,6 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
     encode_units(bytes, &instruction.unit_uses);
     encode_units(bytes, &instruction.unit_defs);
     encode_units(bytes, &instruction.unit_clobbers);
-}
-
-fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => 1,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    });
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_size)
-            .expect("supported pointer size fits u64")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_alignment)
-            .expect("supported pointer alignment fits u64")
-            .to_le_bytes(),
-    );
 }
 
 fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {

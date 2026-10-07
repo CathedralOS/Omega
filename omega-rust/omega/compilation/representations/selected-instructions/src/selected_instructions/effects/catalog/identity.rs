@@ -1,5 +1,4 @@
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
-use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
@@ -39,7 +38,7 @@ pub fn machine_effect_catalog_identity(
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v31\0");
-    encode_target(&mut bytes, catalog.target);
+    bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
         catalog.selected_keys.atomic_load,
@@ -442,28 +441,6 @@ fn encode_units<Sink: MachineIdentityBytes + ?Sized>(
     for unit in units {
         bytes.identity_bytes(&unit.0.to_le_bytes());
     }
-}
-
-fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
-    bytes.push(match target.architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => 1,
-    });
-    bytes.push(match target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    });
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_size)
-            .expect("target pointer size fits u64")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_alignment)
-            .expect("target pointer alignment fits u64")
-            .to_le_bytes(),
-    );
 }
 
 fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
