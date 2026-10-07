@@ -14,6 +14,7 @@ use super::{
     ScalarType, SelectedInstructionId, SelectedInstructionPlanIdentity, TerminalPsiIdentity,
     ValueDeclaration, ValueId, ValueShape, VirtualRegisterId, WholeFunctionEntryAssumption,
     WholeFunctionExitContractIdentity, WholeFunctionExitPolicy, WholeFunctionHardeningPolicy,
+    exit_policy_tag,
 };
 pub(super) fn encode_record_content(
     bytes: &mut Vec<u8>,
@@ -451,18 +452,7 @@ pub(super) fn decode_register(
         )),
     }
 }
-pub(super) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
-    match policy {
-        WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => 1,
-        WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,
-        WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
-        WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
-        WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
-        WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
-        WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
-        WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1 => 11,
-    }
-}
+
 pub(super) fn decode_exit_policy(
     cursor: &mut Cursor<'_>,
 ) -> Result<WholeFunctionExitPolicy, OptimizedOrdinaryCallableEntryDecodeError> {

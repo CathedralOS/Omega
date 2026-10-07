@@ -7,7 +7,7 @@ pub use exit_contract::{
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity,
+    WholeFunctionReturnValueEvidence, exit_policy_tag, whole_function_exit_contract_identity,
 };
 
 use crate::{

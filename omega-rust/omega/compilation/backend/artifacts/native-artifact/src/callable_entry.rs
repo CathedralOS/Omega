@@ -35,7 +35,7 @@ use terminal_psi::{TerminalMachineResult, TerminalPsiIdentity, Terminator, Value
 
 use machine_code::{
     WholeFunctionEntryAssumption, WholeFunctionExitContractIdentity, WholeFunctionExitPolicy,
-    WholeFunctionHardeningPolicy,
+    WholeFunctionHardeningPolicy, exit_policy_tag,
 };
 use object_file::{OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact};
 

@@ -52,7 +52,7 @@ pub fn whole_function_exit_contract_identity(
         }
     }
     encode_target(&mut hasher, contract.target);
-    hasher.update([policy_tag(contract.policy)]);
+    hasher.update([exit_policy_tag(contract.policy)]);
     match contract.frame {
         WholeFunctionFrameDisposition::FramelessV1 => hasher.update([1]),
         WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => {
@@ -174,7 +174,7 @@ fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
     hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
-fn policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
+pub fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
     match policy {
         WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => 1,
         WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,

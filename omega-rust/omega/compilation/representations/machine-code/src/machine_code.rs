@@ -77,7 +77,8 @@ pub use functions::{
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
+    WholeFunctionReturnValueEvidence, exit_contract, exit_policy_tag,
+    whole_function_exit_contract_identity,
 };
 pub use implementation_tables::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,

@@ -1,7 +1,7 @@
 //! Whole-function exit records. Content identity does not grant admission.
 
 mod identity;
-pub use identity::whole_function_exit_contract_identity;
+pub use identity::{exit_policy_tag, whole_function_exit_contract_identity};
 
 use optimization_core::Optimization;
 use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
