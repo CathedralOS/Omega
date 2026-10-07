@@ -15,6 +15,37 @@ use crate::monomorphization::{
     const_values, remapped_symbol, resolve_specialized_receiver_calls, specialized_attached_data,
 };
 
+fn bound_type_displays(
+    bindings: &[Option<TypeReferenceHandle>],
+    source: Option<&TypedTrees>,
+    program: &TypedTrees,
+) -> Vec<String> {
+    bindings
+        .iter()
+        .map(|binding| {
+            source
+                .unwrap_or(program)
+                .display_type_reference(binding.expect("complete specialization"))
+        })
+        .collect()
+}
+
+fn bound_type_identities(
+    bindings: &[Option<TypeReferenceHandle>],
+    source: Option<&TypedTrees>,
+    program: &TypedTrees,
+) -> Vec<String> {
+    bindings
+        .iter()
+        .map(|binding| {
+            source
+                .unwrap_or(program)
+                .normalized_type_identity(binding.expect("complete specialization"))
+                .into_string()
+        })
+        .collect()
+}
+
 pub(super) fn clone_specialized_machine(
     source: Option<&TypedTrees>,
     program: &mut TypedTrees,
@@ -44,44 +75,10 @@ pub(super) fn clone_specialized_machine(
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.iter_expressions().count() + 1;
 
-    let type_arguments: Vec<String> = candidate
-        .type_bindings
-        .iter()
-        .map(|binding| {
-            source
-                .unwrap_or(program)
-                .display_type_reference(binding.expect("complete specialization"))
-        })
-        .collect();
-    let type_identities: Vec<String> = candidate
-        .type_bindings
-        .iter()
-        .map(|binding| {
-            source
-                .unwrap_or(program)
-                .normalized_type_identity(binding.expect("complete specialization"))
-                .into_string()
-        })
-        .collect();
-    let const_arguments: Vec<String> = candidate
-        .const_bindings
-        .iter()
-        .map(|binding| {
-            source
-                .unwrap_or(program)
-                .display_type_reference(binding.expect("complete specialization"))
-        })
-        .collect();
-    let const_identities: Vec<String> = candidate
-        .const_bindings
-        .iter()
-        .map(|binding| {
-            source
-                .unwrap_or(program)
-                .normalized_type_identity(binding.expect("complete specialization"))
-                .into_string()
-        })
-        .collect();
+    let type_arguments = bound_type_displays(&candidate.type_bindings, source, program);
+    let type_identities = bound_type_identities(&candidate.type_bindings, source, program);
+    let const_arguments = bound_type_displays(&candidate.const_bindings, source, program);
+    let const_identities = bound_type_identities(&candidate.const_bindings, source, program);
     let machine_paths: Vec<String> = candidate
         .machine_bindings
         .iter()
