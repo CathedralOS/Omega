@@ -21,6 +21,18 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
+/// A `Structural` call result with empty transfer and evidence custody —
+/// the shape every fixture's authored call declares.
+fn structural_call_result(
+    result: terminal_psi::StructuralOperationResult,
+) -> AbstractStructuralCallResult {
+    AbstractStructuralCallResult::Structural {
+        result,
+        returned_claim_transfers: Vec::new(),
+        selected_evidence: Vec::new(),
+    }
+}
+
 #[test]
 fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
@@ -830,11 +842,7 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
-        result: AbstractStructuralCallResult::Structural {
-            result: owner,
-            returned_claim_transfers: Vec::new(),
-            selected_evidence: Vec::new(),
-        },
+        result: structural_call_result(owner),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
     };
@@ -1329,11 +1337,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
-            result: AbstractStructuralCallResult::Structural {
-                result: result.clone(),
-                returned_claim_transfers: Vec::new(),
-                selected_evidence: Vec::new(),
-            },
+            result: structural_call_result(result.clone()),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
@@ -1761,11 +1765,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
-            result: AbstractStructuralCallResult::Structural {
-                result,
-                returned_claim_transfers: Vec::new(),
-                selected_evidence: Vec::new(),
-            },
+            result: structural_call_result(result),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
