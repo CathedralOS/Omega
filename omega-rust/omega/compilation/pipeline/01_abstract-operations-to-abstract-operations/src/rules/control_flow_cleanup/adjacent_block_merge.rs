@@ -289,22 +289,12 @@ pub(super) fn adjacent_merge_accounting(
     }
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            });
-            realized.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
-        }
+        record_node_provenance(
+            function.machine,
+            block,
+            block.nodes.iter().enumerate(),
+            &mut realized,
+        )?;
     }
     let substituted_values = substitutions
         .iter()
@@ -328,22 +318,12 @@ pub(super) fn adjacent_merge_accounting(
             continue;
         }
         affected.insert(block.id);
-        for (node_index, node) in changed_nodes {
-            if node.provenance.is_empty() {
-                continue;
-            }
-            let site = PsiRealizationSite::Node(NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            });
-            realized.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
-        }
+        record_node_provenance(
+            function.machine,
+            block,
+            changed_nodes.into_iter(),
+            &mut realized,
+        )?;
     }
     realized.sort_by_key(|row| {
         (
@@ -353,4 +333,30 @@ pub(super) fn adjacent_merge_accounting(
         )
     });
     Some((affected.into_iter().collect(), realized))
+}
+
+/// Record every provenance-bearing node's realization site in block order.
+fn record_node_provenance<'node>(
+    machine: semantic_vocabulary::MachineId,
+    block: &optimization_unit::OptimizationBlock,
+    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
+    realized: &mut Vec<ProvenanceRewrite>,
+) -> Option<()> {
+    for (node_index, node) in nodes {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let site = PsiRealizationSite::Node(NodeLocation {
+            machine,
+            block: block.id,
+            node: u32::try_from(node_index).ok()?,
+        });
+        realized.push(ProvenanceRewrite {
+            input: site,
+            disposition: ProvenanceDisposition::RealizedAt(site),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    Some(())
 }
