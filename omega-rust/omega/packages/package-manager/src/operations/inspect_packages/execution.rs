@@ -19,7 +19,11 @@ use std::borrow::Borrow;
 use std::path::Path;
 use target::TargetProfile;
 
-const MAXIMUM_REPORT_BYTES: usize = 8 * 1024 * 1024;
+// Full normalized findings include every authored target member, not just
+// blocking acceptance rows. Even the bundled std graph exceeds 8 MiB in
+// detailed inspection. Keep an aggregate output bound without truncating its
+// contracts or dropping inactive deployment disclosure.
+const MAXIMUM_REPORT_BYTES: usize = 64 * 1024 * 1024;
 
 pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
     transaction: &PackageFileTransaction,
