@@ -352,26 +352,21 @@ fn evaluate_length(
         return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
     }
     let length = match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            if !path.symbol.is_valid()
-                || path.head_symbol != path.symbol
-                || program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    != 1
-            {
+        ExpressionNode::Name(_) => {
+            let Some(symbol) =
+                crate::expression_traversal::single_segment_name_symbol(program, expression)
+            else {
                 return None;
-            }
+            };
             // The name must resolve to exactly one local declaration of this
             // state: zero means the name is a formal or unknown, two means the
             // statement list is ambiguous, and a mutable or written local's
             // incoming extent is not the value the call site observes.
-            let (_, local) = program.state_local_declaration(state, path.symbol)?;
+            let (_, local) = program.state_local_declaration(state, symbol)?;
             if local.is_mutable
                 || !local.initial_value.is_valid()
-                || binding_is_exclusively_exposed(program, state, path.symbol)
-                || binding_is_written(program, state, path.symbol)
+                || binding_is_exclusively_exposed(program, state, symbol)
+                || binding_is_written(program, state, symbol)
             {
                 return None;
             }

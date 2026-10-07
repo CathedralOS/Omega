@@ -65,22 +65,15 @@ pub fn restates_structural_parameter_qualification(
     let typed_trees::domain::ProofFact::Membership(membership) = fact else {
         return false;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(membership.value) else {
+    let Some(symbol) =
+        crate::expression_traversal::single_segment_name_symbol(program, membership.value)
+    else {
         return false;
     };
-    if path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return false;
-    }
     let Some(parameter) = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == path.symbol)
+        .find(|parameter| parameter.symbol == symbol)
     else {
         return false;
     };
@@ -177,20 +170,17 @@ pub fn structural_state_contract_scalar_predicates(
                     else {
                         return None;
                     };
-                    if path.head_symbol != path.symbol
-                        || program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
-                    {
+                    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(
+                        program,
+                        membership.value,
+                    ) else {
                         return None;
-                    }
+                    };
                     let domain = program
                         .domain_definitions()
                         .iter()
                         .find(|domain| domain.symbol == membership.domain_symbol)?;
-                    actual.push((path.symbol, domain.semantic_id.0));
+                    actual.push((symbol, domain.semantic_id.0));
                     // A scalar parameter's interval membership is carried as its
                     // closed interval; the qualification comparison below still
                     // requires it to restate the declared type exactly.
@@ -1063,12 +1053,11 @@ pub fn structural_call_custody(
                 else {
                     continue;
                 };
-                if path.head_symbol != path.symbol
-                    || program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
+                if crate::expression_traversal::single_segment_name_symbol(
+                    program,
+                    *authored_argument,
+                )
+                .is_none()
                 {
                     continue;
                 }
