@@ -186,25 +186,7 @@ pub(super) fn place_pointer_at_site(
         pointer
     };
     let output = transport_register(builder, place, byte_offset)?;
-    builder.emit(
-        if byte_offset == 0 {
-            SelectedInstructionKind::CopyI64
-        } else {
-            SelectedInstructionKind::AddressOffset { byte_offset }
-        },
-        if byte_offset == 0 {
-            builder.constraints.keys.copy_i64
-        } else {
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(|| invalid())?
-        },
-        &[input, output],
-        provenance,
-    )?;
-    Ok(output)
+    transport_at_byte_offset(builder, input, output, byte_offset, provenance)
 }
 
 /// An element loan rides on the view's backing pointer, never the
@@ -223,28 +205,16 @@ pub(super) fn view_element_pointer(
     let input = runtime_address::projection_base(source, builder, row, place, byte_offset)?
         .ok_or_else(|| invalid())?;
     let output = transport_register(builder, place, byte_offset)?;
-    builder.emit(
-        if byte_offset == 0 {
-            SelectedInstructionKind::CopyI64
-        } else {
-            SelectedInstructionKind::AddressOffset { byte_offset }
-        },
-        if byte_offset == 0 {
-            builder.constraints.keys.copy_i64
-        } else {
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(|| invalid())?
-        },
-        &[input, output],
+    transport_at_byte_offset(
+        builder,
+        input,
+        output,
+        byte_offset,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             ..Default::default()
         },
-    )?;
-    Ok(output)
+    )
 }
 
 pub(super) fn operation(
@@ -528,4 +498,34 @@ fn memory(
         role,
     });
     Ok(())
+}
+
+/// Copy `input` into `output` verbatim at offset zero, otherwise emit the
+/// address-offset step that shifts it by `byte_offset`.
+fn transport_at_byte_offset(
+    builder: &mut Builder<'_>,
+    input: VirtualRegisterId,
+    output: VirtualRegisterId,
+    byte_offset: u32,
+    provenance: SelectedInstructionProvenance,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    builder.emit(
+        if byte_offset == 0 {
+            SelectedInstructionKind::CopyI64
+        } else {
+            SelectedInstructionKind::AddressOffset { byte_offset }
+        },
+        if byte_offset == 0 {
+            builder.constraints.keys.copy_i64
+        } else {
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| invalid())?
+        },
+        &[input, output],
+        provenance,
+    )?;
+    Ok(output)
 }
