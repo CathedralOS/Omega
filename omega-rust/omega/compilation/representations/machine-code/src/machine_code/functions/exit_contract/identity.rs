@@ -1,6 +1,5 @@
 //! Canonical version-9 exit-record identity; no producer or admission dependency.
 
-use crate::machine_code::identity_encoding::encode_exit_target;
 use register_model::RegisterUnitId;
 use sha2::{Digest, Sha256};
 
@@ -51,7 +50,7 @@ pub fn whole_function_exit_contract_identity(
             hasher.update(materialization.bytes());
         }
     }
-    encode_exit_target(&mut hasher, contract.target);
+    hasher.update(contract.target.wire_identity_bytes());
     hasher.update([exit_policy_tag(contract.policy)]);
     match contract.frame {
         WholeFunctionFrameDisposition::FramelessV1 => hasher.update([1]),

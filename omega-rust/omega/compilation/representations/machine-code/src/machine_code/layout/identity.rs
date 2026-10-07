@@ -1,7 +1,7 @@
 //! Exact identity of the function-relative bytes, layout, and replay inputs.
 
 use sha2::{Digest, Sha256};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::NativeTarget;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
@@ -57,17 +57,7 @@ pub fn resolved_machine_layout_identity(
             hasher.update(custody.selected_bytes().to_le_bytes());
         }
     }
-    hasher.update([match target.architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => 1,
-    }]);
-    hasher.update([match target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    }]);
-    hasher.update((target.pointer_size as u64).to_le_bytes());
-    hasher.update((target.pointer_alignment as u64).to_le_bytes());
+    hasher.update(target.identity_bytes());
     hasher.update([match policy {
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,

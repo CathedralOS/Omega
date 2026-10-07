@@ -13,17 +13,7 @@ pub fn target_frame_protocol_encoding_identity(
     hasher.update(plan.frame_layout.bytes());
     hasher.update(plan.register_environment.bytes());
     hasher.update(plan.physical_register_model.bytes());
-    hasher.update([match plan.target.architecture {
-        target::Architecture::Aarch64 => 0,
-        target::Architecture::X86_64 => 1,
-    }]);
-    hasher.update([match plan.target.object_format {
-        target::ObjectFormat::Elf => 0,
-        target::ObjectFormat::MachO => 1,
-        target::ObjectFormat::Coff => 2,
-    }]);
-    hasher.update((plan.target.pointer_size as u64).to_le_bytes());
-    hasher.update((plan.target.pointer_alignment as u64).to_le_bytes());
+    hasher.update(plan.target.identity_bytes());
     hasher.update([match plan.policy {
         TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1 => 0,
     }]);

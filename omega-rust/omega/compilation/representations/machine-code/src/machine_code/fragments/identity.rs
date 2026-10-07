@@ -14,7 +14,6 @@ use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
-use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v18";
@@ -28,7 +27,7 @@ pub fn function_fragment_emission_identity(
     hasher.update(plan.psi.program_fingerprint.as_bytes());
     hasher.update(plan.fuel_schedule.marker().to_le_bytes());
     hasher.update(plan.selected.bytes());
-    encode_target(&mut hasher, plan.target);
+    hasher.update(plan.target.identity_bytes());
     hasher.update(plan.entry.get().to_le_bytes());
     hasher.update((plan.functions.len() as u64).to_le_bytes());
     for function in &plan.functions {
@@ -169,20 +168,6 @@ fn encode_optional_normalized_foreign_call_fixup(
             }
         }
     }
-}
-
-fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
-    hasher.update([match target.architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => 1,
-    }]);
-    hasher.update([match target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    }]);
-    hasher.update((target.pointer_size as u64).to_le_bytes());
-    hasher.update((target.pointer_alignment as u64).to_le_bytes());
 }
 
 fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {

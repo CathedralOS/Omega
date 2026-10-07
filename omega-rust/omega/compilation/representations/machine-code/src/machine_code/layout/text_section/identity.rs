@@ -4,9 +4,7 @@ use super::{
     RelocationFreeTextSectionPlacement, TerminalRelocationFreeTextSectionIdentity,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
-use crate::machine_code::identity_encoding::{
-    encode_call_owner, encode_exit_target, encode_invocation_site,
-};
+use crate::machine_code::identity_encoding::{encode_call_owner, encode_invocation_site};
 use sha2::{Digest, Sha256};
 #[cfg(test)]
 use target::NativeTarget;
@@ -23,7 +21,7 @@ pub fn relocation_free_text_section_identity(
     hasher.update(section.psi.program_fingerprint.as_bytes());
     hasher.update(section.fuel_schedule.marker().to_le_bytes());
     hasher.update(section.selected.bytes());
-    encode_exit_target(&mut hasher, section.target);
+    hasher.update(section.target.wire_identity_bytes());
     hasher.update(section.semantic_entry.get().to_le_bytes());
     hasher.update(section.semantic_entry_offset.to_le_bytes());
     hasher.update([match section.policy {

@@ -1,6 +1,6 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use sha2::{Digest, Sha256};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::NativeTarget;
 
 use crate::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedFormLayoutIdentity,
@@ -95,17 +95,7 @@ fn encode_roots(hasher: &mut Sha256, roots: RevisionRoots) {
     hasher.update(roots.selected.bytes());
     hasher.update(roots.machine.bytes());
     hasher.update(roots.pre_layout.bytes());
-    hasher.update([match roots.target.architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => 1,
-    }]);
-    hasher.update([match roots.target.object_format {
-        ObjectFormat::Elf => 0,
-        ObjectFormat::MachO => 1,
-        ObjectFormat::Coff => 2,
-    }]);
-    hasher.update((roots.target.pointer_size as u64).to_le_bytes());
-    hasher.update((roots.target.pointer_alignment as u64).to_le_bytes());
+    hasher.update(roots.target.identity_bytes());
 }
 
 fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLayout]) {
