@@ -40,6 +40,18 @@ impl FixedCore {
         }
     }
 
+    /// The `Term::Sort` constructor this member spells when it takes a
+    /// universe level; `None` for members that take a type or no argument.
+    pub(crate) fn universe_sort(
+        self,
+    ) -> Option<fn(proof_admission::Level) -> proof_admission::Sort> {
+        match self {
+            Self::Type => Some(proof_admission::Sort::Type),
+            Self::Strict => Some(proof_admission::Sort::Strict),
+            Self::Level | Self::Squash => None,
+        }
+    }
+
     /// The symbol-table identity this member occupies — the closed
     /// compiler-installed declaration, not a spelling.
     const fn declaration(self) -> FixedCoreDeclaration {

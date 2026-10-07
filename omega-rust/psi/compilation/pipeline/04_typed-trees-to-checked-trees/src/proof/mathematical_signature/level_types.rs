@@ -3,7 +3,7 @@
 //! entries and term domains inside the signature under construction.
 
 use crate::proof::FixedCore;
-use proof_admission::{Level, Sort, Term, TermHandle};
+use proof_admission::{Level, Term, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::mathematical::{MathematicalType, MathematicalTypeHandle};
@@ -166,26 +166,21 @@ impl<'a> Elaborator<'a> {
                 let base_symbol = *base_symbol;
                 let base_name = base_name.clone();
                 match self.fixed_core.classify(base_symbol, &base_name) {
-                    Some(FixedCore::Type) => match arguments.as_slice() {
-                        [universe] => {
-                            let level = self.elaborate_level(*universe)?;
-                            Ok(self.arena.insert(Term::Sort(Sort::Type(level))))
+                    Some(member @ (FixedCore::Type | FixedCore::Strict)) => {
+                        match arguments.as_slice() {
+                            [universe] => {
+                                let level = self.elaborate_level(*universe)?;
+                                Ok(self
+                                    .arena
+                                    .insert(Term::Sort(member.universe_sort().unwrap()(level))))
+                            }
+                            _ => Err(self.refuse(format!(
+                                "`{}` takes one universe level, not {}",
+                                member.name(),
+                                arguments.len()
+                            ))),
                         }
-                        _ => Err(self.refuse(format!(
-                            "`core::Type` takes one universe level, not {}",
-                            arguments.len()
-                        ))),
-                    },
-                    Some(FixedCore::Strict) => match arguments.as_slice() {
-                        [universe] => {
-                            let level = self.elaborate_level(*universe)?;
-                            Ok(self.arena.insert(Term::Sort(Sort::Strict(level))))
-                        }
-                        _ => Err(self.refuse(format!(
-                            "`core::Strict` takes one universe level, not {}",
-                            arguments.len()
-                        ))),
-                    },
+                    }
                     Some(FixedCore::Squash) => match arguments.as_slice() {
                         [ty] => {
                             let ty = self.elaborate_type_reference(*ty)?;
@@ -290,13 +285,11 @@ impl<'a> Elaborator<'a> {
         name: &Identifier,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         match member {
-            FixedCore::Type => {
+            member @ (FixedCore::Type | FixedCore::Strict) => {
                 let level = self.generalized_level();
-                Ok(self.arena.insert(Term::Sort(Sort::Type(level))))
-            }
-            FixedCore::Strict => {
-                let level = self.generalized_level();
-                Ok(self.arena.insert(Term::Sort(Sort::Strict(level))))
+                Ok(self
+                    .arena
+                    .insert(Term::Sort(member.universe_sort().unwrap()(level))))
             }
             _ => Err(self.refuse(format!(
                 "`{name}` needs its arguments; it cannot appear unapplied"
