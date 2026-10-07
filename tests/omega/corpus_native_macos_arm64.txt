@@ -792,6 +792,7 @@ pass/drops/runtime_temporary_nominal_prerequisite_exit built 1701ms exit:0 @c8b4
 pass/drops/runtime_unit_temporary_nominal_continuation_exit built 1513ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_unobserved_owned_state_transfer_exit built 1858ms exit:0 @9beb2be72f2d+wt
 pass/drops/statically_skipped_claim_bearing_temporary checked 657ms @693920652f41
+pass/drops/structural_return_drops_unreturned_local_exit built 1373ms exit:70 stdout:match @36a6d3234091+wt
 pass/drops/transfer_cleanup_into_state checked 368ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839

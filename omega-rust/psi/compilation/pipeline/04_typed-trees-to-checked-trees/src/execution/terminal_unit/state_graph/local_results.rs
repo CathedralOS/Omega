@@ -102,8 +102,9 @@ fn validate(
     {
         return None;
     }
-    // A normal Unit return has no successor transfer. It still needs the same
-    // exact lexical disposal receipt as a non-transferring selected edge.
+    // A normal return has no successor transfer, whatever its result kind. It
+    // still needs the same exact lexical disposal receipt as a
+    // non-transferring selected edge.
     let mut has_disposal_edge = successors.is_empty();
     for successor in successors {
         if result.statement_index >= successor.statement_ordinal {

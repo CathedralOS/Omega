@@ -54,6 +54,28 @@ pub(super) use successors::{
     EdgeCalls, SuccessorEdge, SuccessorGuard, successor, successor_bindings,
 };
 
+/// The result a state graph describes for `machine`, or `None` when the
+/// machine's result is outside the graph's result vocabulary. Body routing asks
+/// the same question before any builder runs.
+pub(super) fn result_plan(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+) -> Option<checked_trees::CheckedControlResultPlan> {
+    let result = returns::signature(
+        program,
+        shapes,
+        program.machine_states(machine).first()?.return_type,
+    )?;
+    // Parameter qualifications are transported exactly. Additional authored
+    // contracts on a linear result still need their own retained proof
+    // obligations.
+    (!(matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
+        if result.multiplicity == Multiplicity::Linear)
+        && !program.machine_contracts(machine).is_empty()))
+    .then_some(result)
+}
+
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
 pub(super) fn build_traced(
     program: &TypedTrees,
@@ -73,15 +95,7 @@ pub(super) fn build_traced(
         return None;
     }
     trace.phase("state graph: result signature");
-    let result = returns::signature(program, shapes, states[0].return_type)?;
-    if matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
-        if result.multiplicity == Multiplicity::Linear)
-        && !program.machine_contracts(machine).is_empty()
-    {
-        // Parameter qualifications are transported exactly below. Additional
-        // authored contracts still need their own retained proof obligations.
-        return None;
-    }
+    let result = result_plan(program, shapes, machine)?;
     // State count and the presence of an aggregate initializer do not choose
     // cleanup semantics. Even one Unit state can owe executable normal-exit
     // actions. Plan its graph here; the shared candidate selection keeps one
@@ -345,17 +359,14 @@ pub(super) fn build_traced(
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             terminator_index.checked_add(1)?
-        } else if matches!(
-            result,
-            checked_trees::CheckedControlResultPlan::Unit
-                | checked_trees::CheckedControlResultPlan::Scalar { .. }
-        ) && control::terminal_named_call(program, owner, state, terminator_index)
+        } else if control::terminal_named_call(program, owner, state, terminator_index)
             .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
-            // operation (`terminal_calls`): the sequence plans it and counts
-            // its occurrence, binding a scalar result as the state's returned
-            // value, and the terminator completes after it.
+            // operation (`terminal_calls`), whatever the machine's result: the
+            // sequence plans it and counts its occurrence, binding a value
+            // result as the state's returned value, and the terminator
+            // completes after it.
             terminator_index.checked_add(1)?
         } else {
             terminator_index
@@ -435,6 +446,8 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
         ) {
             // A ClosedSum subject's state-exit disposal is the case
             // dispatch's own consumption, already proved inside the
@@ -587,10 +600,15 @@ pub(super) fn build_traced(
                     // exact selected normal-edge actions dispose only what
                     // remains after transfers and returned-value custody.
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_contents(program, reference(), validation::ContentsRequirement::CleanupOwned)
-                        && !validation::has_contents(
-                            program,
-                            reference(), validation::ContentsRequirement::RepresentedOwned)
+                        && ![
+                            validation::ContentsRequirement::CleanupOwned,
+                            validation::ContentsRequirement::RepresentedOwned,
+                            // Plain owned contents arrive as one whole move,
+                            // exactly as a statement sequence admits them.
+                            validation::ContentsRequirement::PlainOwned,
+                        ]
+                        .into_iter()
+                        .any(|requirement| validation::has_contents(program, reference(), requirement))
                         && !view_carrier
                         // Stored-reference carriers use the ordinary call
                         // contract. State edges move their descriptors and
@@ -623,12 +641,15 @@ pub(super) fn build_traced(
                             .map(|plan| &plan.shape),
                         Some(checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
                     );
+                    // A nominal referent, including a generic data
+                    // application such as `&FixedBuffer<2>` in a
+                    // specialization.
                     let borrowed_named_referent = matches!(
                         program.type_reference_table.type_reference(reference),
                         TypeReferenceNode::Reference { referee, .. }
                             if matches!(
                                 program.type_reference_table.type_reference(*referee),
-                                TypeReferenceNode::Named { .. }
+                                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                             )
                     );
                     // Fixed arrays have structural rather than nominal

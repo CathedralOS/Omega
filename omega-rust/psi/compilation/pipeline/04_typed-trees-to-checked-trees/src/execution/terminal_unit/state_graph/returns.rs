@@ -217,8 +217,10 @@ pub(in crate::execution::terminal_unit) fn signature(
 /// same two completions an ordinary single-state body retains. A final
 /// expression is the sequence's own returned binding; value-only transition
 /// exits are the shared scalar exit roster, which must begin exactly at the
-/// state's terminator. A crash keeps the graph's own `Crash` terminator and a
-/// named successor keeps its edge custody plan, so neither completes here.
+/// state's terminator. A crash keeps the graph's own `Crash` terminator, a
+/// named successor keeps its edge custody plan, and a closing terminal machine
+/// call completes with every other result kind (`terminal_calls::completion`),
+/// so none of them completes here.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn scalar_completion(
     program: &TypedTrees,
@@ -233,19 +235,12 @@ pub(super) fn scalar_completion(
     trace.phase("state graph: terminator: scalar completion");
     let statements = program.statement_table.statements(state.statement_nodes);
     if let Some(binding) = returned_binding {
-        // The state's final expression, or an unconditional terminal machine
-        // call at its closing transition: the sequence ran that call as the
-        // state's last operation and bound its result here.
-        let completes = match statements.get(terminator_index..) {
-            Some([StatementNode::Expression(_)]) => true,
-            Some([StatementNode::Transition(_)]) => {
-                binding.statement_index as usize == terminator_index
-                    && control::terminal_named_call(program, machine, state, terminator_index)
-                        .is_some()
-            }
-            _ => false,
-        };
-        return (completes && binding.primitive_type == primitive_type)
+        // The state's final expression. A closing terminal machine call's
+        // bound result completes through `terminal_calls::completion`.
+        return (matches!(
+            statements.get(terminator_index..),
+            Some([StatementNode::Expression(_)])
+        ) && binding.primitive_type == primitive_type)
             .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
     }
     let (exits, prefix) =

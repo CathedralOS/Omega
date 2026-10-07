@@ -283,9 +283,18 @@ pub(super) fn account(
                         })
                     })
             }
+            // A normal return retires every local it does not return, with
+            // the same lexical state-exit disposal whatever the result kind:
+            // an affine owner through the exit permit, an unrestricted value
+            // through dominance. The returned binding itself is the return's.
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                permits_disposal(&[])
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => permits_disposal(&[]),
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
+                matches!(returned.source,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                        if binding_ordinal == result.binding_ordinal)
+                    || permits_disposal(&[])
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
             | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
@@ -402,10 +411,8 @@ pub(super) fn account(
                     }
                 }
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
-                matches!(returned.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
-            }
-            _ => false,
+            // A crash abandons custody; it owns no normal disposal.
+            CheckedComposedUnitControlTerminatorPlan::Crash { .. } => false,
         } || selection_residual_source;
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.

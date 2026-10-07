@@ -18,8 +18,8 @@ type Cause = (CheckedUnitPlanGapReason, GapSite);
 
 struct CandidateClosure {
     // Symbols are sparse across the complete program; candidate ordinals are
-    // dense and private to this invocation. Only initially unique live entries
-    // survive: the old first round removed every competing definition together.
+    // dense and private to this invocation. Each machine has at most one body:
+    // its shape selected one plan route.
     entries: Vec<(SymbolHandle, SymbolHandle, usize)>,
     retained: Vec<bool>,
     // The first reason each candidate left the roster, kept beside `retained`
@@ -33,33 +33,15 @@ struct CandidateClosure {
 
 impl CandidateClosure {
     fn new(entries: impl Iterator<Item = (SymbolHandle, SymbolHandle)>) -> Self {
-        let mut roster = entries
+        let mut entries = entries
             .enumerate()
             .map(|(candidate_index, (machine, state))| (machine, state, candidate_index))
             .collect::<Vec<_>>();
-        let mut retained = vec![false; roster.len()];
-        let mut causes = vec![
-            Some((
-                CheckedUnitPlanGapReason::Unsupported("two plan routes describe this body"),
-                GapSite::Machine,
-            ));
-            roster.len()
-        ];
-        roster.sort_unstable_by_key(|(machine, _, _)| symbol_key(*machine));
-        for group in roster.chunk_by(|left, right| left.0 == right.0) {
-            if let [(machine, state, candidate_index)] = group
-                && machine.is_valid()
-                && state.is_valid()
-            {
-                retained[*candidate_index] = true;
-                causes[*candidate_index] = None;
-            }
-        }
-        roster.retain(|(_, _, candidate_index)| retained[*candidate_index]);
+        entries.sort_unstable_by_key(|(machine, _, _)| symbol_key(*machine));
         Self {
-            entries: roster,
-            retained,
-            causes,
+            retained: vec![true; entries.len()],
+            causes: vec![None; entries.len()],
+            entries,
             dependents: Vec::new(),
             sites: Vec::new(),
         }

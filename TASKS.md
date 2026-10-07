@@ -2496,50 +2496,6 @@ code and preserve check/native behavior for the named customer slices.
 
 
 
-- **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope)
-  A demanded body without a Unit plan reports an `Incomplete` coverage
-  diagnostic at the unsupported construct's source span, and
-  `OmissionLedger`/`CheckedUnitPlanOmissionStage` are gone (7f2571cd346).
-  Remaining: retry-based body selection. Both stage 04 builders (the
-  statement sequence, `control::build_checked_machine_traced`, and
-  `state_graph::build_traced`) still run on every checked body, and overlap
-  resolution in `execution/terminal_unit/mod.rs` keeps one plan when both
-  succeed; the candidate closure still carries a competing-candidate cause.
-
-  Choose the route from the body's shape before building. A trial rule (a
-  single state without transitions into its own recursive component, state
-  contracts or non-linear nominal-drop owners, whose result is Unit, a
-  scalar, or a structural value outside the graph's result vocabulary, is a
-  sequence; everything else is a graph) loses 7 passing corpus fixtures, each
-  needing the other builder's capability. The graph cannot yet take a tail
-  call to an acyclic machine in a transition (`pass/collections/named_transition_completion`;
-  `Filesystem::create_dir_all` also gaps in `pass/filesystem/dir_walk_wrappers_exit`,
-  which already fails on its Fused provider),
-  owned record state parameters of the specialized containers in
-  `pass/generics/runtime_{const_container_methods,container_setter_matrix}_exit`,
-  or copy locals consumed by calls nested in a returned literal
-  (`pass/calls/runtime_lifetime_only_constructor_result_exit`,
-  `pass/providers/generic_provider_structural_result_composition_exit`). A
-  linear structural result with machine contracts is refused by the graph's
-  result vocabulary and by the sequence's `checked_state_contracts_supported`
-  gate (`pass/structs/runtime_{nonzero_array_elements,qualified_record_call_composition}_exit`).
-  Close those in the builders, then route by shape.
-
-  The customers' semantic repairs belong to **REFERENCE-BEARING-RECORD-LOCAL-FILL**
-  (`pass/text/runtime_local_struct_string_field_concat_exit`),
-  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**
-  (`pass/traits/runtime_dyn_two_impl_dispatch_exit`) and
-  **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS**
-  (`pass/ownership/linear_transparent_record_frontier`). Preserve
-  `pass/wire/wire_preserving_decode_relay_exit` (exit 70) and
-  `pass/build/uefi_os_handoff_invocation`'s checked body.
-  `fail/build/placed_view_program_entry_input` refuses its entry with an
-  `Incomplete` gap until call-bound custody supplies its `view` argument.
-
-  Acceptance: one route per checked body, chosen by shape; overlap
-  resolution and the competing-candidate cause are gone, with no silent body
-  omission or weaker fallback; check and native corpus unchanged.
-
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
   Preserve the path-indexed linear claim frontier of an affine record in
   `pass/ownership/linear_transparent_record_frontier`. Its recorded refusal is
@@ -2843,8 +2799,8 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   - about 50 `…_with_…` function variants (for example
     `land_anonymous_integer_expression{,_with_selected_match_arms,_with_warning}`).
 
-  Delete the `*_supported` gates: the checker decides legality and lowering
-  reports its own gaps (**UNIT-PLAN-GAPS-REPORTED-AT-SOURCE**). Replace each
+  Delete the `*_supported` gates: the checker decides legality and a unit
+  plan builder reports its own gap at the construct's source span. Replace each
   variant family with one parameterized query. Acceptance: no `*_supported`
   function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; corpus unchanged.
 

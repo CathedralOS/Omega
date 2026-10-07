@@ -221,25 +221,22 @@ pub(super) fn build(
                     }
                     // An unconditional terminal machine call already ran as
                     // this state's last operation (the sequence planned and
-                    // counted it); its normal Unit result completes here.
+                    // counted it and bound its value); the callee's normal
+                    // result completes this machine here.
                     TransitionTargetNode::Named { .. }
-                        if result == checked_trees::CheckedControlResultPlan::Unit
-                            && terminal_calls::external_callable(
-                                program, machine, fused, transition,
-                            )
-                            .is_some() =>
+                        if terminal_calls::external_callable(
+                            program, machine, fused, transition,
+                        )
+                        .is_some() =>
                     {
                         trace.phase("state graph: terminator: terminal call completion");
-                        if !operations.iter().any(|operation| {
-                            operation.call().is_some_and(|call| {
-                                call.coordinate.statement_index == ordinal
-                                    && call.coordinate.call_ordinal == 0
-                                    && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-                            })
-                        }) {
-                            return None;
-                        }
-                        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                        terminal_calls::completion(
+                            operations,
+                            ordinal,
+                            &result,
+                            scalar_result,
+                            structural_result,
+                        )?
                     }
                     _ => {
                         trace.phase("state graph: terminator: jump successor");

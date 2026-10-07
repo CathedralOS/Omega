@@ -1,54 +1,8 @@
 //! Atomic assembly of state-graph Unit control plans after provider admission.
 use super::super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedProviderAttachmentRequirementPlan, MachineSupplyMode, TypedTrees,
+    CheckedProviderAttachmentRequirementPlan, TypedTrees,
 };
-use crate::execution::terminal_unit::types::ShapeCollector;
-
-use crate::execution::terminal_unit::ScalarCalleePlans;
-
-use crate::execution::terminal_unit::control;
-use checked_trees::CheckedUnitPlanGap;
-use std::collections::BTreeMap;
-
-/// Records the gap where state-graph construction stopped for each declined
-/// machine.
-pub(in crate::execution::terminal_unit) fn build_all_traced(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    declined: &mut BTreeMap<(u32, u32), CheckedUnitPlanGap>,
-) -> Vec<CheckedComposedUnitControlMachinePlan> {
-    let mut plans = Vec::new();
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-    {
-        let trace = control::LocalConstructionTrace::default();
-        let plan = super::super::state_graph::build_traced(
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            machine,
-            call_frames,
-            &trace,
-        );
-        match plan {
-            Some(plan) => plans.push(plan),
-            None => {
-                declined.insert(
-                    (machine.symbol.arena_index(), machine.symbol.generation()),
-                    trace.gap(program, machine.symbol),
-                );
-            }
-        }
-    }
-    plans
-}
 
 pub(in crate::execution::terminal_unit) fn finish(
     program: &TypedTrees,

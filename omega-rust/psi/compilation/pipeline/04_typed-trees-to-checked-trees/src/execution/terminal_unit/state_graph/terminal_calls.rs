@@ -10,8 +10,9 @@
 //! - An unconditional final arm (`transition { _ -> self.finish() }`) is the
 //!   state's last operation. The shared statement sequence plans it through
 //!   `call_occurrences::terminal_named_call`, exactly as a single-state body
-//!   does, so its occurrence counts against the state's call roster; the
-//!   terminator then completes after it.
+//!   does, so its occurrence counts against the state's call roster and its
+//!   value result binds as the state's returned value; `completion` then
+//!   completes the state with that result, whatever its kind.
 //! - A guarded arm's call runs only when its arm is selected, so it cannot
 //!   join the state's linear operations. `arm_call` plans it with the same
 //!   `build_call_operation` as the arm's own operation
@@ -27,8 +28,10 @@
 //! state's returned value
 //! (`CheckedScalarReturnPlan::Binding` at the transition), and a guarded arm
 //! binds it at the next ordinal of the namespace its arm inherits and returns
-//! it there. The two signatures must agree exactly; checking rejects a
-//! terminal call whose result differs from the caller's declared result.
+//! it there. A structural result is likewise the unconditional call's own
+//! binding, which the state returns (`ReturnStructural`). The two signatures
+//! must agree exactly; checking rejects a terminal call whose result differs
+//! from the caller's declared result.
 //!
 //! Scalar operand computations retain their nested calls. Structural operands
 //! retain the ordinary preparation sequence; the shared argument schedule
@@ -37,8 +40,9 @@
 //! completion transfers that value instead of discarding it. An arm call still
 //! retains ordinary exact claim transfers into the callee.
 use super::{
-    CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
-    TransitionTargetNode, TypedTrees, control,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan, ScalarCalleePlans,
+    TransitionExit, TransitionTargetNode, TypedTrees, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::{
@@ -89,6 +93,69 @@ pub(super) fn external_callable(
 ) -> Option<symbols::SymbolHandle> {
     invoked_callable(program, machine, transition)
         .filter(|target| super::fused_target_index(program, fused, *target).is_none())
+}
+
+/// Complete a state whose unconditional final arm invokes a machine outside
+/// the retained graph. The statement sequence already planned that call as
+/// the state's last operation (statement `statement_ordinal`, the
+/// statement's only outer call) and bound its value result as the state's
+/// returned value. The callee's normal result completes this machine
+/// unchanged: Unit returns, a scalar returns its binding, and a structural
+/// value transfers its binding.
+pub(super) fn completion(
+    operations: &[CheckedUnitEffectOperationPlan],
+    statement_ordinal: u32,
+    result: &checked_trees::CheckedControlResultPlan,
+    scalar_result: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
+    structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
+) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    let mut calls = operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .filter(|call| {
+            call.coordinate.statement_index == statement_ordinal
+                && call.coordinate.call_ordinal == 0
+        });
+    let call = calls.next()?;
+    if calls.next().is_some() {
+        return None;
+    }
+    match (result, call.result()) {
+        (
+            checked_trees::CheckedControlResultPlan::Unit,
+            checked_trees::CheckedUnitCallResult::Unit,
+        ) => Some(CheckedComposedUnitControlTerminatorPlan::ReturnUnit),
+        (
+            checked_trees::CheckedControlResultPlan::Scalar { primitive_type },
+            checked_trees::CheckedUnitCallResult::Scalar(bound),
+        ) if bound.primitive_type == *primitive_type
+            && bound.statement_index == statement_ordinal
+            && scalar_result == Some(bound) =>
+        {
+            Some(CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Binding(*bound),
+            })
+        }
+        (
+            checked_trees::CheckedControlResultPlan::Structural(expected),
+            checked_trees::CheckedUnitCallResult::Structural { binding, .. },
+        ) if binding.statement_index == statement_ordinal
+            && binding.type_identity == expected.type_identity
+            && binding.multiplicity == expected.multiplicity =>
+        {
+            let returned = structural_result?;
+            (returned.source
+                == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: binding.binding_ordinal,
+                })
+            .then(
+                || CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+                    result: returned.clone(),
+                },
+            )
+        }
+        _ => None,
+    }
 }
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.

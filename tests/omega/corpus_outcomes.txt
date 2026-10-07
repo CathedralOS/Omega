@@ -2678,6 +2678,7 @@ pass/drops/runtime_temporary_nominal_prerequisite_exit checked 1673ms check-targ
 pass/drops/runtime_unit_temporary_nominal_continuation_exit checked 1676ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_unobserved_owned_state_transfer_exit checked 1978ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/statically_skipped_claim_bearing_temporary checked 396ms @b891e70838b1+wt
+pass/drops/structural_return_drops_unreturned_local_exit checked 1238ms check-target:macos_arm64 @36a6d3234091+wt
 pass/drops/transfer_cleanup_into_state checked 342ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f

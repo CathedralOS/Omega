@@ -63,11 +63,6 @@ impl LocalConstructionTrace {
         self.state.set(state);
     }
 
-    /// The phase the builder stopped in.
-    pub(crate) fn phase_name(&self) -> &'static str {
-        self.phase.get()
-    }
-
     /// The gap at the last marked position. A statement mark without a state
     /// belongs to the single-state builder's only state.
     pub(crate) fn gap(&self, program: &TypedTrees, machine: SymbolHandle) -> CheckedUnitPlanGap {

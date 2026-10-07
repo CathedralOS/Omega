@@ -98,7 +98,6 @@
 
 use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
 use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
-use crate::execution::terminal_unit::composed_control::build_checked_composed_unit_control_machines_traced;
 use crate::execution::terminal_unit::control::{
     LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
     build_static_boundary_requirements,
@@ -136,7 +135,7 @@ use checked_trees::{
     CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
@@ -221,43 +220,45 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .iter()
         .map(|plan| plan.machine)
         .collect::<Vec<_>>();
+    // Each checked body takes the one route its shape selects; a builder that
+    // cannot plan it leaves the gap where it stopped.
     let mut candidates = Vec::new();
-    let mut sequence_gaps = BTreeMap::new();
+    let mut composed_machines = Vec::new();
+    let mut construction_gaps = BTreeMap::new();
     for machine in program
         .machines()
         .iter()
         // A bodied `boundary machine` is a checked adapter: its body is
-        // authored in-package, so it competes as an ordinary Unit candidate.
+        // authored in-package, so it is planned like any other checked body.
         .filter(|machine| machine.supplies_checked_body())
     {
         let trace = LocalConstructionTrace::default();
-        match build_checked_machine_traced(
-            program,
-            facts,
-            scalar_callees,
-            &mut shapes,
-            machine,
-            call_frames,
-            &trace,
-        ) {
-            Some(plan) => candidates.push(plan),
-            None => {
-                sequence_gaps.insert(
-                    gap_key(machine.symbol),
-                    (trace.phase_name(), trace.gap(program, machine.symbol)),
-                );
-            }
+        let planned = match body_route(program, machine) {
+            BodyRoute::Sequence => build_checked_machine_traced(
+                program,
+                facts,
+                scalar_callees,
+                &mut shapes,
+                machine,
+                call_frames,
+                &trace,
+            )
+            .map(|plan| candidates.push(plan)),
+            BodyRoute::Graph => state_graph::build_traced(
+                program,
+                facts,
+                scalar_callees,
+                &mut shapes,
+                machine,
+                call_frames,
+                &trace,
+            )
+            .map(|plan| composed_machines.push(plan)),
+        };
+        if planned.is_none() {
+            construction_gaps.insert(gap_key(machine.symbol), trace.gap(program, machine.symbol));
         }
     }
-    let mut graph_gaps = BTreeMap::new();
-    let mut composed_machines = build_checked_composed_unit_control_machines_traced(
-        program,
-        facts,
-        scalar_callees,
-        &mut shapes,
-        call_frames,
-        &mut graph_gaps,
-    );
     let targets = candidates
         .iter()
         .map(CheckedUnitEffectMachinePlan::callable_entry)
@@ -281,7 +282,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .filter(|machine| {
             machine.supply_mode == MachineSupplyMode::CheckedBody
                 && machine.attached_data.is_none()
-                && !candidates.iter().any(|plan| plan.machine == machine.symbol)
+                && construction_gaps.contains_key(&gap_key(machine.symbol))
         })
         .filter_map(|machine| {
             build_nominal_affine_unit_cleanup_machine(
@@ -310,13 +311,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
         .collect::<Vec<_>>();
 
-    let mut gaps = construction_gaps(
-        program,
-        &sequence_gaps,
-        &graph_gaps,
-        &candidates,
-        &composed_machines,
-    );
+    let planned = planned_machines(&candidates, &composed_machines);
+    let mut gaps = construction_gaps
+        .into_iter()
+        .filter(|(key, _)| !planned.contains(key))
+        .map(|(_, gap)| gap)
+        .collect::<Vec<_>>();
     // Storage planning precedes executable hook selection. Complete the
     // contextual actions against the same immutable callable entry roster,
     // before mutating either body catalog. Entry metadata borrows the real
@@ -430,53 +430,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             .filter(|(key, _)| !planned.contains(key))
             .map(|(_, gap)| gap),
     );
-    // Prefer a complete general state graph when both builders describe the
-    // same structural-result body, including a returned parameter or call.
-    // Otherwise both catalogs appear to define the same entry and closure
-    // pruning removes the callee and every caller as ambiguous. Unit/scalar
-    // completion still belongs to the ordinary sequence when that complete
-    // body exists. Resolve builder overlap before closure, never retry another
-    // body after a selected candidate loses a required dependency.
-    candidates.retain(|plan| {
-        !composed_machines.iter().any(|graph| {
-            graph.machine == plan.machine
-                && (plan.structural_result.is_some()
-                    // A guarded value-returning tail leaves the ordinary
-                    // catalog's structural result unminted: the graph's
-                    // `Structural` result is the sole description of that
-                    // body, so the degenerate plan competes rather than
-                    // supplements.
-                    || matches!(
-                        graph.result,
-                        checked_trees::CheckedControlResultPlan::Structural(_)
-                    ))
-        })
-    });
-    composed_machines.retain(|graph| {
-        !candidates.iter().any(|plan| {
-            plan.machine == graph.machine
-                && graph
-                    .states
-                    .first()
-                    .is_some_and(|state| state.state == plan.state)
-                && plan.structural_result.is_none()
-                && match graph.result {
-                    checked_trees::CheckedControlResultPlan::Unit => {
-                        plan.scalar_result.is_none() && plan.scalar_control.is_none()
-                    }
-                    checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
-                        plan.scalar_result
-                            .as_ref()
-                            .is_some_and(|result| result.primitive_type == primitive_type)
-                            || plan
-                                .scalar_control
-                                .as_ref()
-                                .is_some_and(|control| control.primitive_type == primitive_type)
-                    }
-                    checked_trees::CheckedControlResultPlan::Structural(_) => false,
-                }
-        })
-    });
 
     let closure_gaps = candidate_closure::retain_available(
         program,
@@ -912,55 +865,70 @@ fn planned_machines(
         .collect()
 }
 
-/// The gap of each checked-body machine neither builder admitted. Authored
-/// transitions belong to the general graph even in a single state, and a
-/// multi-state body never reaches the sequence builder's later phases: the
-/// graph builder's refusal names the actual control or value join there. A
-/// single-state body without transitions keeps the sequence builder's own
-/// refusal.
-fn construction_gaps(
-    program: &TypedTrees,
-    sequence_gaps: &BTreeMap<(u32, u32), (&'static str, CheckedUnitPlanGap)>,
-    graph_gaps: &BTreeMap<(u32, u32), CheckedUnitPlanGap>,
-    candidates: &[CheckedUnitEffectMachinePlan],
-    composed_machines: &[CheckedComposedUnitControlMachinePlan],
-) -> Vec<CheckedUnitPlanGap> {
-    let planned = planned_machines(candidates, composed_machines);
-    program
-        .machines()
+/// The one plan route of a checked body, chosen by its authored shape before
+/// any builder runs. A builder that cannot plan its route's body reports the
+/// gap; the other route is never tried, so no body has two descriptions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BodyRoute {
+    /// One state whose result the graph cannot describe, or one without
+    /// transitions, state contracts or nominal-cleanup owners whose result is
+    /// Unit or a scalar: a statement sequence that completes or returns at its
+    /// end.
+    Sequence,
+    /// Everything else: the general graph of states, transitions, normal-exit
+    /// cleanup and successor transfers.
+    Graph,
+}
+
+fn body_route(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> BodyRoute {
+    // A bodied boundary adapter is planned as a sequence: the graph builder
+    // admits only ordinary checked bodies.
+    if machine.supply_mode != MachineSupplyMode::CheckedBody {
+        return BodyRoute::Sequence;
+    }
+    let [state] = program.machine_states(machine) else {
+        return BodyRoute::Graph;
+    };
+    // A result the graph's vocabulary cannot describe is only a sequence's.
+    // The classification uses a scratch shape namespace: choosing a route
+    // registers no type.
+    if state_graph::result_plan(program, &mut ShapeCollector::new(program), machine).is_none() {
+        return BodyRoute::Sequence;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    // Transitions are control: loops, guarded arms and returned values out
+    // of arms. A state's own contracts, and a local or by-value parameter
+    // whose owner may run a nominal `::drop` at return, need the graph's
+    // state signature and normal-exit cleanup; the sequence has neither. A
+    // linear owner is consumed explicitly by construction, never dropped at
+    // return.
+    let owes_nominal_drop = |type_reference| {
+        !types::is_reference(program, type_reference)
+            && crate::checks::type_multiplicity(program, type_reference) != Multiplicity::Linear
+            && types::type_graph_requires_nominal_drop(program, type_reference)
+    };
+    if statements.iter().any(|statement| match statement {
+        StatementNode::Transition(_) => true,
+        StatementNode::LocalData(local) => owes_nominal_drop(local.type_reference),
+        _ => false,
+    }) || program
+        .state_parameters(state)
         .iter()
-        // Same roster as the candidate scan: a bodied `boundary machine`
-        // adapter competes as an ordinary candidate, so its construction
-        // refusal must name a gap too.
-        .filter(|machine| machine.supplies_checked_body())
-        .filter(|machine| !planned.contains(&gap_key(machine.symbol)))
-        .map(|machine| {
-            let key = gap_key(machine.symbol);
-            let has_transition = program.machine_states(machine).iter().any(|state| {
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .any(|statement| {
-                        matches!(
-                            statement,
-                            typed_trees::statement::StatementNode::Transition(_)
-                        )
-                    })
-            });
-            match sequence_gaps.get(&key) {
-                Some((phase, gap)) if !has_transition && *phase != "single-state body" => *gap,
-                _ => graph_gaps.get(&key).copied().unwrap_or_else(|| {
-                    plan_gap(
-                        program,
-                        machine.symbol,
-                        GapSite::Machine,
-                        CheckedUnitPlanGapReason::Unsupported("composed control"),
-                    )
-                }),
-            }
-        })
-        .collect()
+        .any(|parameter| owes_nominal_drop(parameter.type_reference))
+        || !program.state_contracts(state).is_empty()
+    {
+        return BodyRoute::Graph;
+    }
+    if !state.return_type.is_valid()
+        || types::is_unit(program, state.return_type)
+        || program
+            .primitive_type_reference(state.return_type)
+            .is_some()
+    {
+        BodyRoute::Sequence
+    } else {
+        BodyRoute::Graph
+    }
 }
 
 /// Build the checked front of direct-record path-sensitive affine cleanup.

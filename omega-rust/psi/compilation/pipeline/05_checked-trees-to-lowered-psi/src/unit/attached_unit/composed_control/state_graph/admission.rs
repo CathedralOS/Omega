@@ -451,13 +451,24 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             ) if transition.guard == TransitionGuardNode::Always
                 && transition.exit == TransitionExit::Ordinary
                 && !transition.continuation.is_valid()
-                && matches!(
-                    checked.statement_table.transition_target(transition.target),
-                    checked_trees::statement::TransitionTargetNode::Value(_)
-                ) =>
+                && match checked.statement_table.transition_target(transition.target) {
+                    checked_trees::statement::TransitionTargetNode::Value(_) => true,
+                    checked_trees::statement::TransitionTargetNode::Named { .. } => {
+                        crate::call_sites::linear_terminal_invocation(
+                            checked,
+                            state.state,
+                            u32::try_from(terminator_ordinal).map_err(|_| {
+                                LoweringError::Unsupported("structural graph ordinal overflow")
+                            })?,
+                        )?
+                    }
+                    _ => false,
+                } =>
             {
                 // An unconditional `(expression)` arm returns its value on the
-                // transition's own statement; the same structural checks.
+                // transition's own statement, and an unconditional terminal
+                // machine call forwards the result stage 04 bound as the
+                // state's last operation; the same structural checks.
                 super::returns::validate_structural(
                     checked,
                     plan,
