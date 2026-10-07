@@ -645,16 +645,7 @@ fn roster_first_case(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<StructuralCaseId> {
-    let cases = match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return None,
-    };
+    let cases = roster_cases(unit, type_id)?;
     cases.first().map(|case| case.id)
 }
 
@@ -664,17 +655,8 @@ fn roster_sole_case(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<StructuralCaseId> {
-    let cases = match &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == type_id)?
-        .shape
-    {
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return None,
-    };
-    let [sole] = cases.as_slice() else {
+    let cases = roster_cases(unit, type_id)?;
+    let [sole] = cases else {
         return None;
     };
     Some(sole.id)
@@ -1068,4 +1050,24 @@ fn descended_field_child(
         return None;
     }
     Some((child, establishment_producer(function, declaration)))
+}
+
+/// The case roster of `type_id`'s declared shape, or `None` when the type
+/// is absent or its shape is not `Sum`/`Mixed`.
+fn roster_cases(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<&[StructuralCaseDeclaration]> {
+    match &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == type_id)?
+        .shape
+    {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            Some(cases.as_slice())
+        }
+        _ => None,
+    }
 }
