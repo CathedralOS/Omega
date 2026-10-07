@@ -39,6 +39,7 @@ struct Pending {
 pub(crate) fn infer_entry_requirements(
     program: &TypedTrees,
     facts: &mut CheckFacts,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for obligation in selected_requirements(program, facts)? {
@@ -130,7 +131,7 @@ pub(crate) fn infer_entry_requirements(
                 .iter()
                 .filter(|(_, row)| row.machine == target)
             {
-                if calls::proves(program, facts, state, call, &contexts, requirement) {
+                if calls::proves(program, facts, state, call, &contexts, requirement, frames) {
                     continue;
                 }
                 let Some(place) = calls::actual_place(program, state, call, requirement) else {

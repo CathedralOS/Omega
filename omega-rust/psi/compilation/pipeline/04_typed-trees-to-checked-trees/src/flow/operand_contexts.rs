@@ -177,7 +177,7 @@ pub(crate) fn entry_origin_is_stable(
             })
 }
 
-/// Within one invocation, unknown observations may share a place identity only while its contents
+/// Unknown observations may share a place identity only while its contents
 /// agree at both capture points. Prefix spans can be copied by arena growth;
 /// compare their exact rows, then inspect intervening writes. Final values and
 /// equal rendered paths cannot erase an intermediate write.
@@ -194,18 +194,83 @@ pub(crate) fn operand_observations_agree(
     if first.entry_origin_unknown_write || second.entry_origin_unknown_write {
         return false;
     }
-    let Some(first) = flow
-        .control
-        .operand_origin_writes
-        .span(first.entry_origin_writes)
-    else {
+    if first.state_symbol != second.state_symbol {
+        return false;
+    }
+    if first.statement_index != second.statement_index {
+        let (earlier, later) = if first.statement_index < second.statement_index {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        let Some((_, state)) = flow
+            .control
+            .states
+            .iter()
+            .find(|(_, state)| state.state_symbol == earlier.state_symbol)
+        else {
+            return false;
+        };
+        let Some(statements) = flow.control.statements.span(state.statements) else {
+            return false;
+        };
+        let Some(statement) = statements
+            .iter()
+            .find(|statement| statement.statement_index == earlier.statement_index)
+        else {
+            return false;
+        };
+        return !statement.completed_unknown_write
+            && prefixes_agree(
+                program,
+                &flow.control,
+                earlier.entry_origin_writes,
+                statement.completed_writes,
+                place,
+            )
+            && statements
+                .iter()
+                .filter(|statement| {
+                    statement.statement_index > earlier.statement_index
+                        && statement.statement_index < later.statement_index
+                })
+                .all(|statement| {
+                    entry_origin_is_stable(
+                        program,
+                        &flow.control,
+                        statement.completed_writes,
+                        statement.completed_unknown_write,
+                        place,
+                    )
+                })
+            && entry_origin_is_stable(
+                program,
+                &flow.control,
+                later.entry_origin_writes,
+                later.entry_origin_unknown_write,
+                place,
+            );
+    }
+    prefixes_agree(
+        program,
+        &flow.control,
+        first.entry_origin_writes,
+        second.entry_origin_writes,
+        place,
+    )
+}
+
+fn prefixes_agree(
+    program: &TypedTrees,
+    control: &checked_trees::FlowControlFacts,
+    first: HandleSpan<checked_trees::FlowOperandReferent>,
+    second: HandleSpan<checked_trees::FlowOperandReferent>,
+    place: &crate::flow::CanonicalPlace,
+) -> bool {
+    let Some(first) = control.operand_origin_writes.span(first) else {
         return false;
     };
-    let Some(second) = flow
-        .control
-        .operand_origin_writes
-        .span(second.entry_origin_writes)
-    else {
+    let Some(second) = control.operand_origin_writes.span(second) else {
         return false;
     };
     let (prefix, extended) = if first.len() <= second.len() {
@@ -215,19 +280,17 @@ pub(crate) fn operand_observations_agree(
     };
     if !prefix.iter().zip(extended).all(|(left, right)| {
         left.root == right.root
-            && flow
-                .control
+            && control
                 .operand_referent_segments
                 .span(left.segments)
-                .zip(flow.control.operand_referent_segments.span(right.segments))
+                .zip(control.operand_referent_segments.span(right.segments))
                 .is_some_and(|(left, right)| left == right)
     }) {
         return false;
     }
     extended[prefix.len()..].iter().all(|write| {
         place.root != write.root
-            || flow
-                .control
+            || control
                 .operand_referent_segments
                 .span(write.segments)
                 .is_some_and(|segments| {

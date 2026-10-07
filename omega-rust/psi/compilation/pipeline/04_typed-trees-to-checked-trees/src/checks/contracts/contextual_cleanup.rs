@@ -80,6 +80,7 @@ pub(crate) fn proves(
     call: &FlowCallFact,
     contexts: &[FactContextHandle],
     requirement: &ContextualCleanupEntryRequirement,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     super::call_values::proves_entry_predicate(
         program,
@@ -89,6 +90,7 @@ pub(crate) fn proves(
         contexts,
         requirement.machine,
         requirement.predicate(),
+        frames,
     )
 }
 
@@ -98,6 +100,7 @@ pub(super) fn check(
     state: &FlowStateFact,
     call: &FlowCallFact,
     contexts: &[FactContextHandle],
+    frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(target) = target_machine(program, call) else {
@@ -109,7 +112,7 @@ pub(super) fn check(
         .iter()
         .filter(|(_, row)| row.machine == target)
     {
-        if proves(program, facts, state, call, contexts, requirement) {
+        if proves(program, facts, state, call, contexts, requirement, frames) {
             continue;
         }
         let subject = actual_place(program, state, call, requirement)

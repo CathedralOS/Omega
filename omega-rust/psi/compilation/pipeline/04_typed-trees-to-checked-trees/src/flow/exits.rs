@@ -161,7 +161,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
     state_calls: &mut HandleSpan<FlowCallFact>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
-) {
+) -> super::expression::EvaluatedWritePrefix {
     let mut execution = super::expression::Execution::new(
         program,
         borrow,
@@ -249,4 +249,5 @@ pub(super) fn append_transition_flow_facts<'plans>(
         active_contexts,
         active_constraints,
     );
+    guard_writes
 }

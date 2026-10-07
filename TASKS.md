@@ -514,13 +514,11 @@ defines the complete product bar.
     and exact child observations; repeated syntax cannot establish membership.
     Keep `pass/calls/runtime_constructor_child_pure_calls_exit` at 0 in both
     engines without adding an ensures clause or a Terminal certificate.
-    Stored constructor values also need the completed RHS operand tree on
-    `FlowStatementFact`, shared by initialization, assignment and value-origin
-    transfer. `pending/calls/constructor_child_local_epochs_not_equal` still
-    falsely source-accepts on the published baseline: the structural-term
-    reader replays an immutable initializer and merges observations across a
-    write. Retain the original child epochs and retire that syntax replay;
-    an unchanged same-epoch pair must remain provably equal.
+    Keep stored snapshot controls
+    `pass/calls/runtime_stored_{constructor_snapshots,equal_observations}_exit`
+    at 0 in both engines and reject
+    `fail/calls/constructor_child_local_epochs_not_equal`: remaining composed
+    calls must preserve completed child observations, not replay initializers.
     The checked interpreter still declines explicit borrowing of an owned call
     result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`;
     exercise `pass/calls/runtime_temporary_lending_order_exit` (native exit 0)

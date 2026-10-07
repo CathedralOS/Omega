@@ -1,0 +1,34 @@
+data Captured [copy] { first: i32; replaced: bool; second: i32; }
+data Holder { amount: i32; }
+
+machine replace(holder: &mut Holder, replacement: i32) -> bool
+ensures holder.amount == replacement {
+    holder.amount = replacement;
+    true
+}
+
+machine observe(value: Captured, initial: i32, replacement: i32)
+requires value.first == initial, value.second == replacement
+crashes Trap {
+    transition value.replaced && value.first == initial && value.second == replacement {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise(initial: i32, replacement: i32) crashes Trap {
+    let mut holder: Holder = Holder { amount: initial };
+    let saved: Captured = Captured {
+        first: holder.amount,
+        replaced: replace(&mut holder, replacement),
+        second: holder.amount,
+    };
+    observe(saved, initial, replacement);
+    let mut assigned: Captured;
+    assigned = saved;
+    observe(assigned, initial, replacement);
+}
+
+machine main() crashes Trap { exercise(41, 9); }

@@ -46,6 +46,7 @@ pub(super) fn propagate_statement_transfers(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    statement_fact: arena::Handle<checked_trees::FlowStatementFact>,
     assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
@@ -77,6 +78,14 @@ pub(super) fn propagate_statement_transfers(
         write.target_place,
     );
     write.target_place = target_place;
+
+    if stable_value_target {
+        build
+            .control
+            .statements
+            .get_mut(statement_fact)
+            .stored_destination = target_place;
+    }
 
     if let Some(source) = source_place {
         let source = semantic.places.get(source);
@@ -236,13 +245,13 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target {
+        let stored_value = build.control.statements.get(statement_fact).stored_value;
         constructed::append_constructed_field_values(
             program,
             semantic,
             build,
             assignment_source_contexts,
-            statement,
-            source_expression,
+            stored_value,
             target_place,
             ProgramPoint::Statement {
                 machine_symbol,

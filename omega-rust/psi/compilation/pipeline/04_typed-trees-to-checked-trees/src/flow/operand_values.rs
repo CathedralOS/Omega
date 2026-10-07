@@ -3,8 +3,8 @@
 //! Each selected child keeps its own completion context and type: siblings may
 //! have copied the same source at different times, or may carry live loans.
 
-use checked_trees::{FlowControlFacts, FlowOperandFact};
-use facts::PlaceSegment;
+use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
+use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::{TypedTrees, types::TypeReferenceHandle};
 
 /// Contextual construction uses the bound destination declaration. A source
@@ -24,6 +24,11 @@ pub(super) fn operand_child_type(
 }
 
 pub(crate) struct CapturedValue<'capture> {
+    /// The actual storage observation and its live qualification namespace.
+    /// A reaching value origin cannot erase evidence attached to this copy.
+    pub observation: &'capture FlowOperandFact,
+    pub observation_type: TypeReferenceHandle,
+    pub observation_projection: super::LiteralValueProjection,
     pub operand: &'capture FlowOperandFact,
     pub type_reference: TypeReferenceHandle,
     pub projection: super::LiteralValueProjection,
@@ -33,30 +38,136 @@ pub(crate) struct CapturedValue<'capture> {
 /// each independently; combining their contexts would invent a capture epoch.
 pub(crate) fn captured_operand_values<'capture>(
     program: &TypedTrees,
-    control: &'capture FlowControlFacts,
+    flow: &'capture FlowFacts,
+    semantic: &FactPlan,
+    state: &FlowStateFact,
     operand: &'capture FlowOperandFact,
     type_reference: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Option<Vec<CapturedValue<'capture>>> {
-    super::literal_value_projections(program, operand.expression, type_reference, path, false)?
-        .into_iter()
-        .map(|projection| {
-            let (captured, selected_type) = captured_operand_at_path(
+    let control = &flow.control;
+    let mut values = Vec::new();
+    for projection in
+        super::literal_value_projections(program, operand.expression, type_reference, path, false)?
+    {
+        let (captured, selected_type) = captured_operand_at_path(
+            program,
+            control,
+            operand,
+            type_reference,
+            &projection.destination,
+        )?;
+        // The resolved constructor path and the retained evaluation must
+        // name the same authored occurrence, not just the same storage.
+        if captured.expression != projection.expression {
+            return None;
+        }
+        let value = CapturedValue {
+            observation: captured,
+            observation_type: selected_type,
+            observation_projection: projection.clone(),
+            operand: captured,
+            type_reference: selected_type,
+            projection,
+        };
+        if let Some(mut stored) = reaching_store_values(program, flow, semantic, state, &value) {
+            for origin in &mut stored {
+                origin.observation = value.observation;
+                origin.observation_type = value.observation_type;
+                origin.observation_projection = value.observation_projection.clone();
+            }
+            values.extend(stored);
+        } else {
+            values.push(value);
+        }
+    }
+    Some(values)
+}
+
+/// A stored copy retains the completed RHS, not a fresh interpretation of its
+/// initializer. Walk produced stores and writes backwards; each successful hop
+/// strictly decreases the statement frontier. Unknown writes stop provenance,
+/// leaving the current storage observation and its own contexts intact.
+fn reaching_store_values<'capture>(
+    program: &TypedTrees,
+    flow: &'capture FlowFacts,
+    semantic: &FactPlan,
+    state: &FlowStateFact,
+    value: &CapturedValue<'capture>,
+) -> Option<Vec<CapturedValue<'capture>>> {
+    let operand = value.operand;
+    if operand.state_symbol != state.state_symbol
+        || !super::operand_contexts::operand_binds_stable_copy(program, value.type_reference)
+    {
+        return None;
+    }
+    let mut source = super::canonical_place_from_expression_in_state(
+        program,
+        operand.state_symbol,
+        operand.statement_index,
+        value.projection.expression,
+    )?;
+    source.extend_segments(&value.projection.remaining);
+    if !matches!(source.root, PlaceRoot::Symbol(_))
+        || !super::operand_entry_origin_is_stable(program, flow, operand, &source)
+    {
+        return None;
+    }
+    for statement in flow
+        .control
+        .statements
+        .span(state.statements)?
+        .iter()
+        .rev()
+        .filter(|statement| statement.statement_index < operand.statement_index)
+    {
+        if semantic.places.is_valid(statement.stored_destination)
+            && flow.control.operands.is_valid(statement.stored_value)
+        {
+            let destination = super::canonical_place_from_semantic_place(
                 program,
-                control,
-                operand,
-                type_reference,
-                &projection.destination,
+                semantic,
+                semantic.places.get(statement.stored_destination),
             )?;
-            // The resolved constructor path and the retained evaluation must
-            // name the same authored occurrence, not just the same storage.
-            (captured.expression == projection.expression).then_some(CapturedValue {
-                operand: captured,
-                type_reference: selected_type,
-                projection,
-            })
-        })
-        .collect()
+            if destination.root == source.root
+                && destination.segments.len() <= source.segments.len()
+                && destination
+                    .segments
+                    .iter()
+                    .zip(&source.segments)
+                    .all(|(left, right)| {
+                        super::canonical_place_segments_equal(program, *left, *right)
+                    })
+            {
+                let stored = flow.control.operands.get(statement.stored_value);
+                let stored_type = stored.type_reference;
+                if !stored_type.is_valid()
+                    || !super::operand_contexts::operand_binds_stable_copy(program, stored_type)
+                {
+                    return None;
+                }
+                return captured_operand_values(
+                    program,
+                    flow,
+                    semantic,
+                    state,
+                    stored,
+                    stored_type,
+                    &source.segments[destination.segments.len()..],
+                );
+            }
+        }
+        if !super::entry_origin_is_stable(
+            program,
+            &flow.control,
+            statement.completed_writes,
+            statement.completed_unknown_write,
+            &source,
+        ) {
+            return None;
+        }
+    }
+    None
 }
 
 pub(crate) fn captured_operand_at_path<'capture>(

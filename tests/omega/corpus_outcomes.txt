@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 14.86, "load1_start": 2.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.16, "load1_start": 3.08, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -551,6 +551,8 @@ fail/calls/constructor_child_effectful_calls_not_equal rejected 271ms expected @
 	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).first == constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/constructor_child_inherited_epochs_not_equal rejected 262ms expected @8093eb34a6ed+wt
 	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `pair.first == pair.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/constructor_child_local_epochs_not_equal rejected 347ms expected @d1b87ec8b23e+wt
+	cannot prove requires contract for call observe from main: pair.first == pair.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/constructor_child_membership_precedes_repair rejected 237ms expected @cfbb6c8709b4+wt
 	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
 fail/calls/constructor_child_named_state_epochs_not_equal rejected 275ms expected @8093eb34a6ed+wt
@@ -587,8 +589,8 @@ fail/calls/immutable_arg_for_mut_param_rejected rejected 332ms expected @2d8ed25
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/calls/immutable_local_requires_argument_rejected rejected 297ms expected @2d8ed253669f
-	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
+fail/calls/immutable_local_requires_argument_rejected rejected 422ms expected @d1b87ec8b23e+wt
+	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/member_literal_requires_argument_rejected rejected 333ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `d != 0`: the instantiated fact is structurally false
 fail/calls/mutual_cycle_decrease_unproven rejected 131ms expected @c08960bee2b1+wt
@@ -2344,6 +2346,8 @@ pass/calls/runtime_static_proof_only_namespace_exit checked 11042ms check-target
 pass/calls/runtime_static_tail_local_custody_exit checked 1649ms check-target:macos_arm64 @c5d32a008630+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 2398ms check-target:macos_arm64 @c5d32a008630+wt
 pass/calls/runtime_std_math_sin_cos_exit checked 39961ms check-target:macos_arm64 @ca8c127c90c5
+pass/calls/runtime_stored_constructor_snapshots_exit checked 1560ms check-target:macos_arm64 @d1b87ec8b23e+wt
+pass/calls/runtime_stored_equal_observations_exit checked 1559ms check-target:macos_arm64 @d1b87ec8b23e+wt
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_temporary_lending_order_exit checked 1972ms check-target:macos_arm64 @a9ea4297a1a9
 pass/calls/runtime_terminal_requirement_projected_context_exit checked 619ms check-target:macos_arm64 @560687158d28

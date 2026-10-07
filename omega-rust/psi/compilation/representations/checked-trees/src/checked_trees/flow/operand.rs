@@ -14,7 +14,7 @@ pub struct FlowOperandReferent {
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
-/// Facts at completion of one authored invocation operand. Scalar copies and
+/// Facts at completion of one evaluated operand or stored value. Scalar copies and
 /// by-value carriers with stable observable contents keep this value's facts
 /// even if a later operand changes its former source storage — the bound
 /// operand is a detached copy. View carriers such as references and slices
@@ -24,6 +24,13 @@ pub struct FlowOperandReferent {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandFact {
     pub expression: ExpressionHandle,
+    /// The state and statement whose evaluation produced this observation.
+    /// Retained stores can outlive their statement-local write prefix.
+    pub state_symbol: symbols::SymbolHandle,
+    pub statement_index: usize,
+    /// Bound destination carrier for this evaluation, including a first
+    /// store whose local is not yet in the preceding statement's scope.
+    pub type_reference: typed_trees::types::TypeReferenceHandle,
     /// Constructed children, attached to this exact evaluation occurrence.
     /// Each child retains its own completion facts before later child effects.
     pub children: HandleSpan<FlowOperandChild>,

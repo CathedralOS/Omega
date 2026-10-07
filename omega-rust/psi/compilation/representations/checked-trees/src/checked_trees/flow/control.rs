@@ -143,6 +143,16 @@ pub struct RetiredFlowCall {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStatementFact {
     pub statement_index: usize,
+    /// Completed value before destination evaluation and storage. Zero for
+    /// statements without a stored value; children retain their own epochs.
+    pub stored_value: arena::Handle<super::FlowOperandFact>,
+    /// Exact established destination in the semantic place arena. Dynamic or
+    /// unresolved destinations cannot supply a reaching value capture.
+    pub stored_destination: facts::PlaceHandle,
+    /// Evaluation-order write prefix at statement completion, including its
+    /// final store. Transition rows retain only the fallthrough guard effects.
+    pub completed_writes: HandleSpan<super::FlowOperandReferent>,
+    pub completed_unknown_write: bool,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     /// Live facts after this statement's mutations and value transfers, before
     /// any subsequent statement or proof output can restore an invariant.

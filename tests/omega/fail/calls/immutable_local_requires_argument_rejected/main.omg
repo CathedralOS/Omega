@@ -1,7 +1,6 @@
-// An immutable local's provenance is its declared initial value: passing `d`
-// where `let d = 1 - 1` is the same as passing 0, so `divisor != 0` is
-// structurally false at this call. A mutable local cannot be folded this way
-// because its value at the call site is not its declaration.
+// A completed arithmetic value copied into a local remains zero. Its use
+// cannot satisfy a nonzero divisor requirement; initializer replay is not
+// needed to reject it. Declare host reach so it pins the contract failure.
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
@@ -10,7 +9,7 @@ machine Main::scale(value: u64, divisor: u64) -> u64
 {
     value / divisor
 }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches Console {
     let d: u64 = 1 - 1;
     let result: u64 = Main::scale(10, d);
     main.console.exit_process(0);

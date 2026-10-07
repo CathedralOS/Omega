@@ -18,15 +18,11 @@ pub(super) fn judgment(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     requirement: &Fact,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
     let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
         return None;
     };
-    if source_substitution_preserves_captures(program, facts, state, call, requirement)
-        == Some(true)
-    {
-        return None;
-    }
     let proven = (|| {
         let FactPayload::ContractBooleanExpression {
             fact: source_fact, ..
@@ -61,13 +57,26 @@ pub(super) fn judgment(
                 contract,
                 contract_call.target_state_symbol,
                 expression,
+                frames,
             ) {
                 return Some(false);
             }
         }
         Some(seen)
     })();
-    Some(proven.unwrap_or(false))
+    if proven == Some(true) {
+        return Some(true);
+    }
+    // Ordinary proof routes observe the authored actual, not its initializer.
+    // A retained value-origin proof may discharge the requirement first; a
+    // failed origin proof cannot weaken the original operand's epoch fence.
+    if source_substitution_preserves_captures(program, facts, state, call, requirement)
+        == Some(true)
+    {
+        None
+    } else {
+        Some(false)
+    }
 }
 
 /// Reuse the ordinary Boolean evaluator with evidence-owned atoms. Scalar
@@ -83,6 +92,7 @@ fn captured_contract_proven(
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let prove_scalar = |expression| {
         let predicate = bound_contract_predicate(program, facts, contract, target, expression)?;
@@ -93,6 +103,7 @@ fn captured_contract_proven(
             call,
             contexts,
             &predicate,
+            frames,
             &|observation| {
                 actual_for_formal_place(
                     program,
@@ -319,9 +330,9 @@ fn source_substitution_preserves_captures(
                 facts,
                 state,
                 call,
-                value.operand,
-                value.type_reference,
-                &value.projection.remaining,
+                value.observation,
+                value.observation_type,
+                &value.observation_projection.remaining,
                 invocation?,
             )? {
                 return Some(false);
@@ -332,8 +343,8 @@ fn source_substitution_preserves_captures(
 }
 
 /// Whole constructed observations cover their already-evaluated children.
-/// Stored aggregate observations retain the single existing storage capture;
-/// this never follows an initializer to manufacture child epochs.
+/// Stored observations select their already-produced RHS captures; no
+/// initializer evaluation can manufacture a replacement epoch.
 fn capture_preserves_source(
     program: &TypedTrees,
     facts: &CheckFacts,

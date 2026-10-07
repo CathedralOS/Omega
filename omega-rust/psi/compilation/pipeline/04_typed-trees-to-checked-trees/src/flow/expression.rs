@@ -7,6 +7,8 @@
 //! have been scheduled. Otherwise flow retains calls that computation folding
 //! skips, breaking their exact occurrence correspondence. Runtime storage facts
 //! remain tied to the existing live contexts, never a second operand evaluation.
+//! Stores bind their destination carrier before evaluating children and retain
+//! that completed tree; later transfers must not reconstruct it from syntax.
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
@@ -15,7 +17,7 @@ use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
 use crate::semantic::calls::CallSite;
-use arena::HandleSpan;
+use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{
@@ -92,7 +94,7 @@ pub(super) fn append_statement_calls<'plans>(
     state_calls: &mut HandleSpan<FlowCallFact>,
     contexts: &mut HandleSpan<FlowSemanticContextRef>,
     constraints: &mut HandleSpan<FlowConstraintRef>,
-) {
+) -> (Handle<checked_trees::FlowOperandFact>, EvaluatedWritePrefix) {
     let mut execution = Execution::new(
         program,
         borrow,
@@ -108,9 +110,23 @@ pub(super) fn append_statement_calls<'plans>(
         contexts,
         constraints,
     );
+    let mut stored_value = Handle::invalid();
     match statement {
         StatementNode::Assignment(assignment) => {
-            execution.expression(assignment.value, contexts, constraints);
+            let destination = super::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                assignment.target,
+            )
+            .unwrap_or_default();
+            let evaluated = execution.evaluated_operand_as(
+                assignment.value,
+                destination,
+                contexts,
+                constraints,
+            );
+            stored_value = execution.context.control.operands.append(evaluated.capture);
             // Assignment evaluates its value before resolving the destination.
             // Schedule target children without treating the target as a read.
             execution.evaluate_expression(
@@ -122,7 +138,13 @@ pub(super) fn append_statement_calls<'plans>(
             );
         }
         StatementNode::LocalData(local) => {
-            execution.expression(local.initial_value, contexts, constraints);
+            let evaluated = execution.evaluated_operand_as(
+                local.initial_value,
+                local.type_reference,
+                contexts,
+                constraints,
+            );
+            stored_value = execution.context.control.operands.append(evaluated.capture);
         }
         StatementNode::Expression(expression) => {
             execution.expression(*expression, contexts, constraints);
@@ -153,6 +175,7 @@ pub(super) fn append_statement_calls<'plans>(
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
+    (stored_value, execution.write_prefix())
 }
 
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
@@ -399,6 +422,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.expression_result(expression, destination, contexts, constraints);
         let mut capture = self.capture_operand(expression, first_write, *contexts, *constraints);
         capture.children = children;
+        capture.type_reference = destination;
         if destination.is_valid() && self.is_view_type(destination) {
             capture.referents = self.reference_operand_referents(expression);
         }
@@ -454,6 +478,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         checked_trees::FlowOperandFact {
             expression,
+            state_symbol: self.state.symbol,
+            statement_index: self.statement_index,
+            type_reference: TypeReferenceHandle::invalid(),
             children: HandleSpan::empty(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,

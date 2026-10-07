@@ -37,6 +37,7 @@ pub(crate) fn literal_argument_access_places(
     .collect()
 }
 
+#[derive(Clone)]
 pub(crate) struct LiteralValueProjection {
     pub expression: ExpressionHandle,
     pub remaining: Vec<facts::PlaceSegment>,

@@ -236,7 +236,11 @@ pub(crate) fn build_check_facts(
             &mut prepared.flow,
         )?;
         crate::checks::prepare_permission_events(program, &mut prepared)?;
-        if !contextual_cleanup::infer_entry_requirements(program, &mut prepared)? {
+        if !contextual_cleanup::infer_entry_requirements(
+            program,
+            &mut prepared,
+            call_frames.as_ref(),
+        )? {
             break;
         }
     }

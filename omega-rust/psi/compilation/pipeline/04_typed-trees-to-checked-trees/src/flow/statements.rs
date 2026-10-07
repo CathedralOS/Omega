@@ -69,6 +69,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         );
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
+            stored_value: Handle::invalid(),
+            stored_destination: Handle::invalid(),
+            completed_writes: HandleSpan::empty(),
+            completed_unknown_write: false,
             entry_semantic_contexts: *active_contexts,
             exit_semantic_contexts: HandleSpan::empty(),
             entry_constraints: *active_constraints,
@@ -119,7 +123,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             {
                 call_index += 1;
             }
-            super::exits::append_transition_flow_facts(
+            let writes = super::exits::append_transition_flow_facts(
                 program,
                 borrow,
                 proof,
@@ -135,6 +139,9 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_contexts,
                 active_constraints,
             );
+            let retained = build.control.statements.get_mut(statement_fact);
+            retained.completed_writes = writes.writes;
+            retained.completed_unknown_write = writes.unknown;
             fallthrough_contexts = *active_contexts;
             fallthrough_constraints = *active_constraints;
         }
@@ -146,7 +153,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             {
                 call_index += 1;
             }
-            super::expression::append_statement_calls(
+            let (stored_value, writes) = super::expression::append_statement_calls(
                 program,
                 borrow,
                 proof,
@@ -162,6 +169,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_contexts,
                 active_constraints,
             );
+            let retained = build.control.statements.get_mut(statement_fact);
+            retained.stored_value = stored_value;
+            retained.completed_writes = writes.writes;
+            retained.completed_unknown_write = writes.unknown;
         }
 
         // Assignment evaluates its RHS under the entry loans above, then
@@ -221,6 +232,37 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             statement,
         );
+        if let Some(writes) = &storage_writes {
+            let mut completed = build
+                .control
+                .statements
+                .get(statement_fact)
+                .completed_writes;
+            for place in writes.iter() {
+                let segments = build
+                    .control
+                    .operand_referent_segments
+                    .insert_many(place.segments.iter().copied());
+                build.control.operand_origin_writes.append_to_span(
+                    &mut completed,
+                    checked_trees::FlowOperandReferent {
+                        root: place.root,
+                        segments,
+                    },
+                );
+            }
+            build
+                .control
+                .statements
+                .get_mut(statement_fact)
+                .completed_writes = completed;
+        } else {
+            build
+                .control
+                .statements
+                .get_mut(statement_fact)
+                .completed_unknown_write = true;
+        }
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
             *active_constraints = project_constraint_refs_to_active_contexts(
@@ -319,6 +361,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             state.symbol,
             statement_index,
             statement,
+            statement_fact,
             assignment_source_contexts,
             active_contexts,
             active_constraints,

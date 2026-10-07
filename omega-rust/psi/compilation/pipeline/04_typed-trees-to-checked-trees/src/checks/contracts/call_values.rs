@@ -24,7 +24,6 @@ pub(crate) fn target_machine(program: &TypedTrees, call: &FlowCallFact) -> Optio
 pub(crate) struct Actual<'program> {
     pub(crate) parameter: &'program StateParameter,
     pub(crate) argument: Option<ExpressionHandle>,
-    pub(crate) place: CanonicalPlace,
     pub(crate) path: Vec<facts::PlaceSegment>,
     pub(crate) operand_position: usize,
 }
@@ -54,26 +53,9 @@ pub(crate) fn actual_at<'program>(
         let ordinal = parameters[..position].iter().count();
         Some(*crate::semantic::calls::call_site_argument_expressions(program, &site).get(ordinal)?)
     };
-    let place = if let Some(argument) = argument {
-        crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.state_symbol,
-            call.statement_index,
-            argument,
-        )?
-    } else {
-        crate::flow::canonical_receiver_place_for_call_site(
-            program,
-            state.machine_symbol,
-            state.state_symbol,
-            &site,
-            call.statement_index,
-        )?
-    };
     Some(Actual {
         parameter,
         argument,
-        place,
         path,
         operand_position,
     })
@@ -98,30 +80,6 @@ pub(crate) fn observation_actual<'program>(
         position,
         observation.place.segments.clone(),
     )
-}
-
-pub(crate) fn projected_expression(
-    program: &TypedTrees,
-    actual: &Actual<'_>,
-) -> Option<ExpressionHandle> {
-    let expression = actual.argument?;
-    if actual.path.is_empty() {
-        return Some(expression);
-    }
-    let projections = crate::flow::literal_value_projections(
-        program,
-        expression,
-        actual.parameter.type_reference,
-        &actual.path,
-        false,
-    )?;
-    let [projection] = projections.as_slice() else {
-        return None;
-    };
-    projection
-        .remaining
-        .is_empty()
-        .then_some(projection.expression)
 }
 
 fn captured_operand<'facts>(
@@ -170,7 +128,9 @@ pub(crate) fn captured_values<'facts>(
     let operand = captured_operand(program, facts, state, call, actual)?;
     crate::flow::captured_operand_values(
         program,
-        &facts.flow.control,
+        &facts.flow,
+        &facts.semantic,
+        state,
         operand,
         actual.parameter.type_reference,
         &actual.path,
@@ -189,16 +149,6 @@ fn captured_value<'facts>(
         return None;
     }
     values.pop()
-}
-
-pub(crate) fn captured_actual<'facts>(
-    program: &TypedTrees,
-    facts: &'facts CheckFacts,
-    state: &FlowStateFact,
-    call: &FlowCallFact,
-    actual: &Actual<'_>,
-) -> Option<&'facts checked_trees::FlowOperandFact> {
-    Some(captured_value(program, facts, state, call, actual)?.operand)
 }
 
 /// Select the evidence epoch of a declared membership's exact formal. A
@@ -319,8 +269,8 @@ pub(crate) fn actual_contexts(
         program,
         &facts.flow,
         &facts.semantic,
-        captured.operand,
-        captured.type_reference,
+        captured.observation,
+        captured.observation_type,
         call.entry_constraints,
     )
 }
@@ -332,7 +282,7 @@ fn current_actual(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    actual: &Actual<'_>,
+    captured: &crate::flow::CapturedValue<'_>,
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
     bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
@@ -342,7 +292,8 @@ fn current_actual(
         state.machine_symbol,
         state.state_symbol,
     )?;
-    if let Some(expression) = projected_expression(program, actual) {
+    let expression = captured.projection.expression;
+    if captured.projection.remaining.is_empty() {
         if !validation::has_builtin_bound_expression_meaning(
             program,
             machine,
@@ -355,7 +306,7 @@ fn current_actual(
             program,
             &facts.operators,
             body,
-            call.statement_index,
+            captured.operand.statement_index,
             expression,
             primitive,
             |place, primitive| {
@@ -378,20 +329,13 @@ fn current_actual(
     // membership facts. Binding the constructor's destination here would lose
     // equality between child captures of one local field. The caller checks
     // capture epochs before joining these exact source places.
-    let place = if let Some(argument) = actual.argument {
-        crate::semantic::facts::projected_argument_place(
-            program,
-            state.state_symbol,
-            call.statement_index,
-            argument,
-            actual.parameter.type_reference,
-            &actual.path,
-        )?
-    } else {
-        let mut place = actual.place.clone();
-        place.segments.extend_from_slice(&actual.path);
-        place
-    };
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        captured.operand.state_symbol,
+        captured.operand.statement_index,
+        expression,
+    )?;
+    place.extend_segments(&captured.projection.remaining);
     bind_current(
         program, facts, state, call, place, primitive, contexts, bindings,
     )
@@ -492,6 +436,7 @@ pub(crate) fn proves_entry_predicate(
     contexts: &[FactContextHandle],
     target: SymbolHandle,
     expression: CheckedBooleanExpression,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(predicate) = crate::facts::boolean_predicates::bind_entry(program, target, expression)
     else {
@@ -507,6 +452,7 @@ pub(crate) fn proves_entry_predicate(
         call,
         contexts,
         &predicate,
+        frames,
         &|observation| observation_actual(program, state, call, observation),
     )
 }
@@ -521,6 +467,7 @@ pub(crate) fn proves_bound_predicate<'program>(
     call: &FlowCallFact,
     contexts: &[FactContextHandle],
     predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    frames: Option<&validation::CallFrameResolver<'_>>,
     actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
 ) -> bool {
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
@@ -559,7 +506,7 @@ pub(crate) fn proves_bound_predicate<'program>(
             facts,
             state,
             call,
-            &actual,
+            &captured,
             operand.primitive_type()?,
             &operand_contexts,
             &mut current.bindings,
@@ -590,8 +537,21 @@ pub(crate) fn proves_bound_predicate<'program>(
         return false;
     }
     let selected_contexts = selected_contexts.unwrap_or_else(|| contexts.to_vec());
-    let retained =
+    let mut retained =
         crate::facts::boolean_predicates::retained(program, &facts.semantic, &selected_contexts);
+    // Selected captures can retain a normal guarantee after its former
+    // storage changes. Availability joins its exact declaration and invocation
+    // against these retained contexts; do not reread the caller's final facts.
+    if let Some(frames) = frames {
+        retained.extend(super::prover::call_guarantees::current_predicates(
+            program,
+            facts,
+            state,
+            call.statement_index + 1,
+            &selected_contexts,
+            frames,
+        ));
+    }
     crate::facts::boolean_predicates::proves(&retained, &current, |place| {
         scalar_at(program, facts, &selected_contexts, place)
     })
@@ -619,35 +579,36 @@ pub(crate) fn entry_predicate(
             .find(|binding| binding.operand == *operand)?;
         let actual = observation_actual(program, state, call, observation)?;
         let primitive = operand.primitive_type()?;
-        let capture = captured_actual(program, facts, state, call, &actual)?;
+        let captured = captured_value(program, facts, state, call, &actual)?;
+        let capture = captured.operand;
         let (machine, body) = crate::lookup::symbols::machine_state_by_symbol(
             program,
             state.machine_symbol,
             state.state_symbol,
         )?;
-        if let Some(expression) = projected_expression(program, &actual)
+        if captured.projection.remaining.is_empty()
             && let Some(value) = crate::values::lower_entry_scalar_with_subjects(
                 program,
                 &facts.operators,
                 machine,
                 body,
-                call.statement_index,
-                expression,
+                capture.statement_index,
+                captured.projection.expression,
                 primitive,
                 &|place| {
                     crate::flow::operand_entry_origin_is_stable(
                         program,
                         &facts.flow,
                         capture,
-                        &place,
+                        place,
                     )
                     .then_some(())?;
                     crate::facts::entry_parameter_place_before_statement(
                         program,
                         state.machine_symbol,
                         state.state_symbol,
-                        call.statement_index,
-                        &place,
+                        capture.statement_index,
+                        place,
                     )
                 },
             )
@@ -655,15 +616,20 @@ pub(crate) fn entry_predicate(
             *operand = value;
             return Some(());
         }
-        let mut place = actual.place;
-        place.segments.extend(actual.path);
+        let mut place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            capture.state_symbol,
+            capture.statement_index,
+            captured.projection.expression,
+        )?;
+        place.extend_segments(&captured.projection.remaining);
         crate::flow::operand_entry_origin_is_stable(program, &facts.flow, capture, &place)
             .then_some(())?;
         let (position, path) = crate::facts::entry_parameter_place_before_statement(
             program,
             state.machine_symbol,
             state.state_symbol,
-            call.statement_index,
+            capture.statement_index,
             &place,
         )?;
         *operand = crate::facts::boolean_predicates::entry_scalar(

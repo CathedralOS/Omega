@@ -735,6 +735,7 @@ impl<'a> Admission<'a> {
                 &contexts,
                 invocation.target.symbol,
                 predicate.clone(),
+                Some(self.frames),
             ) {
                 predicate = Boolean::Constant(true);
                 break;

@@ -1,16 +1,15 @@
 //! Constructor fields retain value evidence at the new storage coordinate.
-//! Only current literal values or live predicate facts transfer; declarations
-//! alone do not establish the contents of a newly constructed field.
+//! Owned children transfer their completed observations, not the constructor's
+//! final context after later children have written their sources. Live views
+//! retain store-time evidence instead. Declarations establish neither value.
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
-use crate::flow::expression_type_reference_in_state;
 use crate::flow::literal_value_projections;
 use crate::flow::transfers::contextual_expression_place;
 use crate::flow::transfers::projected;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowSemanticContextRef};
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
@@ -19,18 +18,20 @@ use facts::{
 pub(super) fn append_constructed_field_values(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    contexts: &FlowBuildContext,
+    contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
-    statement: &StatementNode,
-    expression: ExpressionHandle,
+    stored_value: arena::Handle<FlowOperandFact>,
     destination: PlaceHandle,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
-    ) {
+    if !contexts.control.operands.is_valid(stored_value) {
+        return;
+    }
+    let capture = *contexts.control.operands.get(stored_value);
+    if capture.children.is_empty() {
+        // Whole stored values already use ordinary context transport. Only
+        // separately evaluated children need distinct completion contexts.
         return;
     }
     let ProgramPoint::Statement {
@@ -41,19 +42,10 @@ pub(super) fn append_constructed_field_values(
     else {
         return;
     };
-    let reference = match statement {
-        StatementNode::LocalData(local) => Some(local.type_reference),
-        StatementNode::Assignment(assignment) => expression_type_reference_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            assignment.target,
-        ),
-        _ => None,
-    };
-    let Some(mut reference) = reference else {
+    let mut reference = capture.type_reference;
+    if !reference.is_valid() {
         return;
-    };
+    }
     loop {
         match program.type_reference_table.type_reference(reference) {
             typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
@@ -65,11 +57,11 @@ pub(super) fn append_constructed_field_values(
             _ => break,
         }
     }
-    let Some(projections) = literal_value_projections(program, expression, reference, &[], true)
+    let Some(projections) =
+        literal_value_projections(program, capture.expression, reference, &[], true)
     else {
         return;
     };
-    let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
     let destination_root = *semantic.places.get(destination);
     let destination_segments = semantic
         .place_segments
@@ -79,6 +71,39 @@ pub(super) fn append_constructed_field_values(
         if !projection.remaining.is_empty() {
             continue;
         }
+        let Some((child, child_type)) = crate::flow::operand_values::captured_operand_at_path(
+            program,
+            &contexts.control,
+            &capture,
+            reference,
+            &projection.destination,
+        ) else {
+            continue;
+        };
+        if child.expression != projection.expression {
+            continue;
+        }
+        let active = if crate::flow::operand_binds_live_view(program, child_type) {
+            active
+        } else {
+            let captured_contexts = contexts
+                .contexts
+                .constraint_refs
+                .span_or_empty(child.constraints)
+                .iter()
+                .filter_map(|reference| match reference.kind {
+                    FlowConstraintKind::SemanticContext { context } => {
+                        Some(FlowSemanticContextRef { context })
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            contexts
+                .contexts
+                .semantic_context_refs
+                .insert_many(captured_contexts)
+        };
+        let active_facts = crate::flow::active_context_facts(contexts, semantic, active);
         let place = semantic.append_place(facts::Place {
             root: destination_root.root,
             segments: HandleSpan::empty(),

@@ -67,6 +67,7 @@ pub(super) fn check_call_requires(
         state_flow,
         call_flow,
         &entry_contexts,
+        call_frames,
         diagnostics,
     );
     super::nominal_inputs::check(
@@ -96,6 +97,7 @@ pub(super) fn check_call_requires(
                 call_flow,
                 requirement_contexts,
                 fact,
+                call_frames,
             );
             let satisfied = captured_judgment.unwrap_or_else(|| match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {

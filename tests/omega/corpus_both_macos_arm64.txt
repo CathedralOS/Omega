@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 14.86, "load1_start": 14.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 2.98, "load1_start": 2.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -108,6 +108,10 @@ pass/calls/runtime_computed_case_terminal_payload_result_exit built 1318ms exit:
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 4619ms exit:0 interpreter-exit:0 interpreter:agrees @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
 pass/calls/runtime_constructed_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
+pass/calls/runtime_constructor_child_equal_captures_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
+pass/calls/runtime_constructor_child_inherited_captures_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
+pass/calls/runtime_constructor_child_membership_snapshot_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
+pass/calls/runtime_constructor_child_named_state_captures_exit built 1621ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_constructor_child_pure_calls_exit built 1597ms exit:0 interpreter-exit:0 interpreter:agrees @84e17b0cc1bf+wt
 pass/calls/runtime_constructor_projected_membership_snapshot_exit built 3896ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 3758ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
@@ -132,6 +136,7 @@ pass/calls/runtime_local_case_terminal_payload_result_exit built 875ms exit:0 in
 pass/calls/runtime_mutable_call_before_transition_args_exit built 1805ms exit:70 interpreter-exit:70 interpreter:agrees @65bf3438e399+wt
 pass/calls/runtime_nested_case_argument_exit built 4465ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @3daca3fd87c2
+pass/calls/runtime_nested_constructor_child_snapshots_exit built 1617ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_nested_value_call_guard_exit built 3472ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/calls/runtime_numeric_operand_order_exit built 4790ms exit:0 interpreter-exit:0 interpreter:agrees @8c190f8c0e66+wt
 pass/calls/runtime_numeric_operand_single_evaluation_exit built 4606ms exit:0 interpreter-exit:0 interpreter:agrees @8c190f8c0e66+wt
@@ -142,6 +147,8 @@ pass/calls/runtime_selected_reference_field_result_exit built 3405ms exit:0 inte
 pass/calls/runtime_selected_trivial_local_cleanup_exit built 3656ms exit:0 interpreter-exit:0 interpreter:agrees @16bba2bbc2d5+wt
 pass/calls/runtime_state_reference_field_result_exit built 4327ms exit:0 interpreter-exit:0 interpreter:agrees @28b8fce37cfd+wt
 pass/calls/runtime_static_entry_context_exit built 1440ms exit:0 interpreter-exit:0 interpreter:agrees @2424b17e715c
+pass/calls/runtime_stored_constructor_snapshots_exit built 1611ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
+pass/calls/runtime_stored_equal_observations_exit built 1476ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:0 interpreter-exit:0 interpreter:agrees @560687158d28
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
