@@ -17,9 +17,13 @@ use typed_trees::types::{
     TypeReferenceNode,
 };
 
-pub fn scalar_type_tags(
+/// `reference`'s constrained-type domain constraints satisfying `admits`,
+/// peeling `Constrained` bases until the reference stops rewrapping (with a
+/// `seen` guard against a cyclic spelling).
+fn constrained_scalar_domains(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
+    admits: impl Fn(&TypedTrees, &typed_trees::types::DomainConstraint, PrimitiveType) -> bool,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(primitive) = program.primitive_type_reference(reference) else {
         return Vec::new();
@@ -37,17 +41,7 @@ pub fn scalar_type_tags(
         };
         for constraint in program.type_reference_table.constraints(*constraints) {
             if let TypeConstraintNode::Domain(domain) = constraint
-                && domain.subject == DomainConstraintSubject::Declared
-                && program.domain_definitions().iter().any(|declaration| {
-                    declaration.symbol == domain.symbol
-                        && exact_instance(
-                            program,
-                            declaration,
-                            &domain.arguments,
-                            domain.semantic_id,
-                        )
-                        && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
-                })
+                && admits(program, domain, primitive)
                 && !domains.contains(&(domain.symbol, domain.semantic_id))
             {
                 domains.push((domain.symbol, domain.semantic_id));
@@ -56,6 +50,25 @@ pub fn scalar_type_tags(
         reference = *base_type;
     }
     domains
+}
+
+pub fn scalar_type_tags(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    constrained_scalar_domains(program, reference, |program, domain, primitive| {
+        domain.subject == DomainConstraintSubject::Declared
+            && program.domain_definitions().iter().any(|declaration| {
+                declaration.symbol == domain.symbol
+                    && exact_instance(
+                        program,
+                        declaration,
+                        &domain.arguments,
+                        domain.semantic_id,
+                    )
+                    && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
+            })
+    })
 }
 
 pub fn scalar_state_contracts_are_qualifications(
@@ -128,35 +141,13 @@ pub fn scalar_state_contracts_are_qualifications(
 /// completely, so its restating `requires` row is carried by that range.
 pub fn scalar_interval_domains(
     program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
-    let Some(primitive) = program.primitive_type_reference(reference) else {
-        return Vec::new();
-    };
-    let mut domains = Vec::new();
-    let mut seen = Vec::new();
-    while !seen.contains(&reference) {
-        seen.push(reference);
-        let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        else {
-            break;
-        };
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            if let TypeConstraintNode::Domain(domain) = constraint
-                && crate::exact_declared_domain_carrier_interval(program, primitive, domain)
-                    .filter(|(minimum, maximum)| minimum <= maximum)
-                    .is_some()
-                && !domains.contains(&(domain.symbol, domain.semantic_id))
-            {
-                domains.push((domain.symbol, domain.semantic_id));
-            }
-        }
-        reference = *base_type;
-    }
-    domains
+    constrained_scalar_domains(program, reference, |program, domain, primitive| {
+        crate::exact_declared_domain_carrier_interval(program, primitive, domain)
+            .filter(|(minimum, maximum)| minimum <= maximum)
+            .is_some()
+    })
 }
 
 fn vacuous_scalar_tag(
