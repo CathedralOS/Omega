@@ -150,22 +150,29 @@ fn case_membership_test(
     )
 }
 
+fn domain_definition<'p>(
+    program: &'p resolved::SymbolResolvedTrees,
+    domain_symbol: symbols::SymbolHandle,
+) -> Result<&'p resolved::domain::DomainDefinition, Diagnostic> {
+    program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "cannot lower executable membership for unknown domain symbol {}",
+                domain_symbol.arena_index()
+            ))
+        })
+}
+
 pub(super) fn lower_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_symbol: symbols::SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    let Some(domain_definition) = program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
-        return Err(Diagnostic::error(format!(
-            "cannot lower executable membership for unknown domain symbol {}",
-            domain_symbol.arena_index()
-        )));
-    };
+    let domain_definition = domain_definition(program, domain_symbol)?;
     let expanded = crate::type_reference::domain_aliases::expand_domain_reference(
         program,
         domain_symbol,
@@ -189,16 +196,7 @@ fn lower_atomic_domain_membership_expression(
     value: typed::expression::ExpressionHandle,
     domain_symbol: symbols::SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    let Some(domain_definition) = program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
-        return Err(Diagnostic::error(format!(
-            "cannot lower executable membership for unknown domain symbol {}",
-            domain_symbol.arena_index()
-        )));
-    };
+    let domain_definition = domain_definition(program, domain_symbol)?;
     let source = &program.tables.bodies.expressions;
     let mut lowered_facts = Vec::new();
 
