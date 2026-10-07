@@ -180,48 +180,21 @@ pub(super) fn lower(
             }
         }
         OperationKind::EstablishZeroedStructural { .. } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                });
-            };
+            let result = structural_result(operation, machine, block)?;
             AbstractOperation::EstablishZeroedStructural {
                 psi_operation: operation.id,
                 result,
             }
         }
         OperationKind::EstablishStructuralLocal { .. } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                });
-            };
+            let result = structural_result(operation, machine, block)?;
             AbstractOperation::EstablishStructuralLocal {
                 psi_operation: operation.id,
                 result,
             }
         }
         OperationKind::EstablishRecord { fields } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                });
-            };
+            let result = structural_result(operation, machine, block)?;
             AbstractOperation::EstablishRecord {
                 psi_operation: operation.id,
                 result,
@@ -229,5 +202,24 @@ pub(super) fn lower(
             }
         }
         _ => unreachable!("structural-establishment router is exhaustive"),
+    })
+}
+
+/// The operation's structural result, cloned, or the unsupported-return
+/// error naming the machine's first outgoing edge.
+fn structural_result(
+    operation: &Operation,
+    machine: &TerminalMachine,
+    block: &Block,
+) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
+    operation.result.structural().cloned().ok_or_else(|| {
+        LoweringError::UnsupportedStructuralReturn {
+            machine: machine.id,
+            edge: block
+                .terminator
+                .edges()
+                .next()
+                .expect("every terminator carries an edge"),
+        }
     })
 }
