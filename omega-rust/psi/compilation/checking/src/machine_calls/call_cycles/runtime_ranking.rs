@@ -220,23 +220,7 @@ pub(super) fn project_component(
         .map(|(position, index)| {
             let machine = &program.machines()[*index];
             let rank = &ranks[position];
-            let preferred = match &rank.order {
-                RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
-                    .into_iter()
-                    .filter(|symbol| symbol.is_valid())
-                    .collect::<Vec<_>>(),
-                // A bare slice slot prefers no role; a member-chain slice
-                // subject is read off the record formal carrying it, so that
-                // formal is the preferred carrier.
-                RankOrder::SliceLength => [rank.record_subject]
-                    .into_iter()
-                    .filter(|symbol| symbol.is_valid())
-                    .collect(),
-                _ => [rank.parameter]
-                    .into_iter()
-                    .filter(|symbol| symbol.is_valid())
-                    .collect(),
-            };
+            let preferred = rank_preferred_carriers(&rank);
             let record_subject = rank.record_subject;
             let required = if rank.range.is_valid() {
                 rank.measure.and_then(|measure| {
@@ -742,20 +726,7 @@ pub(crate) fn ranged_member_site_invariant(
     }
     // The preferred carriers mirror `check_component`: the formals the
     // produced rank reads for this measure's order.
-    let preferred = match &rank.order {
-        RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect::<Vec<_>>(),
-        RankOrder::SliceLength => [rank.record_subject]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect(),
-        _ => [rank.parameter]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect(),
-    };
+    let preferred = rank_preferred_carriers(&rank);
     let discover = |premises| {
         let required =
             ranking_range_required_symbols(program, machine, rank.range, measure, premises)?;
@@ -807,6 +778,29 @@ impl CarrierBound {
 /// recorded role. A premise carrier -- endpoints, requires inputs,
 /// constrained copies -- must denote the role exactly; a subject carrier may
 /// additionally arrive through the direction that order decreases.
+/// The preferred carriers for a rank's order — the formals a produced rank
+/// reads for this measure (parameter pair for a bounded distance, the
+/// record formal for a member-chain slice, the lone parameter otherwise).
+fn rank_preferred_carriers(rank: &RankProjection) -> Vec<SymbolHandle> {
+    match &rank.order {
+        RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect::<Vec<_>>(),
+        // A bare slice slot prefers no role; a member-chain slice subject
+        // is read off the record formal carrying it, so that formal is the
+        // preferred carrier.
+        RankOrder::SliceLength => [rank.record_subject]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect(),
+        _ => [rank.parameter]
+            .into_iter()
+            .filter(|symbol| symbol.is_valid())
+            .collect(),
+    }
+}
+
 fn bound_allows(rank: &RankProjection, role: SymbolHandle, bound: CarrierBound) -> bool {
     match bound {
         CarrierBound::Equal => true,
