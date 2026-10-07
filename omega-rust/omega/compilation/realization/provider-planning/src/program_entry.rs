@@ -236,17 +236,7 @@ fn validate_program_entry_source_compatibility(
     // hands in. Keeping it out of `visible` lets the slot's arrival-shape
     // checks count only real arrival parameters; the row itself still answers
     // native input admission and fails closed there while no bridge lends it.
-    let visible = parameters
-        .iter()
-        .filter(|parameter| {
-            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
-        })
-        .filter(|parameter| {
-            typed
-                .placed_view_plan_for_input_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .collect::<Vec<_>>();
+    let visible = visible_entry_parameters(typed, parameters, &context);
     match slot.visible_parameters {
         target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
@@ -437,17 +427,7 @@ pub fn validate_selected_program_entry_shape(
     // Same exclusion as source compatibility: placed-view inputs are custody
     // rows, not arrival parameters, so they never occupy the signature's
     // visible-parameter roles.
-    let visible = parameters
-        .iter()
-        .filter(|parameter| {
-            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
-        })
-        .filter(|parameter| {
-            typed
-                .placed_view_plan_for_input_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .collect::<Vec<_>>();
+    let visible = visible_entry_parameters(typed, parameters, &context);
     let receiver = context.as_ref().map_or(
         program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         |context| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
@@ -1215,4 +1195,25 @@ fn arrival_requirement_contract(
             .is_valid()
             .then(|| typed.normalized_type_identity(signature.return_type)),
     })
+}
+
+/// The entry's arrival-visible parameters: the roster minus the provisioned
+/// context parameter and any placed-view custody rows, which lend custody
+/// rather than arrive as parameters.
+fn visible_entry_parameters<'program>(
+    typed: &TypedTrees,
+    parameters: &'program [typed_trees::signature::StateParameter],
+    context: &Option<ProvisionedEntryContext<'program>>,
+) -> Vec<&'program typed_trees::signature::StateParameter> {
+    parameters
+        .iter()
+        .filter(|parameter| {
+            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
+        })
+        .filter(|parameter| {
+            typed
+                .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                .is_none()
+        })
+        .collect::<Vec<_>>()
 }
