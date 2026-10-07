@@ -23,51 +23,36 @@ pub(super) struct SuccessorArguments {
     proof: Vec<CheckedProofTerm>,
 }
 
-pub(super) fn iter(
-    terminator: &CheckedScalarStateTerminator,
-) -> impl Iterator<Item = &CheckedScalarSuccessor> {
-    fn branch(destination: &CheckedScalarBranchDestination) -> Option<&CheckedScalarSuccessor> {
-        match destination {
-            CheckedScalarBranchDestination::Jump(successor) => Some(successor),
-            _ => None,
+macro_rules! successors_iter {
+    ($name:ident, $vis:vis, $($mut:tt)*) => {
+        $vis fn $name(
+            terminator: &$($mut)* CheckedScalarStateTerminator,
+        ) -> impl Iterator<Item = &$($mut)* CheckedScalarSuccessor> {
+            fn branch(
+                destination: &$($mut)* CheckedScalarBranchDestination,
+            ) -> Option<&$($mut)* CheckedScalarSuccessor> {
+                match destination {
+                    CheckedScalarBranchDestination::Jump(successor) => Some(successor),
+                    _ => None,
+                }
+            }
+            match terminator {
+                CheckedScalarStateTerminator::Jump(successor) => [Some(successor), None],
+                CheckedScalarStateTerminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => [branch(when_true), branch(when_false)],
+                _ => [None, None],
+            }
+            .into_iter()
+            .flatten()
         }
-    }
-    match terminator {
-        CheckedScalarStateTerminator::Jump(successor) => [Some(successor), None],
-        CheckedScalarStateTerminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [branch(when_true), branch(when_false)],
-        _ => [None, None],
-    }
-    .into_iter()
-    .flatten()
+    };
 }
 
-fn iter_mut(
-    terminator: &mut CheckedScalarStateTerminator,
-) -> impl Iterator<Item = &mut CheckedScalarSuccessor> {
-    fn branch(
-        destination: &mut CheckedScalarBranchDestination,
-    ) -> Option<&mut CheckedScalarSuccessor> {
-        match destination {
-            CheckedScalarBranchDestination::Jump(successor) => Some(successor),
-            _ => None,
-        }
-    }
-    match terminator {
-        CheckedScalarStateTerminator::Jump(successor) => [Some(successor), None],
-        CheckedScalarStateTerminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [branch(when_true), branch(when_false)],
-        _ => [None, None],
-    }
-    .into_iter()
-    .flatten()
-}
+successors_iter!(iter, pub(super),);
+successors_iter!(iter_mut,, mut);
 
 /// Resolve every edge's argument partition before any span mutates.
 pub(super) fn resolve_arguments(
