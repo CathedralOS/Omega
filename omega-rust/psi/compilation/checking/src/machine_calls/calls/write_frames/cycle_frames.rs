@@ -377,15 +377,7 @@ fn build_cycle_frame_equation<'program>(
                     push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
                 }
                 if let Some(replacement) = replacement {
-                    inference.record_local(&replacement);
-                    if let Some(existing) = stored
-                        .iter_mut()
-                        .find(|local| local.local_symbol == replacement.local_symbol)
-                    {
-                        *existing = replacement;
-                    } else {
-                        stored.push(replacement);
-                    }
+                    stored_origins::record_replacement_local(&mut inference, &mut stored, replacement);
                 }
             }
             StatementNode::Call(call) => {

@@ -946,15 +946,7 @@ fn walk_state_write_prefix_inner(
                 // The write itself expanded through the pre-state evidence;
                 // only later statements see the replacement's own origins.
                 if let Some(replacement) = replacement {
-                    inference.record_local(&replacement);
-                    if let Some(existing) = stored
-                        .iter_mut()
-                        .find(|local| local.local_symbol == replacement.local_symbol)
-                    {
-                        *existing = replacement;
-                    } else {
-                        stored.push(replacement);
-                    }
+                    stored_origins::record_replacement_local(inference, &mut stored, replacement);
                 }
             }
             StatementNode::Call(nested_call) => {

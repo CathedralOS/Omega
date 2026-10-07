@@ -512,3 +512,21 @@ pub(super) fn expand_write_paths(
     }
     Some(expanded)
 }
+
+/// Record a statement's replacement local and install it over any earlier
+/// stored record for the same symbol — later statements see the newest.
+pub(super) fn record_replacement_local(
+    inference: &mut super::inference::FrameInference,
+    stored: &mut Vec<StoredLocalOrigins>,
+    replacement: StoredLocalOrigins,
+) {
+    inference.record_local(&replacement);
+    if let Some(existing) = stored
+        .iter_mut()
+        .find(|local| local.local_symbol == replacement.local_symbol)
+    {
+        *existing = replacement;
+    } else {
+        stored.push(replacement);
+    }
+}
