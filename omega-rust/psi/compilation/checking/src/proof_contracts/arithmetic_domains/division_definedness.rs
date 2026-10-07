@@ -5,6 +5,7 @@
 //! retains those conditions as runtime crash predicates. The same live
 //! integer proof supplies the selected policy's formation conditions.
 
+use super::visit_binary_operators;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::{
@@ -234,16 +235,11 @@ pub(super) fn validate_abstract(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut check = |node: &ExpressionNode| {
-        let ExpressionNode::Binary(binary) = node else {
-            return;
-        };
-        if !matches!(
-            binary.operator,
-            BinaryOperator::Divide | BinaryOperator::Modulo
-        ) {
-            return;
-        }
+    visit_binary_operators(
+        program,
+        expression,
+        &[BinaryOperator::Divide, BinaryOperator::Modulo],
+        |binary| {
         let left_operand = direct_abstract_operand(program, bindings, binary.left);
         let right_operand = direct_abstract_operand(program, bindings, binary.right);
         let selected = match (left_operand, right_operand) {
@@ -274,6 +270,6 @@ pub(super) fn validate_abstract(
             false,
             diagnostics,
         );
-    };
-    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
+        },
+    );
 }

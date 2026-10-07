@@ -173,3 +173,23 @@ pub(crate) fn validate_arithmetic_domains(
     )
     .0
 }
+
+/// Run `check` on every `Binary` node whose operator is in `operators`,
+/// post-order — the shared scaffold behind the per-domain shift-count and
+/// division-definedness validations.
+pub(super) fn visit_binary_operators(
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    operators: &[typed_trees::expression::BinaryOperator],
+    mut check: impl FnMut(&typed_trees::expression::TableBinaryExpression),
+) {
+    let mut visit = |node: &typed_trees::expression::ExpressionNode| {
+        let typed_trees::expression::ExpressionNode::Binary(binary) = node else {
+            return;
+        };
+        if operators.contains(&binary.operator) {
+            check(binary);
+        }
+    };
+    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut visit);
+}

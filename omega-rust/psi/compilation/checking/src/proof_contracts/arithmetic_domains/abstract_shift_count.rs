@@ -5,6 +5,7 @@
 //! this pass deliberately recognizes only a direct fixed-integer shifted
 //! operand and the existing direct interval vocabulary for its count.
 
+use super::visit_binary_operators;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::{IntegerPolicyPrimitive, ShiftCountLaw, integer_policy_bridge};
@@ -50,16 +51,11 @@ pub(super) fn validate(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut check = |node: &ExpressionNode| {
-        let ExpressionNode::Binary(binary) = node else {
-            return;
-        };
-        if !matches!(
-            binary.operator,
-            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-        ) {
-            return;
-        }
+    visit_binary_operators(
+        program,
+        expression,
+        &[BinaryOperator::ShiftLeft, BinaryOperator::ShiftRight],
+        |binary| {
         let Some((primitive, domain)) = direct_shifted_operand(program, bindings, binary.left)
         else {
             return;
@@ -103,6 +99,6 @@ pub(super) fn validate(
             "shift count in {owner} {verdict} for `{prim}`{saturating_hint}: exact shifts prove `count < {width}` before the term forms; discharge the count with an independently accepted prior fact, or use `{prim} in Wrapping` for a modulo-{width} count",
             prim = primitive_name(primitive),
         )));
-    };
-    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
+        },
+    );
 }
