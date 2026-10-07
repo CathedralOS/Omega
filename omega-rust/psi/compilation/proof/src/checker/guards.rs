@@ -445,42 +445,23 @@ pub(crate) fn apply_right_literal_guard(
     range
 }
 
+/// `K OP place` restated as `place OP' K` — the comparison seen from the
+/// literal's left flips each ordering's direction.
+pub(crate) fn mirrored_comparison(operator: BinaryOperator) -> BinaryOperator {
+    match operator {
+        BinaryOperator::Greater => BinaryOperator::Less,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+        BinaryOperator::Less => BinaryOperator::Greater,
+        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+        operator => operator,
+    }
+}
+
 pub(crate) fn apply_left_literal_guard(
     proof_plan: &ProofPlan,
-    mut range: IntegerRange,
+    range: IntegerRange,
     left: ExpressionHandle,
     operator: BinaryOperator,
 ) -> IntegerRange {
-    let Some(value) = integer_literal_handle(proof_plan, left) else {
-        return range;
-    };
-
-    let value = BigInt::from_i64(value);
-    let one = BigInt::from_i64(1);
-    match operator {
-        BinaryOperator::Equal => {
-            range.minimum = range.minimum.max(value.clone());
-            range.maximum = range.maximum.min(value);
-        }
-        BinaryOperator::Greater => range.maximum = range.maximum.min(value.sub(&one)),
-        BinaryOperator::GreaterOrEqual => range.maximum = range.maximum.min(value),
-        BinaryOperator::Less => range.minimum = range.minimum.max(value.add(&one)),
-        BinaryOperator::LessOrEqual => range.minimum = range.minimum.max(value),
-        BinaryOperator::Add
-        | BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Divide
-        | BinaryOperator::Modulo
-        | BinaryOperator::Multiply
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::Subtract
-        | BinaryOperator::CaseMembership => {}
-    }
-
-    range
+    apply_right_literal_guard(proof_plan, range, mirrored_comparison(operator), left)
 }

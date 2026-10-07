@@ -792,18 +792,11 @@ fn push_right_literal_bounds(operator: BinaryOperator, value: BigInt, facts: &mu
 /// `K OP subject` -- the same restatement with the literal on the left,
 /// matching `guards::apply_left_literal_guard`.
 fn push_left_literal_bounds(operator: BinaryOperator, value: BigInt, facts: &mut Vec<GuardBound>) {
-    let one = BigInt::from_i64(1);
-    match operator {
-        BinaryOperator::Equal => {
-            push_bound(facts, value.clone(), true);
-            push_bound(facts, value, false);
-        }
-        BinaryOperator::Greater => push_bound(facts, value.sub(&one), false),
-        BinaryOperator::GreaterOrEqual => push_bound(facts, value, false),
-        BinaryOperator::Less => push_bound(facts, value.add(&one), true),
-        BinaryOperator::LessOrEqual => push_bound(facts, value, true),
-        _ => {}
-    }
+    push_right_literal_bounds(
+        crate::checker::guards::mirrored_comparison(operator),
+        value,
+        facts,
+    )
 }
 
 /// `bound <= atom` for `lower_side`, `atom <= bound` otherwise -- one premise
