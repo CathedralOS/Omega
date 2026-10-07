@@ -37,6 +37,6 @@ pub use optimization_unit::{
 };
 pub use revision::AnalysisRevision;
 pub use semantic::{
-    EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis, ScalarConstant,
+    EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis,
     ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };

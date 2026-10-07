@@ -13,12 +13,6 @@ use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId,
 use super::{scalar_operation_successors, scalar_value_definition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ScalarConstant {
-    Boolean(bool),
-    Integer(IntegerValue),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueFactRegion {
     pub revision: OptimizationUnitIdentity,
     pub machine: MachineId,
@@ -28,7 +22,7 @@ pub struct ValueFactRegion {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScalarConstantFact {
     pub value: ValueId,
-    pub constant: ScalarConstant,
+    pub constant: ScalarConstantValue,
     /// Present only when this fact has a canonical derivation that the
     /// independent validator can reconstruct. Propagated facts stay
     /// unavailable to rewrite witnesses until that derivation vocabulary lands.
@@ -92,8 +86,10 @@ impl ScalarConstantAnalysis {
                 && fact.support.literal_operation().is_some())
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Integer(value) => fact.identity.map(|identity| (value, identity)),
-                ScalarConstant::Boolean(_) => None,
+                ScalarConstantValue::Integer(value) => {
+                    fact.identity.map(|identity| (value, identity))
+                }
+                ScalarConstantValue::Boolean(_) => None,
             })
         })
     }
@@ -107,10 +103,10 @@ impl ScalarConstantAnalysis {
             (fact.valid_in.machine == machine && fact.value == value)
                 .then_some(fact)
                 .and_then(|fact| match fact.constant {
-                    ScalarConstant::Boolean(value) => {
+                    ScalarConstantValue::Boolean(value) => {
                         fact.identity.map(|identity| (value, identity))
                     }
-                    ScalarConstant::Integer(_) => None,
+                    ScalarConstantValue::Integer(_) => None,
                 })
         })
     }
@@ -150,7 +146,7 @@ pub(in crate::analyses) fn executable_edges(unit: &PsiOptimizationUnit) -> Execu
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LatticeValue {
     Unknown,
-    Constant(ScalarConstant, ScalarConstantSupport),
+    Constant(ScalarConstantValue, ScalarConstantSupport),
     Overdefined,
 }
 
@@ -232,7 +228,7 @@ fn sparse_conditional_constants(
                     support,
                 } => (
                     *value,
-                    ScalarConstant::Boolean(*constant),
+                    ScalarConstantValue::Boolean(*constant),
                     ScalarConstantSupport::literal(*support),
                 ),
                 OptimizationFact::IntegerConstant {
@@ -241,7 +237,7 @@ fn sparse_conditional_constants(
                     support,
                 } => (
                     *value,
-                    ScalarConstant::Integer(*constant),
+                    ScalarConstantValue::Integer(*constant),
                     ScalarConstantSupport::literal(*support),
                 ),
                 OptimizationFact::OperationObligationReference { .. } => continue,
@@ -292,7 +288,7 @@ fn sparse_conditional_constants(
                         .collect::<Vec<_>>(),
                     O::Conditional { condition, .. } => match values.get(condition) {
                         Some(LatticeValue::Constant(
-                            ScalarConstant::Boolean(value),
+                            ScalarConstantValue::Boolean(value),
                             condition_support,
                         )) => operation_successors
                             .iter()
@@ -317,7 +313,7 @@ fn sparse_conditional_constants(
                             .iter()
                             .map(|successor| (successor, None))
                             .collect::<Vec<_>>(),
-                        Some(LatticeValue::Constant(ScalarConstant::Integer(_), _))
+                        Some(LatticeValue::Constant(ScalarConstantValue::Integer(_), _))
                         | Some(LatticeValue::Unknown)
                         | None => Vec::new(),
                     },
@@ -384,7 +380,10 @@ fn sparse_conditional_constants(
                     )
                 } else if let O::Conditional { condition, .. } = &node.operation {
                     match values.get(condition) {
-                        Some(LatticeValue::Constant(ScalarConstant::Boolean(_), condition)) => {
+                        Some(LatticeValue::Constant(
+                            ScalarConstantValue::Boolean(_),
+                            condition,
+                        )) => {
                             let mut support =
                                 source_support
                                     .cloned()
@@ -431,8 +430,8 @@ fn sparse_conditional_constants(
             };
             let definition = scalar_value_definition(function, value);
             let constant_value = match constant {
-                ScalarConstant::Boolean(value) => ScalarConstantValue::Boolean(value),
-                ScalarConstant::Integer(value) => ScalarConstantValue::Integer(value),
+                ScalarConstantValue::Boolean(value) => ScalarConstantValue::Boolean(value),
+                ScalarConstantValue::Integer(value) => ScalarConstantValue::Integer(value),
             };
             let identity = definition.and_then(|definition| {
                 support
@@ -508,9 +507,10 @@ fn sccp_machine_snapshot(
                             SccpEdgeState::Inexecutable
                         } else if let O::Conditional { condition, .. } = operation {
                             match values.get(condition) {
-                                Some(LatticeValue::Constant(ScalarConstant::Boolean(_), _)) => {
-                                    SccpEdgeState::Inexecutable
-                                }
+                                Some(LatticeValue::Constant(
+                                    ScalarConstantValue::Boolean(_),
+                                    _,
+                                )) => SccpEdgeState::Inexecutable,
                                 _ => SccpEdgeState::Unknown,
                             }
                         } else {
@@ -536,10 +536,10 @@ fn sccp_machine_snapshot(
                 definition,
                 state: match state {
                     LatticeValue::Unknown => SccpValueState::Unknown,
-                    LatticeValue::Constant(ScalarConstant::Boolean(value), _) => {
+                    LatticeValue::Constant(ScalarConstantValue::Boolean(value), _) => {
                         SccpValueState::Boolean(*value)
                     }
-                    LatticeValue::Constant(ScalarConstant::Integer(value), _) => {
+                    LatticeValue::Constant(ScalarConstantValue::Integer(value), _) => {
                         SccpValueState::Integer(*value)
                     }
                     LatticeValue::Overdefined => SccpValueState::Overdefined,

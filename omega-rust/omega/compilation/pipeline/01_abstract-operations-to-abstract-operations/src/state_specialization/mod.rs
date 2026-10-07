@@ -52,15 +52,15 @@
 //! rather than trust. There is no second proposal or application route.
 
 use optimization_unit::{
-    NodeLocation, OptimizationBlock, OptimizationEdge, OptimizationNode, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
-    SpecializedStateEdgeRow, StateArgumentSpecializationRewrite,
+    NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, SpecializedStateEdgeRow,
+    StateArgumentSpecializationRewrite,
 };
 use semantic_vocabulary::BlockId;
 
 use abstract_operations::AbstractOperation as O;
 
-use crate::{ScalarConstant, ScalarConstantAnalysis};
+use crate::{ScalarConstantAnalysis, ScalarConstantValue};
 
 pub(crate) mod accounting;
 mod admission;

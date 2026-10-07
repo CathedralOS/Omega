@@ -1,20 +1,17 @@
 //! Entire-value ranges derived from exact scalar-constant facts.
 
 use optimization_unit::{
-    PsiOptimizationUnit, ValueDefinition, ValueRangeFact, ValueRangeRegion, ValueRangeScope,
-    ValueRangeSupport,
+    PsiOptimizationUnit, ScalarConstantValue, ValueDefinition, ValueRangeFact, ValueRangeRegion,
+    ValueRangeScope, ValueRangeSupport,
 };
 use semantic_vocabulary::ScalarType;
 
-use super::super::{
-    scalar_value_definition,
-    sparse_conditional_constants::{ScalarConstant, scalar_constants},
-};
+use super::super::{scalar_value_definition, sparse_conditional_constants::scalar_constants};
 
 pub(super) fn collect(unit: &PsiOptimizationUnit) -> Vec<ValueRangeFact> {
     let mut facts = Vec::new();
     for constant in scalar_constants(unit).facts {
-        let ScalarConstant::Integer(value) = constant.constant else {
+        let ScalarConstantValue::Integer(value) = constant.constant else {
             continue;
         };
         let Some(identity) = constant.identity else {

@@ -21,9 +21,7 @@ pub use ownership_frontiers::OwnershipFrontierAnalysis;
 pub use place_access_summaries::PlaceAccessSummaryAnalysis;
 
 pub use place_aliases::PlaceAliasesAnalysis;
-pub use sparse_conditional_constants::{
-    ExecutableEdgeAnalysis, ScalarConstant, ScalarConstantAnalysis,
-};
+pub use sparse_conditional_constants::{ExecutableEdgeAnalysis, ScalarConstantAnalysis};
 
 pub use use_definitions::UseDefinitionAnalysis;
 pub use value_liveness::ValueLivenessAnalysis;

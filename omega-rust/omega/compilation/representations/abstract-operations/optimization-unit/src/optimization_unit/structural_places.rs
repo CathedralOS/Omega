@@ -4,9 +4,11 @@
 
 use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, IntegerType, IntegerValue, OperationId, PlaceId,
+    ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
@@ -14,8 +16,8 @@ use terminal_psi::{
 };
 
 use super::{
-    FieldValueResolution, FoldedFieldValue, PsiOptimizationFunction, PsiOptimizationUnit,
-    ValueDefinition,
+    FieldValueResolution, FoldedFieldValue, OptimizationBlock, OptimizationNode,
+    PsiOptimizationFunction, PsiOptimizationUnit, ScalarConstantValue, ValueDefinition,
 };
 
 /// The establishing operation the place's operation-result producer resolves
@@ -792,5 +794,176 @@ pub fn descended_type(
             StructuralTypeShape::Reference { referent, .. } => Some(*referent),
             _ => None,
         },
+    }
+}
+
+/// Split one comparison's operands into the dispatch parameter (one of the
+/// block's own scalar parameters, on exactly one side) and the bound literal
+/// (an in-block `IntegerConstant`, on the other). The operand's declared
+/// integer type — shared by both sides under checked semantics — is the type
+/// the comparison evaluates under.
+pub fn comparison_operands(
+    block: &OptimizationBlock,
+    prefix: &[OptimizationNode],
+    ordering: IntegerComparisonOrdering,
+    left: ValueId,
+    right: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let left_is_parameter = block.parameters.iter().any(|p| p.value == left);
+    let right_is_parameter = block.parameters.iter().any(|p| p.value == right);
+    let (parameter, bound, parameter_on_left) = match (left_is_parameter, right_is_parameter) {
+        (true, false) => (left, right, true),
+        (false, true) => (right, left, false),
+        _ => return None,
+    };
+    let (bound_value, integer_type) = prefix.iter().find_map(|node| {
+        let O::IntegerConstant {
+            result,
+            scalar_type,
+            value,
+            ..
+        } = &node.operation
+        else {
+            return None;
+        };
+        if *result != bound {
+            return None;
+        }
+        let ScalarType::Integer(integer_type) = scalar_type else {
+            return None;
+        };
+        Some((*value, *integer_type))
+    })?;
+    // This optional specialization records one homogeneous bound carrier.
+    // Retain mixed comparisons for the general exact-value execution path.
+    if !block.parameters.iter().any(|declaration| {
+        declaration.value == parameter
+            && declaration.scalar_type == ScalarType::Integer(integer_type)
+    }) {
+        return None;
+    }
+    Some((
+        parameter,
+        DispatchCondition::IntegerComparison {
+            ordering,
+            bound: bound_value,
+            parameter_on_left,
+            integer_type,
+        },
+    ))
+}
+
+/// The integer-comparison dispatch shape, or `None` when `prefix` is not a
+/// pure scalar computation of `condition` as `parameter CMP literal`: every
+/// prefix node must be a scalar constant, except exactly one integer
+/// comparison producing `condition` whose operands pair one of the block's
+/// own scalar parameters with an in-block `IntegerConstant`. Returns the
+/// parameter and the condition descriptor the bound argument resolves
+/// against.
+pub fn integer_comparison_condition(
+    block: &OptimizationBlock,
+    prefix: &[OptimizationNode],
+    condition: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let mut resolved = None;
+    for node in prefix {
+        let (ordering, result, left, right) = match &node.operation {
+            O::IntegerConstant { .. } | O::BooleanConstant { .. } => continue,
+            O::IntegerEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::Equal, *result, *left, *right),
+            O::IntegerLessThan {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::LessThan, *result, *left, *right),
+            O::IntegerLessOrEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (
+                IntegerComparisonOrdering::LessOrEqual,
+                *result,
+                *left,
+                *right,
+            ),
+            _ => return None,
+        };
+        if result != condition || resolved.is_some() {
+            return None;
+        }
+        resolved = Some(comparison_operands(block, prefix, ordering, left, right)?);
+    }
+    resolved
+}
+
+/// The comparison an in-block dispatch condition computes against its bound
+/// operand. Mirrors the three integer comparison operations lowered literal
+/// guards and ordering guards produce.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerComparisonOrdering {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+/// How a dispatch `Conditional` resolves one bound argument's proven constant
+/// into the arm that edge takes. Two admitted shapes share the same fused
+/// traversal — "this edge, then the resolved arm" — differing only in how the
+/// condition reads the block's own scalar parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchCondition {
+    /// The condition is the block's own scalar parameter directly — a
+    /// Boolean state argument resolves on a proven `ScalarConstantValue::Boolean`.
+    DirectParameter,
+    /// The condition is produced in-block by `parameter CMP bound`, where
+    /// `bound` is the literal an in-block `IntegerConstant` carries — an
+    /// integer state argument resolves on a proven `ScalarConstantValue::Integer`
+    /// evaluated under the operand type's own ordering via
+    /// `IntegerType::compare`.
+    IntegerComparison {
+        ordering: IntegerComparisonOrdering,
+        bound: IntegerValue,
+        parameter_on_left: bool,
+        integer_type: IntegerType,
+    },
+}
+
+impl DispatchCondition {
+    /// The Boolean the dispatch condition takes when the bound argument is
+    /// `constant`, or `None` when the constant is not the kind this condition
+    /// resolves — a Boolean argument can never answer an integer comparison
+    /// and vice versa.
+    pub fn resolve(&self, constant: &ScalarConstantValue) -> Option<bool> {
+        match (self, constant) {
+            (Self::DirectParameter, ScalarConstantValue::Boolean(value)) => Some(*value),
+            (
+                Self::IntegerComparison {
+                    ordering,
+                    bound,
+                    parameter_on_left,
+                    integer_type,
+                },
+                ScalarConstantValue::Integer(argument),
+            ) => {
+                let (left, right) = if *parameter_on_left {
+                    (*argument, *bound)
+                } else {
+                    (*bound, *argument)
+                };
+                let order = integer_type.compare(left, right)?;
+                Some(match ordering {
+                    IntegerComparisonOrdering::Equal => order == Ordering::Equal,
+                    IntegerComparisonOrdering::LessThan => order == Ordering::Less,
+                    IntegerComparisonOrdering::LessOrEqual => order != Ordering::Greater,
+                })
+            }
+            _ => None,
+        }
     }
 }

@@ -87,7 +87,7 @@ use semantic_vocabulary::{IntegerValue, MachineId, ValueId};
 
 use crate::rules::SCCP_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::{ScalarConstant, ScalarConstantAnalysis};
+use crate::{ScalarConstantAnalysis, ScalarConstantValue};
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
@@ -175,8 +175,10 @@ pub(super) fn integer_constant(
         (fact.valid_in.machine == machine && fact.value == value)
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Integer(value) => fact.identity.map(|identity| (value, identity)),
-                ScalarConstant::Boolean(_) => None,
+                ScalarConstantValue::Integer(value) => {
+                    fact.identity.map(|identity| (value, identity))
+                }
+                ScalarConstantValue::Boolean(_) => None,
             })
     })
 }

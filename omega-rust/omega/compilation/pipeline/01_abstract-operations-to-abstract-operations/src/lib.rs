@@ -31,7 +31,7 @@ pub mod validation;
 pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
 pub use publication::{OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan};
 
-pub(crate) use analyses::{AnalysisManager, AnalysisProduct, ScalarConstant, compute_analysis};
+pub(crate) use analyses::{AnalysisManager, AnalysisProduct, compute_analysis};
 pub(crate) use analyses::{
     AnalysisManagerError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
     OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
@@ -51,6 +51,7 @@ pub(crate) use analyses::{
     UnsignedCountdownInvariantConstantPlacements, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
+pub(crate) use optimization_unit::ScalarConstantValue;
 pub use pass_manager::OptimizationRunError;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
@@ -71,8 +72,8 @@ pub mod test_support {
         replay_psi_pipeline, run_psi_pipeline, run_psi_registry,
     };
     pub use crate::analyses::{
-        AnalysisManager, AnalysisProduct, AnalysisRevision, ScalarConstant, ValueRangeFact,
-        ValueRangeScope, ValueRangeSupport, compute_analysis, value_range_fact_identity,
+        AnalysisManager, AnalysisProduct, AnalysisRevision, ValueRangeFact, ValueRangeScope,
+        ValueRangeSupport, compute_analysis, value_range_fact_identity,
     };
     pub use crate::analyses::{
         CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
