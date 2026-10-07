@@ -44,8 +44,12 @@
 //! its state's exits end the chain like any member's. That needs the lender
 //! home: the home outlives every name derived from it, whereas transferred
 //! storage lives in one member parameter and a projection cannot move it.
-//! An activation-entry local lent into a chain joins it as one more lender,
-//! provided no other edge retains it as an entry home.
+//! A shared loan of the local itself (`scan(&stream)`) starts a chain the
+//! same way when the storage is affine: the view is a derived member and the
+//! home dies where the last state holding it leaves. Shared views of
+//! unrestricted storage have nothing to dispose of and keep the plain view
+//! route. An activation-entry local lent into a chain joins it as one more
+//! lender, provided no other edge retains it as an entry home.
 
 use crate::LoweringError;
 use checked_trees::{
@@ -155,8 +159,8 @@ impl LoanChains {
         for (position, state) in plan.states.iter().enumerate() {
             let mut dense_nodes = Vec::with_capacity(state.structural_parameters.len());
             for (dense, parameter) in state.structural_parameters.iter().enumerate() {
-                // Shared parameters join only as derived members: they never
-                // seed a chain, but a member's loan may continue through them.
+                // Shared parameters join as derived members; one seeds a chain
+                // only when it lends affine storage (`seeded` below).
                 let candidate = live.get(position).copied().unwrap_or(false)
                     && block_owned(position)
                     && matches!(
@@ -276,24 +280,39 @@ impl LoanChains {
         let roots = (0..nodes.len())
             .map(|node| representative(&mut links, node))
             .collect::<Vec<_>>();
-        // A chain exists once any arrival lends a later state's local; an
-        // entry-only chain keeps the activation-entry route unchanged.
         let exclusive = |index: usize| {
             let (position, dense) = nodes[index];
             plan.states[position].structural_parameters[dense as usize].access
                 == CheckedStructuralAccess::MutableBorrow
         };
-        let seeded = arrivals
-            .iter()
-            .enumerate()
-            .filter(|(index, arrivals)| {
-                exclusive(*index)
-                    && arrivals.iter().any(|arrival| {
-                        matches!(arrival, Arrival::Local { lender, .. } if block_owned(*lender))
-                    })
-            })
-            .map(|(node, _)| roots[node])
-            .collect::<BTreeSet<_>>();
+        let local_result = |lender: usize, binding: u32| {
+            plan.states[lender]
+                .operations
+                .iter()
+                .filter_map(|operation| operation.discardable_structural_result())
+                .find(|(result, _)| result.binding_ordinal == binding)
+                .map(|(result, _)| result)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph state loan chain names no local result",
+                ))
+        };
+        // A chain exists once any arrival lends a later state's local; an
+        // entry-only chain keeps the activation-entry route unchanged. A
+        // shared loan seeds one only over an affine structural home, whose
+        // death the chain must place; a view or unrestricted local has none.
+        let mut seeded = BTreeSet::new();
+        for (index, arrivals) in arrivals.iter().enumerate() {
+            for arrival in arrivals {
+                if let Arrival::Local { lender, binding } = *arrival
+                    && block_owned(lender)
+                    && (exclusive(index)
+                        || local_result(lender, binding)
+                            .is_ok_and(|result| result.multiplicity == Multiplicity::Affine))
+                {
+                    seeded.insert(roots[index]);
+                }
+            }
+        }
         if seeded.is_empty() {
             return Ok(chains);
         }
@@ -327,11 +346,6 @@ impl LoanChains {
                 derived |= !exclusive(index);
                 for arrival in &arrivals[index] {
                     let (lender, binding) = match arrival {
-                        Arrival::Local { .. } if !exclusive(index) => {
-                            return Err(LoweringError::Unsupported(
-                                "Unit graph state loan chain's shared member also receives a local loan",
-                            ));
-                        }
                         Arrival::Local { lender, binding } => (*lender, *binding),
                         Arrival::Forward => continue,
                         Arrival::Projected => {
@@ -344,14 +358,7 @@ impl LoanChains {
                             ));
                         }
                     };
-                    let (result, _) = plan.states[lender]
-                        .operations
-                        .iter()
-                        .filter_map(|operation| operation.discardable_structural_result())
-                        .find(|(result, _)| result.binding_ordinal == binding)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph state loan chain names no local result",
-                        ))?;
+                    let result = local_result(lender, binding)?;
                     if result.type_identity != parameter.type_identity {
                         return Err(LoweringError::Unsupported(
                             "Unit graph state loan chain changes its referent type",

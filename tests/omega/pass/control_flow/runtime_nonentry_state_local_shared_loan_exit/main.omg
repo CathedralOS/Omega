@@ -1,0 +1,36 @@
+// RUN CANARY (exit 70). A later state's local lends a shared view of itself
+// along a chain of states: `prepare` declares `stream` and hands `&stream` to
+// `scan`, which forwards the view to `compare` twice. The local's storage must
+// outlive every state holding a view and die once where the last one leaves.
+// Exit 70 shows `compare` read what `prepare` wrote through both views.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Stream { values: [i32; 2]; count: u32; }
+data Context { console: Binding<Console>; }
+
+machine main(context: &mut Context) reaches Console {
+    transition { _ -> prepare(context) }
+
+    state prepare(context: &mut Context) {
+        let mut stream: Stream;
+        stream.values[0] = 3;
+        stream.values[1] = 4;
+        stream.count = 2;
+        transition { _ -> scan(context, &stream) }
+    }
+    state scan(context: &mut Context, stream: &Stream) {
+        transition stream.count == 2 {
+            true -> compare(context, stream, stream)
+            _ -> bad(context)
+        }
+    }
+    state compare(context: &mut Context, left: &Stream, right: &Stream) {
+        transition left.values[0] == 3 && right.values[1] == 4 {
+            true -> good(context)
+            _ -> bad(context)
+        }
+    }
+    state good(context: &mut Context) { context.console.exit_process(70); }
+    state bad(context: &mut Context) { context.console.exit_process(71); }
+}
