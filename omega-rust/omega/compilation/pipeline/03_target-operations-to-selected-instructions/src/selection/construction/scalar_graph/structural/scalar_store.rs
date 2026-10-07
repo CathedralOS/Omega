@@ -192,7 +192,6 @@ pub(super) fn emit(
                 *field,
                 declarations,
             )
-            .or_else(|| runtime_abi::ScalarStorageCodec::from_scalar(value.scalar_type))
         }
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { path, .. } => {
             crate::structural_inputs::structural_reference_input::projected_scalar_codec(
@@ -204,6 +203,9 @@ pub(super) fn emit(
         _ => None,
     }
     .ok_or_else(|| invalid())?;
+    if u32::from(codec.byte_size()) != u32::from(byte_size) {
+        return Err(invalid());
+    }
     let canonical =
         runtime_abi::ScalarStorageCodec::from_scalar(value.scalar_type).ok_or_else(|| invalid())?;
     if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {

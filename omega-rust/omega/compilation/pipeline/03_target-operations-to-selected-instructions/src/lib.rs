@@ -12,6 +12,12 @@
 //! incoming ABI placement both consume. Owned arrivals retain those contracts
 //! regardless of which operations share their function; optional elimination
 //! of unused storage happens only after a correct general transport exists.
+//!
+//! A scalar observation is not a shared-loan formation. Its native consumers
+//! reconstruct declared access, backing storage, codecs and ordered crossings;
+//! they do not replace Psi's admitted compatibility with another loan rule.
+//! Reference formation and transport retain their separate custody contracts,
+//! consistent with pipeline.md's verification-placement boundary.
 
 mod legalization;
 mod optimized;

@@ -196,7 +196,6 @@ pub(super) fn read_storage_codec(
                 *field,
                 &signature.structural_types,
             )
-            .or_else(|| runtime_abi::ScalarStorageCodec::from_scalar(scalar))
         }
         _ => runtime_abi::ScalarStorageCodec::from_scalar(scalar),
     }

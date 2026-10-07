@@ -1413,12 +1413,15 @@ pub(crate) fn scalar_field_codec(
         path = &path[crossing + 1..];
     }
     let (record, _, _) = runtime_projection(root, path, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
+    let fields = match &declarations
         .iter()
         .find(|declaration| declaration.id == record)?
         .shape
-    else {
-        return None;
+    {
+        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
+            fields
+        }
+        _ => return None,
     };
     let field = fields.iter().find(|candidate| candidate.id == field)?;
     if matches!(

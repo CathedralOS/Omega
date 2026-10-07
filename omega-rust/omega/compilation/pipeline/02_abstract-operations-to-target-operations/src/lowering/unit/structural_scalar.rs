@@ -4,7 +4,7 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
@@ -14,10 +14,7 @@ use terminal_psi::StructuralAccess;
 
 use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_scalar_shape;
-use super::super::structural_layout::{
-    direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
-    runtime_projection,
-};
+use super::super::structural_layout::{direct_scalar_field_geometry, runtime_projection};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_field_store(
@@ -227,7 +224,7 @@ pub(in crate::lowering) fn lower_field_store(
         function,
         scalar_sources,
     )?;
-    let source_shape = scalar_shape(value.value, value.scalar_type, false)?;
+    scalar_shape(value.value, value.scalar_type, false)?;
     let exact_source = match source {
         TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
             function.block_entries.iter().any(|entry| {
@@ -261,7 +258,6 @@ pub(in crate::lowering) fn lower_field_store(
             function.machine,
         ));
     }
-    let field_byte_size = source_shape.byte_size;
     // The carrier composes fields and literal or runtime elements in any
     // order: static steps fold into the offset, and each runtime element is
     // an `(index, stride)` run over its selector's dominating source. The
@@ -278,15 +274,8 @@ pub(in crate::lowering) fn lower_field_store(
         function,
         scalar_sources,
     )?;
-    let scalar_byte_offset = match value.scalar_type {
-        ScalarType::Boolean => direct_boolean_field_offset(carrier_type, *field, structural_types)?,
-        ScalarType::Integer(integer_type) => {
-            direct_integer_field_offset(carrier_type, *field, integer_type, structural_types)?
-        }
-        ScalarType::IeeeFloat(_) => {
-            direct_scalar_field_offset(carrier_type, *field, value.scalar_type, structural_types)?
-        }
-    };
+    let (scalar_byte_offset, field_byte_size) =
+        direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?;
     // The descriptor-size ceiling bounds a store inside its destination's
     // own storage. A view destination only stores through the loan: its
     // referent's extent is the runtime bound, and the descriptor's 16-byte

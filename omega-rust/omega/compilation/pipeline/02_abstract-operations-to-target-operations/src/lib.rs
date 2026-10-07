@@ -13,6 +13,13 @@
 //! result family. Stage 00 owns the admitted settlement facts. The
 //! `placed_view_inputs` route is the in-progress direct-entry placed-view
 //! slice (TASKS.md PLAN-LAID-VIEWS).
+//!
+//! Nonescaping scalar observations consume Psi's admitted access; they do not
+//! form or transfer shared loans. Native lowering joins their current storage
+//! and ordered reference crossings, without replaying source compatibility as
+//! a loan-formation rule. New loans, moves and writes retain their distinct
+//! custody requirements. This follows pipeline.md's verification placement:
+//! source permission is judged by Psi, not re-proved by a native stage.
 
 mod lowering;
 mod validation;

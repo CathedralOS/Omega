@@ -4,14 +4,6 @@ use super::LoweringError;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
-pub(in crate::lowering) fn direct_boolean_field_offset(
-    structural_type: StructuralTypeId,
-    field: StructuralFieldId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<u32, LoweringError> {
-    direct_scalar_field_offset(structural_type, field, ScalarType::Boolean, declarations)
-}
-
 pub(in crate::lowering) fn direct_integer_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
@@ -32,6 +24,18 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
     expected_type: ScalarType,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<u32, LoweringError> {
+    direct_scalar_field_geometry(structural_type, field, expected_type, declarations)
+        .map(|(offset, _)| offset)
+}
+
+/// Physical field geometry is independent of the scalar register carrier.
+/// Authored scalar storage can occupy fewer bytes than its semantic type.
+pub(in crate::lowering) fn direct_scalar_field_geometry(
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+    expected_type: ScalarType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(u32, u32), LoweringError> {
     let declaration = declarations
         .get(&structural_type)
         .copied()
@@ -58,7 +62,7 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         )?
         .common_fields
         .get(position)
-        .map(|common| common.byte_offset)
+        .map(|common| (common.byte_offset, common.shape.byte_size))
         .ok_or(LoweringError::UnknownStructuralType(structural_type));
     }
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
@@ -85,7 +89,7 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
             // This is layout, not store admission: current-IR validation separately
             // binds restricted writes to their own accepted obligations.
             return (candidate.field_type.scalar_type() == Some(expected_type))
-                .then_some(offset)
+                .then_some((offset, shape.byte_size))
                 .ok_or(LoweringError::UnknownStructuralType(structural_type));
         }
         offset = offset

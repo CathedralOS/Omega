@@ -1250,27 +1250,6 @@ pub(super) fn check_operation_access(
     place: PlaceId,
 ) -> bool {
     match operation {
-        AbstractOperation::StructuralScalarFieldRead { path, field, .. } => {
-            let region =
-                source_contract(function, live, place).map_or_else(Vec::new, |(root, _)| {
-                    terminal_semantics::canonical_field_storage_region(
-                        types.values().copied(),
-                        root,
-                        path,
-                        *field,
-                    )
-                });
-            check_region_access_with(live, place, &region, |carrier, path| {
-                shared_source_compatible(
-                    function,
-                    live,
-                    types,
-                    carrier,
-                    path,
-                    StructuralAccess::SharedBorrow,
-                )
-            })
-        }
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
             if path.contains(&StructuralPathSegment::Referent) =>
         {
@@ -1301,28 +1280,14 @@ pub(super) fn check_operation_access(
             )
             .is_err()
         }
-        AbstractOperation::PrimitiveScalarRead { path, .. }
-        | AbstractOperation::StructuralCaseMembership { path, .. } => {
-            let Some((root, _)) = source_contract(function, live, place) else {
-                return true;
-            };
-            let region = terminal_semantics::projected_storage_region(
-                types.values().copied(),
-                root,
-                path,
-                None,
-            );
-            check_region_access_with(live, place, region.direct_path(), |carrier, path| {
-                shared_source_compatible(
-                    function,
-                    live,
-                    types,
-                    carrier,
-                    path,
-                    StructuralAccess::SharedBorrow,
-                )
-            })
-        }
+        // An admitted nonescaping observation produces a scalar, not another
+        // loan. Psi owns its compatibility judgment; applying shared-loan
+        // formation rules here would invent a stricter source requirement.
+        // Storage owners still join the live root and exact physical path,
+        // and explicit reference crossings retain the custody walk above.
+        AbstractOperation::PrimitiveScalarRead { .. }
+        | AbstractOperation::StructuralScalarFieldRead { .. }
+        | AbstractOperation::StructuralCaseMembership { .. } => false,
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
             check_projected_access(function, live, types, place, path, None)
         }

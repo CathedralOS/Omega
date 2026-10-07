@@ -53,22 +53,21 @@ pub(super) fn lower_operation(
     let operation = resolved
         .as_ref()
         .map_or(operation, |(operation, _)| operation);
-    // Reference custody: reads, writes and establishments cannot touch a
-    // suspended referent, and a live carrier is never owned data. Call-shaped
-    // operations route through the custody-aware argument lowering below.
+    // Reference custody joins storage and explicit crossings. Observations
+    // consume source-admitted access rather than form another loan; writes,
+    // establishments and transfers keep their separate custody rules.
+    // Call-shaped operations use custody-aware argument lowering below.
     let (accessed_root, referent_access) = match operation {
         AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
-        // Primitive paths retain every explicit reference crossing. Their
-        // ordinary access check traverses the full live lineage, even when
-        // the first carrier alone would permit a whole-reference observation.
-        AbstractOperation::PrimitiveScalarRead { source, .. } => (Some(*source), false),
-        AbstractOperation::StructuralCaseMembership { source, .. }
-        | AbstractOperation::StructuralCase { source, .. }
-        | AbstractOperation::StructuralScalarFieldRead { source, .. } => {
-            // A scalar or case observation spelled on a live reference
-            // carrier reads through the loan's own authority — the referent
-            // observation the borrow exists to serve, not owned-data use of
-            // the carrier place. A write-only loan has no read authority.
+        // Observation does not form a loan. Primitive reference crossings
+        // still traverse current lineage before their address is selected.
+        AbstractOperation::PrimitiveScalarRead { source, .. }
+        | AbstractOperation::StructuralScalarFieldRead { source, .. }
+        | AbstractOperation::StructuralCaseMembership { source, .. } => (Some(*source), false),
+        AbstractOperation::StructuralCase { source, .. } => {
+            // A case operation spelled on a live reference carrier reads
+            // through that loan's authority, not owned carrier storage.
+            // A write-only loan has no read authority.
             let referent_read = live.references.iter().any(|((carrier, path), custody)| {
                 *carrier == *source
                     && path.is_empty()
