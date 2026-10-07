@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 16.98, "load1_start": 15.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.86, "load1_start": 4.59, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1531,18 +1531,13 @@ pass/traits/generic_trait_parent_binds_requirement checked 173ms
 pass/traits/nominal_generic_reference_forwarding_exit built 2081ms exit:1 @9beb2be72f2d+wt
 pass/traits/nominal_machine_binder_static_dispatch built 829ms exit:1 @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit built 683ms exit:70
-pass/traits/runtime_dyn_data_argument_counts_exit rejected 1474ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(5)))
-pass/traits/runtime_dyn_joined_selector_exit rejected 1486ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(8)))
-pass/traits/runtime_dyn_local_selection_exit rejected 1463ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(1)))
-pass/traits/runtime_dyn_rebound_selector_forwarded_exit rejected 1456ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
-pass/traits/runtime_dyn_selector_record_field_exit rejected 1466ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
-pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1478ms @8ca28fbfc657
-	native artifact native artifact lowering failed: Lowering(UnsupportedDynamicDispatch(OperationId(3)))
+pass/traits/runtime_dyn_data_argument_counts_exit built 1450ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_joined_selector_exit built 1370ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_local_selection_exit built 1066ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 1069ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 1085ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_selector_record_field_exit built 1099ms exit:70 @fc55f70a381c
+pass/traits/runtime_dyn_two_impl_dispatch_exit built 1039ms exit:70 @fc55f70a381c
 pass/traits/runtime_exact_requirement_edge_exit built 2028ms exit:1 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @c4e45d3dda38+wt
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt
