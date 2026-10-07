@@ -104,18 +104,26 @@ pub(crate) fn requires_value_environment(
         }
     };
     let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            if !comparison_meaning_is_available(*expression) {
+    // Both passes walk the same fact set: Requires-contract expressions whose
+    // comparison meaning is available.
+    let each_available_comparison = |body: &mut dyn FnMut(ExpressionHandle)| {
+        for contract in program.machine_contracts(machine) {
+            if contract.kind != SignatureContractKind::Requires {
                 continue;
             }
-            if let Some((name, low, high)) = comparison_bound(program, *expression) {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    continue;
+                };
+                if !comparison_meaning_is_available(*expression) {
+                    continue;
+                }
+                body(*expression);
+            }
+        }
+    };
+    each_available_comparison(&mut |expression| {
+            if let Some((name, low, high)) = comparison_bound(program, expression) {
                 let entry = bounds.entry(name).or_insert((None, None));
                 // Intersect across facts: tightest lower (max) and upper (min).
                 if let Some(low) = low {
@@ -125,27 +133,16 @@ pub(crate) fn requires_value_environment(
                     entry.1 = Some(entry.1.map_or(high, |existing| existing.min(high)));
                 }
             }
-        }
-    }
+    });
     let mut environment = ValueEnvironment::new();
     for (name, (low, high)) in bounds {
         environment.set(name, Interval { low, high });
     }
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            if !comparison_meaning_is_available(*expression) {
-                continue;
-            }
+    each_available_comparison(&mut |expression| {
             let ExpressionNode::Binary(comparison) =
-                program.expression_table.expression(*expression)
+                program.expression_table.expression(expression)
             else {
-                continue;
+                return;
             };
             if let Some((left, right)) = joint_add_upper_guard(
                 program,
@@ -217,8 +214,7 @@ pub(crate) fn requires_value_environment(
             ) {
                 environment.mark_signed_joint_multiply_upper_bound(left, right);
             }
-        }
-    }
+    });
     arrivals::seed_state_requirements(program, machine, entry_state, None, &mut environment);
     environment
 }
