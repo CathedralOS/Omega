@@ -429,6 +429,78 @@ fn judged_carrier(program: &TypedTrees, judged_machine: &Machine) -> Option<Type
     })
 }
 
+/// The algebraic law inventory of every trait: (op, law-requirement) pairs
+/// for commutativity and associativity, plus (mul, add, law) triples for
+/// distributivity. Ring and semiring licensing both build the inventory
+/// before applying their own carrier-closure tests.
+#[allow(clippy::type_complexity)]
+fn algebraic_law_slots<'program>(
+    program: &'program TypedTrees,
+) -> Vec<(
+    &'program TraitDefinition,
+    Vec<(String, String)>,
+    Vec<(String, String)>,
+    Vec<(String, String, String)>,
+)> {
+    program
+        .traits()
+        .iter()
+        .map(|trait_definition| {
+            let mut comm_laws: Vec<(String, String)> = Vec::new();
+            let mut assoc_laws: Vec<(String, String)> = Vec::new();
+            let mut dist_laws: Vec<(String, String, String)> = Vec::new();
+            for requirement in program.trait_machine_signatures(trait_definition) {
+                let parameters: Vec<String> = program
+                    .state_signature_parameters(requirement)
+                    .iter()
+                    .map(|parameter| parameter.name.as_str().to_owned())
+                    .collect();
+                for contract in program.state_signature_contracts(requirement) {
+                    if contract.kind != SignatureContractKind::Ensures {
+                        continue;
+                    }
+                    for fact in program.proof_facts.span_or_empty(contract.facts) {
+                        let ProofFact::Expression(expression) = fact else {
+                            continue;
+                        };
+                        let mut conjuncts = Vec::new();
+                        collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                        for conjunct in conjuncts {
+                            let ExpressionNode::Binary(binary) =
+                                program.expression_table.expression(conjunct)
+                            else {
+                                continue;
+                            };
+                            let (Some(left), Some(right)) = (
+                                structural_term(program, binary.left),
+                                structural_term(program, binary.right),
+                            ) else {
+                                continue;
+                            };
+                            if let Some(op) = commutativity_shape(&left, &right, &parameters) {
+                                comm_laws.push((op, requirement.name.as_str().to_owned()));
+                            }
+                            if let Some(op) = associativity_shape(&left, &right, &parameters) {
+                                assoc_laws.push((op, requirement.name.as_str().to_owned()));
+                            }
+                            if let Some((mul_op, add_op)) =
+                                distributivity_shape(&left, &right, &parameters)
+                            {
+                                dist_laws.push((
+                                    mul_op,
+                                    add_op,
+                                    requirement.name.as_str().to_owned(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            (trait_definition, comm_laws, assoc_laws, dist_laws)
+        })
+        .collect()
+}
+
 fn ring_license_candidates(
     slot_carriers: &std::collections::HashMap<
         (SymbolHandle, String),
@@ -438,52 +510,10 @@ fn ring_license_candidates(
 ) -> Vec<RingCandidate> {
     let mut candidates = Vec::new();
 
-    for trait_definition in program.traits() {
-        // Op slot name -> (has commutativity law named, has associativity law
-        // named): the LAW requirement names matter later (their satisfiers
-        // must exist for the carrier).
-        let mut comm_laws: Vec<(String, String)> = Vec::new(); // (op, law requirement)
-        let mut assoc_laws: Vec<(String, String)> = Vec::new();
-
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            let parameters: Vec<String> = program
-                .state_signature_parameters(requirement)
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect();
-            for contract in program.state_signature_contracts(requirement) {
-                if contract.kind != SignatureContractKind::Ensures {
-                    continue;
-                }
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Expression(expression) = fact else {
-                        continue;
-                    };
-                    let mut conjuncts = Vec::new();
-                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                    for conjunct in conjuncts {
-                        let ExpressionNode::Binary(binary) =
-                            program.expression_table.expression(conjunct)
-                        else {
-                            continue;
-                        };
-                        let (Some(left), Some(right)) = (
-                            structural_term(program, binary.left),
-                            structural_term(program, binary.right),
-                        ) else {
-                            continue;
-                        };
-                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
-                            comm_laws.push((op, requirement.name.as_str().to_owned()));
-                        }
-                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
-                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
-                        }
-                    }
-                }
-            }
-        }
-
+    // Op slot name -> (has commutativity law named, has associativity law
+    // named): the LAW requirement names matter later (their satisfiers
+    // must exist for the carrier).
+    for (trait_definition, comm_laws, assoc_laws, _dist_laws) in algebraic_law_slots(program) {
         for (op_slot, comm_law) in &comm_laws {
             let Some((_, assoc_law)) = assoc_laws.iter().find(|(op, _)| op == op_slot) else {
                 continue;
@@ -678,53 +708,7 @@ fn semiring_license_candidates(
     program: &TypedTrees,
 ) -> Vec<SemiringCandidate> {
     let mut candidates = Vec::new();
-    for trait_definition in program.traits() {
-        let mut comm_laws: Vec<(String, String)> = Vec::new();
-        let mut assoc_laws: Vec<(String, String)> = Vec::new();
-        let mut dist_laws: Vec<(String, String, String)> = Vec::new(); // (mul, add, law)
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            let parameters: Vec<String> = program
-                .state_signature_parameters(requirement)
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect();
-            for contract in program.state_signature_contracts(requirement) {
-                if contract.kind != SignatureContractKind::Ensures {
-                    continue;
-                }
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Expression(expression) = fact else {
-                        continue;
-                    };
-                    let mut conjuncts = Vec::new();
-                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                    for conjunct in conjuncts {
-                        let ExpressionNode::Binary(binary) =
-                            program.expression_table.expression(conjunct)
-                        else {
-                            continue;
-                        };
-                        let (Some(left), Some(right)) = (
-                            structural_term(program, binary.left),
-                            structural_term(program, binary.right),
-                        ) else {
-                            continue;
-                        };
-                        if let Some(op) = commutativity_shape(&left, &right, &parameters) {
-                            comm_laws.push((op, requirement.name.as_str().to_owned()));
-                        }
-                        if let Some(op) = associativity_shape(&left, &right, &parameters) {
-                            assoc_laws.push((op, requirement.name.as_str().to_owned()));
-                        }
-                        if let Some((mul_op, add_op)) =
-                            distributivity_shape(&left, &right, &parameters)
-                        {
-                            dist_laws.push((mul_op, add_op, requirement.name.as_str().to_owned()));
-                        }
-                    }
-                }
-            }
-        }
+    for (trait_definition, comm_laws, assoc_laws, dist_laws) in algebraic_law_slots(program) {
         for (mul_op, add_op, dist_law) in &dist_laws {
             let Some((_, add_comm)) = comm_laws.iter().find(|(op, _)| op == add_op) else {
                 continue;
