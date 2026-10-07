@@ -964,46 +964,31 @@ pub(crate) fn validate_const_binder_carriers(
         else {
             continue;
         };
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(carrier)
-        {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                let typed_trees::types::TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } = constraint
-                else {
-                    continue;
-                };
-                let closes = crate::closed_integer_range_bound(program, *minimum).is_some()
-                    && crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
-                        .is_some();
-                // The same pending admission formation applies to a declared
-                // range: every leaf closes or is a marked endpoint call.
-                let mut found_pending = false;
-                let pending = [*minimum, *maximum].into_iter().all(|endpoint| {
-                    let (closed, marked) =
-                        super::constraint_validation::range_bound_pending_evaluation_shape(
-                            program,
-                            primitive_type,
-                            endpoint,
-                        );
-                    found_pending |= marked;
-                    closed
-                }) && found_pending;
-                if !closes && !pending {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} parameter `{}` declares a range that does not close over \
-                         integers; an argument establishes its declared range from closed \
-                         integer bounds",
-                        parameter.name,
-                    )));
-                }
+        let (ranges, _) = super::integer_ranges::constrained_range_constraints(program, carrier);
+        for (minimum, maximum, end_inclusive) in ranges {
+            let closes = crate::closed_integer_range_bound(program, minimum).is_some()
+                && crate::closed_integer_range_maximum(program, maximum, end_inclusive).is_some();
+            // The same pending admission formation applies to a declared
+            // range: every leaf closes or is a marked endpoint call.
+            let mut found_pending = false;
+            let pending = [minimum, maximum].into_iter().all(|endpoint| {
+                let (closed, marked) =
+                    super::constraint_validation::range_bound_pending_evaluation_shape(
+                        program,
+                        primitive_type,
+                        endpoint,
+                    );
+                found_pending |= marked;
+                closed
+            }) && found_pending;
+            if !closes && !pending {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} parameter `{}` declares a range that does not close over \
+                     integers; an argument establishes its declared range from closed \
+                     integer bounds",
+                    parameter.name,
+                )));
             }
-            carrier = *base_type;
         }
     }
 }

@@ -34,36 +34,52 @@ pub fn is_plain_scalar_storage(program: &TypedTrees, reference: TypeReferenceHan
 /// aborts either way.
 pub fn constrained_range_bounds(
     program: &TypedTrees,
-    mut carrier: typed_trees::types::TypeReferenceHandle,
+    carrier: typed_trees::types::TypeReferenceHandle,
     strict: bool,
 ) -> Option<Vec<(BigInt, BigInt)>> {
+    let (ranges, saw_non_range) = constrained_range_constraints(program, carrier);
+    if strict && saw_non_range {
+        return None;
+    }
     let mut bounds = Vec::new();
+    for (minimum, maximum, end_inclusive) in ranges {
+        bounds.push(
+            closed_integer_range_bound(program, minimum).zip(
+                closed_integer_range_maximum(program, maximum, end_inclusive),
+            )?,
+        );
+    }
+    Some(bounds)
+}
+
+/// (minimum, maximum, end_inclusive) for every `Range` constraint on
+/// `carrier`'s `Constrained` shells, in declaration order. `saw_non_range`
+/// reports whether any constraint node was not a Range — strict walkers
+/// reject on it, others skip the node.
+pub fn constrained_range_constraints(
+    program: &TypedTrees,
+    mut carrier: TypeReferenceHandle,
+) -> (Vec<(ExpressionHandle, ExpressionHandle, bool)>, bool) {
+    let mut ranges = Vec::new();
+    let mut saw_non_range = false;
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
     } = program.type_reference_table.type_reference(carrier)
     {
         for constraint in program.type_reference_table.constraints(*constraints) {
-            let typed_trees::types::TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                if strict {
-                    return None;
-                }
-                continue;
-            };
-            bounds.push(
-                closed_integer_range_bound(program, *minimum).zip(
-                    closed_integer_range_maximum(program, *maximum, *end_inclusive),
-                )?,
-            );
+            match constraint {
+                TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } => ranges.push((*minimum, *maximum, *end_inclusive)),
+                _ => saw_non_range = true,
+            }
         }
         carrier = *base_type;
     }
-    Some(bounds)
+    (ranges, saw_non_range)
 }
 
 pub fn is_arithmetic_policy_only_integer(
