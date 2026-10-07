@@ -1,31 +1,13 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    repeated_layout, split_layout,
+    reject_inner_layout_materialization, repeated_layout, split_layout,
 };
 use crate::{
     ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
     PlacementAddressRange, PlacementConstraints, PlacementPhase, SymbolicFieldInnerLayout,
     SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
-    derive_symbolic_materialization_with_inner_layouts,
 };
-
-fn reject_inner_layout_materialization(
-    layout: &LayoutPlanReport,
-    inner_layouts: &[SymbolicFieldInnerLayout],
-    symbolic_fields: &[SymbolicFieldValue],
-    expectation: &str,
-) -> String {
-    derive_symbolic_materialization_with_inner_layouts(
-        layout,
-        inner_layouts,
-        symbolic_fields,
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err(expectation)
-    .0
-}
 
 #[test]
 fn placement_range_must_fit_the_materialization() {

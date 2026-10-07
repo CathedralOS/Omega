@@ -13,7 +13,7 @@ use crate::{
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
     EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
     MaterializationContext, PlacementConstraints, PlacementPhase, RelocationTarget,
-    SymbolicFieldInnerLayout,
+    SymbolicFieldInnerLayout, SymbolicFieldValue,
 };
 
 fn entry() -> RelocationTarget {
@@ -487,4 +487,23 @@ fn sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         },
         SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 24),
     )
+}
+
+/// A post-handoff inner-layout materialization that must reject: returns the
+/// diagnostic text so each fixture asserts the reason it carries.
+pub(super) fn reject_inner_layout_materialization(
+    layout: &LayoutPlanReport,
+    inner_layouts: &[SymbolicFieldInnerLayout],
+    symbolic_fields: &[SymbolicFieldValue],
+    expectation: &str,
+) -> String {
+    crate::derive_symbolic_materialization_with_inner_layouts(
+        layout,
+        inner_layouts,
+        symbolic_fields,
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect_err(expectation)
+    .0
 }

@@ -1,7 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    recursive_record_array_report, recursive_sum_report, sum_array_layout, sum_field_layout,
-    sum_layout,
+    recursive_record_array_report, recursive_sum_report, reject_inner_layout_materialization,
+    sum_array_layout, sum_field_layout, sum_layout,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
@@ -118,18 +118,16 @@ fn symbolic_inner_materialization_bounds_record_path_depth() {
     let at_bound = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
         .with_inner_segment(chain);
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&at_bound),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("the second `sub` hop is not a member of `sub`'s interior");
+        "the second `sub` hop is not a member of `sub`'s interior",
+    );
     assert!(
-        error.0.contains("has no entry in the inner layout plan"),
+        error.contains("has no entry in the inner layout plan"),
         "{}",
-        error.0
+        error
     );
 
     let mut chain = SymbolicFieldPathSegment::new("leaf");
@@ -139,20 +137,16 @@ fn symbolic_inner_materialization_bounds_record_path_depth() {
     let over_bound = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
         .with_inner_segment(chain);
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&over_bound),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a path past the record depth bound must reject");
+        "a path past the record depth bound must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("exceeds the compiler's 64-segment record path bound"),
+        error.contains("exceeds the compiler's 64-segment record path bound"),
         "{}",
-        error.0
+        error
     );
 
     // The carrier tree obeys the same bound: carriers nested past it cannot be
@@ -180,20 +174,16 @@ fn symbolic_inner_materialization_bounds_record_path_depth() {
     let symbolic = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
         .with_inner_segment(SymbolicFieldPathSegment::new("slot"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[tree],
         std::slice::from_ref(&symbolic),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a carrier tree deeper than the bound must reject");
+        "a carrier tree deeper than the bound must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("nests beyond the compiler's 64-segment record path bound"),
+        error.contains("nests beyond the compiler's 64-segment record path bound"),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -254,20 +244,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     let caseless = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
         .with_inner_segment(SymbolicFieldPathSegment::new("Run"));
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&caseless),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a case hop that ends the path cannot resolve a payload");
+        "a case hop that ends the path cannot resolve a payload",
+    );
     assert!(
-        error
-            .0
-            .contains("requires a payload field below case `choice.Run`"),
+        error.contains("requires a payload field below case `choice.Run`"),
         "{}",
-        error.0
+        error
     );
 
     // A spelled case must exist in the bound interior.
@@ -277,20 +263,18 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
             SymbolicFieldPathSegment::new("Bogus")
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&missing_case),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a spelled case the sum interior lacks must reject");
+        "a spelled case the sum interior lacks must reject",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "spells no case or common field `Bogus` of the inner sum layout for `choice`"
         ),
         "{}",
-        error.0
+        error
     );
 
     // A spelled payload must be a member of the selected case, not merely of
@@ -301,20 +285,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&wrong_case_payload),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a payload spelled on the wrong case must reject");
+        "a payload spelled on the wrong case must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("spells no payload field `flags` of case `choice.Run`"),
+        error.contains("spells no payload field `flags` of case `choice.Run`"),
         "{}",
-        error.0
+        error
     );
 
     // A case payload is always the leaf of a sum path: no hop may continue
@@ -327,20 +307,18 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
                     .with_inner_segment(SymbolicFieldPathSegment::new("deeper")),
             ),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&continues),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("no interior exists below a case payload");
+        "no interior exists below a case payload",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "continues below sum payload `choice.Run.callback`; a case payload is the leaf of a sum path"
         ),
         "{}",
-        error.0
+        error
     );
 
     // Neither the case hop nor the payload hop carries an element index: case
@@ -351,20 +329,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
             SymbolicFieldPathSegment::new_indexed("Run", 0)
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed_case),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a case hop cannot carry an element index");
+        "a case hop cannot carry an element index",
+    );
     assert!(
-        error
-            .0
-            .contains("case `choice.Run` cannot carry an element index"),
+        error.contains("case `choice.Run` cannot carry an element index"),
         "{}",
-        error.0
+        error
     );
 
     let indexed_payload = SymbolicFieldValue::new("choice", 64, entry())
@@ -373,20 +347,18 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new_indexed("callback", 0)),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed_payload),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a payload hop cannot carry an element index");
+        "a payload hop cannot carry an element index",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "payload `choice.Run.callback` cannot carry an element index; a sum payload retains one extent per field"
         ),
         "{}",
-        error.0
+        error
     );
 
     // The write slot is the payload field's own extent: a 64-bit symbolic
@@ -397,20 +369,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
             SymbolicFieldPathSegment::new("Small")
                 .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&oversized),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a write wider than its payload slot must reject");
+        "a write wider than its payload slot must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("width 64 exceeds the 8-bit sum member `choice.Small.flags`"),
+        error.contains("width 64 exceeds the 8-bit sum member `choice.Small.flags`"),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -442,20 +410,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
     );
 
     let flat = SymbolicFieldValue::new("header", 64, entry()).expect("scalar field");
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&flat),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an untraversed sum carrier must reject");
+        "an untraversed sum carrier must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("no symbolic field path traverses the supplied inner layout for `choice`"),
+        error.contains("no symbolic field path traverses the supplied inner layout for `choice`"),
         "{}",
-        error.0
+        error
     );
 
     // A sum interior carries no field namespace below it, so it cannot hold
@@ -464,20 +428,18 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
         SymbolicFieldInnerLayout::new_sum("choice", sum_layout()).with_inner_layout(
             SymbolicFieldInnerLayout::new("callback", record_interior(&nested_layout().1)),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[nested_under_sum],
         std::slice::from_ref(&path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a sum interior cannot bind nested carriers");
+        "a sum interior cannot bind nested carriers",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "inner layout for `choice` binds a sum interior; its case payload fields carry no nested record carriers"
         ),
         "{}",
-        error.0
+        error
     );
 
     // A carrier whose payload geometry escapes its own claimed extent rejects
@@ -485,20 +447,18 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
     let mut escaping_layout = sum_layout();
     escaping_layout.cases[1].payload_fields[1].offset = 20;
     let escaping = SymbolicFieldInnerLayout::new_sum("choice", escaping_layout);
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[escaping],
         std::slice::from_ref(&path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a payload outside the sum extent must reject");
+        "a payload outside the sum extent must reject",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "inner layout for `choice` places payload field `clock` of case `Run` outside the sum's 24-byte extent"
         ),
         "{}",
-        error.0
+        error
     );
 
     // A claimed interior too large for its enclosing element rejects at the
@@ -510,20 +470,16 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
             ..sum_layout()
         },
     );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         &[oversized],
         std::slice::from_ref(&path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a sum interior may not exceed its enclosing element");
+        "a sum interior may not exceed its enclosing element",
+    );
     assert!(
-        error
-            .0
-            .contains("interior layout for `choice` exceeds the enclosing 40-byte record extent"),
+        error.contains("interior layout for `choice` exceeds the enclosing 40-byte record extent"),
         "{}",
-        error.0
+        error
     );
 
     // Empty interiors have no addressable elements. Every retained stride
@@ -536,37 +492,31 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &array_layout,
         &[zero_count],
         std::slice::from_ref(&indexed_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("indexing a zero-element repeated sum interior must reject");
+        "indexing a zero-element repeated sum interior must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("element index 0 is outside its 0 element placements"),
+        error.contains("element index 0 is outside its 0 element placements"),
         "{}",
-        error.0
+        error
     );
 
     let overlapping = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 2, 16);
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &array_layout,
         &[overlapping],
         std::slice::from_ref(&indexed_path),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a stride smaller than the element extent would overlap elements");
+        "a stride smaller than the element extent would overlap elements",
+    );
     assert!(
-        error.0.contains(
+        error.contains(
             "inner layout for `sums` strides repeated sum elements by 16 bytes inside their 24-byte extent"
         ),
         "{}",
-        error.0
+        error
     );
 }
 
@@ -583,20 +533,16 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&unindexed),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a repeated sum path requires an element index");
+        "a repeated sum path requires an element index",
+    );
     assert!(
-        error
-            .0
-            .contains("requires an element index into the repeated sum field `sums`"),
+        error.contains("requires an element index into the repeated sum field `sums`"),
         "{}",
-        error.0
+        error
     );
 
     // The exact index bound is the carrier's element count, checked before
@@ -607,20 +553,16 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
             SymbolicFieldPathSegment::new("Run")
                 .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
         );
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&out_of_range),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("an element index beyond the repeated extent must reject");
+        "an element index beyond the repeated extent must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("element index 2 is outside its 2 element placements"),
+        error.contains("element index 2 is outside its 2 element placements"),
         "{}",
-        error.0
+        error
     );
 
     // A repeated-sum carrier also admits the field's per-element `At`
@@ -677,20 +619,16 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
             },
         })
         .collect();
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &surplus,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("more element placements than the carrier's count is drift");
+        "more element placements than the carrier's count is drift",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `sums` element placements drift from its count or stride"),
+        error.contains("inner layout for `sums` element placements drift from its count or stride"),
         "{}",
-        error.0
+        error
     );
 
     // Two placements at a stride the carrier does not claim is the same
@@ -708,20 +646,16 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
             placement: LayoutPlacementReport::At { offset: 30 },
         },
     ];
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &drifted,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("element placements drifting from the carrier's stride must reject");
+        "element placements drifting from the carrier's stride must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("inner layout for `sums` element placements drift from its count or stride"),
+        error.contains("inner layout for `sums` element placements drift from its count or stride"),
         "{}",
-        error.0
+        error
     );
 
     // The carrier's claimed array extent is whole-field evidence: two 24-byte
@@ -732,20 +666,16 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         size: Some(40),
         ..layout.clone()
     };
-    let error = derive_symbolic_materialization_with_inner_layouts(
+    let error = reject_inner_layout_materialization(
         &shrunken_outer,
         std::slice::from_ref(&carrier),
         std::slice::from_ref(&indexed),
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect_err("a repeated interior escaping the record extent must reject");
+        "a repeated interior escaping the record extent must reject",
+    );
     assert!(
-        error
-            .0
-            .contains("interior layout for `sums` exceeds the enclosing 40-byte record extent"),
+        error.contains("interior layout for `sums` exceeds the enclosing 40-byte record extent"),
         "{}",
-        error.0
+        error
     );
 }
 
