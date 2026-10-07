@@ -42,7 +42,6 @@ pub machine Parser::parse_type_reference(parser: &mut Parser, input: &TokenStrea
 crashes Trap
 {
     parser.type_frame_depth = 0;
-    parser.pending_type_argument_count = 0;
     transition { _ -> operand(parser, input, missing) }
 
     // The start of one type: open frames for its prefixes, then read its name.
@@ -65,7 +64,8 @@ crashes Trap
     // An integer is a static argument; it is a type only inside `<...>`.
     state literal_word(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         let integer: bool = Parser::at_integer(parser, input);
-        let argument: bool = Parser::in_type_arguments(parser);
+        let argument: bool = Parser::in_type_arguments(parser)
+            || parser.type_static_argument && parser.type_frame_depth == 0;
         transition integer && argument {
             true -> literal(parser, input)
             _ -> name(parser, input, code)
@@ -126,13 +126,31 @@ crashes Trap
     state name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::expect_name(parser, input, code);
         transition parser.output.accepted {
-            true -> named(parser, input)
+            true -> path(parser, input, parser.name_start)
             _ -> done()
         }
     }
 
-    state named(parser: &mut Parser, input: &TokenStream) {
-        let start: u64 in Trapping = parser.name_start;
+    // `a::b::Name` names one declaration through its path; the row's name
+    // spans the whole path.
+    state path(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+        let qualified: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
+        transition qualified {
+            true -> path_member(parser, input, start)
+            _ -> named(parser, input, start)
+        }
+    }
+
+    state path_member(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
+        transition parser.output.accepted {
+            true -> path(parser, input, start)
+            _ -> done()
+        }
+    }
+
+    state named(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
         let end: u64 in Trapping = parser.name_end;
         let applied: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
         transition applied {
@@ -634,4 +652,15 @@ crashes Trap
     state invalid() {
         crash Trap;
     }
+}
+
+// One static argument: a type, or at its root an integer static value
+// (`AtMost<8>`, `Build::f<8>(x)`). Rows and diagnostics are the type
+// grammar's.
+pub machine Parser::parse_static_argument(parser: &mut Parser, input: &TokenStream)
+crashes Trap
+{
+    parser.type_static_argument = true;
+    Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedStaticArgument);
+    parser.type_static_argument = false;
 }

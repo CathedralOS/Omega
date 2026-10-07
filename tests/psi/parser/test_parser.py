@@ -1811,6 +1811,34 @@ def main() -> None:
     assert status == 0, f"bracketed-construction: status {status}"
     assert len(decode(payload).construct_fields) == 1, "bracketed-construction"
 
+    # A name or path applies static arguments when the matching `>` is
+    # followed by `(`; otherwise `<` compares. Adjacent `>` `>` shift.
+    APPLY, BINARY = 13, 9
+    source = b"machine f() { Build::select_provider<a::Slot, Box<Item>>(builder); }"
+    status, payload = run(program, source)
+    assert status == 0, f"static-application: status {status}"
+    actual = decode(payload)
+    applications = [row for row in actual.expressions if row[0] == APPLY]
+    assert len(applications) == 1 and applications[0][5] == 2, f"static-application:\n{actual.expressions}"
+    names = [source[row[2]:row[3]] for row in actual.type_references if row[0] == 1]
+    assert names == [b"a::Slot", b"Item", b"Box"], f"static-application:\n{names}"
+    assert len(actual.type_arguments) == 3, f"static-application:\n{actual.type_arguments}"
+    status, payload = run(program, b"machine f() { g<8>(x); }")
+    assert status == 0, f"static-integer: status {status}"
+    assert [row[0] for row in decode(payload).type_references] == [6], "static-integer"
+    comparisons = operators(b"machine f() { g(a < b, c > d); h(e >> 2); }")
+    assert {(BINARY, 5), (BINARY, 7), (BINARY, 13)} <= set(comparisons), comparisons
+    assert all(row[0] != APPLY for row in comparisons), comparisons
+    static_rejections = (
+        ("static-argument-missing", b"machine f() { g<>(x); }", 101, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("static-argument-trailing", b"machine f() { g<A,>(x); }", 101, (18, 19),
+         {"member_count": 1, "expression_count": 1, "type_reference_count": 1}),
+        ("type-path-member", b"data D { a: x::; }", 3, (15, 16), {}),
+        ("spaced-shift", b"machine f() { h(k > > 1); }", 55, (20, 21), {"member_count": 2, "expression_count": 2}),
+    )
+    for name, source, diagnostic, span, counts in static_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
     # Every keyword but `self` is a name in an expression, as in every other
     # name position.
     source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"

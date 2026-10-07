@@ -954,6 +954,7 @@ crashes Trap
             ExpressionKind::Cast -> expression_kind(parser_harness, output, index, expression, 10)
             ExpressionKind::Call -> expression_kind(parser_harness, output, index, expression, 11)
             ExpressionKind::Construct -> expression_kind(parser_harness, output, index, expression, 12)
+            ExpressionKind::Apply -> expression_kind(parser_harness, output, index, expression, 13)
         }
     }
 

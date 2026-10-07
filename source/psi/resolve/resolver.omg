@@ -1443,7 +1443,41 @@ crashes Trap
         let expression: Expression = SyntaxTrees::expression(syntax, index);
         transition expression.kind {
             ExpressionKind::Cast -> bind_cast(resolver, source_unit, syntax, index, expression.type_reference)
+            ExpressionKind::Apply -> static_argument(resolver, source_unit, syntax, index, expression, 0)
             _ -> expression(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    // A static application's arguments are types (or integer values) listed
+    // in `type_arguments`; each binds in the empty scope like a body type.
+    state static_argument(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        application: Expression,
+        offset: u64 in Trapping
+    ) {
+        transition offset < application.count {
+            true -> bind_static_argument(resolver, source_unit, syntax, index, application, offset)
+            _ -> expression(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state bind_static_argument(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        application: Expression,
+        offset: u64 in Trapping
+    ) {
+        let argument: u64 in Trapping = SyntaxTrees::type_argument(syntax, application.first + offset);
+        let scope: TypeScope = Resolver::empty_scope();
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, argument);
+        transition resolver.output.accepted {
+            true -> static_argument(resolver, source_unit, syntax, index, application, offset + 1)
+            _ -> done()
         }
     }
 

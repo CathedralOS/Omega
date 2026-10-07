@@ -65,6 +65,7 @@ where
     type_frame_depth: u64;
     pending_type_arguments: [u64; 32] in Trapping;
     pending_type_argument_count: u64;
+    type_static_argument: bool;
     committed_type_first: u64 in Trapping;
     committed_type_count: u64 in Trapping;
     machine_start: u64 in Trapping;

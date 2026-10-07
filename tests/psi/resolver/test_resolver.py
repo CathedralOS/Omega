@@ -551,6 +551,15 @@ def main() -> None:
         length=1,
     )
 
+    # A static application's argument types bind like body types.
+    accepted(
+        program,
+        "static-application-arguments",
+        b"machine f() { g<u8, Box<D>, 4>(1); }\ndata Box<T> { v: T; }\ndata D { x: u8; }",
+        (builtin("u8"), data(1), data(0), LITERAL_ROW, generic(0), builtin("u8")),
+    )
+    rejected(program, "unknown-static-argument-type", b"machine f() { g<Q>(1); }", UNKNOWN_DATA_TYPE, b"Q")
+
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
 

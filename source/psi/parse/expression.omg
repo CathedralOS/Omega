@@ -377,7 +377,7 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::AndAnd } -> binary(parser, input, OperatorKind::And, 2)
             Token::Punctuation { punctuation: PunctuationKind::EqualEqual } -> binary(parser, input, OperatorKind::Equal, 3)
             Token::Punctuation { punctuation: PunctuationKind::ExclamationEqual } -> binary(parser, input, OperatorKind::NotEqual, 3)
-            Token::Punctuation { punctuation: PunctuationKind::Less } -> binary(parser, input, OperatorKind::Less, 4)
+            Token::Punctuation { punctuation: PunctuationKind::Less } -> less(parser, input)
             Token::Punctuation { punctuation: PunctuationKind::LessEqual } -> binary(parser, input, OperatorKind::LessEqual, 4)
             Token::Punctuation { punctuation: PunctuationKind::Greater } -> greater(parser, input)
             Token::Punctuation { punctuation: PunctuationKind::GreaterEqual } -> binary(parser, input, OperatorKind::GreaterEqual, 4)
@@ -391,6 +391,98 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::Slash } -> binary(parser, input, OperatorKind::Divide, 10)
             Token::Punctuation { punctuation: PunctuationKind::Percent } -> binary(parser, input, OperatorKind::Modulo, 10)
             _ -> end_operand(parser, input)
+        }
+    }
+
+    // After a name or path, `<` opens static arguments when its matching
+    // `>` is followed by `(`, as in `Build::select_provider<Slot, Provider>(builder)`;
+    // otherwise it compares.
+    state less(parser: &mut Parser, input: &TokenStream) {
+        let top: u64 in Trapping = Parser::top_operand(parser);
+        let callee: Expression = SyntaxTrees::expression(&parser.output, top);
+        let named: bool = Parser::names_declaration(callee.kind);
+        let applied: bool = Parser::static_arguments_ahead(parser, input);
+        transition named && applied {
+            true -> static_arguments(parser, input)
+            _ -> binary(parser, input, OperatorKind::Less, 4)
+        }
+    }
+
+    // Each argument is a type, or an integer static value, staged on the type
+    // argument stack until `>` commits the list to `type_arguments`.
+    state static_arguments(parser: &mut Parser, input: &TokenStream) {
+        let base: u64 in Trapping = parser.pending_type_argument_count as u64 in Trapping;
+        Parser::take_current(parser, input);
+        transition { _ -> static_argument(parser, input, base) }
+    }
+
+    state static_argument(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::parse_static_argument(parser, input);
+        transition parser.output.accepted {
+            true -> static_argument_staged(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state static_argument_staged(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        let argument: u64 in Trapping = parser.type_result;
+        Parser::push_type_argument(parser, input, argument);
+        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition parser.output.accepted && comma {
+            true -> static_comma(parser, input, base)
+            _ -> static_close(parser, input, base)
+        }
+    }
+
+    state static_comma(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        transition { _ -> static_argument(parser, input, base) }
+    }
+
+    state static_close(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        transition parser.output.accepted {
+            true -> static_greater(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state static_greater(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
+            ParseDiagnosticCode::ExpectedStaticArgumentEnd
+        );
+        transition parser.output.accepted {
+            true -> static_commit(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state static_commit(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::commit_type_arguments(parser, input, base);
+        transition parser.output.accepted {
+            true -> apply_node(parser, input)
+            _ -> done()
+        }
+    }
+
+    state apply_node(parser: &mut Parser, input: &TokenStream) {
+        let callee: u64 in Trapping = Parser::pop_operand(parser);
+        let callee_expression: Expression = SyntaxTrees::expression(&parser.output, callee);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Apply,
+            operator: OperatorKind::None,
+            left: callee,
+            right: 0,
+            first: parser.committed_type_first,
+            count: parser.committed_type_count,
+            flag: false,
+            name: Parser::identifier_span(parser, 0, 0),
+            type_reference: 0,
+            source_span: Parser::source_span(parser, callee_expression.source_span.span.start, parser.token_end)
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> after_operand(parser, input)
+            _ -> done()
         }
     }
 
@@ -1289,5 +1381,108 @@ crashes Trap
 
     state invalid() {
         crash Trap;
+    }
+}
+
+// Whether an expression of this kind names a declaration, the only callee a
+// static argument list applies to.
+machine Parser::names_declaration(kind: ExpressionKind) -> bool {
+    transition kind {
+        ExpressionKind::Name -> named()
+        ExpressionKind::Path -> named()
+        _ -> other()
+    }
+
+    state named() {
+        true
+    }
+
+    state other() {
+        false
+    }
+}
+
+// The handle on top of the operand stack, left in place.
+machine Parser::top_operand(parser: &Parser) -> u64 in Trapping
+crashes Trap
+{
+    transition parser.expression_operand_depth > 0 {
+        true -> read(parser, parser.expression_operand_depth - 1)
+        _ -> invalid()
+    }
+
+    state read(parser: &Parser, top: u64) -> u64 in Trapping
+    requires top <= 63
+    {
+        parser.expression_operands[top] as u64 in Trapping
+    }
+
+    state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+// Whether the `<` at the cursor opens a static argument list: its matching
+// `>` is followed by `(`, and everything between can spell types and
+// integer static values. The scan reads tokens without moving the cursor or
+// building anything, so a comparison is untouched.
+machine Parser::static_arguments_ahead(parser: &Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    transition { _ -> scan(input, parser.cursor + 1, 1) }
+
+    state scan(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        transition index < input.token_count {
+            true -> token(input, index, depth)
+            _ -> absent()
+        }
+    }
+
+    state token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        let token: Token = input.tokens[index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Less } -> scan(input, index + 1, depth + 1)
+            Token::Punctuation { punctuation: PunctuationKind::Greater } -> close(input, index, depth)
+            Token::Punctuation { punctuation: PunctuationKind::ColonColon } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Ampersand } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> scan(input, index + 1, depth)
+            Token::Identifier -> scan(input, index + 1, depth)
+            Token::Keyword { keyword } -> scan(input, index + 1, depth)
+            Token::Integer { base, empty_digits, has_suffix } -> scan(input, index + 1, depth)
+            _ -> absent()
+        }
+    }
+
+    state close(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        transition depth > 1 {
+            true -> scan(input, index + 1, depth - 1)
+            _ -> called(input, index + 1)
+        }
+    }
+
+    state called(input: &TokenStream, index: u64 in Trapping) {
+        transition index < input.token_count {
+            true -> opens_call(input, index)
+            _ -> absent()
+        }
+    }
+
+    state opens_call(input: &TokenStream, index: u64 in Trapping) {
+        let token: Token = input.tokens[index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::LeftParen } -> present()
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
+        false
     }
 }

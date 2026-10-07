@@ -142,6 +142,7 @@ pub data ExpressionKind [copy] {
     case Field;
     case Index;
     case Unary;
+    case Apply;
     case Binary;
     case Cast;
     case Call;
