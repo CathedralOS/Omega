@@ -66,37 +66,40 @@ pub fn run_bounded_process(
     });
     let (sender, receiver) = mpsc::channel();
 
-    spawn_stream_capture(
-        stdout,
-        BoundedProcessStream::Stdout,
-        limits.stdout_bytes,
-        captured_output_budget.clone(),
-        &sender,
-    )
-    .map_err(|error| BoundedProcessRunError::WorkerSpawn {
-        worker: "stdout capture",
-        message: error.to_string(),
-    })
-    .or_else(|error| fail_after_cleanup(&mut child, deadline, limits, error))?;
-    spawn_stream_capture(
-        stderr,
-        BoundedProcessStream::Stderr,
-        limits.stderr_bytes,
-        captured_output_budget,
-        &sender,
-    )
-    .map_err(|error| BoundedProcessRunError::WorkerSpawn {
-        worker: "stderr capture",
-        message: error.to_string(),
-    })
-    .or_else(|error| fail_after_cleanup(&mut child, deadline, limits, error))?;
+    gate_worker_spawn(
+        spawn_stream_capture(
+            stdout,
+            BoundedProcessStream::Stdout,
+            limits.stdout_bytes,
+            captured_output_budget.clone(),
+            &sender,
+        ),
+        "stdout capture",
+        &mut child,
+        deadline,
+        limits,
+    )?;
+    gate_worker_spawn(
+        spawn_stream_capture(
+            stderr,
+            BoundedProcessStream::Stderr,
+            limits.stderr_bytes,
+            captured_output_budget,
+            &sender,
+        ),
+        "stderr capture",
+        &mut child,
+        deadline,
+        limits,
+    )?;
     if let Some(child_stdin) = child_stdin {
-        spawn_input_transfer(input, child_stdin, &sender)
-            .map_err(|error| BoundedProcessRunError::WorkerSpawn {
-                worker: "stdin transfer",
-                message: error.to_string(),
-            })
-            .or_else(|error| fail_after_cleanup(&mut child, deadline, limits, error))?;
+        gate_worker_spawn(
+            spawn_input_transfer(input, child_stdin, &sender),
+            "stdin transfer",
+            &mut child,
+            deadline,
+            limits,
+        )?;
     }
     drop(sender);
 
@@ -326,6 +329,23 @@ where
         }
         bytes.extend_from_slice(&chunk[..count]);
     }
+}
+
+/// Names a failed spawn and routes the failure through child cleanup before
+/// the run fails, whatever the spawning call was.
+fn gate_worker_spawn(
+    result: std::io::Result<()>,
+    worker: &'static str,
+    child: &mut BoundedProcessChild,
+    deadline: Instant,
+    limits: BoundedCaptureLimits,
+) -> Result<(), BoundedProcessRunError> {
+    result
+        .map_err(|error| BoundedProcessRunError::WorkerSpawn {
+            worker,
+            message: error.to_string(),
+        })
+        .or_else(|error| fail_after_cleanup(child, deadline, limits, error))
 }
 
 fn fail_after_cleanup<T>(
