@@ -168,21 +168,11 @@ def main():
               file=sys.stderr)
         return 0
     request = make_request(arguments.command, failure, commits)
-    http = urllib.request.Request(
-        ENDPOINT, data=json.dumps(request).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.build_opener(
-                urllib.request.HTTPRedirectHandler()).open(
-                http, timeout=60) as connection:
-            response = json.load(connection)
-    except (urllib.error.URLError, TimeoutError, urllib.error.HTTPError):
+    response = typesafe_key.post(ENDPOINT, key, request)
+    if response is None:
         print("  = triage advisory unavailable: TypeSafe request failed",
               file=sys.stderr)
         return 0
-    if key in json.dumps(response):
-        raise RuntimeError("response contains the credential; refusing output")
     suspect, subject, layer, recent = evaluate(request, response)
     if suspect == NONE:
         print(f"  = triage advisory (jev): no window commit blamed — likely "

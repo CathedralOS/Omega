@@ -1,9 +1,12 @@
-"""Shared TYPESAFE_API_KEY discovery for the advisor tools."""
+"""Shared TYPESAFE_API_KEY discovery and request plumbing for the advisor tools."""
 
 
+import json
 import os
 import subprocess
 from pathlib import Path
+import urllib.error
+import urllib.request
 
 
 def read_key(path):
@@ -44,3 +47,22 @@ def find_key(key_file):
         if key:
             return key
     return ""
+
+
+def post(endpoint, key, request, timeout=60):
+    """POST one advisory JSON request; the parsed response, or None on
+    transport failure. A response echoing the credential is refused."""
+    http = urllib.request.Request(
+        endpoint, data=json.dumps(request).encode(),
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.build_opener(
+                urllib.request.HTTPRedirectHandler()).open(
+                http, timeout=timeout) as connection:
+            response = json.load(connection)
+    except (urllib.error.URLError, TimeoutError, urllib.error.HTTPError):
+        return None
+    if key in json.dumps(response):
+        raise RuntimeError("Response contains the credential; refusing output")
+    return response

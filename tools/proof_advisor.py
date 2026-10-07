@@ -235,22 +235,12 @@ def main():
     # corpus and sample programs are single-file.
     source = arguments.root.read_text(encoding="utf-8")
     request = make_request(source, diagnostics)
-    http = urllib.request.Request(
-        ENDPOINT, data=json.dumps(request).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.build_opener(
-                urllib.request.HTTPRedirectHandler()).open(
-                http, timeout=60) as connection:
-            response = json.load(connection)
-    except (urllib.error.URLError, TimeoutError, urllib.error.HTTPError):
+    response = typesafe_key.post(ENDPOINT, key, request)
+    if response is None:
         sys.stderr.write(completed.stderr)
         print("  = advisory unavailable: TypeSafe request failed",
               file=sys.stderr)
         return completed.returncode
-    if key in json.dumps(response):
-        raise RuntimeError("Response contains the credential; refusing output")
     rendered = render(evaluate(request, response), diagnostics)
     advisory = iter(rendered)
     for line in stderr_lines:
