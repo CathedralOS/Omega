@@ -105,6 +105,14 @@ pub(crate) fn encode_canonical_structural_field(
     length_label: &'static str,
 ) -> Result<(), CodecError> {
     writer.id(root);
+    encode_canonical_structural_path(writer, path, length_label)
+}
+
+pub(crate) fn encode_canonical_structural_path(
+    writer: &mut Writer,
+    path: &[CanonicalStructuralPathSegment],
+    length_label: &'static str,
+) -> Result<(), CodecError> {
     writer.len(length_label, path.len())?;
     for segment in path {
         match segment {

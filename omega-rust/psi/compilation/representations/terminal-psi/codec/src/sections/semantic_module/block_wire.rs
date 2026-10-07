@@ -27,6 +27,7 @@ use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
 use super::proof_term_wire::{decode_proof_formals, encode_proof_formals};
+use super::structural_field_wire::encode_canonical_structural_path;
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
@@ -38,30 +39,11 @@ fn encode_scalar_field_path(
     writer: &mut Writer,
     path: &[CanonicalStructuralPathSegment],
 ) -> Result<(), CodecError> {
-    writer.len("scalar field carrier path", path.len())?;
-    for segment in path {
-        match segment {
-            CanonicalStructuralPathSegment::Field(field) => {
-                writer.u8(1);
-                writer.id(*field);
-            }
-            // One literal index may end the carrier when the element record
-            // owns the observed field (`maps[1]` for `maps[1].value`). The
-            // tags mirror the canonical structural path codec.
-            CanonicalStructuralPathSegment::FixedIndex(index) => {
-                writer.u8(2);
-                writer.u64(*index);
-            }
-            // A final case step names the payload namespace a case-qualified
-            // observation reads; foundation validation and verification decide
-            // whether that carrier and its active case are admitted.
-            CanonicalStructuralPathSegment::Case(case) => {
-                writer.u8(3);
-                writer.id(*case);
-            }
-        }
-    }
-    Ok(())
+    // One literal index may end the carrier when the element record owns the
+    // observed field (`maps[1]` for `maps[1].value`). A final case step names
+    // the payload namespace a case-qualified observation reads; foundation
+    // validation and verification decide whether the carrier and case are admitted.
+    encode_canonical_structural_path(writer, path, "scalar field carrier path")
 }
 
 fn decode_scalar_field_path(

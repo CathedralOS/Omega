@@ -63,24 +63,7 @@ pub(crate) fn encode_scalar_term(
         }
         ScalarTerm::BooleanField { root, path } => {
             writer.u8(34);
-            writer.id(*root);
-            writer.len("Boolean field path", path.len())?;
-            for segment in path {
-                match segment {
-                    CanonicalStructuralPathSegment::Field(field) => {
-                        writer.u8(1);
-                        writer.id(*field);
-                    }
-                    CanonicalStructuralPathSegment::FixedIndex(index) => {
-                        writer.u8(2);
-                        writer.u64(*index);
-                    }
-                    CanonicalStructuralPathSegment::Case(case) => {
-                        writer.u8(3);
-                        writer.id(*case);
-                    }
-                }
-            }
+            encode_canonical_structural_field(writer, *root, path, "Boolean field path")?;
         }
         ScalarTerm::IntegerField {
             root,
@@ -88,24 +71,7 @@ pub(crate) fn encode_scalar_term(
             scalar_type,
         } => {
             writer.u8(35);
-            writer.id(*root);
-            writer.len("Integer field path", path.len())?;
-            for segment in path {
-                match segment {
-                    CanonicalStructuralPathSegment::Field(field) => {
-                        writer.u8(1);
-                        writer.id(*field);
-                    }
-                    CanonicalStructuralPathSegment::FixedIndex(index) => {
-                        writer.u8(2);
-                        writer.u64(*index);
-                    }
-                    CanonicalStructuralPathSegment::Case(case) => {
-                        writer.u8(3);
-                        writer.id(*case);
-                    }
-                }
-            }
+            encode_canonical_structural_field(writer, *root, path, "Integer field path")?;
             encode_integer_type(writer, *scalar_type);
         }
         ScalarTerm::ByteSequencePredicate {
@@ -123,24 +89,7 @@ pub(crate) fn encode_scalar_term(
             scalar_type,
         } => {
             writer.u8(36);
-            writer.id(*root);
-            writer.len("View extent path", path.len())?;
-            for segment in path {
-                match segment {
-                    CanonicalStructuralPathSegment::Field(field) => {
-                        writer.u8(1);
-                        writer.id(*field);
-                    }
-                    CanonicalStructuralPathSegment::FixedIndex(index) => {
-                        writer.u8(2);
-                        writer.u64(*index);
-                    }
-                    CanonicalStructuralPathSegment::Case(case) => {
-                        writer.u8(3);
-                        writer.id(*case);
-                    }
-                }
-            }
+            encode_canonical_structural_field(writer, *root, path, "View extent path")?;
             encode_integer_type(writer, *scalar_type);
         }
         ScalarTerm::Boolean(value) => {
