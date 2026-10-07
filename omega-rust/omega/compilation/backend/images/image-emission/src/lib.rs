@@ -50,6 +50,7 @@ pub use object_artifact::{
     ObjectUnitCallStack, ObjectUnitStack, build_admitted_x86_fma_object_artifact,
     build_feature_required_x86_fma_object_artifact, build_object_artifact,
     build_object_artifact_with_private_functions, derive_normalized_foreign_call_custody,
+    foreign_result_operand_count, scalar_observation_producer,
 };
 
 pub use function_fragments::{

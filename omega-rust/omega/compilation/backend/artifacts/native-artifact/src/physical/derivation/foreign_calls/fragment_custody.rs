@@ -10,6 +10,7 @@ use crate::physical::derivation::foreign_calls::{
 };
 use crate::physical::fragment_publication::FragmentPublicationBinding;
 use calling_conventions::ValueLocation;
+use image_emission::{foreign_result_operand_count, scalar_observation_producer};
 use semantic_vocabulary::ScalarType;
 
 /// The selected-plan roster row for one normalized-foreign D41 child, plus
@@ -874,40 +875,6 @@ fn structural_result_capture(
     Some(())
 }
 
-/// ABI result fragments and hidden destination pointers are real operands;
-/// Unit and aggregate results cannot be inferred from an optional scalar home.
-fn foreign_result_operand_count(
-    record: &selected_instructions::SelectedNormalizedForeignCall,
-) -> Option<usize> {
-    match (
-        &record.call.result,
-        &record.call.binding.boundary_entry_plan.call.result,
-    ) {
-        (target_operations::TargetBoundaryResult::Unit, None) => Some(0),
-        (target_operations::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
-        (target_operations::TargetBoundaryResult::Structural(_), Some(placement)) => {
-            match placement.locations.as_slice() {
-                [
-                    ValueLocation::Indirect {
-                        pointer: calling_conventions::IndirectPointerLocation::Register(_),
-                        ..
-                    },
-                ] => Some(1),
-                locations
-                    if !locations.is_empty()
-                        && locations
-                            .iter()
-                            .all(|location| matches!(location, ValueLocation::Register { .. })) =>
-                {
-                    Some(locations.len())
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
 /// Re-derives a roster row's scalar-result custody — the durable-home record,
 /// its plan placement, and the normalization instruction span — and requires
 /// the projected record to equal the re-derivation exactly.
@@ -1199,40 +1166,4 @@ fn fragment_scalar_call_result_producer(
                     })
             })
     })
-}
-
-/// The non-call instruction producing a scalar-home value: a field or
-/// primitive read, byte observation, or membership check whose provenance
-/// claims the home's defining operation and whose result register is the
-/// home's source value. Exactly one such instruction may exist — reads staged
-/// over several instructions still define the value exactly once.
-fn scalar_observation_producer(
-    function: &selected_instructions::SelectedFunction,
-    operation: semantic_vocabulary::OperationId,
-    source_value: semantic_vocabulary::ValueId,
-) -> Option<selected_instructions::SelectedInstructionId> {
-    let mut producers = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter(|instruction| {
-            instruction.provenance.operations.contains(&operation)
-                && instruction.operands.iter().any(|operand| {
-                    function
-                        .virtual_registers
-                        .get(operand.virtual_register.0 as usize)
-                        .is_some_and(|register| {
-                            register.origin
-                                == selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                                    instruction: instruction.id,
-                                    source_value,
-                                }
-                        })
-                })
-        });
-    let producer = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
-    Some(producer.id)
 }

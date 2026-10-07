@@ -30,6 +30,9 @@ pub use construction::{
     build_object_artifact, build_object_artifact_with_private_functions,
 };
 pub use errors::ObjectError;
-pub use normalized_foreign_calls::derive_normalized_foreign_call_custody;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
+pub use normalized_foreign_calls::{
+    derive_normalized_foreign_call_custody, foreign_result_operand_count,
+    scalar_observation_producer,
+};
 pub(crate) use private_functions::validate_private_functions;

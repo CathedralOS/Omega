@@ -426,7 +426,7 @@ fn producer_instruction(
 /// claims the home's defining operation and whose result register is the
 /// home's source value. Exactly one such instruction may exist — reads staged
 /// over several instructions still define the value exactly once.
-fn scalar_observation_producer(
+pub fn scalar_observation_producer(
     function: &selected_instructions::SelectedFunction,
     operation: semantic_vocabulary::OperationId,
     source_value: semantic_vocabulary::ValueId,
@@ -995,7 +995,7 @@ fn structural_result_capture(
 
 /// ABI result fragments and hidden destination pointers are real operands;
 /// Unit and aggregate results cannot be inferred from an optional scalar home.
-fn foreign_result_operand_count(
+pub fn foreign_result_operand_count(
     record: &selected_instructions::SelectedNormalizedForeignCall,
 ) -> Option<usize> {
     match (
