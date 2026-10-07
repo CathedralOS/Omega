@@ -313,15 +313,14 @@ fn collect_destination_trees(
                                         }))
                                         .then(|| call_argument_destinations(program, path.symbol, arguments.len()))
                                         .flatten();
-                                    for (ordinal, argument) in arguments.iter().enumerate() {
-                                        if destinations.as_ref().is_some_and(|destinations| {
-                                            admitted(destinations[ordinal], *argument)
-                                        }) {
-                                            append_tree(program, *argument, owned);
-                                        } else {
-                                            other_roots.push(*argument);
-                                        }
-                                    }
+                                    admit_call_arguments(
+                                        program,
+                                        arguments,
+                                        destinations,
+                                        &mut admitted,
+                                        owned,
+                                        other_roots,
+                                    );
                                 }
                                 _ => {}
                             }
@@ -360,15 +359,14 @@ fn collect_destination_trees(
                             call_argument_destinations(program, call.target_symbol, arguments.len())
                         })
                         .flatten();
-                        for (ordinal, argument) in arguments.iter().enumerate() {
-                            if destinations.as_ref().is_some_and(|destinations| {
-                                admitted(destinations[ordinal], *argument)
-                            }) {
-                                append_tree(program, *argument, owned);
-                            } else {
-                                other_roots.push(*argument);
-                            }
-                        }
+                        admit_call_arguments(
+                            program,
+                            arguments,
+                            destinations,
+                            &mut admitted,
+                            owned,
+                            other_roots,
+                        );
                     }
                     StatementNode::RootBinding(_) => {}
                     StatementNode::AssemblyFact(fact) => other_roots.push(fact.expression),
@@ -509,6 +507,30 @@ fn collect_destination_trees(
 
 /// Destination discovery consumes the resolved state identity. It cannot
 /// recover a missing call selection from a spelling or a compatible signature.
+
+/// Admit each call argument into `owned` when its per-ordinal destination
+/// accepts it; arguments without a destination (or a rejected one) fall back
+/// to `other_roots`.
+fn admit_call_arguments(
+    program: &TypedTrees,
+    arguments: &[ExpressionHandle],
+    destinations: Option<Vec<TypeReferenceHandle>>,
+    admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
+    owned: &mut Vec<ExpressionHandle>,
+    other_roots: &mut Vec<ExpressionHandle>,
+) {
+    for (ordinal, argument) in arguments.iter().enumerate() {
+        if destinations
+            .as_ref()
+            .is_some_and(|destinations| admitted(destinations[ordinal], *argument))
+        {
+            append_tree(program, *argument, owned);
+        } else {
+            other_roots.push(*argument);
+        }
+    }
+}
+
 fn call_argument_destinations(
     program: &TypedTrees,
     target: symbols::SymbolHandle,
