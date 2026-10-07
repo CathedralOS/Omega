@@ -326,10 +326,7 @@ pub(crate) fn build_published_crash_plan(
         Some(operators),
         exact_integer_casts,
     );
-    let plan = (if machine.is_public
-        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !published.is_empty()
-    {
+    let plan = (if program.machine_publishes_crash_ceiling(machine) {
         checked_trees::CrashPlan::published_ceiling(published)
     } else {
         checked_trees::CrashPlan::default()

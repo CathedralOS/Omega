@@ -20,6 +20,7 @@ mod cast;
 mod dispatch;
 mod folded_values;
 mod place;
+mod trap_coverage;
 mod unary;
 mod unsigned_constants;
 
@@ -114,6 +115,7 @@ pub(super) fn analyze(
         target_primitive,
         target_domain,
         owner,
+        checks_trap_coverage: true,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -130,6 +132,11 @@ struct ExpressionWalk<'a> {
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &'a str,
+    /// Whether a Trapping operation must prove its trap fits the machine's
+    /// published Trap ceiling. A coverage re-analysis under the route
+    /// complement only asks whether one node forms; its nested operations
+    /// were already judged by the walk that reached them.
+    checks_trap_coverage: bool,
 }
 
 impl ExpressionWalk<'_> {

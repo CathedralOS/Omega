@@ -22,7 +22,7 @@ use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_oper
 use crate::proof_contracts::arithmetic_domains::return_ranges::overflow_operand_value_call_target;
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
-    PrimitiveType, bitwise, guard_narrowing, is_arithmetic, ordered_values,
+    PrimitiveType, bitwise, division_definedness, guard_narrowing, is_arithmetic, ordered_values,
     unsigned_representability,
 };
 use crate::value_custody::literals;
@@ -39,25 +39,8 @@ pub(super) fn analyze(
     diagnostics: &mut Vec<Diagnostic>,
     decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
-    let left = walk.analyze(binary.left, diagnostics, decisions);
-    let right_environment = guard_narrowing::short_circuit_operand_environment(
-        walk.program,
-        walk.machine,
-        walk.state,
-        expression,
-        walk.environment,
-    );
-    let right_walk = ExpressionWalk {
-        environment: right_environment.as_ref().unwrap_or(walk.environment),
-        ..*walk
-    };
-    let mut operation = Operation {
-        walk,
-        expression,
-        binary: *binary,
-        left,
-        right: right_walk.analyze(binary.right, diagnostics, decisions),
-    };
+    let mut operation =
+        Operation::analyze_operands(walk, expression, binary, diagnostics, decisions);
     if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
         walk.program,
         walk.machine,
@@ -104,36 +87,7 @@ pub(super) fn analyze(
         return operation.bitwise_result(domain);
     }
     let mut interval = operation.mathematical_interval();
-    // Operand primitives win. The destination type is a fallback ONLY when the
-    // result is a BOUNDED constant (a bare-literal computation like
-    // `let c: u8 = 200 + 100`), so it is range-checked against `c`. An
-    // UNbounded result (an unknown operand -- a call result, a param) keeps no
-    // primitive and stays unchecked, as before -- the target fallback must not
-    // turn "unknown" into a spurious overflow.
-    let primitive = operation
-        .left
-        .primitive
-        .or(operation.right.primitive)
-        .or_else(|| {
-            if interval.low.is_some() && interval.high.is_some() {
-                walk.target_primitive
-            } else {
-                None
-            }
-        });
-    // The difference of two addresses is a distance, and the address model
-    // calls a distance a count: it names no referent, and no width equality
-    // relates counts to addresses, so it lands `u64` rather than its operands'
-    // carrier. `addr - count` still offsets an address and keeps `addr`.
-    // `reject_address_arithmetic` admits exactly the shapes separated here.
-    let primitive = if operator == BinaryOperator::Subtract
-        && operation.left.primitive == Some(PrimitiveType::Addr)
-        && operation.right.primitive == Some(PrimitiveType::Addr)
-    {
-        Some(PrimitiveType::U64)
-    } else {
-        primitive
-    };
+    let primitive = operation.result_primitive(interval);
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
     if let Some(primitive) = primitive
         && crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
@@ -210,11 +164,59 @@ pub(super) fn analyze(
             decisions.decided_formations.push(expression);
         }
     }
+    if effective_domain == ArithmeticDomain::Trapping
+        && let Some(policy_primitive) = integer_policy_primitive(operator)
+        && let Some(primitive) = primitive.filter(|primitive| primitive_range(*primitive).is_some())
+    {
+        let trap_predicates =
+            integer_policy_bridge(policy_primitive, ArithmeticDomain::Trapping).trap_predicates;
+        walk.require_trap_coverage(
+            expression,
+            || operation.forms_exactly(policy_primitive, primitive, interval),
+            |covering| Operation::forms_exactly_under(covering, expression, binary),
+            || {
+                format!(
+                    "Trapping `{}` of `{}` and `{}` in `{}` traps when {}",
+                    arithmetic_operator_spelling(operator),
+                    walk.operand_label(binary.left),
+                    walk.operand_label(binary.right),
+                    primitive_name(primitive),
+                    trap_condition(trap_predicates, primitive),
+                )
+            },
+            diagnostics,
+        );
+    }
     Analysis {
         domain,
         interval: operation.policy_result_interval(effective_domain, primitive, interval),
         primitive,
     }
+}
+
+/// What makes a Trapping integer primitive trap, for an uncovered-site
+/// diagnostic. The catalog row, not the operator spelling, names the cases.
+fn trap_condition(trap_predicates: &[IntegerTrapPredicate], primitive: PrimitiveType) -> String {
+    trap_predicates
+        .iter()
+        .map(|predicate| match predicate {
+            IntegerTrapPredicate::ResultOutsideCarrier => {
+                format!("its result lies outside `{}`", primitive_name(primitive))
+            }
+            IntegerTrapPredicate::ZeroDivisor => "its divisor is zero".to_owned(),
+            IntegerTrapPredicate::SignedMinimumDividedByNegativeOne => {
+                format!(
+                    "it divides the `{}` minimum by `-1`",
+                    primitive_name(primitive)
+                )
+            }
+            IntegerTrapPredicate::ShiftCountOutOfRange => format!(
+                "its shift count is not below the `{}` width",
+                primitive_name(primitive)
+            ),
+        })
+        .collect::<Vec<_>>()
+        .join(" or ")
 }
 
 fn integer_policy_primitive(operator: BinaryOperator) -> Option<IntegerPolicyPrimitive> {
@@ -239,9 +241,151 @@ struct Operation<'w, 'a> {
     right: Analysis,
 }
 
+impl<'w, 'a> Operation<'w, 'a> {
+    /// Analyse both operands. The right operand of a builtin `&&`/`||` sees
+    /// the facts its short-circuit evaluation establishes.
+    fn analyze_operands(
+        walk: &'w ExpressionWalk<'a>,
+        expression: ExpressionHandle,
+        binary: &TableBinaryExpression,
+        diagnostics: &mut Vec<Diagnostic>,
+        decisions: &mut super::ArithmeticDecisions,
+    ) -> Self {
+        let left = walk.analyze(binary.left, diagnostics, decisions);
+        let right_environment = guard_narrowing::short_circuit_operand_environment(
+            walk.program,
+            walk.machine,
+            walk.state,
+            expression,
+            walk.environment,
+        );
+        let right_walk = ExpressionWalk {
+            environment: right_environment.as_ref().unwrap_or(walk.environment),
+            ..*walk
+        };
+        Operation {
+            walk,
+            expression,
+            binary: *binary,
+            left,
+            right: right_walk.analyze(binary.right, diagnostics, decisions),
+        }
+    }
+}
+
 impl Operation<'_, '_> {
     fn operator(&self) -> BinaryOperator {
         self.binary.operator
+    }
+
+    /// The carrier the operation computes in. Operand primitives win. The
+    /// destination type is a fallback ONLY when the result is a BOUNDED
+    /// constant (a bare-literal computation like `let c: u8 = 200 + 100`), so
+    /// it is range-checked against `c`. An UNbounded result (an unknown
+    /// operand -- a call result, a param) keeps no primitive and stays
+    /// unchecked, as before -- the target fallback must not turn "unknown"
+    /// into a spurious overflow.
+    ///
+    /// The difference of two addresses is a distance, and the address model
+    /// calls a distance a count: it names no referent, and no width equality
+    /// relates counts to addresses, so it lands `u64` rather than its
+    /// operands' carrier. `addr - count` still offsets an address and keeps
+    /// `addr`. `reject_address_arithmetic` admits exactly the shapes separated
+    /// here.
+    fn result_primitive(&self, interval: Interval) -> Option<PrimitiveType> {
+        if self.operator() == BinaryOperator::Subtract
+            && self.left.primitive == Some(PrimitiveType::Addr)
+            && self.right.primitive == Some(PrimitiveType::Addr)
+        {
+            return Some(PrimitiveType::U64);
+        }
+        self.left.primitive.or(self.right.primitive).or_else(|| {
+            if interval.low.is_some() && interval.high.is_some() {
+                self.walk.target_primitive
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Whether this operation's Exact counterpart forms under the walk's
+    /// facts: every formation condition the Exact policy owes holds. A
+    /// Trapping primitive traps exactly when one of them fails, so this is
+    /// also the judgment that no trap is reachable here.
+    fn forms_exactly(
+        &self,
+        policy_primitive: IntegerPolicyPrimitive,
+        primitive: PrimitiveType,
+        interval: Interval,
+    ) -> bool {
+        let walk = self.walk;
+        let mut unproven = Vec::new();
+        if matches!(
+            self.operator(),
+            BinaryOperator::Divide | BinaryOperator::Modulo
+        ) {
+            return division_definedness::validate_operands(
+                walk.program,
+                walk.machine,
+                walk.state,
+                walk.environment,
+                &self.binary,
+                ArithmeticDomain::Exact,
+                primitive,
+                self.left.interval,
+                self.right.interval,
+                walk.owner,
+                &mut unproven,
+            );
+        }
+        let exact = integer_policy_bridge(policy_primitive, ArithmeticDomain::Exact);
+        let interval = if self.cancels_to_zero() {
+            Interval {
+                low: Some(0),
+                high: Some(0),
+            }
+        } else {
+            interval
+        };
+        self.require_representable_result(
+            exact,
+            primitive,
+            interval,
+            self.relationally_fits_carrier(Some(primitive)),
+            &mut unproven,
+        );
+        if self.is_shift() {
+            self.require_shift_count_within_width(exact, ArithmeticDomain::Exact, &mut unproven);
+        }
+        !unproven.iter().any(Diagnostic::is_error)
+    }
+
+    /// Re-decide [`Self::forms_exactly`] for one occurrence under another
+    /// walk's environment. Operand obligations were already reported by the
+    /// walk that reached them; this pass keeps only the formation verdict.
+    fn forms_exactly_under(
+        walk: &ExpressionWalk,
+        expression: ExpressionHandle,
+        binary: &TableBinaryExpression,
+    ) -> bool {
+        let Some(policy_primitive) = integer_policy_primitive(binary.operator) else {
+            return false;
+        };
+        let mut ignored = Vec::new();
+        let mut operation = Operation::analyze_operands(
+            walk,
+            expression,
+            binary,
+            &mut ignored,
+            &mut super::ArithmeticDecisions::default(),
+        );
+        if !operation.is_shift() {
+            operation.land_anonymous_operands(&mut ignored);
+        }
+        let interval = operation.mathematical_interval();
+        operation
+            .result_primitive(interval)
+            .is_some_and(|primitive| operation.forms_exactly(policy_primitive, primitive, interval))
     }
 
     fn is_shift(&self) -> bool {

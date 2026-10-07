@@ -521,6 +521,22 @@ impl TypedTrees {
         self.signature_contracts.span_or_empty(machine.contracts)
     }
 
+    /// Whether the machine's crash interface is its published ceiling rather
+    /// than an inferred body summary. A public or non-checked-body supply
+    /// publishes one even with no `crashes` clause (omitting a cause forbids
+    /// it); a private checked body publishes one exactly when it authors a
+    /// `crashes` clause. Body crash sites must then fit those routes.
+    pub fn machine_publishes_crash_ceiling(&self, machine: &machine::Machine) -> bool {
+        machine.is_public
+            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || self.machine_contracts(machine).iter().any(|contract| {
+                matches!(
+                    contract.kind,
+                    signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+    }
+
     pub fn push_machine_state(
         &mut self,
         machine: &mut machine::Machine,

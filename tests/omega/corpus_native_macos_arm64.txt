@@ -638,6 +638,7 @@ pass/core/numeric_unsigned_narrowing_policies built 2087ms exit:0 @5a7ed5b57d00+
 pass/core/numeric_unsigned_to_signed_policies built 2892ms exit:0 @5a7ed5b57d00+wt
 pass/core/numeric_widening_preserves_values built 1573ms exit:0 @5a7ed5b57d00+wt
 pass/core/numeric_widening_published_ranges built 1788ms exit:0 @5a7ed5b57d00+wt
+pass/core/runtime_guarded_trapping_addition_exit built 3744ms exit:70 @f53544b209b2+wt
 pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @48008365d839
 pass/core/runtime_natural_termination_exit built 405ms exit:0
 pass/core/self_read_only_receiver_compile checked 221ms

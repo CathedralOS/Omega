@@ -759,14 +759,21 @@ fail/core/extent_root_adapter_direct_call_does_not_grant rejected 564ms expected
 	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted
 fail/core/extent_scope_loss rejected 865ms expected @2d8ed253669f
 	linear value `extent` reaches scope exit without being consumed or transferred
-fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 12818ms expected @5a7ed5b57d00+wt
-	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
-fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 12543ms expected @5a7ed5b57d00+wt
-	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
-fail/core/guarded_trap_ceiling_other_site_rejected rejected 12145ms expected @5a7ed5b57d00+wt
-	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967298) }]))
-fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 1448ms expected @c08960bee2b1+wt
-	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 692ms expected @f53544b209b2+wt
+	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `u16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `u16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 634ms expected @f53544b209b2+wt
+	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `i16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `i16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_other_site_rejected rejected 630ms expected @f53544b209b2+wt
+	uncovered Trap crash in machine `pack` state `entry` cast expression: Trapping conversion of `high` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `pack` state `entry` local `high_byte`: Trapping conversion of `high` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 725ms expected @f53544b209b2+wt
+	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 581ms expected @f53544b209b2+wt
+	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 fail/core/interrupt_obligation_construction_rejected rejected 464ms expected @c5d32a00863
 	construction of `InterruptAcknowledgement` field `root` lost its exact declared owner
 	construction of `InterruptAcknowledgement` field `provider_execution` lost its exact declared owner
@@ -2452,6 +2459,7 @@ pass/core/numeric_unsigned_narrowing_policies checked 9671ms check-target:macos_
 pass/core/numeric_unsigned_to_signed_policies checked 10728ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_widening_preserves_values checked 6823ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_widening_published_ranges checked 8095ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/runtime_guarded_trapping_addition_exit checked 4838ms check-target:macos_arm64 @f53544b209b2+wt
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms check-target:macos_arm64 @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms check-target:macos_arm64 @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f

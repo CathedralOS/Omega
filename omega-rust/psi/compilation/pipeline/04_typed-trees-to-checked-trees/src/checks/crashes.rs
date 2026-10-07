@@ -467,6 +467,11 @@ fn site_path_classification(
     (path_guard_conjuncts, path_guard_consequences)
 }
 
+/// Published-ceiling coverage of explicit `crash` transitions, calls and
+/// selected operators. Operation-level Trapping sites (conversions and integer
+/// arithmetic) are judged where their Exact formation is decided, over their
+/// own operands and carriers: `validation`'s arithmetic-domain walk rejects a
+/// site whose trap the route complement cannot exclude.
 pub(crate) fn check_published_ceiling_coverage(
     program: &TypedTrees,
     facts: &CheckFacts,

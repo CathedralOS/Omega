@@ -69,6 +69,7 @@ pub(super) fn analyze(
     );
     require_float_to_integer_policy(walk, cast, &source, primitive, diagnostics);
     require_exact_integer_fit(walk, cast, &source, primitive, diagnostics);
+    require_trapping_conversion_coverage(walk, expression, cast, &source, primitive, diagnostics);
     if !diagnostics[first_diagnostic..]
         .iter()
         .any(Diagnostic::is_error)
@@ -251,6 +252,77 @@ fn require_exact_integer_fit(
             primitive_name(target),
         )));
     }
+}
+
+/// A Trapping numeric conversion traps exactly when its Exact counterpart is
+/// not provably representable: an integer (or address) operand outside the
+/// target carrier, or a float operand that is NaN or truncates outside it.
+/// That same judgment, over this conversion's own operand and carriers,
+/// decides whether the machine's published Trap ceiling covers the site.
+fn require_trapping_conversion_coverage(
+    walk: &ExpressionWalk,
+    expression: typed_trees::expression::ExpressionHandle,
+    cast: &TableCastExpression,
+    source: &Analysis,
+    primitive: Option<PrimitiveType>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if cast.domain != ArithmeticDomain::Trapping {
+        return;
+    }
+    let Some(target) = primitive.filter(|target| primitive_range(*target).is_some()) else {
+        return;
+    };
+    let Some(source_primitive) = source.primitive else {
+        return;
+    };
+    let float_source = matches!(source_primitive, PrimitiveType::F32 | PrimitiveType::F64);
+    if !float_source && primitive_range(source_primitive).is_none() {
+        return;
+    }
+    let forms = |walk: &ExpressionWalk, source: &Analysis| {
+        if float_source {
+            float_source_proves_int_cast(
+                walk.program,
+                walk.machine,
+                walk.state,
+                walk.environment,
+                cast.value,
+                target,
+            )
+        } else {
+            integer_interval_fits_primitive(source.interval, source_primitive, target)
+        }
+    };
+    walk.require_trap_coverage(
+        expression,
+        || forms(walk, source),
+        |covering| {
+            let source = source_value(
+                covering,
+                cast,
+                primitive,
+                &mut Vec::new(),
+                &mut super::ArithmeticDecisions::default(),
+            );
+            source.primitive == Some(source_primitive) && forms(covering, &source)
+        },
+        || {
+            format!(
+                "Trapping conversion of `{}` from `{}` to `{target}` traps when that value {} \
+                 `{target}`",
+                walk.operand_label(cast.value),
+                primitive_name(source_primitive),
+                if float_source {
+                    "is NaN or truncates outside"
+                } else {
+                    "lies outside"
+                },
+                target = primitive_name(target),
+            )
+        },
+        diagnostics,
+    );
 }
 
 /// Numeric conversion of a Boolean preserves its binary value. Keep that

@@ -606,9 +606,10 @@ fn lower_float_meaning_equality_clause(
 /// widens its `Trap` cause to the unconditional route, and private callers
 /// inherit it through the summary fixed point. The rows come from the same
 /// checked scalar expression and computation plans lowering consumes, so a
-/// Trapping operation reaching Terminal has its evidence here; a published
-/// ceiling still has to cover it, which the Terminal verifier checks
-/// independently.
+/// Trapping operation reaching Terminal has its evidence here. A published
+/// ceiling instead has to cover each such operation: the arithmetic-domain
+/// walk decides that coverage over the operation's own operands while it
+/// decides Exact formation (`validation`'s `trap_coverage`).
 fn trapping_sites(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
