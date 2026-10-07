@@ -31,15 +31,7 @@ pub(super) fn validate(
         }
         PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
             if provenance.is_empty()
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.machine, affected_blocks, provenance)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
@@ -102,15 +94,11 @@ pub(super) fn validate(
             if patch.empty.node != 0
                 || patch.empty.machine != patch.predecessor.machine
                 || !affected_blocks.contains(&patch.empty.block)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.predecessor.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(
+                    patch.predecessor.machine,
+                    affected_blocks,
+                    provenance,
+                )
                 || !provenance.iter().any(|row| {
                     row.input == incoming
                         && row.disposition == ProvenanceDisposition::RealizedAt(incoming)
@@ -137,15 +125,7 @@ pub(super) fn validate(
             if patch.empty.node != 0
                 || !affected_blocks.contains(&patch.empty.block)
                 || fanout == 0
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.empty.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.empty.machine, affected_blocks, provenance)
                 || !substitutions.is_empty()
                 || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
@@ -192,15 +172,7 @@ pub(super) fn validate(
             let input = PsiRealizationSite::Node(patch.location);
             if !substitutions.is_empty()
                 || !provenance.iter().any(|row| row.input == input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.location.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.location.machine, affected_blocks, provenance)
                 || !matches!(
                     witness,
                     PsiRewriteWitness::StructuralIdentity
@@ -224,15 +196,7 @@ pub(super) fn validate(
                         scalar_type: patch.scalar_type,
                     }]
                 || !provenance.iter().any(|row| row.input == redundant_input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.redundant.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
                 || !matches!(
                     witness,
                     PsiRewriteWitness::StructuralIdentity
@@ -255,15 +219,7 @@ pub(super) fn validate(
                         scalar_type: patch.scalar_type,
                     }]
                 || !provenance.iter().any(|row| row.input == redundant_input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.redundant.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
                 || !matches!(
                     witness,
                     PsiRewriteWitness::StructuralIdentity
@@ -288,15 +244,7 @@ pub(super) fn validate(
                         || !affected_blocks.contains(&incoming.source)
                 })
                 || !provenance.iter().any(|row| row.input == redundant_input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.redundant.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
                 || !matches!(
                     witness,
                     PsiRewriteWitness::StructuralIdentity
@@ -316,15 +264,7 @@ pub(super) fn validate(
                 }]
                 || patch.result == patch.replacement
                 || !provenance.iter().any(|row| row.input == input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.location.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.location.machine, affected_blocks, provenance)
                 || !matches!(
                     witness,
                     PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
@@ -343,15 +283,7 @@ pub(super) fn validate(
                 }]
                 || patch.result == patch.replacement
                 || !provenance.iter().any(|row| row.input == input)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.location.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.location.machine, affected_blocks, provenance)
                 || !matches!(witness, PsiRewriteWitness::TotalScalarIdentity { .. })
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
@@ -369,15 +301,7 @@ pub(super) fn validate(
                 })
                 || !affected_blocks.contains(&patch.dispatch)
                 || provenance.is_empty()
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.machine, affected_blocks, provenance)
                 || !substitutions.is_empty()
                 || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
@@ -397,15 +321,7 @@ pub(super) fn validate(
                         || !affected_blocks.contains(&row.site.block)
                 })
                 || provenance.is_empty()
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.machine, affected_blocks, provenance)
                 || !substitutions.is_empty()
                 || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
@@ -452,15 +368,7 @@ pub(super) fn validate(
                         }
                 })
                 || provenance.is_empty()
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
+                || !provenance_realized_within(patch.machine, affected_blocks, provenance)
                 || substitutions != expected_substitutions
                 || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
@@ -504,13 +412,23 @@ fn incoming_realization_consistent(
     };
     affected_blocks.contains(&target)
         && provenance.iter().any(|row| row.input == incoming)
-        && provenance.iter().all(|row| {
-            let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                return false;
-            };
-            site.machine() == predecessor.machine
-                && site
-                    .node()
-                    .map_or(true, |location| affected_blocks.contains(&location.block))
-        })
+        && provenance_realized_within(predecessor.machine, affected_blocks, provenance)
+}
+
+/// Whether every provenance row is realized on `machine` at a node inside the
+/// affected blocks; realization sites carrying no node stay admitted.
+fn provenance_realized_within(
+    machine: semantic_vocabulary::MachineId,
+    affected_blocks: &[BlockId],
+    provenance: &[ProvenanceRewrite],
+) -> bool {
+    provenance.iter().all(|row| {
+        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+            return false;
+        };
+        site.machine() == machine
+            && site
+                .node()
+                .is_none_or(|location| affected_blocks.contains(&location.block))
+    })
 }
