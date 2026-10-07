@@ -13,8 +13,8 @@ use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
-pub(crate) fn validate_selected_attached_method_bounds(
-    program: &dyn ::validation::CheckingInput,
+pub fn validate_selected_attached_method_bounds(
+    program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     if !program
         .machines()
@@ -26,8 +26,12 @@ pub(crate) fn validate_selected_attached_method_bounds(
     let mut selected = HashSet::<SymbolHandle>::new();
     let mut expressions = Vec::new();
     for constant in program.const_declarations() {
-        super::collect_expression_tree(program, constant.authored_initializer, &mut expressions);
-        super::collect_expression_tree(
+        crate::expression_traversal::collect_expression_tree(
+            program,
+            constant.authored_initializer,
+            &mut expressions,
+        );
+        crate::expression_traversal::collect_expression_tree(
             program,
             constant.materialized_initializer,
             &mut expressions,
@@ -38,7 +42,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
         .iter()
         .filter(|call| !call.machine_symbol.is_valid())
     {
-        super::collect_expression_tree(program, call.call, &mut expressions);
+        crate::expression_traversal::collect_expression_tree(program, call.call, &mut expressions);
     }
     collect_expression_selections(program, &expressions, &mut selected);
     // Container normalization eagerly generates every method. Only authored
@@ -62,28 +66,40 @@ pub(crate) fn validate_selected_attached_method_bounds(
                 .iter()
                 .filter(|call| call.machine_symbol == machine.symbol)
             {
-                super::collect_expression_tree(program, call.call, &mut expressions);
+                crate::expression_traversal::collect_expression_tree(
+                    program,
+                    call.call,
+                    &mut expressions,
+                );
             }
             for contract in program.machine_contracts(machine) {
-                crate::monomorphization::selection::collect_contract_facts(
+                crate::expression_traversal::collect_contract_facts(
                     program,
                     contract.facts,
                     &mut expressions,
                 );
             }
             for owned in program.machine_owned_data(machine) {
-                super::collect_expression_tree(program, owned.initial_value, &mut expressions);
+                crate::expression_traversal::collect_expression_tree(
+                    program,
+                    owned.initial_value,
+                    &mut expressions,
+                );
             }
             for state in program.machine_states(machine) {
                 for contract in program.state_contracts(state) {
-                    crate::monomorphization::selection::collect_contract_facts(
+                    crate::expression_traversal::collect_contract_facts(
                         program,
                         contract.facts,
                         &mut expressions,
                     );
                 }
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    super::collect_statement_expression_trees(program, statement, &mut expressions);
+                    crate::expression_traversal::collect_statement_expression_trees(
+                        program,
+                        statement,
+                        &mut expressions,
+                    );
                     if let StatementNode::Call(call) = statement {
                         selected.insert(call.target_symbol);
                         collect_static_selections(&call.machine_arguments, &mut selected);
@@ -97,13 +113,11 @@ pub(crate) fn validate_selected_attached_method_bounds(
         }
     }
     let mut diagnostics = Vec::new();
-    let symbols = validation::TopLevelSymbols::build(program, &mut diagnostics);
+    let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
     for machine in program.machines().iter().filter(|machine| {
         machine.generic_data_template.is_valid() && method_is_selected(program, machine, &selected)
     }) {
-        let Some(template) =
-            crate::lookup::machine_by_symbol(program, machine.generic_data_template)
-        else {
+        let Some(template) = program.machine_by_symbol(machine.generic_data_template) else {
             diagnostics.push(Diagnostic::error(
                 "generic-data method lost its exact template",
             ));
@@ -152,7 +166,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
             continue;
         }
         for parameter in program.machine_type_parameters(template) {
-            let requirements = validation::declared_property_requirements(&parameter.bounds);
+            let requirements = crate::declared_property_requirements(&parameter.bounds);
             if requirements.is_empty() {
                 continue;
             }
@@ -166,7 +180,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
                 });
             if !argument.is_some_and(|argument| {
                 requirements.iter().all(|requirement| {
-                    validation::type_satisfies_declared_property(
+                    crate::type_satisfies_declared_property(
                         program,
                         &symbols,
                         &[],
@@ -190,7 +204,7 @@ pub(crate) fn validate_selected_attached_method_bounds(
 }
 
 fn method_is_selected(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     selected: &HashSet<SymbolHandle>,
 ) -> bool {
@@ -202,7 +216,7 @@ fn method_is_selected(
 }
 
 fn collect_expression_selections(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expressions: &[typed_trees::expression::ExpressionHandle],
     selected: &mut HashSet<SymbolHandle>,
 ) {

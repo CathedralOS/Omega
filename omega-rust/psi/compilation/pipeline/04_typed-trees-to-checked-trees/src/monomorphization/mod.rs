@@ -38,8 +38,6 @@ use validation::contract_identities::{
     normalized_machine_identity,
 };
 
-mod attached_methods;
-pub(crate) use attached_methods::validate_selected_attached_method_bounds;
 mod candidate;
 mod selection;
 pub(crate) use selection::collect_expression_tree;

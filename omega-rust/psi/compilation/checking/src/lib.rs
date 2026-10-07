@@ -10,6 +10,7 @@
 //! one folder of validators and the queries they share.
 
 pub use declarations::traits::conformance_applications;
+pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::{contract_structure, expression_owners};
 pub use value_custody::places::declaration_type_reference;

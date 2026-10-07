@@ -2,6 +2,7 @@
 //! result custody, invocation and machine-parameter admission, effects and
 //! their inference, and the reference results a call returns.
 
+pub(crate) mod attached_method_bounds;
 pub(crate) mod boundary_calls;
 pub(crate) mod call_cycles;
 pub(crate) mod callable_overloads;

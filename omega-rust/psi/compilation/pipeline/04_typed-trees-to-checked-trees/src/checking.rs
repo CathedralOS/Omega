@@ -242,7 +242,7 @@ fn check_program(
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program);
-    crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
+    validation::validate_selected_attached_method_bounds(&program)?;
     let mut validated =
         prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)?;
     // Caller-visible mutation summaries depend only on the immutable typed
