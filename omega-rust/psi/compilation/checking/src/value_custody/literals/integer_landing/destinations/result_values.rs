@@ -156,7 +156,7 @@ fn has_scalar_array_element_shape(
     program: &TypedTrees,
     mut element_type: TypeReferenceHandle,
 ) -> bool {
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use typed_trees::types::TypeReferenceNode;
 
     let mut visited = Vec::new();
     loop {

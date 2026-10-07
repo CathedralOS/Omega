@@ -4,7 +4,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 /// The range's value is an array, not one scalar element or the whole backing
 /// array. Enforce its element type for ordinary mutable writes as well as
