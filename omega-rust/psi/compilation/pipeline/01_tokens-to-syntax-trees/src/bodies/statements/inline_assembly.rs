@@ -350,10 +350,13 @@ fn reject_bracketed_asm_operand(
     Ok(())
 }
 
-fn zero_operand_asm_intrinsic_call(
+// Operand parsing and instruction policy stay in the dispatch below. These
+// constructors only publish the already selected intrinsic and arena handles.
+fn asm_intrinsic_call(
     syntax_trees: &mut SyntaxTrees,
     mnemonic: &Identifier,
     intrinsic_name: &'static str,
+    arguments: HandleSpan<ExpressionHandle>,
 ) -> StatementHandle {
     syntax_trees
         .statements
@@ -362,10 +365,36 @@ fn zero_operand_asm_intrinsic_call(
             receiver: HandleSpan::empty(),
             target: Identifier::new(intrinsic_name, mnemonic.source_span()),
             machine_arguments: Box::default(),
-            arguments: HandleSpan::empty(),
+            arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
+        }))
+}
+
+fn asm_intrinsic_result_assignment(
+    syntax_trees: &mut SyntaxTrees,
+    mnemonic: &Identifier,
+    intrinsic_name: &'static str,
+    arguments: HandleSpan<ExpressionHandle>,
+    destination: ExpressionHandle,
+) -> StatementHandle {
+    let value = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: false,
+            receiver: ExpressionHandle::invalid(),
+            target: Identifier::new(intrinsic_name, mnemonic.source_span()),
+            machine_arguments: Box::default(),
+            arguments,
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+        }));
+    syntax_trees
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target: destination,
+            value,
         }))
 }
 
@@ -483,18 +512,12 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         }
         AsmInstructionShape::Halt => Ok((
             ParsedAsmInstruction {
-                statement: syntax_trees
-                    .statements
-                    .insert(StatementNode::Call(TableCall {
-                        target_is_static: false,
-                        receiver: HandleSpan::empty(),
-                        target: Identifier::new("asm#hlt", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                        discards_result: false,
-                    })),
+                statement: asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    "asm#hlt",
+                    HandleSpan::empty(),
+                ),
                 contract,
             },
             input,
@@ -511,18 +534,12 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![port, value]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Call(TableCall {
-                            target_is_static: false,
-                            receiver: HandleSpan::empty(),
-                            target: Identifier::new("asm#port_out", mnemonic.source_span()),
-                            machine_arguments: Box::default(),
-                            arguments,
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                            discards_result: false,
-                        })),
+                    statement: asm_intrinsic_call(
+                        syntax_trees,
+                        &mnemonic,
+                        "asm#port_out",
+                        arguments,
+                    ),
                     contract,
                 },
                 input,
@@ -535,26 +552,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let arguments = syntax_trees
                 .expressions
                 .insert_expression_handles(vec![port]);
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new("asm#port_in", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments,
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }));
+            let statement = asm_intrinsic_result_assignment(
+                syntax_trees,
+                &mnemonic,
+                "asm#port_in",
+                arguments,
+                destination,
+            );
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value,
-                        },
-                    )),
+                    statement,
                     contract,
                 },
                 input,
@@ -562,46 +569,35 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         }
         AsmInstructionShape::MemoryFence(kind) => Ok((
             ParsedAsmInstruction {
-                statement: syntax_trees
-                    .statements
-                    .insert(StatementNode::Call(TableCall {
-                        target_is_static: false,
-                        receiver: HandleSpan::empty(),
-                        target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                        discards_result: false,
-                    })),
+                statement: asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                    HandleSpan::empty(),
+                ),
                 contract,
             },
             input,
         )),
         AsmInstructionShape::InterruptControl(kind) => Ok((
             ParsedAsmInstruction {
-                statement: syntax_trees
-                    .statements
-                    .insert(StatementNode::Call(TableCall {
-                        target_is_static: false,
-                        receiver: HandleSpan::empty(),
-                        target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                        discards_result: false,
-                    })),
+                statement: asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                    HandleSpan::empty(),
+                ),
                 contract,
             },
             input,
         )),
         AsmInstructionShape::InstructionSerialization(kind) => Ok((
             ParsedAsmInstruction {
-                statement: zero_operand_asm_intrinsic_call(
+                statement: asm_intrinsic_call(
                     syntax_trees,
                     &mnemonic,
                     kind.intrinsic_name(),
+                    HandleSpan::empty(),
                 ),
                 contract,
             },
@@ -609,10 +605,11 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         )),
         AsmInstructionShape::SchedulingHint(kind) => Ok((
             ParsedAsmInstruction {
-                statement: zero_operand_asm_intrinsic_call(
+                statement: asm_intrinsic_call(
                     syntax_trees,
                     &mnemonic,
                     kind.intrinsic_name(),
+                    HandleSpan::empty(),
                 ),
                 contract,
             },
@@ -620,10 +617,11 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         )),
         AsmInstructionShape::CacheOperation(kind) => Ok((
             ParsedAsmInstruction {
-                statement: zero_operand_asm_intrinsic_call(
+                statement: asm_intrinsic_call(
                     syntax_trees,
                     &mnemonic,
                     kind.intrinsic_name(),
+                    HandleSpan::empty(),
                 ),
                 contract,
             },
@@ -631,26 +629,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         )),
         AsmInstructionShape::FlagsSnapshot => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new("asm#pushfq", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }));
+            let statement = asm_intrinsic_result_assignment(
+                syntax_trees,
+                &mnemonic,
+                "asm#pushfq",
+                HandleSpan::empty(),
+                destination,
+            );
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value,
-                        },
-                    )),
+                    statement,
                     contract,
                 },
                 input,
@@ -663,18 +651,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![source]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Call(TableCall {
-                            target_is_static: false,
-                            receiver: HandleSpan::empty(),
-                            target: Identifier::new("asm#popfq", mnemonic.source_span()),
-                            machine_arguments: Box::default(),
-                            arguments,
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                            discards_result: false,
-                        })),
+                    statement: asm_intrinsic_call(syntax_trees, &mnemonic, "asm#popfq", arguments),
                     contract,
                 },
                 input,
@@ -687,26 +664,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let arguments = syntax_trees
                 .expressions
                 .insert_expression_handles(vec![index]);
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
-                        machine_arguments: Box::default(),
-                        arguments,
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }));
+            let statement = asm_intrinsic_result_assignment(
+                syntax_trees,
+                &mnemonic,
+                "asm#rdmsr",
+                arguments,
+                destination,
+            );
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value,
-                        },
-                    )),
+                    statement,
                     contract,
                 },
                 input,
@@ -721,18 +688,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![index, value]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Call(TableCall {
-                            target_is_static: false,
-                            receiver: HandleSpan::empty(),
-                            target: Identifier::new("asm#wrmsr", mnemonic.source_span()),
-                            machine_arguments: Box::default(),
-                            arguments,
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                            discards_result: false,
-                        })),
+                    statement: asm_intrinsic_call(syntax_trees, &mnemonic, "asm#wrmsr", arguments),
                     contract,
                 },
                 input,
@@ -740,29 +696,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         }
         AsmInstructionShape::ControlRegisterRead(register) => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new(
-                            register.read_intrinsic_name(),
-                            mnemonic.source_span(),
-                        ),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }));
+            let statement = asm_intrinsic_result_assignment(
+                syntax_trees,
+                &mnemonic,
+                register.read_intrinsic_name(),
+                HandleSpan::empty(),
+                destination,
+            );
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value,
-                        },
-                    )),
+                    statement,
                     contract,
                 },
                 input,
@@ -775,23 +718,14 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![source]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Call(TableCall {
-                            target_is_static: false,
-                            receiver: HandleSpan::empty(),
-                            target: Identifier::new(
-                                register
-                                    .write_intrinsic_name()
-                                    .expect("writable control-register shape"),
-                                mnemonic.source_span(),
-                            ),
-                            machine_arguments: Box::default(),
-                            arguments,
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                            discards_result: false,
-                        })),
+                    statement: asm_intrinsic_call(
+                        syntax_trees,
+                        &mnemonic,
+                        register
+                            .write_intrinsic_name()
+                            .expect("writable control-register shape"),
+                        arguments,
+                    ),
                     contract,
                 },
                 input,
@@ -799,29 +733,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         }
         AsmInstructionShape::SystemRegisterRead(register) => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
-            let value =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: ExpressionHandle::invalid(),
-                        target: Identifier::new(
-                            register.read_intrinsic_name(),
-                            mnemonic.source_span(),
-                        ),
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }));
+            let statement = asm_intrinsic_result_assignment(
+                syntax_trees,
+                &mnemonic,
+                register.read_intrinsic_name(),
+                HandleSpan::empty(),
+                destination,
+            );
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value,
-                        },
-                    )),
+                    statement,
                     contract,
                 },
                 input,
@@ -834,23 +755,14 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 .insert_expression_handles(vec![source]);
             Ok((
                 ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Call(TableCall {
-                            target_is_static: false,
-                            receiver: HandleSpan::empty(),
-                            target: Identifier::new(
-                                register
-                                    .write_intrinsic_name()
-                                    .expect("writable system-register shape"),
-                                mnemonic.source_span(),
-                            ),
-                            machine_arguments: Box::default(),
-                            arguments,
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                            discards_result: false,
-                        })),
+                    statement: asm_intrinsic_call(
+                        syntax_trees,
+                        &mnemonic,
+                        register
+                            .write_intrinsic_name()
+                            .expect("writable system-register shape"),
+                        arguments,
+                    ),
                     contract,
                 },
                 input,
