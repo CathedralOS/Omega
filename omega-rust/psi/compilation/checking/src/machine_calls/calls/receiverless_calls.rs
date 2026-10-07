@@ -57,36 +57,19 @@ pub(super) fn validate_receiverless_call(
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol)
         && callee_machine.symbol != current_machine.symbol
     {
-        validate_result_use(
+        validate_resolved_receiverless_call(
             program,
             call,
-            state.name.as_str(),
-            state.return_type,
-            diagnostics,
-        );
-        validate_resolved_call_arguments(
-            program,
+            symbols,
+            callee_machine,
+            state,
             current_machine,
             current_state,
             value_environment,
             arguments,
-            state.name.as_str(),
-            callee_machine,
-            state,
-            &call.machine_arguments,
             writable_roots,
             diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
-            symbols,
-            callee_machine,
-            state,
             state.name.as_str(),
-            arguments,
-            current_machine,
-            current_state,
-            diagnostics,
         );
         return;
     }
@@ -107,11 +90,15 @@ fn validate_resolved_receiverless_call(
     arguments: &[ExpressionHandle],
     writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    // The name diagnostics carry: the call as spelled (`compute`) for a
+    // free-machine or sibling resolution, the resolved state's name when a
+    // cross-machine symbol already named the callable.
+    target_name: &str,
 ) {
     validate_result_use(
         program,
         call,
-        call.target.as_str(),
+        target_name,
         state.return_type,
         diagnostics,
     );
@@ -121,7 +108,7 @@ fn validate_resolved_receiverless_call(
         current_state,
         value_environment,
         arguments,
-        call.target.as_str(),
+        target_name,
         callee_machine,
         state,
         &call.machine_arguments,
@@ -133,7 +120,7 @@ fn validate_resolved_receiverless_call(
         symbols,
         callee_machine,
         state,
-        call.target.as_str(),
+        target_name,
         arguments,
         current_machine,
         current_state,
@@ -159,6 +146,7 @@ fn validate_resolved_receiverless_call(
             arguments,
             writable_roots,
             diagnostics,
+            call.target.as_str(),
         );
         return;
     }
@@ -216,5 +204,6 @@ fn validate_resolved_receiverless_call(
         arguments,
         writable_roots,
         diagnostics,
+        call.target.as_str(),
     );
 }
