@@ -5,8 +5,9 @@
 //! observation before every right observation, then compares the captured
 //! Booleans. Short-circuiting the final conjunction cannot skip an operand's
 //! bounds check. A payloadless constructor contributes known tag bits, not a
-//! temporary owner per observation. Calls and effectful selectors cannot be
-//! replayed once for every declared case.
+//! temporary owner per observation; compared with a place, it reduces the
+//! equality to that place's membership in the one known case. Calls and
+//! effectful selectors cannot be replayed once for every declared case.
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
@@ -64,6 +65,46 @@ impl Builder<'_, '_> {
             .collect::<Option<Vec<_>>>()?;
         if cases.is_empty() {
             return None;
+        }
+        // Equality with one known payload-free case is that case's
+        // membership: a single tag observation of the other operand answers
+        // it. Dispatch coverage reads memberships, so this keeps an
+        // exhaustive arm set over a projected field (`transition item.kind`)
+        // provably closed without a `_` arm.
+        let known_case = match (&left, &right) {
+            (subject, CheckedScalarComputationStructuralArgument::Case(constructor))
+            | (CheckedScalarComputationStructuralArgument::Case(constructor), subject)
+                if !matches!(subject, CheckedScalarComputationStructuralArgument::Case(_)) =>
+            {
+                Some((subject.clone(), constructor.case))
+            }
+            _ => None,
+        };
+        if let Some((subject, case)) = known_case {
+            let membership = self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::CaseMembership {
+                    source_expression: expression,
+                    subject,
+                    case,
+                },
+            );
+            if !unequal {
+                return Some(membership);
+            }
+            let operands = self.plans.operands.insert_many([membership]);
+            return Some(self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::Apply {
+                    source_expression: expression,
+                    expression: CheckedScalarExpression::Boolean(Box::new(
+                        CheckedBooleanExpression::Not(Box::new(
+                            CheckedBooleanExpression::Parameter { position: 0 },
+                        )),
+                    )),
+                    operands,
+                },
+            ));
         }
         let mut observations = Vec::with_capacity(cases.len().checked_mul(2)?);
         for subject in [left, right] {

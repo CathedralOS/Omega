@@ -2517,6 +2517,7 @@ pass/control_flow/nonreturning_callee_exit checked 1650ms check-target:macos_arm
 pass/control_flow/ordered_unconditional_arm_exit checked 1444ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/owned_array_local_state_transfer_exit checked 1326ms check-target:macos_arm64 @cf6e9ae2565b
 pass/control_flow/owned_array_state_transfer_exit checked 1257ms check-target:macos_arm64 @cf6e9ae2565b
+pass/control_flow/projected_field_exhaustive_case_dispatch_exit checked 1171ms check-target:macos_arm64 @74a78aefec94+wt
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms check-target:macos_arm64 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit checked 2994ms check-target:macos_arm64 @36ad3370c97a
