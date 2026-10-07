@@ -383,6 +383,10 @@ mod tests {
         bytes
     }
 
+    fn expect_rejection_mentions(bytes: &[u8], needle: &str) {
+        assert!(rejection(bytes).diagnostic().message.contains(needle));
+    }
+
     fn rejection(bytes: &[u8]) -> Box<UefiSystemTableOccurrenceValidationError<'_>> {
         validate_uefi_system_table_occurrence(layout(), bytes).unwrap_err()
     }
@@ -443,12 +447,7 @@ mod tests {
 
         let mut corrupt = bytes;
         corrupt[135] ^= 1;
-        assert!(
-            rejection(&corrupt)
-                .diagnostic()
-                .message
-                .contains("computed")
-        );
+        expect_rejection_mentions(&corrupt, "computed");
     }
 
     #[test]
@@ -463,65 +462,35 @@ mod tests {
 
         let mut wrong_signature = valid_occurrence(120, 120);
         wrong_signature[0] ^= 1;
-        assert!(
-            rejection(&wrong_signature)
-                .diagnostic()
-                .message
-                .contains("expected EFI_SYSTEM_TABLE signature")
-        );
+        expect_rejection_mentions(&wrong_signature, "expected EFI_SYSTEM_TABLE signature");
     }
 
     #[test]
     fn rejects_header_size_below_prefix_or_beyond_supplied_bytes() {
         let mut below_prefix = valid_occurrence(120, 120);
         below_prefix[field_range(geometry().header_size)].copy_from_slice(&119_u32.to_le_bytes());
-        assert!(
-            rejection(&below_prefix)
-                .diagnostic()
-                .message
-                .contains("does not cover")
-        );
+        expect_rejection_mentions(&below_prefix, "does not cover");
 
         let mut beyond_supplied = valid_occurrence(120, 120);
         beyond_supplied[field_range(geometry().header_size)]
             .copy_from_slice(&121_u32.to_le_bytes());
-        assert!(
-            rejection(&beyond_supplied)
-                .diagnostic()
-                .message
-                .contains("only 120 occurrence bytes were supplied")
-        );
+        expect_rejection_mentions(&beyond_supplied, "only 120 occurrence bytes were supplied");
 
         let mut header_only = vec![0; 24];
         header_only[field_range(geometry().signature)]
             .copy_from_slice(&UEFI_SYSTEM_TABLE_SIGNATURE.to_le_bytes());
         header_only[field_range(geometry().header_size)].copy_from_slice(&u32::MAX.to_le_bytes());
-        assert!(
-            rejection(&header_only)
-                .diagnostic()
-                .message
-                .contains("only 24 occurrence bytes were supplied")
-        );
+        expect_rejection_mentions(&header_only, "only 24 occurrence bytes were supplied");
     }
 
     #[test]
     fn rejects_nonzero_reserved_field_and_crc_mismatch() {
         let mut nonzero_reserved = valid_occurrence(120, 120);
         nonzero_reserved[geometry().reserved.byte_offset() as usize] = 1;
-        assert!(
-            rejection(&nonzero_reserved)
-                .diagnostic()
-                .message
-                .contains("expected zero")
-        );
+        expect_rejection_mentions(&nonzero_reserved, "expected zero");
 
         let mut crc_mismatch = valid_occurrence(120, 120);
         crc_mismatch[64] ^= 1;
-        assert!(
-            rejection(&crc_mismatch)
-                .diagnostic()
-                .message
-                .contains("CRC32")
-        );
+        expect_rejection_mentions(&crc_mismatch, "CRC32");
     }
 }
