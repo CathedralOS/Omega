@@ -91,10 +91,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             plans,
             entry: plan.machine,
             unit_roots: &unit_roots,
-            external: None,
             scalar_entry: false,
         },
     )?
-    .lowered;
+    .terminal;
     Ok(lowered)
 }

@@ -77,54 +77,6 @@ pub(super) struct StateFrame<'s> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn build_scalar_graph_module(
-    states: &[LoweredScalarBranchState],
-    state_symbols: &[symbols::SymbolHandle],
-    state_requires: &[PreparedStateRequirements],
-    result_type: QualifiedScalarType,
-    scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
-    contract: PreparedScalarContract,
-    crash_routes: Vec<checked_trees::CrashRouteBucket>,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-    terminal_machine: MachineId,
-    identity_base: u64,
-    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
-    machine_ids: &[(symbols::SymbolHandle, MachineId)],
-    requirement_counts: &[(symbols::SymbolHandle, usize)],
-    literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
-    loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
-) -> Result<LoweredPsi, LoweringError> {
-    build_scalar_graph_module_in_namespace(
-        states,
-        state_symbols,
-        state_requires,
-        result_type,
-        scalar_qualifications,
-        contract,
-        crash_routes,
-        identity_reshuffles,
-        partition_compositions,
-        terminal_machine,
-        identity_base,
-        dynamic_dispatch,
-        machine_ids,
-        requirement_counts,
-        &[],
-        &[],
-        &[],
-        &[],
-        &scalar_contracts::ContractViewNamespace::EMPTY,
-        literal_places,
-        loop_plan,
-        // A closure member binds no structural formals and names no
-        // structural type here, so no state carries an exclusive loan to
-        // forward and no place is allocated from this counter.
-        &mut 1,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_scalar_graph_module_in_namespace(
     states: &[LoweredScalarBranchState],
     state_symbols: &[symbols::SymbolHandle],

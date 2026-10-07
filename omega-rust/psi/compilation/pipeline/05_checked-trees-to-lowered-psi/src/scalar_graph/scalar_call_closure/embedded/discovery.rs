@@ -2,45 +2,6 @@
 
 use super::super::{CheckedScalarBindingValue, CheckedTerminalSignatureEligibility};
 use super::{CheckedTrees, LoweringError, unsupported};
-/// Discover scalar bodies selected by exact calls in an external caller.
-/// Embedded roots retain their caller attachment; every
-/// transitive attached callee needs an exact source-validated static computation
-/// edge. Other transitive scalar callees pass the generic signature fence.
-/// Operation-body calls use the shared assembler's exact authored call custody;
-/// discovery only retains their targets and cannot authorize their execution.
-pub(crate) fn checked_scalar_call_closure(
-    checked: &CheckedTrees,
-    roots: &[symbols::SymbolHandle],
-) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    let closure = checked_scalar_call_closure_with_structural_roots(checked, roots, &[])?;
-    // The legacy standalone helper emitter has no service namespace. Shared
-    // assembly uses the discovery entry below and retains those contracts.
-    for machine in &closure {
-        let mut reaches = checked
-            .facts
-            .service_reaches
-            .machines()
-            .iter()
-            .filter(|reach| reach.machine == *machine);
-        let reach = reaches.next().ok_or(LoweringError::Unsupported(
-            "scalar helper lost its checked service contract",
-        ))?;
-        if reaches.next().is_some() {
-            return unsupported("scalar helper has ambiguous checked service contracts");
-        }
-        if !checked
-            .facts
-            .service_reaches
-            .rows
-            .services(reach.effective)
-            .is_empty()
-            || !reach.unresolved_installation_reaches.is_empty()
-        {
-            return unsupported("service-bearing scalar helpers require the shared catalog");
-        }
-    }
-    Ok(closure)
-}
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     checked: &CheckedTrees,

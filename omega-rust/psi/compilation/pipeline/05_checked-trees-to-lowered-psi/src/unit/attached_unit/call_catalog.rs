@@ -12,7 +12,7 @@ use super::{
     CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitProviderCandidate, LoweringError, ProviderBody, UnitBody,
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
-    checked_unit_provider_candidates, reject_recursive_unit_closure, shared_closure, unsupported,
+    checked_unit_provider_candidates, reject_recursive_unit_closure, unsupported,
 };
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
@@ -26,7 +26,6 @@ pub(super) fn discover(
     plans: UnitPlans<'_>,
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
-    external: Option<&shared_closure::ExternalUnitRoots<'_>>,
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
@@ -107,9 +106,6 @@ pub(super) fn discover(
             }
             None => Vec::new(),
         };
-        if external.is_some() && closure.contains(&entry) {
-            return unsupported("external composed entry overlaps its ordinary Unit closure");
-        }
         let candidates =
             checked_unit_provider_candidates(checked, plans, &closure, &retained_boundary_roots)?;
         // This catalog contains checked Omega bodies, not opaque realizations.
@@ -125,8 +121,7 @@ pub(super) fn discover(
             .map(|candidate| candidate.candidate)
             .filter(|candidate| !closure.contains(candidate))
             .collect::<Vec<_>>();
-        let mut ordinary_scalar_roots =
-            external.map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
+        let mut ordinary_scalar_roots = Vec::new();
         let mut structural_scalar_roots = Vec::new();
         for root in &family_scalar_roots {
             if !ordinary_scalar_roots.contains(root) {
@@ -346,9 +341,6 @@ pub(super) fn discover(
             }
         }
         scalar_closure.retain(|source| !closure.contains(source));
-        if external.is_some() && scalar_closure.contains(&entry) {
-            return unsupported("embedded scalar call overlaps the attached Unit machine closure");
-        }
         reject_recursive_unit_closure(plans, &closure)?;
         return Ok(CheckedCallCatalog {
             operations: closure,

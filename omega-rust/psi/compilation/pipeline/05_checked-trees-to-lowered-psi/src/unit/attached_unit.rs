@@ -53,9 +53,6 @@ use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 // admission, providers, catalogs, boundaries, claims and signatures.
 mod admission;
 mod boundaries;
-pub(crate) use boundaries::{
-    lower_declarations as lower_boundary_declarations, validate_requirement_kind,
-};
 mod call_catalog;
 mod call_closure;
 pub(crate) mod call_parameters;
@@ -64,10 +61,8 @@ mod claims;
 mod entry_requirements;
 mod providers;
 mod scalar_callees;
-pub(crate) mod shared_closure;
 mod signatures;
 mod target_families;
-pub(crate) use entry_requirements::lower as lower_entry_requirements;
 
 // Body emission: each ordinary body and each composed state graph, through
 // one operation frame and one argument schedule over borrowed body views,
@@ -79,7 +74,6 @@ mod composed_control;
 mod operation_frame;
 pub(crate) use operation_frame::BoundaryParameters;
 mod normal_guarantees;
-pub(crate) use normal_guarantees::lower as lower_normal_guarantees;
 mod ordinary_machine;
 mod provider_attachments;
 
@@ -115,31 +109,27 @@ pub(crate) use call_closure::{
 use catalog::require_valid_service_row;
 pub(crate) use catalog::{
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
-    collect_published_contract_services, collect_service_summary, lower_root_service_reach,
+    lower_root_service_reach,
 };
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
 pub(crate) use parameters::{
     literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
-    statement_receiver_path,
+    lower_structural_arguments, lower_unit_parameters, statement_receiver_path,
 };
 use providers::{ProviderBody, checked_unit_provider_candidates};
 
 /// The one closure assembly request. `plans` is the Unit roster the closure
 /// resolves bodies and shapes from; `entry` is the exact machine the closure
 /// begins at; `unit_roots` are its explicit Unit roots (the entry first for
-/// an ordinary closure, empty for a scalar entry); `external` names the
-/// boundary, type, service and scalar roots a composed caller supplies;
-/// `scalar_entry` marks a scalar machine that borrows the same real callee
+/// an ordinary closure, empty for a scalar entry); `scalar_entry` marks a scalar machine that borrows the same real callee
 /// catalog without a synthetic Unit caller.
 #[derive(Clone, Copy)]
 pub(crate) struct UnitClosureRequest<'a> {
     pub(crate) plans: UnitPlans<'a>,
     pub(crate) entry: symbols::SymbolHandle,
     pub(crate) unit_roots: &'a [symbols::SymbolHandle],
-    pub(crate) external: Option<shared_closure::ExternalUnitRoots<'a>>,
     pub(crate) scalar_entry: bool,
 }
 
@@ -154,7 +144,6 @@ impl<'a> UnitClosureRequest<'a> {
             plans: UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             entry,
             unit_roots: roots,
-            external: None,
             scalar_entry: false,
         }
     }
@@ -167,8 +156,7 @@ pub(crate) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let closure = lower_unit_closure(checked, &UnitClosureRequest::unit(checked, entry, &[entry]))?;
-    crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
+    lower_unit_closure(checked, &UnitClosureRequest::unit(checked, entry, &[entry]))
 }
 
 /// The dispatch-facing product of a scalar entry in the common callee catalog.
@@ -178,14 +166,13 @@ pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let closure = lower_unit_closure(
+    lower_unit_closure(
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
             ..UnitClosureRequest::unit(checked, entry, &[])
         },
-    )?;
-    crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
+    )
 }
 
 /// Assemble one attached Unit closure: discover the transitive call catalog,
@@ -194,30 +181,21 @@ pub(crate) fn lower_scalar_effect_closure(
 pub(crate) fn lower_unit_closure(
     checked: &CheckedTrees,
     request: &UnitClosureRequest<'_>,
-) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let UnitClosureRequest {
         plans,
         entry,
         unit_roots,
-        external,
         scalar_entry,
     } = *request;
-    let reserved_prefix = usize::from(external.is_some());
     let ordinary_entry = unit_roots.first().copied();
-    if external.is_none() && !scalar_entry && ordinary_entry != Some(entry) {
+    if !scalar_entry && ordinary_entry != Some(entry) {
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
 
     // Discovery: every machine the closure emits, grouped by the route that
     // emits it.
-    let call_catalog = call_catalog::discover(
-        checked,
-        plans,
-        entry,
-        unit_roots,
-        external.as_ref(),
-        scalar_entry,
-    )?;
+    let call_catalog = call_catalog::discover(checked, plans, entry, unit_roots, scalar_entry)?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
     let scalar_closure = call_catalog.scalars;
@@ -225,7 +203,6 @@ pub(crate) fn lower_unit_closure(
         .iter()
         .map(|machine| CheckedScalarCallee::find_for_unit_call(checked, *machine))
         .collect::<Result<Vec<_>, _>>()?;
-    let realizations = RealizationRoots::collect(plans, &closure, &scalar_closure)?;
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
@@ -234,20 +211,10 @@ pub(crate) fn lower_unit_closure(
         let boundary = unique_unit_boundary(plans, symbol)?;
         retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
     }
-    if let Some(external) = &external {
-        for symbol in external.boundary_roots {
-            let boundary = unique_unit_boundary(plans, *symbol)?;
-            retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
-        }
-    }
     let admitted_bodies =
         admission::admit(checked, plans, &closure, &scalar_closure, &mut boundaries)?;
-    let mut additional_type_roots = external
-        .as_ref()
-        .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
-    let mut additional_service_roots = external
-        .as_ref()
-        .map_or_else(Vec::new, |roots| roots.service_roots.to_vec());
+    let mut additional_type_roots = Vec::new();
+    let mut additional_service_roots = Vec::new();
     scalar_callees::retain_catalog_roots(
         checked,
         &checked_scalar_callees,
@@ -360,13 +327,9 @@ pub(crate) fn lower_unit_closure(
         &mut next_place,
         &mut next_value,
     )?;
-    let machine_ids = external
-        .as_ref()
-        .map(|_| &entry)
-        .into_iter()
-        .chain(closure.iter())
+    let machine_ids = closure
+        .iter()
         .chain(&scalar_closure)
-        .chain(&realizations.structural_results)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -420,15 +383,13 @@ pub(crate) fn lower_unit_closure(
         .collect::<Vec<_>>();
 
     // Emission: each Unit body, ordinary or composed, into the shared
-    // namespaces; then the scalar callees; then realization machines.
+    // namespaces; then the scalar callees.
     let mut scalar_block_invariants = Vec::new();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
-    let mut machines = Vec::with_capacity(
-        closure.len() + scalar_closure.len() + realizations.structural_results.len(),
-    );
+    let mut machines = Vec::with_capacity(closure.len() + scalar_closure.len());
     let mut occurrences = ClosureOccurrences::default();
     let catalog = ordinary_machine::ClosureCatalog {
         type_ids: &type_ids,
@@ -544,13 +505,7 @@ pub(crate) fn lower_unit_closure(
         &scalar_requirement_counts,
         &mut next_call_obligation,
     )?;
-    let first_scalar_callee_index =
-        closure
-            .len()
-            .checked_add(reserved_prefix)
-            .ok_or(LoweringError::Unsupported(
-                "shared Unit reserved machine count overflows usize",
-            ))?;
+    let first_scalar_callee_index = closure.len();
     let cleanup_receivers = machine_signatures
         .iter()
         .filter_map(|signature| {
@@ -576,16 +531,6 @@ pub(crate) fn lower_unit_closure(
         &mut machines,
         &mut occurrences,
     )?;
-    let mut lowered_structural_result_realizations =
-        crate::returns::affine_return::lower_claim_free_affine_return_machines(
-            checked,
-            &realizations.structural_results,
-            &structural_types,
-            &type_ids,
-            &machine_ids,
-            reserved_prefix + closure.len() + scalar_closure.len(),
-        )?;
-    machines.append(&mut lowered_structural_result_realizations);
     let provider_candidates = providers::conformances(
         &provider_candidate_plans,
         &lowered_boundary_parameters,
@@ -653,20 +598,7 @@ pub(crate) fn lower_unit_closure(
         selected_ieee_float_comparison_occurrences: occurrences.ieee_float_comparisons,
         selected_integer_comparison_occurrences: occurrences.integer_comparisons,
     };
-    Ok(shared_closure::SharedUnitClosure {
-        lowered,
-        machine_ids,
-        type_ids,
-        service_ids,
-        signatures: machine_signatures,
-        scalar_requirement_counts,
-        next_place,
-        next_value,
-        next_block,
-        next_operation,
-        next_edge,
-        next_call_obligation,
-    })
+    crate::producer_result::SourceMappedLowered::new(lowered, machine_ids)
 }
 
 /// Occurrence rows every emitted machine publishes beside its Terminal
@@ -700,48 +632,6 @@ impl ClosureOccurrences {
             std::mem::take(&mut lowered.selected_ieee_float_comparison_occurrences),
             std::mem::take(&mut lowered.selected_integer_comparison_occurrences),
         );
-    }
-}
-
-/// Machines emitted only as realizations of an operation the closure's bodies
-/// select: a structural-result callee without a Unit body. Each is its own Terminal machine, never also a
-/// body of the closure.
-struct RealizationRoots {
-    structural_results: Vec<symbols::SymbolHandle>,
-}
-
-impl RealizationRoots {
-    fn collect(
-        plans: UnitPlans<'_>,
-        closure: &[symbols::SymbolHandle],
-        scalar_closure: &[symbols::SymbolHandle],
-    ) -> Result<Self, LoweringError> {
-        let mut structural_results = Vec::new();
-        for machine_symbol in closure {
-            for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-                // An ordinary structural call whose target has no Unit body.
-                let target = operation
-                    .call()
-                    .filter(|call| {
-                        call.is_module()
-                            && call.structural_result().is_some()
-                            && !UnitBody::contains(plans, call.target.machine)
-                    })
-                    .map(|call| call.target.machine);
-                if let Some(target) = target
-                    && !structural_results.contains(&target)
-                {
-                    structural_results.push(target);
-                }
-            }
-        }
-        if structural_results
-            .iter()
-            .any(|machine| closure.contains(machine) || scalar_closure.contains(machine))
-        {
-            return unsupported("structural-result machine overlaps another attached Unit closure");
-        }
-        Ok(Self { structural_results })
     }
 }
 

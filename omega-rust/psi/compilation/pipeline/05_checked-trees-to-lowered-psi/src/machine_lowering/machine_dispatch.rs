@@ -1,13 +1,12 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
 use checked_trees::{
-    CheckedReturnPlan, CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility,
-    CheckedTrees, CheckedUnitPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitPlan,
 };
 
 use crate::lowering_error::LoweringError;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
-use crate::returns::lower_return_machine;
 use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::lower_unit_plan_machine;
 
@@ -58,11 +57,10 @@ pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
-    // A result-bearing plan owns both its result and the cleanup after it, so
-    // the return family is tried before the Unit-only cleanup plans below.
-    if let Some(plan) = select_return_plan(checked, selection)? {
-        return lower_return_machine(checked, plan);
-    }
+    // A result-bearing machine is an ordinary body: the Unit or scalar closure
+    // below lowers its result with the cleanup after it. The checked return
+    // rosters only describe scalar and claim-free affine callees for call
+    // admission; none of them selects a route of its own.
     if let Some(plan) = select_unit_plan(checked, selection)? {
         return lower_unit_plan_machine(checked, plan);
     }
@@ -142,23 +140,6 @@ pub(crate) fn lower_selected_machine(
             ..Default::default()
         },
     ))
-}
-
-/// The one checked return plan `selection` lowers, if any. Every result kind
-/// shares this admission: the selection's signature is the one the plan's
-/// attachment implies — attached when the plan retains its owner, either
-/// free signature otherwise.
-fn select_return_plan<'checked>(
-    checked: &'checked CheckedTrees,
-    selection: &CheckedTerminalMachineSelection,
-) -> Result<Option<CheckedReturnPlan<'checked>>, LoweringError> {
-    let Some(plan) = CheckedReturnPlan::for_machine(&checked.facts.flow, selection.machine) else {
-        return Ok(None);
-    };
-    if !plan.admits_signature(selection.signature) {
-        return unsupported("return plan attachment disagrees with its selected signature");
-    }
-    Ok(Some(plan))
 }
 
 /// The one checked Unit plan `selection` lowers, if any. Every kind shares

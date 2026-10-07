@@ -742,7 +742,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                             lookup_type_id(&type_ids, provider_type_identity)?,
                         ))
                     }
-                    field_type => (field.relevance, crate::returns::structural_types::lower_field_type(field_type, &type_ids)?),
+                    field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
                     id: structural_field_id(allocate_dense(&mut next_field)?),
@@ -789,7 +789,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                                 "Unit structural sum case contains an empty or duplicate payload field identity",
                                             ));
                                         }
-                                        let field_type = crate::returns::structural_types::lower_field_type(&field.field_type, &type_ids)?;
+                                        let field_type = crate::structural_types::lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,

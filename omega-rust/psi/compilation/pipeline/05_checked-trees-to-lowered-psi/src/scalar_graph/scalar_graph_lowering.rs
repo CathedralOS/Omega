@@ -32,9 +32,7 @@ use crate::emission::expression_validation::{
 use crate::emission::scalar_types::terminal_scalar_type;
 pub(crate) use call_lowering::lower_scalar_call;
 
-pub(crate) use graph_preparation::{
-    ScalarContractMode, prepare_scalar_graph_in_namespace, prepare_scalar_graph_machine,
-};
+pub(crate) use graph_preparation::{ScalarContractMode, prepare_scalar_graph_in_namespace};
 pub(crate) use graph_validation::staged_short_circuit_bindings_terminator;
 pub(crate) use known_evaluation::KnownDirectScalar;
 

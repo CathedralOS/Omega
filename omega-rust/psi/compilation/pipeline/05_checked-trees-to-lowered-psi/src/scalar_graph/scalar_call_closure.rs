@@ -7,9 +7,8 @@
 //! the common assembler owns their identities and qualification namespace.
 
 use super::{
-    CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweredPsi,
-    LoweringError, PrimitiveType, TERMINAL_MACHINE_IDENTITY_STRIDE, build_scalar_graph_module,
-    machine_id, prepare_scalar_graph_machine, unsupported,
+    CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError,
+    PrimitiveType, unsupported,
 };
 
 pub(crate) mod callee;

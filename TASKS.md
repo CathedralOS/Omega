@@ -2507,34 +2507,31 @@ code and preserve check/native behavior for the named customer slices.
   `--filter calls/,boundary/,providers/` is unchanged;
   `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
 
-- **RETURN-ROUTES-RETIRED.** (new-scope) Depends on **ONE-CALL-LOWERING**.
-  Replace the three remaining return rosters in
-  `.../05_checked-trees-to-lowered-psi/src/returns/` (structural-scalar,
-  boundary-scalar and claim-free affine) with ordinary body operations plus
-  result completion. A route census over the full checked corpus
-  (2026-10-07) found no machine selected through any return route at top
-  level: entries lower as composed graphs or Unit closures, and only
-  `omega inspect-terminal --machine` or a callback thunk can select a
-  return-plan machine. Every machine in the three rosters (242
-  boundary-scalar, 13 structural-scalar, 13 claim-free affine) also owns an
-  ordinary Unit body, so scalar callees resolve to that body. What remains is
-  the top-level route set in `returns/` and the checked rosters that feed it
-  (plus the domain and parameter catalogs that still read
-  `terminal_boundary_scalar_returns` and `terminal_structural_scalar_returns`).
-  A caller arm matching a callee's outcome-specific guarantee has no
-  producer: Terminal's `OutcomeSpecificCallEvidence` is never emitted, and no
-  corpus fixture writes `ensures Result::Case -> { ... }`. Coordinate operator
-  returns with **OPERATOR-BOUNDARY-CALLS**.
+- **RETURN-ROSTERS-RETIRED.** (split-of:RETURN-ROUTES-RETIRED) No machine
+  lowers through a return route any more: `CheckedReturnPlan` and stage 05
+  `returns/` are gone, and every machine in the structural-scalar,
+  boundary-scalar and claim-free affine rosters lowers as its ordinary Unit
+  body. The rosters survive only as a second description of those callees:
+  stage 04 call admission (`structural_value_calls.rs`,
+  `cleanup/partial_affine_cleanup.rs`, and the claim-free affine branch of
+  `calls/structural_result_call.rs`), stage 05 type, domain and parameter
+  catalogs (`unit/attached_unit/catalog.rs`, `parameters.rs`) and the cleanup
+  catalogs (`unit/unit_cleanup.rs`, `composed_control/state_graph/cleanup.rs`).
+  Derive those reads from the callees' Unit bodies and delete the rosters with
+  their stage 04 builders in `execution/terminal_unit/returns/`. A caller arm
+  matching a callee's outcome-specific guarantee has no producer: Terminal's
+  `OutcomeSpecificCallEvidence` is never emitted, and no corpus fixture
+  writes `ensures Result::Case -> { ... }`. Coordinate operator returns with
+  **OPERATOR-BOUNDARY-CALLS**.
   `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
   an unused `exercise` beside an empty entry, so its build proves nothing:
-  give it an entry that executes the operator. Acceptance: `returns/` holds
-  no route of its own, `CheckedReturnPlan` is gone, and corpus
-  `--filter returns/,operators/,providers/` is unchanged in check and native.
+  give it an entry that executes the operator. Acceptance: no
+  `terminal_*_returns` field remains in `FlowFacts`, and the full check
+  corpus and the native corpus are unchanged.
 
-- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Depends on
-  **RETURN-ROUTES-RETIRED**. Lower scalar machines through the same body
-  route as Unit machines and delete
-  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (19.4k lines) and
+- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Lower scalar machines through
+  the same body route as Unit machines and delete
+  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.6k lines) and
   the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Account
   for:
   - continuation-arm custody (`CheckedStructuralControlSuccessorPlan` lacks

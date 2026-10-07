@@ -1,19 +1,10 @@
 //! Scalar helper catalogs embedded beneath an existing source-owned root.
-use super::super::{
-    MachineId, TERMINAL_UNIT_CALL_OBLIGATION_BASE, dense_identity, lookup_machine_id,
-};
-use super::{
-    CheckedTrees, LoweredPsi, LoweringError, TERMINAL_MACHINE_IDENTITY_STRIDE,
-    build_scalar_graph_module, machine_id, prepare_scalar_graph_machine, unsupported,
-};
+use super::super::MachineId;
+use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
-use checked_trees::CheckedScalarComputationKind;
 
 mod discovery;
-pub(crate) use discovery::{
-    checked_scalar_call_closure, checked_scalar_call_closure_with_structural_roots,
-};
+pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) struct EmbeddedScalarCalls {
     domain_ids: Vec<crate::terminal_identities::StructuralDomainBinding>,
@@ -29,8 +20,6 @@ pub(crate) struct EmbeddedScalarCalls {
     /// nested boundary applications in composed operands resolve against.
     /// A standalone helper catalog has no such closure and keeps it empty.
     boundaries: Vec<crate::unit::attached_unit::BoundaryParameters>,
-    prepared: Vec<PreparedScalarMachine>,
-    dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 impl EmbeddedScalarCalls {
@@ -38,7 +27,6 @@ impl EmbeddedScalarCalls {
         machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
         requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
         next_call_obligation: u64,
-        dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
             domain_ids: Vec::new(),
@@ -48,8 +36,6 @@ impl EmbeddedScalarCalls {
             requirement_counts,
             next_call_obligation,
             boundaries: Vec::new(),
-            prepared: Vec::new(),
-            dynamic_dispatch,
         }
     }
 
@@ -96,233 +82,4 @@ impl EmbeddedScalarCalls {
         self.claim_bindings.clear();
         self.claim_bindings.extend_from_slice(bindings);
     }
-
-    /// Dynamic dispatch selects its realization prefix after the leaf catalog.
-    /// Reserve that complete prefix before emitting any helper call identity.
-    pub(crate) fn reserve_machine_prefix(&mut self, count: usize) -> Result<(), LoweringError> {
-        for (index, (_, identity)) in self.machine_ids.iter_mut().enumerate() {
-            let index = count.checked_add(index).ok_or(LoweringError::Unsupported(
-                "embedded scalar helper machine count overflows usize",
-            ))?;
-            *identity = machine_id(dense_identity(index)?);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn append_to(self, lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
-        for machine in self.prepared {
-            let terminal_machine = lookup_machine_id(&self.machine_ids, machine.source_machine)?;
-            if lowered
-                .semantic_module
-                .machines
-                .iter()
-                .any(|existing| existing.id == terminal_machine)
-            {
-                return unsupported("embedded scalar helper identity overlaps an existing machine");
-            }
-            let identity_base = (terminal_machine.get() - 1)
-                .checked_mul(TERMINAL_MACHINE_IDENTITY_STRIDE)
-                .ok_or(LoweringError::Unsupported(
-                    "embedded scalar helper identity range overflows",
-                ))?;
-            let mut helper = build_scalar_graph_module(
-                &machine.states,
-                &machine.state_symbols,
-                &machine.state_requires,
-                machine.result_type,
-                &machine.scalar_qualifications,
-                machine.contract,
-                machine.crash_routes,
-                machine.identity_reshuffles,
-                machine.partition_compositions,
-                terminal_machine,
-                identity_base,
-                self.dynamic_dispatch.clone(),
-                &self.machine_ids,
-                &self.requirement_counts,
-                &machine.literal_places,
-                machine.loop_plan.as_ref(),
-            )?;
-            // This assembler has no common qualified namespace with its root.
-            // Bare helper payloads remain compatible with any root catalog;
-            // qualified helper interfaces must not lose their definitions.
-            // Floating and integer entry ranges are machine-local rows keyed
-            // by the helper's own emitted identities, so they merge into the
-            // root catalog without sharing that namespace.
-            if !helper
-                .semantic_module
-                .scalar_qualifications
-                .domains
-                .is_empty()
-                || !helper.semantic_module.scalar_qualifications.sets.is_empty()
-                || !helper
-                    .semantic_module
-                    .scalar_qualifications
-                    .coercions
-                    .is_empty()
-            {
-                return unsupported(
-                    "embedded scalar helper qualifications require a shared root namespace",
-                );
-            }
-            lowered
-                .semantic_module
-                .scalar_qualifications
-                .float_entry_ranges
-                .append(
-                    &mut helper
-                        .semantic_module
-                        .scalar_qualifications
-                        .float_entry_ranges,
-                );
-            lowered
-                .semantic_module
-                .scalar_qualifications
-                .integer_entry_ranges
-                .append(
-                    &mut helper
-                        .semantic_module
-                        .scalar_qualifications
-                        .integer_entry_ranges,
-                );
-            lowered
-                .semantic_module
-                .scalar_block_invariants
-                .append(&mut helper.semantic_module.scalar_block_invariants);
-            lowered
-                .semantic_module
-                .machines
-                .append(&mut helper.semantic_module.machines);
-            lowered
-                .source_call_occurrences
-                .append(&mut helper.source_call_occurrences);
-            lowered
-                .selected_ieee_float_comparison_occurrences
-                .append(&mut helper.selected_ieee_float_comparison_occurrences);
-            lowered
-                .selected_integer_comparison_occurrences
-                .append(&mut helper.selected_integer_comparison_occurrences);
-        }
-        lowered
-            .semantic_module
-            .scalar_qualifications
-            .float_entry_ranges
-            .sort_by_key(|range| (range.machine, range.parameter));
-        lowered
-            .semantic_module
-            .scalar_qualifications
-            .integer_entry_ranges
-            .sort_by_key(|range| (range.machine, range.parameter));
-        lowered
-            .semantic_module
-            .scalar_block_invariants
-            .sort_by_key(|invariant| (invariant.machine, invariant.header));
-        Ok(())
-    }
-}
-
-impl EmbeddedScalarCalls {
-    /// The caller first validates exact operation/source custody. Only those
-    /// retained argument roots participate in helper selection.
-    pub(crate) fn prepare_computations(
-        checked: &CheckedTrees,
-        roots: &[checked_trees::CheckedScalarComputationHandle],
-        excluded_sources: &[symbols::SymbolHandle],
-        reserved_prefix: usize,
-    ) -> Result<Self, LoweringError> {
-        let targets = computation_targets(checked, roots)?;
-        Self::prepare_targets(checked, &targets, excluded_sources, reserved_prefix)
-    }
-
-    pub(crate) fn prepare_targets(
-        checked: &CheckedTrees,
-        roots: &[symbols::SymbolHandle],
-        excluded_sources: &[symbols::SymbolHandle],
-        reserved_prefix: usize,
-    ) -> Result<Self, LoweringError> {
-        let closure = checked_scalar_call_closure(checked, roots)?;
-        if closure
-            .iter()
-            .any(|symbol| excluded_sources.contains(symbol))
-        {
-            return unsupported("embedded scalar helper overlaps an excluded source owner");
-        }
-        let qualifications =
-            crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
-                checked, &closure,
-            )?;
-        if !qualifications.catalog().domains.is_empty() {
-            return unsupported(
-                "embedded scalar helper qualifications require a shared root namespace",
-            );
-        }
-        let prepared = closure
-        .iter()
-        .map(|symbol| {
-            let graph = checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(*symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "embedded scalar helper has no checked graph",
-                ))?;
-            let prepared = prepare_scalar_graph_machine(checked, &qualifications, *symbol, graph)?;
-            if !prepared.identity_reshuffles.structural_places.is_empty()
-                || !prepared.identity_reshuffles.entry_claims.is_empty()
-                || !prepared.identity_reshuffles.reshuffles.is_empty()
-                || !prepared.partition_compositions.structural_places.is_empty()
-                || !prepared.partition_compositions.compositions.is_empty()
-            {
-                return unsupported(
-                    "embedded scalar helper structural effects require a dedicated terminal slice",
-                );
-            }
-            Ok(prepared)
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-        let requirement_counts = prepared
-            .iter()
-            .map(|machine| (machine.source_machine, machine.requirement_count()))
-            .collect();
-        let machine_ids = closure
-            .into_iter()
-            .map(|symbol| (symbol, machine_id(1)))
-            .collect();
-        let mut selected = EmbeddedScalarCalls {
-            domain_ids: Vec::new(),
-            claim_bindings: Vec::new(),
-            cleanup_receivers: Vec::new(),
-            machine_ids,
-            requirement_counts,
-            prepared,
-            next_call_obligation: TERMINAL_UNIT_CALL_OBLIGATION_BASE,
-            boundaries: Vec::new(),
-            dynamic_dispatch: std::sync::Arc::new(
-                crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
-            ),
-        };
-        selected.reserve_machine_prefix(reserved_prefix)?;
-        Ok(selected)
-    }
-}
-
-pub(crate) fn computation_targets(
-    checked: &CheckedTrees,
-    roots: &[checked_trees::CheckedScalarComputationHandle],
-) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    let nodes = &checked.facts.values.scalar_computations.nodes;
-    let mut targets = Vec::new();
-    for handle in crate::expression_preparation::computation_graph::reachable_nodes(checked, roots)?
-    {
-        if let CheckedScalarComputationKind::Call {
-            callee: checked_trees::CheckedScalarCallee::Body { machine, .. },
-            ..
-        } = nodes.get(handle).kind
-            && !targets.contains(&machine)
-        {
-            targets.push(machine);
-        }
-    }
-    Ok(targets)
 }

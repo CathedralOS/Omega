@@ -8,7 +8,6 @@ use super::{
     CheckedUnitStructuralFieldType, LoweringError, PrimitiveType, Terminator, lookup_type_id,
     unique_unit_machine, unsupported,
 };
-use crate::producer_result::SourceMappedLowered;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
@@ -176,14 +175,13 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     // Reuse the ordinary closure lowerer only after validating the separate
     // checked lane: the lane's dispatcher joins the ordinary roster for this
     // closure.
-    let closure = lower_unit_closure(
+    let mut source_mapped = lower_unit_closure(
         checked,
         &UnitClosureRequest {
             plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
             ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
         },
     )?;
-    let mut source_mapped = SourceMappedLowered::new(closure.lowered, closure.machine_ids)?;
     let lowered = &mut source_mapped.terminal;
     let entry = lowered
         .semantic_module
@@ -372,14 +370,13 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             &moved_paths,
         )?;
     }
-    let closure = lower_unit_closure(
+    let mut source_mapped = lower_unit_closure(
         checked,
         &UnitClosureRequest {
             plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
             ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
         },
     )?;
-    let mut source_mapped = SourceMappedLowered::new(closure.lowered, closure.machine_ids)?;
     let lowered = &mut source_mapped.terminal;
     let entry = lowered
         .semantic_module

@@ -24,27 +24,9 @@ use crate::expression_preparation::saturating_cast;
 use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId,
-    PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeId, unsupported,
+    CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
-
-pub(crate) fn lower_checked_scalar_expression_at(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement_ordinal: u32,
-    role: CheckedScalarExpressionRole,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let (_, expression) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(state, statement_ordinal, role)
-        .ok_or(LoweringError::Unsupported(
-            "scalar expression has no unique source-bound checked value plan",
-        ))?;
-    lower_checked_scalar_expression(expression, &checked.facts.proven_scalar_indexes)
-}
 
 pub(crate) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
@@ -62,39 +44,6 @@ pub(crate) fn lower_checked_scalar_expression(
         None,
         proven_indexes,
     )
-}
-
-/// `lower_checked_scalar_expression_at` carrying the callee's authored
-/// structural parameter namespace, so a whole byte-view length observation
-/// resolves its exact retained source place instead of failing closed.
-pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement_ordinal: u32,
-    role: CheckedScalarExpressionRole,
-    structural_parameters: &[(u32, StructuralParameterDeclaration)],
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let (_, expression) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(state, statement_ordinal, role)
-        .ok_or(LoweringError::Unsupported(
-            "scalar expression has no unique source-bound checked value plan",
-        ))?;
-    let lowered = lower_checked_scalar_expression_with_parameters(
-        expression,
-        structural_parameters,
-        &Default::default(),
-        &[],
-        &[],
-        &std::collections::BTreeMap::new(),
-        &[],
-        &[],
-        None,
-        &checked.facts.proven_scalar_indexes,
-    )?;
-    Ok(lowered)
 }
 
 /// The exact whole sequence parameter for a live length, element or predicate

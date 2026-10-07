@@ -12,7 +12,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMa
 /// body that owns its scalar completion. A machine with a boundary-scalar or
 /// structural-scalar return plan always also owns such a body, which lowers
 /// its boundary call or structural frontier through the shared Unit
-/// assembler; those return plans serve only top-level return routes.
+/// assembler; those plans only describe the callee to call admission.
 pub(crate) enum CheckedScalarCallee<'checked> {
     Graph(&'checked checked_trees::CheckedScalarMachineGraph),
     /// A Unit-closure body that owns a scalar completion: an ordinary

@@ -81,17 +81,6 @@ pub(crate) fn lookup_type_id(
         ))
 }
 
-/// The Terminal attachment a checked plan retains. A receiver-free machine,
-/// qualified or not, retains none.
-pub(crate) fn lookup_attachment_type_id(
-    ids: &[(String, StructuralTypeId)],
-    identity: Option<&str>,
-) -> Result<Option<StructuralTypeId>, LoweringError> {
-    identity
-        .map(|identity| lookup_type_id(ids, identity))
-        .transpose()
-}
-
 /// A semantic domain family instantiated on one exact structural carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct StructuralDomainBinding {

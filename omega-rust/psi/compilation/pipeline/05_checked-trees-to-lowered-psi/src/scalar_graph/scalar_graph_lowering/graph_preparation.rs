@@ -28,25 +28,6 @@ use crate::scalar_graph::{
     lower_checked_crash_exit, scalar_carriers, unsupported,
 };
 
-pub(crate) fn prepare_scalar_graph_machine(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    machine: symbols::SymbolHandle,
-    graph: &CheckedScalarMachineGraph,
-) -> Result<PreparedScalarMachine, LoweringError> {
-    prepare_scalar_graph_machine_with_contract_mode(
-        checked,
-        qualifications,
-        machine,
-        graph,
-        ScalarContractMode::ClosedRuntimeValue,
-        &[],
-        &[],
-        &[],
-        &mut 1,
-    )
-}
-
 pub(crate) fn prepare_scalar_graph_in_namespace(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,

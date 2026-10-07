@@ -2,17 +2,13 @@
 //! A runtime element's bound travels from range checking through the shared
 //! destination path (`runtime_elements.rs`), as for every other store route.
 use super::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, PrimitiveType,
-    ScalarType, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
-    StructuralTypeShape, ValueDeclaration, direct_expression_contains_short_circuit,
-    emit_direct_expression, lower_checked_scalar_expression, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types,
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::runtime_elements::ProjectionStep;
 
 /// The resolved primitive endpoint is shared by ordinary and composed bodies.
@@ -97,124 +93,6 @@ pub(crate) fn emit_assignment(
         destination: destination.place,
         path: super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?,
         value: value.id,
-    })
-}
-
-pub(crate) fn emit(
-    destination_parameter_index: u32,
-    value: &CheckedScalarExpression,
-    parameters: &[StructuralParameterDeclaration],
-    structural_types: &[StructuralTypeDeclaration],
-    scalar_parameter_count: usize,
-    scalar_values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<OperationKind, LoweringError> {
-    let destination = parameters
-        .get(usize::try_from(destination_parameter_index).map_err(|_| {
-            LoweringError::Unsupported("write-only store parameter index exceeds usize")
-        })?)
-        .ok_or(LoweringError::Unsupported(
-            "write-only store names an unknown structural parameter",
-        ))?;
-    if !matches!(
-        destination.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !destination.qualifications.is_empty()
-    {
-        return unsupported(
-            "write-only store destination lost its exclusive unrestricted unqualified custody",
-        );
-    }
-    let destination_shape = structural_types
-        .iter()
-        .find(|declaration| declaration.id == destination.structural_type)
-        .map(|declaration| &declaration.shape)
-        .ok_or(LoweringError::Unsupported(
-            "write-only store destination type is absent",
-        ))?;
-    let StructuralTypeShape::PrimitiveScalar(destination_type) = destination_shape else {
-        return unsupported("write-only store destination is not a primitive scalar root");
-    };
-    let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
-        || matches!(value, CheckedScalarExpression::IeeeFloatLiteral { .. })
-        || matches!(
-            value,
-            CheckedScalarExpression::Boolean(expression)
-                if matches!(
-                    expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Constant(_)
-                )
-        );
-    let direct_parameter = match value {
-        CheckedScalarExpression::Parameter { position, .. } => *position < scalar_parameter_count,
-        CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
-            checked_trees::CheckedBooleanExpression::Parameter { position } => {
-                *position < scalar_parameter_count
-            }
-            _ => false,
-        },
-        _ => false,
-    };
-    let direct_result_home = matches!(
-        value,
-        CheckedScalarExpression::Local {
-            position,
-            primitive_type,
-        } if *position >= scalar_parameter_count
-            && position.checked_add(1) == Some(scalar_values.len())
-            && terminal_scalar_type(*primitive_type).ok() == Some(*destination_type)
-            && matches!(
-                primitive_type,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-    );
-    if !direct_literal && !direct_parameter && !direct_result_home {
-        return unsupported("write-only store value is outside the admitted direct scalar rung");
-    }
-    let value = lower_checked_scalar_expression(value, &[])?;
-    if value.scalar_type() != *destination_type {
-        return unsupported("write-only store value type disagrees with its destination");
-    }
-    emit_value(
-        destination.place,
-        *destination_type,
-        &value,
-        scalar_values,
-        next_value,
-        operations,
-    )
-}
-
-pub(crate) fn emit_value(
-    destination: PlaceId,
-    destination_type: ScalarType,
-    value: &LoweredDirectExpression,
-    scalar_values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<OperationKind, LoweringError> {
-    if value.scalar_type() != destination_type || direct_expression_contains_short_circuit(value) {
-        return unsupported("primitive store RHS has an incompatible type or unexpanded control");
-    }
-    let source_types = scalar_values
-        .iter()
-        .map(|value| value.scalar_type)
-        .collect::<Vec<_>>();
-    validate_direct_parameter_types(value, &source_types)?;
-    let value = emit_direct_expression(value, scalar_values, next_value, operations);
-    Ok(OperationKind::WriteOnlyPrimitiveStore {
-        destination,
-        path: Vec::new(),
-        value,
     })
 }
 

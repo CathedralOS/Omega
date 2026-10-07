@@ -21,8 +21,8 @@
 //!    owns the machine's shape.
 //! 2. The plan families are layered, and each one reaches only downward:
 //!    [`unit`] lowers attached, structural-control and cleanup Unit
-//!    machines; [`returns`] lowers affine, boundary-scalar,
-//!    payloadless and structural return machines; [`scalar_graph`] prepares
+//!    machines, including every structural or scalar result a body returns;
+//!    [`scalar_graph`] prepares
 //!    scalar graphs, closes their calls and assembles the module;
 //!    [`expression_preparation`] turns source-bound expressions and bindings
 //!    into what a body needs; [`emission`] writes the operations and stores
@@ -44,6 +44,8 @@
 //! state symbol to its declared machine and state. `direct_calls` is the one place
 //! a direct in-module call's facts choose its Terminal call operation, and
 //! the one reader of those operations' callee and operand lanes.
+//! `structural_types` turns checked structural type plans into the Terminal
+//! declarations every family that declares structural storage shares.
 
 // The entrance.
 mod machine_lowering;
@@ -52,7 +54,6 @@ mod machine_lowering;
 // order: each reaches down this list and never back up it.
 mod emission;
 mod expression_preparation;
-mod returns;
 mod scalar_graph;
 mod unit;
 
@@ -69,6 +70,7 @@ mod lowered_machine_provenance;
 mod lowering_error;
 mod producer_result;
 mod reference_custody;
+mod structural_types;
 mod terminal_identities;
 
 #[cfg(test)]

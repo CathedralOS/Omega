@@ -71,10 +71,10 @@ use crate::proofs::crash_routes::{
     substitute_structural_crash_route_roots,
 };
 use crate::retention::placed_view_inputs::lower_placed_view_input;
-use crate::returns::structural_types::{
+use crate::scalar_graph::scalar_carriers;
+use crate::structural_types::{
     lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };
-use crate::scalar_graph::scalar_carriers;
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
     boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,

@@ -36,14 +36,14 @@ The plan families beneath the coordinator are concept-owned modules beside
 `lib.rs`; each root file names the work its directory owns:
 
 - [`unit`](src/unit/mod.rs): attached, structural-control and cleanup Unit
-  machines, plus the runtime requirements they derive.
-- [`returns`](src/returns/mod.rs): affine, boundary-scalar, payloadless and
-  structural return machines, with the structural types they publish.
+  machines, plus the runtime requirements they derive. Every structural or
+  scalar result a body returns lowers here; there is no separate return
+  family.
 - [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation,
   computation expansion, call closure and module assembly.
 - [Expression preparation](src/expression_preparation/prepare_expression.rs):
   shared source-bound expressions, storage bindings, qualifications and
-  independent source replay consumed by Unit, return and scalar producers.
+  independent source replay consumed by Unit and scalar producers.
 - [`emission`](src/emission/mod.rs): operation and store emission shared by Unit
   and scalar bodies, with the call-operand source custody it replays.
 - [`retention`](src/retention/mod.rs): checked custody installed on the assembled
@@ -54,7 +54,9 @@ The plan families beneath the coordinator are concept-owned modules beside
 
 [`lowering_error`](src/lowering_error.rs) and
 [`terminal_identities`](src/terminal_identities.rs) carry the failure and
-identity vocabulary every producer shares; [`debug_map`](src/machine_lowering/debug_map.rs)
+identity vocabulary every producer shares;
+[`structural_types`](src/structural_types.rs) declares checked structural
+types in Terminal form for every family; [`debug_map`](src/machine_lowering/debug_map.rs)
 presents the Terminal debug companion.
 
 The subordinate owners follow the work:

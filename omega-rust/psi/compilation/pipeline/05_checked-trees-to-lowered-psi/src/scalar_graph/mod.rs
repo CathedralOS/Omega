@@ -56,13 +56,11 @@ use crate::proofs::crash_routes::{
     lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
 };
 use crate::scalar_graph::scalar_graph_lowering::{
-    KnownDirectScalar, prepare_scalar_graph_machine, staged_short_circuit_bindings_terminator,
+    KnownDirectScalar, staged_short_circuit_bindings_terminator,
 };
-use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
-    contract_id, dense_identity, edge_id, lookup_machine_id, lookup_type_id, machine_id,
-    obligation_id, place_id, value_id,
+    TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, contract_id, edge_id,
+    lookup_machine_id, lookup_type_id, obligation_id, place_id, value_id,
 };
 
 pub(crate) mod scalar_call_closure;
