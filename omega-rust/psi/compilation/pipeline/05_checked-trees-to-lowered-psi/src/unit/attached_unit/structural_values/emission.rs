@@ -1871,4 +1871,54 @@ impl Emission<'_, '_, '_> {
         self.operations.byte_lengths.clear();
         self.operations.field_byte_lengths.clear();
     }
+
+    /// Bookkeep a root selection continuation: install the join block's
+    /// value and structural parameters on the evaluation state, record the
+    /// selection cleanup for the live sources, then repoint structural
+    /// locals through the continuation's pass-through mapping.
+    fn record_root_continuation(&mut self, continuation: &ValueContinuation) {
+        self.start(continuation.block);
+        *self.values = continuation.parameters.clone();
+        self.evaluation.parameters = continuation.parameters.clone();
+        self.evaluation.block_structural_parameters = continuation.structural_parameters.clone();
+        if self.sources.is_empty() {
+            return;
+        }
+        self.evaluation
+            .selection_cleanups
+            .push(argument_evaluation::SelectionCleanup {
+                selected: continuation.place,
+                sources: self
+                    .sources
+                    .iter()
+                    .rev()
+                    .map(|source| source.place)
+                    .collect(),
+                remaining: continuation.residuals.iter().rev().copied().collect(),
+                pass_through: continuation.pass_through.clone(),
+                next_operation: self.operations.next_identity,
+            });
+        self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
+        self.evaluation.structural_locals.retain(
+            |crate::expression_preparation::bindings::StructuralLocalBinding {
+                 argument, ..
+             }| {
+                !self
+                    .sources
+                    .iter()
+                    .any(|source| source.place == argument.place)
+            },
+        );
+        for crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } in
+            &mut self.evaluation.structural_locals
+        {
+            if let Some((_, target)) = continuation
+                .pass_through
+                .iter()
+                .find(|(source, _)| *source == argument.place)
+            {
+                argument.place = *target;
+            }
+        }
+    }
 }

@@ -7,7 +7,7 @@ use super::super::super::super::{StructuralAccess, StructuralParameterDeclaratio
 use super::super::super::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
     StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
-    argument_evaluation, place_id, unsupported, value_id,
+    place_id, unsupported, value_id,
 };
 use super::{Emission, ValueContinuation};
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
@@ -194,52 +194,7 @@ impl Emission<'_, '_, '_> {
             }
         }
         if is_root {
-            self.start(continuation.block);
-            *self.values = continuation.parameters.clone();
-            self.evaluation.parameters = continuation.parameters.clone();
-            self.evaluation.block_structural_parameters =
-                continuation.structural_parameters.clone();
-            if !self.sources.is_empty() {
-                self.evaluation
-                    .selection_cleanups
-                    .push(argument_evaluation::SelectionCleanup {
-                        selected: continuation.place,
-                        sources: self
-                            .sources
-                            .iter()
-                            .rev()
-                            .map(|source| source.place)
-                            .collect(),
-                        remaining: continuation.residuals.iter().rev().copied().collect(),
-                        pass_through: continuation.pass_through.clone(),
-                        next_operation: self.operations.next_identity,
-                    });
-                self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
-                self.evaluation.structural_locals.retain(
-                    |crate::expression_preparation::bindings::StructuralLocalBinding {
-                         argument,
-                         ..
-                     }| {
-                        !self
-                            .sources
-                            .iter()
-                            .any(|source| source.place == argument.place)
-                    },
-                );
-                for crate::expression_preparation::bindings::StructuralLocalBinding {
-                    argument,
-                    ..
-                } in &mut self.evaluation.structural_locals
-                {
-                    if let Some((_, target)) = continuation
-                        .pass_through
-                        .iter()
-                        .find(|(source, _)| *source == argument.place)
-                    {
-                        argument.place = *target;
-                    }
-                }
-            }
+            self.record_root_continuation(continuation);
         }
         Ok(continuation.place)
     }
