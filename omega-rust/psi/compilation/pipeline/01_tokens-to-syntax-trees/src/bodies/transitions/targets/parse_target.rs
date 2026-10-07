@@ -7,7 +7,7 @@ use crate::bodies::transitions::targets::copy::{
 };
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
-use crate::expressions::parse_postfix::parse_argument_list_after_open_paren_handle;
+use crate::expressions::parse_postfix::{self, parse_argument_list_after_open_paren_handle};
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -152,27 +152,12 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
         input = rest;
         expression = match syntax_trees.expressions.expression(expression).clone() {
             ExpressionNode::Name(path) => {
-                let members = syntax_trees
-                    .tables
-                    .expressions
-                    .identifier_path_members(path)
-                    .to_vec();
+                let (members, receiver) =
+                    parse_postfix::call_path_members_and_receiver(syntax_trees, path);
                 let target = members
                     .last()
                     .cloned()
                     .expect("call path should have at least one member");
-                let receiver = if members.len() <= 1 {
-                    ExpressionHandle::invalid()
-                } else {
-                    let receiver_path = syntax_trees
-                        .tables
-                        .expressions
-                        .copy_identifier_path_prefix(path, members.len() - 1);
-                    syntax_trees
-                        .tables
-                        .expressions
-                        .insert(ExpressionNode::Name(receiver_path))
-                };
 
                 syntax_trees
                     .expressions

@@ -422,27 +422,11 @@ fn build_call_expression_handle(
     let expression = syntax_trees.expressions.expression(expression).clone();
     let call = match expression {
         ExpressionNode::Name(path) => {
-            let members = syntax_trees
-                .tables
-                .expressions
-                .identifier_path_members(path)
-                .to_vec();
+            let (members, receiver) = call_path_members_and_receiver(syntax_trees, path);
             let target = members
                 .last()
                 .cloned()
                 .ok_or_else(|| ParseError::new("missing call target"))?;
-            let receiver = if members.len() <= 1 {
-                ExpressionHandle::invalid()
-            } else {
-                let receiver_path = syntax_trees
-                    .tables
-                    .expressions
-                    .copy_identifier_path_prefix(path, members.len() - 1);
-                syntax_trees
-                    .tables
-                    .expressions
-                    .insert(ExpressionNode::Name(receiver_path))
-            };
 
             validate_atomic_call_orderings(syntax_trees, target.as_str(), receiver, arguments)?;
 
@@ -766,4 +750,31 @@ fn parse_static_type_argument<'tokens, 'source>(
         },
         rest,
     ))
+}
+
+/// Read a call target name path's members and build its receiver: the
+/// path's prefix minus the final member, or an invalid handle when the
+/// target is a single member.
+pub(crate) fn call_path_members_and_receiver(
+    syntax_trees: &mut SyntaxTrees,
+    path: HandleSpan<syntax_trees::identifier::Identifier>,
+) -> (Vec<syntax_trees::identifier::Identifier>, ExpressionHandle) {
+    let members = syntax_trees
+        .tables
+        .expressions
+        .identifier_path_members(path)
+        .to_vec();
+    let receiver = if members.len() <= 1 {
+        ExpressionHandle::invalid()
+    } else {
+        let receiver_path = syntax_trees
+            .tables
+            .expressions
+            .copy_identifier_path_prefix(path, members.len() - 1);
+        syntax_trees
+            .tables
+            .expressions
+            .insert(ExpressionNode::Name(receiver_path))
+    };
+    (members, receiver)
 }
