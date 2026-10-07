@@ -52,27 +52,24 @@ pub struct TargetStructuralArgument {
 
 /// One reference leaf inside a structural call result, resolved through
 /// compile-time custody. `path` names the leaf within the result carrier,
-/// `root` names the common referent root, and `root_paths` names the possible
-/// referent paths under it. A whole-root singleton contains one empty path.
+/// `origins` names every possible referent root and path, including independently
+/// rooted inputs. A whole-root origin has an empty path.
 /// This roster proves custody, not which address an activation returns. Native
 /// consumers load that address from the reference carrier's exact result home;
 /// they cannot choose an arbitrary candidate to reconstruct its address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetReferenceResult {
     pub path: Vec<StructuralPathSegment>,
-    pub root: PlaceId,
     /// Nonempty, strictly ordered alternatives for one permission carrier.
-    pub root_paths: Vec<Vec<StructuralPathSegment>>,
+    pub origins: Vec<TargetReferenceOrigin>,
 }
 
-impl TargetReferenceResult {
-    /// Static address reconstruction requires exactly one possible root path.
-    pub fn sole_root_path(&self) -> Option<&[StructuralPathSegment]> {
-        let [path] = self.root_paths.as_slice() else {
-            return None;
-        };
-        Some(path)
-    }
+/// One exact storage region conservatively retained by a reference descriptor.
+/// The root is logical custody, never a choice of runtime backing address.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TargetReferenceOrigin {
+    pub root: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
 }
 
 /// An incoming value placement and an established local descriptor have

@@ -150,9 +150,10 @@ pub struct CheckedUnitClaimTransferPlan {
 /// it as recorded.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralCallCustodyPlan {
-    /// Exact source loan carried by a root reference result. A zero handle
-    /// means this call establishes no locally held reference-result resource.
-    pub reference_loan: arena::Handle<crate::BorrowLoanFact>,
+    /// Complete source-loan group carried by a root reference result. Runtime
+    /// selection chooses the referent, but every possible source stays live.
+    /// An empty span means no locally held reference-result resource.
+    pub reference_loans: arena::HandleSpan<crate::BorrowLoanFact>,
     /// Exact ingress leaves forwarded by a terminal call with no local holder.
     /// Checking decides these from the authored call.
     pub forwarded_reference_sources: Vec<crate::CheckedReferenceResultSourcePlan>,

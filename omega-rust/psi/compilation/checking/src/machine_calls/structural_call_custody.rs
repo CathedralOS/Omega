@@ -1222,8 +1222,8 @@ pub fn structural_call_custody(
                 result,
             )
             .unwrap_or_default();
-        let reference_loan = if !forwarded_reference_sources.is_empty() {
-            arena::Handle::invalid()
+        let reference_loans = if !forwarded_reference_sources.is_empty() {
+            arena::HandleSpan::empty()
         } else if crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
             program,
             destination.return_type,
@@ -1235,7 +1235,7 @@ pub fn structural_call_custody(
             )
             .is_some()
         {
-            crate::machine_calls::reference_result_custody::result_loan(
+            crate::machine_calls::reference_result_custody::result_loans(
                 program,
                 facts,
                 caller_machine,
@@ -1245,10 +1245,10 @@ pub fn structural_call_custody(
             )
             .ok_or("reference result has no exact returned ingress and loan lifetime")?
         } else {
-            arena::Handle::invalid()
+            arena::HandleSpan::empty()
         };
         return Ok(CheckedStructuralCallCustodyPlan {
-            reference_loan,
+            reference_loans,
             forwarded_reference_sources,
             result_qualifications,
             claim_transfers,
@@ -1327,7 +1327,7 @@ pub fn structural_call_custody(
     }
     result_claims.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(CheckedStructuralCallCustodyPlan {
-        reference_loan: arena::Handle::invalid(),
+        reference_loans: arena::HandleSpan::empty(),
         forwarded_reference_sources: Vec::new(),
         result_qualifications,
         claim_transfers,

@@ -1,7 +1,5 @@
 //! Capability decisions on the admitted execution projection, before effects.
 //!
-//! A valid selected reference result can retain several possible ingress
-//! backings; the current reference runtime transports only singleton origins.
 //! External completions demand a distinct host delegation roster; the
 //! transitional Unit boundary operation is not a terminal invocation and stays
 //! unsupported. Reject missing capabilities before any entry operation, rather than after
@@ -13,17 +11,16 @@
 //! slot. The selector's runtime value is not available during preflight; neither
 //! one representative implementation nor every slot of every table describes
 //! this call's possible execution. Empty rows trap without a callee demand.
-//! The existing selected-backing refusal takes priority over external completion:
-//! collect external demands while inspecting the rest of the closure, without
-//! following them as normal provider calls. This keeps independent transport
-//! limitations visible regardless of when an external call is encountered.
+//! Reference results transport their complete possible backing set in the
+//! runtime; source-count is not a missing execution capability. Collect external
+//! demands without following them as normal provider calls.
 
 use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
-use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
 use std::collections::BTreeSet;
-use terminal_psi::{OperationKind, StructuralPathSegment, TerminalAffineCleanupAction, Terminator};
+use terminal_psi::{OperationKind, TerminalAffineCleanupAction, Terminator};
 
 /// A precise implementation limitation on an otherwise admitted program.
 /// Driver task names and display diagnostics belong to the driver, not Psi.
@@ -32,10 +29,6 @@ pub enum TerminalUnsupportedCapability {
     ExternalCompletionInvocation {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
-    },
-    SelectedReferenceResultBacking {
-        machine: MachineId,
-        result_path: Vec<StructuralPathSegment>,
     },
 }
 
@@ -86,26 +79,6 @@ pub(crate) fn check(
                 .blocks
                 .get(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-            // Backing transport is demanded only by a possible normal
-            // structural return. An all-crash machine's declared result is
-            // metadata, not a runtime result the engine must transport.
-            if matches!(block.terminator, Terminator::ReturnStructural { .. }) {
-                if let Some(result) = machine.result.structural() {
-                    for origin in &result.reference_sources {
-                        // Empty or otherwise invalid source rosters are verifier errors,
-                        // never missing runtime coverage. Only valid alternatives need
-                        // the transport that reference.rs currently cannot supply.
-                        if origin.sources.len() > 1 {
-                            return Err(TerminalInterpretError::UnsupportedCapability(
-                                TerminalUnsupportedCapability::SelectedReferenceResultBacking {
-                                    machine: machine_id,
-                                    result_path: origin.path.clone(),
-                                },
-                            ));
-                        }
-                    }
-                }
-            }
             for operation in &block.operations {
                 let callee = match &operation.kind {
                     OperationKind::Call { callee, .. }
@@ -235,7 +208,7 @@ mod tests {
     // End-to-end acceptance uses genuinely produced artifacts in the corpus.
     use super::*;
     use crate::execution::ExecutableMachine;
-    use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use std::collections::BTreeMap;
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
@@ -417,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn capability_graph_selected_backing_precedes_external_completion() {
+    fn capability_graph_selected_backing_keeps_external_completion_demand() {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         let selected = MachineId::new(2).unwrap();
@@ -434,8 +407,8 @@ mod tests {
         program.machines.insert(selected, machine(2, Vec::new()));
         assert!(
             matches!(check(&program, None), Err(TerminalInterpretError::UnsupportedCapability(
-            TerminalUnsupportedCapability::SelectedReferenceResultBacking { machine, .. }
-        )) if machine == selected)
+            TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary: demanded, .. }
+        )) if demanded == boundary)
         );
     }
 
@@ -741,10 +714,7 @@ mod tests {
             machine(0, vec![unit_call(selected)]),
         );
         program.machines.insert(selected, machine(2, Vec::new()));
-        assert!(
-            matches!(check(&program, None), Err(TerminalInterpretError::UnsupportedCapability(
-            TerminalUnsupportedCapability::SelectedReferenceResultBacking { machine, .. })) if machine == selected)
-        );
+        assert_eq!(check(&program, None).unwrap().imports, Vec::new());
     }
 
     #[test]
@@ -797,10 +767,17 @@ mod tests {
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
         };
-        assert!(matches!(
-            check(&program, Some(&installation)),
-            Err(TerminalInterpretError::UnsupportedCapability(_))
-        ));
+        // Multi-source result transport no longer adds a capability demand.
+        // Following the installed provider satisfies this graph's missing
+        // provider requirement; the source corpus exercises runtime transport.
+        assert_eq!(
+            check(&program, Some(&installation)).unwrap(),
+            TerminalExecutionRequirements {
+                imports: Vec::new(),
+                missing_providers: Vec::new(),
+                external_completions: Vec::new(),
+            }
+        );
         installation.terminal_psi.program_fingerprint =
             terminal_psi::SemanticFingerprint::from_bytes([1; 32]);
         assert_eq!(

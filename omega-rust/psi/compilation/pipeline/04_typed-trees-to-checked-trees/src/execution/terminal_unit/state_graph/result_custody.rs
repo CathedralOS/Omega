@@ -491,13 +491,14 @@ pub(super) fn account(
             .call()
             .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
         {
-            Some(custody) if custody.reference_loan.is_valid() => operations[producer_index + 1..]
+            Some(custody) if !custody.reference_loans.is_empty() => operations
+                [producer_index + 1..]
                 .iter()
                 .filter(|operation| {
                     matches!(
                         operation,
-                        CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. }
-                            if *loan == custody.reference_loan
+                        CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. }
+                            if *loans == custody.reference_loans
                     )
                 })
                 .count(),

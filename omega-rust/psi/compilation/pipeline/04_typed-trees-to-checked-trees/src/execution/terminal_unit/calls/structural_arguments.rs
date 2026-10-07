@@ -734,7 +734,7 @@ pub(crate) fn exact_structural_argument_access(
                     .into_string(),
                 multiplicity: Multiplicity::Affine,
             };
-            crate::execution::terminal_unit::reference_results::result_loan(
+            crate::execution::terminal_unit::reference_results::result_loans(
                 program,
                 facts,
                 machine,
@@ -742,7 +742,12 @@ pub(crate) fn exact_structural_argument_access(
                 call,
                 &result,
             )
-            .map(|loan| vec![loan])
+            .and_then(|loans| {
+                facts
+                    .borrow
+                    .loan_group(loans)
+                    .map(|group| group.map(|(loan, _)| loan).collect::<Vec<_>>())
+            })
         })
         .unwrap_or_default();
     exact_structural_borrow_access(

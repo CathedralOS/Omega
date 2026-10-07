@@ -1,6 +1,11 @@
 //! Reference values join ordinary result bindings to exact source loan events.
-//! Record construction, projected use and cleanup replay the same authored
-//! origins, current loan premises and weakening boundaries independently.
+//! Call results borrow the source checker's complete local-loan span. Selecting
+//! one possible referent at runtime does not discard the other sources' loan
+//! obligations, and retiring the descriptor is one operation for that whole
+//! group. Reconstructing argument initializers here duplicated source admission
+//! and made its single-source recognizers a second language restriction.
+//! Construction and projected transfer retain their own source/custody joins;
+//! none of these queries creates authority or replaces borrow checking.
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
@@ -2485,13 +2490,6 @@ pub fn source_leaf(
 /// Every normal completion must retain the same caller ingress at the declared
 /// result access. The complete relation owns internal jumps and captured alias
 /// substitution; distinct projected paths remain alternatives, not permissions.
-fn reference_result_source_parameter(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<usize> {
-    let sources = whole_reference_sources(program, state)?;
-    reference_sources_parameter(program, state, &sources)
-}
 
 fn reference_sources_parameter(
     program: &dyn crate::CheckingInput,
@@ -2528,37 +2526,22 @@ fn reference_sources_parameter(
     parameter
 }
 
-/// The callee-side root a shared `&` view result denotes: any parameter a
-/// shared read can reborrow from — `&`/`&mut` referents and owned or mutable
-/// storage. A write-only carrier fences reads, so it is the one authority a
-/// shared result cannot borrow through.
-fn view_source_parameter_is_readable(
-    program: &dyn crate::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
-    write_only_borrowed_parts(program, parameter.type_reference).is_none()
-}
-
-/// The callee-side root a `&mut` view result denotes: a `&mut` parameter
-/// symbol, the machine `*self` authority, or a `self` member — the member only
-/// while `self` is mutably borrowed.
-fn view_source_parameter_is_mutable(
-    program: &dyn crate::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
-    parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
-}
-
-/// Reconstruct actual call substitution, not only the return lifetime annotation.
-/// The callee's ordinary completion independently verifies this ingress source.
-pub fn result_loan(
+/// Borrow the complete loan group that checking produced for this call's
+/// local result. Source admission already established its lifetime relation,
+/// captured places and access. Do not replay argument initializers here or
+/// choose one possible origin: the published facts own those decisions.
+///
+/// Borrow production appends each statement's local loans contiguously. The
+/// span retains every candidate without a second allocation; malformed or
+/// incomplete grouping fails closed rather than silently dropping a source.
+pub fn result_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
-) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
+) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -2572,756 +2555,51 @@ pub fn result_loan(
                 && call.call_ordinal == 0
                 && authored.target_symbol == call.target_symbol =>
         {
-            // An explicitly discarded result has no binding lifetime. Its
-            // materialized carrier still owes ordinary completion cleanup;
-            // no fabricated named-local loan may stand in for that debt.
-            // The call/result custody replay separately authenticates operands,
-            // result type and every callee completion's exact returned origins.
-            return Some(arena::Handle::invalid());
+            return Some(arena::HandleSpan::empty());
         }
         _ => return None,
     };
-    // `mutable_borrowed_parts` peels every `&mut`, including the whole
-    // primitive references `parts` already owns; those keep the ingress and
-    // leaf rosters. Shared and mutable views use the same complete result
-    // relation; their declared access still determines the independent caller
-    // loan checked below. A materialized shared primitive carrier retains this
-    // loan obligation even though source observations do not consume it.
-    let mutable_view = parts(program, local.type_reference).is_none()
-        && mutable_borrowed_parts(program, local.type_reference).is_some();
-    let shared_view = parts(program, local.type_reference).is_none()
-        && shared_borrowed_parts(program, local.type_reference).is_some();
-    if !mutable_view && !shared_view {
-        parts(program, local.type_reference)?;
-    }
-    if local.is_mutable {
-        return None;
-    }
+    let shell = crate::reference_shell(program, local.type_reference)?;
+    let expected_kind = match shell.access {
+        language_semantics::ReferenceAccess::Shared => checked_trees::BorrowAccessKind::Read,
+        language_semantics::ReferenceAccess::Mutable => checked_trees::BorrowAccessKind::Mutable,
+        language_semantics::ReferenceAccess::WriteOnly => {
+            checked_trees::BorrowAccessKind::WriteOnly
+        }
+    };
     let ExpressionNode::Call(expression) = program.expression_table.expression(local.initial_value)
     else {
         return None;
     };
-    if expression.target_symbol != call.target_symbol
+    if local.is_mutable
+        || expression.target_symbol != call.target_symbol
         || call.authored_expression != local.initial_value
         || call.statement_index != result.statement_index as usize
         || call.call_ordinal != 0
     {
         return None;
     }
-    let callee = program.state_by_symbol(call.target_symbol)?;
-    // The returned carrier either forwards a whole `&mut` ingress argument or
-    // selects one declared leaf out of an owned record argument. Both lanes
-    // must end in the same single result loan below.
-    // A shared or mutable view may select different projections across
-    // internal states, but every normal result must retain one caller ingress.
-    // Primitive reference results keep their exact whole/owned-leaf transfer.
-    let leaf = if mutable_view || shared_view {
-        None
-    } else {
-        source_parameter(program, callee)
-            .is_none()
-            .then(|| source_leaf(program, callee))
-            .flatten()
-    };
-    let position = if mutable_view || shared_view {
-        reference_result_source_parameter(program, callee)?
-    } else {
-        leaf.as_ref()
-            .map(|(position, _)| *position)
-            .or_else(|| source_parameter(program, callee))?
-    };
-    let argument = *program
-        .expression_table
-        .expression_handles(expression.arguments)
-        .get(position)?;
-    // A declared-field projection may select the argument carrier out of an
-    // owned record local or out of a nested call's anonymous result:
-    // `input.inner` and `forward_outer(outer).inner` both move the whole
-    // `inner` subtree. Index, case-payload and computed roots stay opaque to
-    // leaf custody.
-    let mut members = Vec::new();
-    let mut root = argument;
-    if mutable_view || shared_view {
-        // An explicit borrow passes the same captured place as an implicit
-        // borrowed argument. Peel only the requested access, then rejoin the
-        // authored root and the exact checked loan below; the wrapper itself
-        // neither creates result custody nor changes its release boundary.
-        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(root) {
-            let parameter = program.state_parameters(callee).get(position)?;
-            let expected_access = if view_source_parameter_is_mutable(program, parameter) {
-                language_semantics::ReferenceAccess::Mutable
-            } else if view_source_parameter_is_readable(program, parameter) {
-                language_semantics::ReferenceAccess::Shared
-            } else {
-                return None;
-            };
-            if borrow.access != expected_access {
-                return None;
-            }
-            root = borrow.target;
-        }
-    }
-    while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
-        members.push(member);
-        root = member.receiver;
-    }
-    let expected_places = if let Some((_, leaf_source)) = leaf {
-        // The argument is an owned record local, possibly through one
-        // declared-field projection; the returned leaf's loan is the exact
-        // captured leaf loan under that projection, and this call is that
-        // loan's last use.
-        let [
-            path @ ..,
-            checked_trees::CheckedUnitStructuralPathSegment::Referent,
-        ] = leaf_source.path.as_slice()
-        else {
-            return None;
-        };
-        match program.expression_table.expression(root) {
-            ExpressionNode::Name(actual) => {
-                if actual.head_symbol != actual.symbol
-                    || program
-                        .expression_table
-                        .name_path_members(actual.members)
-                        .len()
-                        != 1
-                {
-                    return None;
-                }
-                let (index, input) = program.state_local_declaration(state, actual.symbol)?;
-                if input.is_mutable
-                    || index >= call.statement_index
-                    || !is_reference_record(program, input.type_reference)
-                {
-                    return None;
-                }
-                let selected_path = callee_parameter_leaf_path(
-                    program,
-                    callee,
-                    position,
-                    input.type_reference,
-                    members.iter().rev().copied(),
-                    &path,
-                )?;
-                let loans =
-                    local_record_loans(program, facts, machine, state, u32::try_from(index).ok()?)?;
-                let mut matching = loans
-                    .iter()
-                    .filter(|(source, _)| source.path == selected_path);
-                let (_, leaf_loan) = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
-                let leaf_loan = facts.borrow.loans.get(*leaf_loan);
-                if leaf_loan.last_use_statement_index != call.statement_index {
-                    return None;
-                }
-                vec![(
-                    leaf_loan.root_symbol,
-                    facts.borrow.loan_segments(leaf_loan).to_vec(),
-                )]
-            }
-            ExpressionNode::Call(nested) => {
-                // The carrier is the nested call's anonymous result: its
-                // returned-leaf roster names which caller-side captured loan
-                // the projected leaf replays through the nested actual.
-                let nested_destination = program.state_by_symbol(nested.target_symbol)?;
-                if !is_reference_record(program, nested_destination.return_type) {
-                    return None;
-                }
-                let selected_path = callee_parameter_leaf_path(
-                    program,
-                    callee,
-                    position,
-                    nested_destination.return_type,
-                    members.iter().rev().copied(),
-                    &path,
-                )?;
-                let sources = returned_record_sources(program, nested_destination)?;
-                let mut matching = sources.iter().filter(|source| source.path == selected_path);
-                let nested_leaf = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
-                let leaf_loan = call_actual_leaf_loan(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    u32::try_from(call.statement_index).ok()?,
-                    nested,
-                    nested_destination,
-                    nested_leaf,
-                )?;
-                let leaf_loan = facts.borrow.loans.get(leaf_loan);
-                if leaf_loan.last_use_statement_index != call.statement_index {
-                    return None;
-                }
-                vec![(
-                    leaf_loan.root_symbol,
-                    facts.borrow.loan_segments(leaf_loan).to_vec(),
-                )]
-            }
-            _ => return None,
-        }
-    } else if mutable_view || shared_view {
-        // A returned loan retains the actual argument's exact backing, whether
-        // that backing is a parameter, an invocation-local owner, or a view of
-        // either. Reconstruct the entire captured path instead of admitting only
-        // parameter roots or collapsing a field to its declaration symbol.
-        // Borrow checking owns availability/access; activation and release below
-        // must still match this particular call and result binding.
-        let (root, segments) =
-            mutable_source_place(program, machine, state, call.statement_index, argument)?;
-        rebase_place_through_local_loans(
-            program,
-            facts,
-            machine,
-            state.symbol,
-            call.statement_index,
-            root,
-            segments,
-        )
-    } else {
-        let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
-            return None;
-        };
-        if actual.head_symbol != actual.symbol
-            || program
-                .expression_table
-                .name_path_members(actual.members)
-                .len()
-                != 1
-            || !members.is_empty()
-            || !program.state_parameters(state).iter().any(|parameter| {
-                parameter.symbol == actual.symbol
-                    && !parameter.is_const
-                    && parts(program, parameter.type_reference).is_some()
-                    && program.normalized_type_identity(parameter.type_reference)
-                        == program.normalized_type_identity(local.type_reference)
-            })
-        {
-            return None;
-        }
-        vec![(actual.symbol, Vec::new())]
-    };
     let mut states = facts
         .borrow
         .states
         .iter()
-        .map(|(_, candidate)| candidate)
-        .filter(|candidate| {
-            candidate.machine_symbol == machine && candidate.state_symbol == state.symbol
+        .map(|(_, borrowing)| borrowing)
+        .filter(|borrowing| {
+            borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol
         });
-    let Some(borrowing) = states.next() else {
-        return None;
-    };
+    let borrowing = states.next()?;
     if states.next().is_some() {
         return None;
     }
-    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-        facts.borrow.state_owns_loan(borrowing, *handle) && loan.owner_symbol == local.symbol
-    });
-    let Some((handle, loan)) = loans.next() else {
-        return None;
-    };
-    let expected_kind = if shared_view {
-        checked_trees::BorrowAccessKind::Read
-    } else {
-        checked_trees::BorrowAccessKind::Mutable
-    };
-    if loans.next().is_some()
-        || loan.statement_index != call.statement_index
-        || !expected_places.iter().any(|(root, segments)| {
-            *root == loan.root_symbol && segments.as_slice() == facts.borrow.loan_segments(loan)
-        })
-        || loan.kind != expected_kind
-        || !facts.borrow.loan_owner_path(loan).is_empty()
-    {
-        return None;
-    }
-    let Some(flow) = state_flow(facts, machine, state.symbol) else {
-        return None;
-    };
-    let mut activations = facts
-        .flow
-        .borrow_lifetimes
-        .activations
-        .span_or_empty(flow.borrow_activations)
-        .iter()
-        .filter(|activation| activation.loan == handle);
-    let Some(activation) = activations.next() else {
-        return None;
-    };
-    if activations.next().is_some()
-        || activation.source
-            != (checked_trees::FlowInvalidationSource::Statement {
-                statement_index: loan.statement_index,
-            })
-    {
-        return None;
-    }
-    release_boundary(program, facts, machine, state.symbol, handle)?;
-    Some(handle)
-}
-
-fn mutable_source_place(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            mutable_source_place(program, machine, state, statement_index, inner.target)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let (root, mut segments) =
-                mutable_source_place(program, machine, state, statement_index, indexed.collection)?;
-            segments.push(index_place_segment(program, indexed.index));
-            Some((root, segments))
-        }
-        ExpressionNode::Member(member) => {
-            let member_symbol = mutable_effective_member_symbol(
-                program,
-                machine,
-                state,
-                statement_index,
-                member.receiver,
-                member,
-            );
-            if !member_symbol.is_valid() {
-                return None;
-            }
-            match program.expression_table.expression(member.receiver) {
-                ExpressionNode::Name(path)
-                    if path.members.count() == 1
-                        && mutable_name_root(
-                            program,
-                            state,
-                            statement_index,
-                            member.receiver,
-                            path,
-                        ) == Some(machine) =>
-                {
-                    Some((member_symbol, Vec::new()))
-                }
-                _ => {
-                    let (root, mut segments) = mutable_source_place(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        member.receiver,
-                    )?;
-                    push_field_place_segments(program, &mut segments, member_symbol);
-                    Some((root, segments))
-                }
-            }
-        }
-        ExpressionNode::Name(path) => {
-            if crate::proof_contracts::bound_expression_meaning::exact_case_reference_owner(
-                program, expression,
-            )
-            .is_some()
-            {
-                return None;
-            }
-            let root = mutable_name_root(program, state, statement_index, expression, path)?;
-            let member_symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
-            let skip = member_symbols
-                .iter()
-                .position(|member_symbol| *member_symbol == root)
-                .map(|index| index + 1)
-                .unwrap_or(1);
-            let mut segments = Vec::new();
-            for symbol in member_symbols.iter().skip(skip).copied() {
-                push_field_place_segments(program, &mut segments, symbol);
-            }
-            Some((root, segments))
-        }
-        _ => None,
-    }
-}
-
-/// The root symbol one `Name` resolves to: the typed path's first retained
-/// symbol, else the self receiver's parameter, a same-named parameter, or the
-/// latest local spelling the name before this statement.
-fn mutable_name_root(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    path: &typed_trees::expression::TableNamePath,
-) -> Option<SymbolHandle> {
-    if let Some(symbol) = program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols)
-        .first()
-        .copied()
-        .filter(|symbol| symbol.is_valid())
-        .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol))
-        .or_else(|| path.symbol.is_valid().then_some(path.symbol))
-    {
-        return Some(symbol);
-    }
-    let name = program.expression_table.display_name(expression);
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == name)
-    {
-        return Some(parameter.symbol);
-    }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.name.as_str() == name => Some(local.symbol),
-            _ => None,
-        })
-}
-
-/// An index step's normalized segment: a literal or constant-valued index is
-/// its fixed ordinal, a half-open literal range is a window, and anything
-/// else stays a runtime `Index` expression.
-fn index_place_segment(
-    program: &dyn crate::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> facts::PlaceSegment {
-    if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
-        && let Some((start, end)) = fixed_half_open_range(program, range)
-    {
-        return facts::PlaceSegment::FixedRange { start, end };
-    }
-    program
-        .expression_table
-        .constant_integer_value(expression)
-        .and_then(|value| usize::try_from(value).ok())
-        .map(|index| facts::PlaceSegment::FixedIndex { index })
-        .unwrap_or(facts::PlaceSegment::Index { expression })
-}
-
-fn fixed_half_open_range(
-    program: &dyn crate::CheckingInput,
-    range: &typed_trees::expression::TableRangeExpression,
-) -> Option<(usize, usize)> {
-    let start = if range.start.is_valid() {
-        usize::try_from(
-            program
-                .expression_table
-                .constant_integer_value(range.start)?,
-        )
-        .ok()?
-    } else {
-        0
-    };
-    if !range.end.is_valid() {
-        return None;
-    }
-    let end = usize::try_from(program.expression_table.constant_integer_value(range.end)?).ok()?;
-    let end = if range.end_inclusive {
-        end.checked_add(1)?
-    } else {
-        end
-    };
-    Some((start, end))
-}
-
-/// `borrow_access_place`'s member spelling: the member resolved through the
-/// receiver's own type — an attached machine's `self` data, a parameter's
-/// named type, or the data a previous hop landed in — before falling back to
-/// the expression's retained symbol. `self.bag` in an attached machine
-/// spells the data field `Main::bag`, not the machine's `Main::main::bag`
-/// state spelling, so both resolvers must answer the same symbol.
-fn mutable_effective_member_symbol(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    receiver: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> SymbolHandle {
-    if let Some(type_symbol) =
-        mutable_receiver_type_symbol(program, machine, state, statement_index, receiver)
-        && let Some(symbol) =
-            mutable_member_from_type_symbol(program, type_symbol, member.member.as_str())
-    {
-        return symbol;
-    }
-    member.member_symbol
-}
-
-/// The named type one receiver expression's value inhabits: borrows unwrap,
-/// indexed collections keep their element's named owner, and names and
-/// members resolve through the symbols their roots already spell.
-fn mutable_receiver_type_symbol(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<SymbolHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            mutable_receiver_type_symbol(program, machine, state, statement_index, inner.target)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let collection = mutable_receiver_type_symbol(
-                program,
-                machine,
-                state,
-                statement_index,
-                indexed.collection,
-            )?;
-            let definition =
-                crate::declarations::data_queries::data_definition_by_symbol(program, collection)?;
-            Some(definition.symbol)
-        }
-        ExpressionNode::Member(member) => {
-            let symbol = mutable_effective_member_symbol(
-                program,
-                machine,
-                state,
-                statement_index,
-                member.receiver,
-                member,
-            );
-            mutable_symbol_type_symbol(program, machine, state, statement_index, symbol)
-        }
-        ExpressionNode::Name(path) => {
-            let root = mutable_name_root(program, state, statement_index, expression, path)?;
-            mutable_symbol_type_symbol(program, machine, state, statement_index, root)
-        }
-        _ => None,
-    }
-}
-
-/// The named type a resolved root or member symbol's value inhabits: the
-/// attached machine's own data for its `self` root, the declared type of a
-/// parameter or earlier local, or the named owner of a data field's type.
-fn mutable_symbol_type_symbol(
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
-    if symbol == machine {
-        let owner = program.machine_by_symbol(machine)?;
-        return program
-            .attached_data_definition(owner)
-            .map(|definition| definition.symbol);
-    }
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-    {
-        let type_symbol = program
-            .type_reference_table
-            .type_symbol(parameter.type_reference);
-        return type_symbol.is_valid().then_some(type_symbol);
-    }
-    if let Some(local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        })
-    {
-        let type_symbol = program
-            .type_reference_table
-            .type_symbol(local.type_reference);
-        return type_symbol.is_valid().then_some(type_symbol);
-    }
-    program
-        .data_definitions()
-        .iter()
-        .flat_map(|definition| program.data_members(definition))
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                let type_symbol = program
-                    .type_reference_table
-                    .type_symbol(field.type_reference);
-                type_symbol.is_valid().then_some(type_symbol)
-            }
-            typed_trees::data::DataMember::Variant(variant) => program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.symbol == symbol)
-                .and_then(|field| {
-                    let type_symbol = program
-                        .type_reference_table
-                        .type_symbol(field.type_reference);
-                    type_symbol.is_valid().then_some(type_symbol)
-                }),
-            _ => None,
-        })
-}
-
-/// A member name resolved inside one named type — `Main::bag` for `bag` in
-/// `Main` — covering declared fields, variants and payload fields of a data
-/// definition, an attached machine's data, and machine-owned data, exactly
-/// as `resolve_member_symbol_from_type_symbol` spells them.
-fn mutable_member_from_type_symbol(
-    program: &dyn crate::CheckingInput,
-    type_symbol: SymbolHandle,
-    member_name: &str,
-) -> Option<SymbolHandle> {
-    let resolved = |definition: &typed_trees::data::DataDefinition| {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    Some(field.symbol)
-                }
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    Some(variant.symbol)
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.name.as_str() == member_name)
-                    .map(|field| field.symbol),
-                _ => None,
-            })
-    };
-    if let Some(definition) =
-        crate::declarations::data_queries::data_definition_by_symbol(program, type_symbol)
-        && let Some(symbol) = resolved(definition)
-    {
-        return Some(symbol);
-    }
-    if let Some(owner) = program.machine_by_symbol(type_symbol) {
-        if let Some(definition) = program.attached_data_definition(owner)
-            && let Some(symbol) = resolved(definition)
-        {
-            return Some(symbol);
-        }
-        if let Some(owned) = program
-            .machine_owned_data(owner)
-            .iter()
-            .find(|owned| owned.name.as_str() == member_name)
-        {
-            return Some(owned.symbol);
-        }
-    }
-    None
-}
-
-/// A field step pushes the payload's `Case` segment first when the field
-/// lives under a sum case, then the field itself — the spelling
-/// `push_field_place_segments` shares for place construction.
-fn push_field_place_segments(
-    program: &dyn crate::CheckingInput,
-    segments: &mut Vec<facts::PlaceSegment>,
-    symbol: SymbolHandle,
-) {
-    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-        segments.push(facts::PlaceSegment::Case { variant });
-    }
-    segments.push(facts::PlaceSegment::Field { symbol });
-}
-
-/// Rebase one actual place through the loans the actual's root already
-/// carries: a view local's own loan names the loaned storage this new place
-/// joins. Each qualifying earlier loan yields one candidate; none means the
-/// root names the place directly (a parameter's own storage).
-fn rebase_place_through_local_loans(
-    program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement_index: usize,
-    root: SymbolHandle,
-    segments: Vec<facts::PlaceSegment>,
-) -> Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> {
-    let mut states = facts
+    let group = facts
         .borrow
-        .states
-        .iter()
-        .map(|(_, candidate)| candidate)
-        .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
-    let Some(borrowing) = states.next().filter(|_| states.next().is_none()) else {
-        return Vec::new();
-    };
-    let rebased: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = facts
-        .borrow
-        .loans
-        .iter()
-        .filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrowing, *handle)
-                && loan.owner_symbol == root
-                && loan.statement_index < statement_index
-                && loan_owner_path_is_prefix(program, facts.borrow.loan_owner_path(loan), &segments)
-        })
-        .map(|(_, loan)| {
-            let mut rebased = facts.borrow.loan_segments(loan).to_vec();
-            rebased.extend_from_slice(&segments[facts.borrow.loan_owner_path(loan).len()..]);
-            (loan.root_symbol, rebased)
-        })
-        .collect();
-    if rebased.is_empty() {
-        vec![(root, segments)]
-    } else {
-        rebased
+        .local_loans(borrowing, local.symbol, call.statement_index)?;
+    if !facts.borrow.loan_group(group)?.all(|(_, loan)| {
+        loan.kind == expected_kind && facts.borrow.loan_owner_path(loan).is_empty()
+    }) {
+        return None;
     }
-}
-
-/// Whether a recorded loan's owner path is a prefix of one actual's place
-/// segments, so the loan's own (root, segments) rebase the actual's
-/// remainder. Dynamic owners overlap any index-shaped place step.
-fn loan_owner_path_is_prefix(
-    program: &dyn crate::CheckingInput,
-    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
-    segments: &[facts::PlaceSegment],
-) -> bool {
-    owner_path.len() <= segments.len()
-        && owner_path
-            .iter()
-            .zip(segments.iter())
-            .all(|(owner, place)| {
-                use checked_trees::BorrowLoanOwnerSegment as Owner;
-                match (owner, place) {
-                    (Owner::Field(owner_symbol), facts::PlaceSegment::Field { symbol }) => {
-                        !symbol.is_valid() || owner_symbol == symbol
-                    }
-                    (Owner::Case(owner_variant), facts::PlaceSegment::Case { variant }) => {
-                        owner_variant == variant
-                    }
-                    (Owner::FixedIndex(owner_index), facts::PlaceSegment::FixedIndex { index }) => {
-                        owner_index == index
-                    }
-                    (Owner::FixedIndex(owner_index), facts::PlaceSegment::Index { expression }) => {
-                        program
-                            .expression_table
-                            .constant_integer_value(*expression)
-                            .and_then(|value| usize::try_from(value).ok())
-                            .is_none_or(|place_index| *owner_index == place_index)
-                    }
-                    (
-                        Owner::DynamicIndex,
-                        facts::PlaceSegment::FixedIndex { .. }
-                        | facts::PlaceSegment::FixedRange { .. }
-                        | facts::PlaceSegment::Index { .. },
-                    ) => true,
-                    _ => false,
-                }
-            })
+    (!group.is_empty()).then_some(group)
 }
 
 /// Earliest statement entry permitted by this local's own uses and loans.
@@ -3477,31 +2755,4 @@ fn state_flow(
         .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
     let flow = states.next()?;
     states.next().is_none().then_some(flow)
-}
-
-/// The structural path a returned leaf names through a callee formal: the
-/// projection off `record_type` must land on `position`'s declared type
-/// identity, then the leaf's own `path` is appended. Both the local-carrier
-/// and nested-call lanes select their sole matching leaf this way.
-fn callee_parameter_leaf_path<'a>(
-    program: &dyn crate::CheckingInput,
-    callee: &typed_trees::state::State,
-    position: usize,
-    record_type: TypeReferenceHandle,
-    members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
-    path: &[checked_trees::CheckedUnitStructuralPathSegment],
-) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
-    let (mut selected_path, projected) = declared_field_path(program, record_type, members)?;
-    if program
-        .state_parameters(callee)
-        .get(position)
-        .is_none_or(|parameter| {
-            program.normalized_type_identity(parameter.type_reference)
-                != program.normalized_type_identity(projected)
-        })
-    {
-        return None;
-    }
-    selected_path.extend(path.iter().cloned());
-    Some(selected_path)
 }

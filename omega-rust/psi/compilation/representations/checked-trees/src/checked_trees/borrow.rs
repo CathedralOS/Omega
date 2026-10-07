@@ -583,7 +583,69 @@ impl BorrowFacts {
     }
 
     pub fn state_owns_loan(&self, state: &StateBorrowFact, loan: Handle<BorrowLoanFact>) -> bool {
-        self.loans.is_valid(loan) && handle_span_contains(state.loans, loan)
+        self.loans_contain(state.loans, loan)
+    }
+
+    /// Membership retains the loan arena's generation, not just its index.
+    pub fn loans_contain(
+        &self,
+        loans: HandleSpan<BorrowLoanFact>,
+        loan: Handle<BorrowLoanFact>,
+    ) -> bool {
+        self.loans.is_valid(loan) && handle_span_contains(loans, loan)
+    }
+
+    /// Borrow the recorded group with each source's durable identity. One
+    /// descriptor can retain several alternative sources without minting a new
+    /// loan or allocating a second roster.
+    pub fn loan_group(
+        &self,
+        loans: HandleSpan<BorrowLoanFact>,
+    ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
+        let sources = self.loans.span(loans)?;
+        Some(
+            sources
+                .iter()
+                .enumerate()
+                .map(move |(loan_ordinal, source)| {
+                    let handle = Handle::from_parts(
+                        loans.start().arena_index() + loan_ordinal as u32,
+                        loans.start().generation(),
+                    );
+                    (handle, source)
+                }),
+        )
+    }
+
+    /// Borrow production appends each statement's local loans together. Retain
+    /// that complete group without a second roster. An interleaved group is a
+    /// malformed producer relationship, not permission to select a subset.
+    pub fn local_loans(
+        &self,
+        state: &StateBorrowFact,
+        owner: SymbolHandle,
+        statement_index: usize,
+    ) -> Option<HandleSpan<BorrowLoanFact>> {
+        let mut group = HandleSpan::empty();
+        for (handle, loan) in self.loan_group(state.loans)? {
+            if loan.owner_symbol != owner || loan.statement_index != statement_index {
+                continue;
+            }
+            if !group.is_empty()
+                && (handle.generation() != group.start().generation()
+                    || handle.arena_index()
+                        != group.start().arena_index().checked_add(group.count())?)
+            {
+                return None;
+            }
+            let start = if group.is_empty() {
+                handle
+            } else {
+                group.start()
+            };
+            group = HandleSpan::from_parts(start, group.count().checked_add(1)?);
+        }
+        Some(group)
     }
 }
 

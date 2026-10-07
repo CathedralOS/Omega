@@ -2,9 +2,9 @@
 //! loan permission, never its referent's storage; every origin and parent is
 //! reconstructed from operations and signatures, never from pointer bits.
 use super::LiveDefinitions;
-use abstract_operations::call_source;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::call_source;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -134,43 +134,41 @@ pub(super) enum ReferenceRoot {
     /// storage belongs to the caller, so no local pointer exists for it.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
     /// One selected permission conservatively pins every possible ingress path.
-    Alternatives(PlaceId, Vec<Vec<StructuralPathSegment>>),
+    Alternatives(Vec<target_operations::TargetReferenceOrigin>),
 }
 
 impl ReferenceRoot {
-    fn place(&self) -> PlaceId {
+    pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
-            Self::Place(place) | Self::Ingress(place, _) | Self::Alternatives(place, _) => *place,
+            Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
+                root: *root,
+                path: Vec::new(),
+            }],
+            Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
+                root: *root,
+                path: path.clone(),
+            }],
+            Self::Alternatives(origins) => origins.clone(),
         }
     }
 
-    fn paths(&self) -> Vec<Vec<StructuralPathSegment>> {
+    pub(super) fn contains_place(&self, place: PlaceId) -> bool {
         match self {
-            Self::Place(_) => vec![Vec::new()],
-            Self::Ingress(_, path) => vec![path.clone()],
-            Self::Alternatives(_, paths) => paths.clone(),
+            Self::Place(root) | Self::Ingress(root, _) => *root == place,
+            Self::Alternatives(origins) => origins.iter().any(|origin| origin.root == place),
         }
     }
 }
 
 fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
-    if left.place() != right.place() {
-        return false;
-    }
-    let overlaps_path = |path: &[StructuralPathSegment]| match right {
-        ReferenceRoot::Place(_) => true,
-        ReferenceRoot::Ingress(_, other) => {
-            terminal_semantics::structural_paths_may_overlap(path, other)
-        }
-        ReferenceRoot::Alternatives(_, paths) => paths
-            .iter()
-            .any(|other| terminal_semantics::structural_paths_may_overlap(path, other)),
-    };
-    match left {
-        ReferenceRoot::Place(_) => true,
-        ReferenceRoot::Ingress(_, path) => overlaps_path(path),
-        ReferenceRoot::Alternatives(_, paths) => paths.iter().any(|path| overlaps_path(path)),
-    }
+    let left = left.origins();
+    let right = right.origins();
+    left.iter().any(|left| {
+        right.iter().any(|right| {
+            left.root == right.root
+                && terminal_semantics::structural_paths_may_overlap(&left.path, &right.path)
+        })
+    })
 }
 
 /// A live reference's payload producer and geometry after dereferencing it.
@@ -995,7 +993,7 @@ fn normalized_direct_source(
         Ok((leaf.root.clone(), Some(leaf.identity.clone())))
     } else if source.path.is_empty() {
         if live.references.iter().any(|((carrier, path), reference)| {
-            reference.root.place() == source.place
+            reference.root.contains_place(source.place)
                 && !shared_source_compatible(function, live, types, carrier, path, source.access)
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1111,7 +1109,7 @@ mod access_paths;
 pub(super) fn is_suspended_root(live: &LiveDefinitions, place: PlaceId) -> bool {
     live.references
         .values()
-        .any(|reference| reference.root.place() == place)
+        .any(|reference| reference.root.contains_place(place))
 }
 
 /// Test the selected storage, not an ingress descriptor's external pointee.
@@ -1140,9 +1138,9 @@ pub(super) fn is_suspended_storage_region(
         .any(|reference| match &reference.root {
             ReferenceRoot::Place(root) => *root == place,
             ReferenceRoot::Ingress(root, origin) => *root == place && origin_overlaps(origin),
-            ReferenceRoot::Alternatives(root, origins) => {
-                *root == place && origins.iter().any(|origin| origin_overlaps(origin))
-            }
+            ReferenceRoot::Alternatives(origins) => origins
+                .iter()
+                .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
         })
 }
 
@@ -1198,14 +1196,14 @@ fn check_region_access_with(
         .any(|((carrier, carrier_path), reference)| {
             (*carrier == place && overlaps(carrier_path))
                 || (reference.identity.0 == place && overlaps(&reference.identity.1))
-                || (reference.root.place() == place
+                || (reference.root.contains_place(place)
                     && !compatible_origin(carrier, carrier_path)
                     && match &reference.root {
                         ReferenceRoot::Place(_) => true,
                         ReferenceRoot::Ingress(_, path) => overlaps(path),
-                        ReferenceRoot::Alternatives(_, paths) => {
-                            paths.iter().any(|path| overlaps(path))
-                        }
+                        ReferenceRoot::Alternatives(origins) => origins
+                            .iter()
+                            .any(|origin| origin.root == place && overlaps(&origin.path)),
                     })
         })
 }
@@ -1405,33 +1403,24 @@ pub(super) fn call_arguments(
             }
             continue;
         }
-        if source_contract(function, live, argument.place)
-            .is_some_and(|(contract, _)| contains_reference(types, contract))
-            || live
-                .references
-                .values()
-                .any(|reference| reference.root.place() == argument.place)
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        } else if live
-            .borrowed_reference_sources
-            .contains_key(&argument.place)
-        {
-            let (root, _) = normalized_source(function, live, types, argument)?;
-            normalized.push((
-                argument_position,
-                vec![root],
-                argument.access,
-                CallRegion::Referent,
-            ));
-        } else {
-            normalized.push((
-                argument_position,
-                vec![ReferenceRoot::Place(argument.place)],
-                argument.access,
-                CallRegion::OrdinaryStorage,
-            ));
-        }
+        // Direct storage arguments use the same exact projection as reference
+        // formation. A loan of one field does not suspend its disjoint sibling;
+        // collapsing both to the containing place loses that distinction and
+        // also makes pairwise call-argument checks compare the wrong regions.
+        let (root, _) = normalized_source(function, live, types, argument)?;
+        normalized.push((
+            argument_position,
+            vec![root],
+            argument.access,
+            if live
+                .borrowed_reference_sources
+                .contains_key(&argument.place)
+            {
+                CallRegion::Referent
+            } else {
+                CallRegion::OrdinaryStorage
+            },
+        ));
     }
     for (position, (argument_position, roots, access, reference_access)) in
         normalized.iter().enumerate()
@@ -1516,7 +1505,7 @@ pub(super) fn touches(
         || live
             .references
             .values()
-            .any(|reference| reference.root.place() == argument.place)
+            .any(|reference| reference.root.contains_place(argument.place))
         || live
             .references
             .keys()
@@ -1625,13 +1614,14 @@ pub(super) fn release(
     };
     // Releasing stored pointer bytes cannot bypass a loan over their owner.
     if live.references.values().any(|enclosing| {
-        enclosing.root.place() == *source
-            && enclosing.root.paths().iter().any(|origin_path| {
-                source_contract(function, live, *source)
+        enclosing.root.origins().iter().any(|origin| {
+            let origin_path = &origin.path;
+            origin.root == *source
+                && source_contract(function, live, *source)
                     .and_then(|(contract, _)| leaf_type(types, contract, origin_path))
                     == Some(enclosing.referent)
-                    && terminal_semantics::structural_paths_may_overlap(origin_path, path)
-            })
+                && terminal_semantics::structural_paths_may_overlap(origin_path, path)
+        })
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -1838,37 +1828,17 @@ pub(super) fn call_results(
                 _ => None,
             })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        if mapping.sources.len() > 1
-            && (!mapping.path.is_empty()
-                || !matches!(
-                    result_access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                || !matches!(
-                    types.get(&expected).map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::Record { .. })
-                )
-                || mapping.sources.iter().any(|formal| {
-                    formal.place != mapping.sources[0].place
-                        || formal.path.is_empty()
-                        || formal.path.iter().any(|segment| {
-                            !matches!(
-                                segment,
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                            )
-                        })
-                }))
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             if !access_covers(formal.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let source = call_source(&callee_function.structural_parameters, structural_arguments, formal)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let source = call_source(
+                &callee_function.structural_parameters,
+                structural_arguments,
+                formal,
+            )
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if reference_source_type(function, live, types, &source) != Some(expected) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -1915,7 +1885,15 @@ pub(super) fn call_results(
             };
             candidates.push(leaf);
         }
-        let leaf = combine_alternatives(function, candidates)?;
+        let joining = candidates.len() > 1;
+        let mut leaf = combine_alternatives(function, candidates)?;
+        if joining {
+            // The selected descriptor is one result resource, conservatively
+            // pinning the complete union of the consumed input permissions.
+            leaf.identity = (result.place, mapping.path.clone());
+            leaf.result = result.clone();
+            leaf.operation = Some(psi_operation);
+        }
         if !identities.insert(leaf.identity.clone())
             || roots.iter().any(|(root, prior_access)| {
                 roots_overlap(root, &leaf.root)
@@ -1928,8 +1906,7 @@ pub(super) fn call_results(
         roots.push((leaf.root.clone(), result_access));
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
-            root: leaf.root.place(),
-            root_paths: leaf.root.paths(),
+            origins: leaf.root.origins(),
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
@@ -1951,11 +1928,7 @@ fn combine_alternatives(
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut origins = vec![(leaf.root.clone(), leaf.parent.clone())];
     for candidate in candidates {
-        if leaf.identity != candidate.identity
-            || leaf.result != candidate.result
-            || leaf.operation != candidate.operation
-            || leaf.referent != candidate.referent
-        {
+        if leaf.referent != candidate.referent {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         origins.push((candidate.root, candidate.parent));
@@ -1975,25 +1948,18 @@ fn combine_candidate_origins(
     if candidates.len() == 0 {
         return Ok((root, parent));
     }
-    let place = root.place();
-    let mut paths = Vec::new();
+    let mut origins = Vec::new();
     for (root, parent) in std::iter::once((root, parent)).chain(candidates) {
-        if parent.is_some() || root.place() != place {
+        // Independently rooted alternatives can join only after their owned
+        // descriptors transfer. A live external parent must not be detached.
+        if parent.is_some() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        match root {
-            ReferenceRoot::Ingress(_, path) => paths.push(path),
-            ReferenceRoot::Alternatives(_, candidates) => paths.extend(candidates),
-            ReferenceRoot::Place(_) => {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-        }
+        origins.extend(root.origins());
     }
-    paths.sort();
-    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    Ok((ReferenceRoot::Alternatives(place, paths), None))
+    origins.sort();
+    origins.dedup();
+    Ok((ReferenceRoot::Alternatives(origins), None))
 }
 
 /// A structural return whose source carries reference leaves must match the
@@ -2034,9 +2000,14 @@ pub(super) fn return_custody(
                 .any(|formal| formal_origin(function, types, formal).as_ref() == Some(root))
         };
         let admitted = match &leaf.root {
-            ReferenceRoot::Alternatives(place, paths) => paths
-                .iter()
-                .all(|path| declared(&ReferenceRoot::Ingress(*place, path.clone()))),
+            ReferenceRoot::Alternatives(origins) => origins.iter().all(|origin| {
+                let root = if origin.path.is_empty() {
+                    ReferenceRoot::Place(origin.root)
+                } else {
+                    ReferenceRoot::Ingress(origin.root, origin.path.clone())
+                };
+                declared(&root)
+            }),
             root => declared(root),
         };
         if !admitted

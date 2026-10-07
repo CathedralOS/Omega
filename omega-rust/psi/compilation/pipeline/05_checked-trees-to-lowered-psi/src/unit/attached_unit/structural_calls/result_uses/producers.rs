@@ -70,7 +70,7 @@ pub(super) fn loaned_record_projection(
         && operation
             .call()
             .and_then(CheckedUnitCallPlan::structural_custody)
-            .is_some_and(|custody| custody.reference_loan.is_valid())
+            .is_some_and(|custody| !custody.reference_loans.is_empty())
         && argument.path.iter().all(|segment| {
             matches!(
                 segment,

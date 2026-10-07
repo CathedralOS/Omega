@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 5.56, "load1_start": 4.9, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 2.42, "load1_start": 2.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -300,6 +300,8 @@ fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed2
 fail/borrows/loop_descriptor_reformation_with_live_alias rejected 257ms expected @6197860b335c+wt
 	state `cycle` receives `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
 	statement 2 mutates `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
+fail/borrows/multi_origin_returned_reference_live_source_write rejected 361ms expected @034357f920c6+wt
+	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected @944fb1232f17
 	state `observe` receives `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/mutable_record_state_alias rejected 546ms expected @cba4afbf6f2f+wt
@@ -1329,6 +1331,8 @@ fail/inline_asm/asm_where_missing_clobber rejected 1ms expected @2d8ed253669f
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 251ms expected @bf12cd0f89bb+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 251ms expected @bf12cd0f89bb+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/callee_integer_at_multi_origin_reference_requires_fit rejected 370ms expected @034357f920c6+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_rhs_exposes_origin rejected 356ms expected @9ac5a3680a7e+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
@@ -3056,6 +3060,7 @@ pass/layouts/private_callback_slot_demand_compile checked 3542ms @693920652f41+w
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 1759ms check-target:macos_arm64 @acdf102c21ea+wt
 pass/layouts/runtime_callee_owned_local_origins_exit checked 1411ms check-target:macos_arm64 @9660dd146223
+pass/layouts/runtime_multi_origin_encoded_reference_exit checked 1619ms check-target:macos_arm64 @89699170f158+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms check-target:macos_arm64 @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms check-target:macos_arm64 @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms check-target:macos_arm64 @2517a050d7b4+wt

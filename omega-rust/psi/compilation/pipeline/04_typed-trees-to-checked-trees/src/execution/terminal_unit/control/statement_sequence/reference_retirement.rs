@@ -100,7 +100,15 @@ impl Retirement<'_> {
             else {
                 return false;
             };
-            if local_reference_loan(self.facts, result, self.results) != Some(child) {
+            if !local_reference_loans(
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                result,
+                self.results,
+            )
+            .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
+            {
                 return false;
             }
             let source_holder = match source.source {
@@ -237,8 +245,8 @@ impl Retirement<'_> {
         }
         if self.operations.iter().chain(self.pending).any(|operation| match operation {
             CheckedUnitEffectOperationPlan::ReleaseReference {
-                binding_ordinal, loan: released, defer_to_exit: false, ..
-            } => *binding_ordinal == holder.binding_ordinal && *released == handle,
+                binding_ordinal, loans: released, defer_to_exit: false, ..
+            } => *binding_ordinal == holder.binding_ordinal && self.facts.borrow.loans_contain(*released, handle),
             CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. } => {
                 cleanup_actions.iter().any(|discard| {
                     discard.path().is_empty()
@@ -339,13 +347,15 @@ impl Retirement<'_> {
     }
 }
 
-/// An explicitly established reference has one whole-owner loan occurrence.
+/// An established descriptor retains every whole-owner loan occurrence.
 /// Match its registered local binding, rather than re-reading the initializer.
-pub(super) fn local_reference_loan(
+pub(super) fn local_reference_loans(
     facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     results: &Results,
-) -> Option<arena::Handle<BorrowLoanFact>> {
+) -> Option<arena::HandleSpan<BorrowLoanFact>> {
     let mut roots = results.iter().filter(|(binding, _)| binding == result);
     let (_, facts::PlaceRoot::Symbol(owner)) = roots.next()? else {
         return None;
@@ -353,12 +363,23 @@ pub(super) fn local_reference_loan(
     if roots.next().is_some() {
         return None;
     }
-    let mut loans = facts.borrow.loans.iter().filter_map(|(handle, loan)| {
-        (loan.owner_symbol == *owner
-            && loan.statement_index == result.statement_index as usize
-            && facts.borrow.loan_owner_path(loan).is_empty())
-        .then_some(handle)
-    });
-    let loan = loans.next()?;
-    loans.next().is_none().then_some(loan)
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, borrowing)| borrowing)
+        .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let loans = facts
+        .borrow
+        .local_loans(borrowing, *owner, result.statement_index as usize)?;
+    (!loans.is_empty()
+        && facts
+            .borrow
+            .loan_group(loans)?
+            .all(|(_, loan)| facts.borrow.loan_owner_path(loan).is_empty()))
+    .then_some(loans)
 }

@@ -1430,8 +1430,10 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 }),
                 reference_results: vec![TargetReferenceResult {
                     path: Vec::new(),
-                    root,
-                    root_paths: vec![holder_path.clone()],
+                    origins: vec![target_operations::TargetReferenceOrigin {
+                        root,
+                        path: holder_path.clone(),
+                    }],
                 }],
             },
             scalar_arguments: Vec::new(),
@@ -1474,9 +1476,13 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         field_type: StructuralFieldType::Structural(holder_type),
     });
     let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
+    let root = reference_results[0].origins[0].root;
     reference_results[0]
-        .root_paths
-        .push(vec![StructuralPathSegment::Field("sibling".into())]);
+        .origins
+        .push(target_operations::TargetReferenceOrigin {
+            root,
+            path: vec![StructuralPathSegment::Field("sibling".into())],
+        });
     assert!(replacement_retained(
         &function,
         &function.operations[1],
@@ -1484,7 +1490,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     ));
     assert_reference_field_read_retains_carrier(&function, &grouped, holder_type);
     let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
-    reference_results[0].root_paths.swap(0, 1);
+    reference_results[0].origins.swap(0, 1);
     assert!(!replacement_retained(
         &function,
         &function.operations[1],
@@ -1569,13 +1575,13 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         let mut changed_target = target.clone();
         match corruption {
             0 => {
-                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].root =
-                    PlaceId::new(9).unwrap();
+                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].origins[0]
+                    .root = PlaceId::new(9).unwrap();
             }
             1 => {
-                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].root_paths
-                    [0]
-                .clear();
+                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].origins[0]
+                    .path
+                    .clear();
             }
             2 => {
                 *reference_access_mut(&mut changed_target.graph.structural_types.make_mut()[1])

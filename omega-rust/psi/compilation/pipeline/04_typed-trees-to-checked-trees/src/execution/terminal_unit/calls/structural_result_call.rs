@@ -61,8 +61,8 @@ pub(super) fn build(
             program, state, call, result,
         )
         .unwrap_or_default();
-    let reference_loan = if !forwarded_reference_sources.is_empty() {
-        arena::Handle::invalid()
+    let reference_loans = if !forwarded_reference_sources.is_empty() {
+        arena::HandleSpan::empty()
     } else if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
         program,
         target_state.return_type,
@@ -77,7 +77,7 @@ pub(super) fn build(
         // Both accesses retain the exact call's loan, activation and release.
         // Origin reconstruction belongs to the shared reference-result owner;
         // a private view walker must not miss ordinary forwarded completions.
-        crate::execution::terminal_unit::reference_results::result_loan(
+        crate::execution::terminal_unit::reference_results::result_loans(
             program,
             facts,
             machine.symbol,
@@ -86,7 +86,7 @@ pub(super) fn build(
             result,
         )?
     } else {
-        arena::Handle::invalid()
+        arena::HandleSpan::empty()
     };
     // A result whose contents hold no reference or slice cannot retain a loan
     // of its operands: whatever the callee read or wrote through a borrowed
@@ -98,7 +98,7 @@ pub(super) fn build(
             target_state.return_type,
             validation::ContentsRequirement::RepresentedOwned,
         );
-    let result_retains_no_loan = !reference_loan.is_valid()
+    let result_retains_no_loan = reference_loans.is_empty()
         && (represented_copy_result
             || (matches!(
                 result.multiplicity,
@@ -163,7 +163,7 @@ pub(super) fn build(
                             // Without that proven leaf custody the whole
                             // carrier spelling stays mandatory.
                             && (argument.path.is_empty()
-                                || (reference_loan.is_valid()
+                                || (!reference_loans.is_empty()
                                     && validation::reference_result_custody::is_reference_record(
                                         program,
                                         carrier,
@@ -230,7 +230,7 @@ pub(super) fn build(
     if args_ok
         && (!transfers.is_empty()
             || represented_copy_result
-            || reference_loan.is_valid()
+            || !reference_loans.is_empty()
             || !forwarded_reference_sources.is_empty()
             || crate::execution::terminal_unit::reference_results::is_reference_record(
                 program,
@@ -308,7 +308,7 @@ pub(super) fn build(
                 scalar_arguments,
                 structural_arguments,
                 result.clone(),
-                result.multiplicity == Multiplicity::Affine && !reference_loan.is_valid(),
+                result.multiplicity == Multiplicity::Affine && reference_loans.is_empty(),
             ),
         );
     }

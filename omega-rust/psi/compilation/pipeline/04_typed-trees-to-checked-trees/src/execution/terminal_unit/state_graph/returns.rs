@@ -409,71 +409,10 @@ pub(super) fn return_value_operation(
     CheckedUnitEffectOperationPlan,
     Vec<CheckedUnitEffectOperationPlan>,
 )> {
-    // A `&mut T` result loans the borrowed place itself; view-shaped `&mut V`
-    // and `&mut [T]` results mint a view identity instead and keep their own
-    // operation below.
-    if validation::reference_result_custody::mutable_borrowed_parts(program, state.return_type)
-        .is_some()
-        && !crate::execution::terminal_unit::types::mutable_borrowed_view(
-            program,
-            state.return_type,
-        )
-    {
-        return mutable_reference_result_operation(
-            program,
-            shapes,
-            state,
-            parameters,
-            count,
-            statement_ordinal,
-            expression,
-        )
-        .map(|operation| (operation, Vec::new()));
-    }
     if let Some(operation) =
         literal_result_operation(program, shapes, state, count, statement_ordinal, expression)
     {
         return Some((operation, Vec::new()));
-    }
-    if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
-        return view_result_operation(
-            program,
-            facts,
-            shapes,
-            machine,
-            state,
-            parameters,
-            count,
-            statement_ordinal,
-            expression,
-        )
-        .map(|operation| (operation, Vec::new()));
-    }
-    if crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type) {
-        return shared_reference_result_operation(
-            program,
-            shapes,
-            state,
-            parameters,
-            count,
-            statement_ordinal,
-            expression,
-        )
-        .map(|operation| (operation, Vec::new()));
-    }
-    if crate::execution::terminal_unit::types::mutable_borrowed_view(program, state.return_type) {
-        return mutable_view_result_operation(
-            program,
-            facts,
-            shapes,
-            machine,
-            state,
-            parameters,
-            count,
-            statement_ordinal,
-            expression,
-        )
-        .map(|operation| (operation, Vec::new()));
     }
     trace.phase("state graph: structural return value: retained expression root");
     let root = facts.values.structural_values.root_for_expression(
@@ -503,15 +442,17 @@ pub(super) fn return_value_operation(
         root.root,
         trace,
     )?;
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity: shapes.add_type(state.return_type, &[], &[])?,
-        multiplicity: validation::reference_result_custody::binding_multiplicity(
-            program,
-            state.return_type,
-        ),
-    };
+    // The expression produces a value, including a permission descriptor when
+    // returning a reference. Argument presentation peels its shell and names
+    // the referent; it cannot classify the returned carrier.
+    let mut result = control::checked_structural_result_type(
+        program,
+        shapes,
+        state.return_type,
+        &crate::execution::terminal_unit::types::machine_binders(program, machine),
+    )?;
+    result.statement_index = statement_ordinal;
+    result.binding_ordinal = u32::try_from(*count).ok()?;
     *count = count.checked_add(1)?;
     Some((
         control::structural_operands::establish_value(
@@ -642,103 +583,6 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     };
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source })
-}
-
-/// Shared reference returns use the same exact ingress reconstruction as
-/// checked-plan admission. A projected borrow names the referent storage;
-/// a carried reference forwards its existing loan rather than borrowing
-/// the reference carrier itself.
-fn shared_reference_result_operation(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    count: &mut usize,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    let return_type = state.return_type;
-    let source = validation::reference_result_custody::initializer_source(
-        program,
-        state,
-        expression,
-        return_type,
-    )?;
-    reference_parameter_matches(program, state, parameters, &source)?;
-    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
-        program,
-        return_type,
-        language_semantics::ReferenceAccess::Shared,
-    )?;
-    if source.access != CheckedStructuralAccess::SharedBorrow
-        || source.type_identity != shapes.add_type(referee, &[], &[])?
-    {
-        return None;
-    }
-    let type_identity = shapes.add_view_type(
-        return_type,
-        &[],
-        language_semantics::ReferenceAccess::Shared,
-    )?;
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity,
-        multiplicity: Multiplicity::Affine,
-    };
-    *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        source,
-        storage: checked_trees::CheckedReferenceStorage::Declared,
-    })
-}
-
-/// Establish the returned mutable loan from the shared initializer custody
-/// relation. Forwarding and reborrowing retain the same ingress and exact
-/// referee, not owned contents or a new carrier-width storage home.
-fn mutable_reference_result_operation(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    count: &mut usize,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    let return_type = state.return_type;
-    let (referee, access) =
-        validation::reference_result_custody::mutable_borrowed_parts(program, return_type)?;
-    if access != CheckedStructuralAccess::MutableBorrow {
-        return None;
-    }
-    // The shared custody owner reconstructs both forwarding and reborrowing,
-    // including the exact final reference crossing. A root's declared reference
-    // shell is not the type of the storage it lends.
-    let source = validation::reference_result_custody::initializer_source(
-        program,
-        state,
-        expression,
-        return_type,
-    )?;
-    reference_parameter_matches(program, state, parameters, &source)?;
-    let type_identity = shapes.add_reference_type(return_type, &[])?;
-    let referent_identity = shapes.add_type(referee, &[], &[])?;
-    if source.access != access || source.type_identity != referent_identity {
-        return None;
-    }
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity,
-        multiplicity: Multiplicity::Affine,
-    };
-    *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        storage: checked_trees::CheckedReferenceStorage::Declared,
-        source,
-    })
 }
 
 /// The `EstablishReference` producer for one authored `&mut place` return
@@ -906,32 +750,4 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         source,
         storage: checked_trees::CheckedReferenceStorage::Declared,
     })
-}
-
-/// Structural ingress ordinals exclude scalar/const parameters. Retain their
-/// exact authored coordinate in the published signature for every reference
-/// access kind; merely finding a slot with the same index does not prove it.
-fn reference_parameter_matches(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    source: &CheckedUnitStructuralArgumentPlan,
-) -> Option<()> {
-    let parameter_index = source.source_parameter_index()?;
-    let authored_position = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)?
-        .0;
-    if parameters.get(parameter_index as usize)?.position as usize != authored_position {
-        return None;
-    }
-    Some(())
 }

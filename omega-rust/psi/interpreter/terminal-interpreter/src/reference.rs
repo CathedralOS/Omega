@@ -481,44 +481,49 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         signature: &StructuralResultDeclaration,
         arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
-    ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
+    ) -> Result<Vec<Vec<TerminalStructuralValue>>, TerminalInterpretError> {
         signature
             .reference_sources
             .iter()
             .map(|origin| {
-                let source = origin.sole_source().ok_or(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "selected reference returns require alternative backing transport",
-                    ),
-                )?;
-                let parameter = parameters
-                    .iter()
-                    .find(|parameter| parameter.place == source.place)
-                    .ok_or_else(malformed)?;
+                if origin.sources.is_empty() {
+                    return Err(malformed());
+                }
                 let leaf_type = resolve_structural_path_type(
                     &self.program.structural_types,
                     signature.structural_type,
                     &origin.path,
                 )?;
                 let (referent_type, access) = self.reference_contract(leaf_type)?;
-                if !access_covers(parameter.access, source.access)
-                    || !access_covers(source.access, access)
-                {
-                    return Err(malformed());
-                }
-                let expected = self.resolve_reference_path(
-                    arguments.get(&parameter.place).ok_or_else(malformed)?,
-                    &source.path,
-                    source.access,
-                )?;
-                if expected.structural_type != referent_type || !expected.qualifications.is_empty()
-                {
-                    return Err(malformed());
-                }
-                // Retain only the contract's expected backing, not another
-                // owner or lineage. The callee may move or repack its ingress
-                // carrier before returning, deleting its original binding.
-                Ok(expected)
+                origin
+                    .sources
+                    .iter()
+                    .map(|source| {
+                        let parameter = parameters
+                            .iter()
+                            .find(|parameter| parameter.place == source.place)
+                            .ok_or_else(malformed)?;
+                        if !access_covers(parameter.access, source.access)
+                            || !access_covers(source.access, access)
+                        {
+                            return Err(malformed());
+                        }
+                        let expected = self.resolve_reference_path(
+                            arguments.get(&parameter.place).ok_or_else(malformed)?,
+                            &source.path,
+                            source.access,
+                        )?;
+                        if expected.structural_type != referent_type
+                            || !expected.qualifications.is_empty()
+                        {
+                            return Err(malformed());
+                        }
+                        // Capture every admitted alternative before the callee moves
+                        // or repacks ingress storage. These are backing identities,
+                        // not another owner and not a choice of the runtime address.
+                        Ok(expected)
+                    })
+                    .collect()
             })
             .collect()
     }
@@ -582,12 +587,6 @@ impl TerminalExecution {
         // bound ingress before the return charge. The ordinary return then moves
         // this same owner identity; its descriptor subtree is never discarded.
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
-            let source =
-                origin
-                    .sole_source()
-                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "selected reference returns require alternative backing transport",
-                    ))?;
             if signature.reference_sources[..ordinal]
                 .iter()
                 .any(|previous| previous.path == origin.path)
@@ -604,9 +603,16 @@ impl TerminalExecution {
             let mut key = StructuralRuntimePlace::from(carrier);
             key.path.extend_from_slice(&origin.path);
             let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
-            if !access_covers(source.access, access)
-                || expected.structural_type != referent_type
-                || expected != &actual.view
+            if origin.sources.is_empty()
+                || origin
+                    .sources
+                    .iter()
+                    .any(|source| !access_covers(source.access, access))
+                || expected.len() != origin.sources.len()
+                || expected
+                    .iter()
+                    .any(|backing| backing.structural_type != referent_type)
+                || !expected.iter().any(|backing| backing == &actual.view)
             {
                 return Err(malformed());
             }

@@ -1326,31 +1326,31 @@ fn write_destination(
     };
     if retained.next().is_some()
         || !leaf.path.is_empty()
-        || leaf.root_paths.is_empty()
-        || leaf.root_paths.windows(2).any(|pair| pair[0] >= pair[1])
+        || leaf.origins.is_empty()
+        || leaf.origins.windows(2).any(|pair| pair[0] >= pair[1])
+        || leaf.origins.iter().any(|origin| {
+            let Some((access, root_type)) = read_access(function, target, origin.root, purpose) else {
+                return true;
+            };
+            if !matches!(
+                access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) {
+                return true;
+            }
+            if origin.path.is_empty() {
+                return root_type != referent;
+            }
+            crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+                root_type,
+                &origin.path,
+                &target.graph.structural_types,
+            )
+            .is_none_or(|(selected, _, _)| selected != referent)
+        })
     {
-        return None;
-    }
-    let (access, root_type) = read_access(function, target, leaf.root, purpose)?;
-    // The loan may be backed by this activation's owned storage, not only a
-    // borrowed parameter. Mandatory custody replay checks the lending access;
-    // publication retains the same declared root and exact referent paths.
-    if !matches!(
-        access,
-        terminal_psi::StructuralAccess::Owned
-            | terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) || leaf.root_paths.iter().any(|path| {
-        if path.is_empty() {
-            return root_type != referent;
-        }
-        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
-            root_type,
-            path,
-            &target.graph.structural_types,
-        )
-        .is_none_or(|(selected, _, _)| selected != referent)
-    }) {
         return None;
     }
     Some(StructuralArgument {

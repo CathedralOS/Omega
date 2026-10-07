@@ -32,9 +32,8 @@ pub(super) fn validate_structural_return(
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             discard_result_on_return: false,
             ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-            if !reference_result => {}
+        } => {}
+        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } if !reference_result => {}
         CheckedUnitEffectOperationPlan::Call(call)
             if !reference_result && call.discard_result_on_return() == Some(false) =>
         {
@@ -310,7 +309,8 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        checked, state, exit, operation, catalogs, parameters, evaluation, next_edge, operations,
+        checked, state, exit, operation, catalogs, parameters, evaluation, next_block, next_edge,
+        operations,
     )
 }
 
@@ -325,6 +325,7 @@ pub(super) fn complete_structural_return(
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    next_block: &mut u64,
     next_edge: &mut u64,
     operations: &OperationBuffer,
 ) -> Result<Terminator, LoweringError> {
@@ -333,33 +334,41 @@ pub(super) fn complete_structural_return(
         .ok_or(LoweringError::Unsupported(
             "ordered return has no structural producer",
         ))?;
-    let (source, mut returned_claims) = operations
+    let binding = operations
         .structural_values
         .iter()
         .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
-        .map(|(_, value)| {
-            (
-                evaluation.current_structural_place(value.place()),
-                value
-                    .claims()
-                    .iter()
-                    .map(|binding| binding.claim)
-                    .collect::<Vec<_>>(),
-            )
-        })
+        .map(|(_, value)| value)
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
+    let source = evaluation.current_structural_place(binding.place());
+    let mut returned_claims = binding
+        .claims()
+        .iter()
+        .map(|binding| binding.claim)
+        .collect::<Vec<_>>();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
     returned_claims.sort();
     let cleanup_actions = super::cleanup::for_exit(
         checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
-    Ok(Terminator::ReturnStructural {
+    let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,
         returned_claims,
         cleanup_actions,
-    })
+    };
+    // Every structural completion consumes its selected subtree at the exit.
+    // Returning an alias's containing root instead would change both the value
+    // contract and its residual ownership. Use the ordinary return transport,
+    // independent of whether a conditional or ordered guard selected the exit.
+    let (completion, arrival) = super::returns::projected::materialize(
+        binding, source, completion, catalogs, next_block, next_edge,
+    )?;
+    if let Some(arrival) = arrival {
+        evaluation.blocks.push(arrival);
+    }
+    Ok(completion)
 }

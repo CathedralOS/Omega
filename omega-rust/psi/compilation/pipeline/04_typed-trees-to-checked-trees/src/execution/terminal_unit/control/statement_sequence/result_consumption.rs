@@ -12,7 +12,7 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 
 /// End captured reference custody at entry to the next authored statement.
 /// Whole carriers use ordinary affine edge disposal, which retires every leaf;
-/// singular results retain their explicit release. Reverse production order
+/// reference results retain one release of their complete group. Reverse production order
 /// closes descendants before earlier parent carriers at a shared boundary.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_reference_releases(
@@ -30,19 +30,18 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     for operation in operations.iter().rev() {
         let reference_result = match operation {
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
-                super::reference_retirement::local_reference_loan(facts, result, results)
-                    .map(|loan| (result, loan))
+                super::reference_retirement::local_reference_loans(
+                    facts, machine, state, result, results,
+                )
+                .map(|loans| (result, loans))
             }
             _ => operation.call().and_then(|call| {
                 let custody = call.structural_custody()?;
                 let result = call.structural_result()?;
-                custody
-                    .reference_loan
-                    .is_valid()
-                    .then_some((result, custody.reference_loan))
+                (!custody.reference_loans.is_empty()).then_some((result, custody.reference_loans))
             }),
         };
-        if let Some((result, loan)) = reference_result {
+        if let Some((result, loans)) = reference_result {
             if super::reference_retirement::transferred_paths(
                 program,
                 facts,
@@ -58,9 +57,20 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 continue;
             }
 
-            let boundary = super::super::super::reference_results::release_boundary(
-                program, facts, machine, state, loan,
-            )?;
+            // A descriptor retires once, after every alternative source and
+            // every descendant can end. Never release an arbitrary candidate
+            // early or emit one destructive operation per possible referent.
+            let boundary =
+                facts
+                    .borrow
+                    .loan_group(loans)?
+                    .try_fold(0u32, |boundary, (loan, _)| {
+                        Some(boundary.max(
+                            super::super::super::reference_results::release_boundary(
+                                program, facts, machine, state, loan,
+                            )?,
+                        ))
+                    })?;
             let retirement = super::reference_retirement::Retirement {
                 program,
                 facts,
@@ -71,13 +81,18 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations,
                 pending: &pending,
             };
-            if boundary <= statement_index && retirement.children_retired(loan) && !operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
+            if boundary <= statement_index && facts.borrow.loan_group(loans)?.all(|(loan, _)| retirement.children_retired(loan)) && !operations.iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
             }) {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index, binding_ordinal: result.binding_ordinal,
-                    path: Vec::new(), defer_to_exit: false, loan,
+                    path: Vec::new(), defer_to_exit: false, loans,
                 });
+                // Explicit retirement consumes the descriptor now. Its
+                // producer cannot also discard that carrier at state exit.
+                if operation.discardable_structural_result().is_some() {
+                    retired.push(result.binding_ordinal);
+                }
             }
             continue;
         }
@@ -174,8 +189,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                         .is_some_and(|boundary| boundary <= statement_index)
                         && !operations.iter().chain(&pending).any(|operation| {
                             matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
-                            loan: released, ..
-                        } if released == loan)
+                            loans: released, ..
+                        } if facts.borrow.loans_contain(*released, *loan))
                         })
                 })
                 .collect::<Vec<_>>()
@@ -212,7 +227,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     binding_ordinal: result.binding_ordinal,
                     path: source.path,
                     defer_to_exit: false,
-                    loan,
+                    loans: arena::HandleSpan::from_parts(loan, 1),
                 });
             }
             continue;
@@ -263,7 +278,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         if let Some(call) = operation.call()
             && let Some(custody) = call.structural_custody()
             && let Some(result) = call.structural_result()
-            && custody.reference_loan.is_valid()
+            && !custody.reference_loans.is_empty()
         {
             // The exit boundary consumes the same current custody as an
             // ordinary statement. A prior constructor/call transfer already
@@ -280,7 +295,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             {
                 continue;
             }
-            let loan = custody.reference_loan;
+            let loans = custody.reference_loans;
             // Completion transfers this exact carrier and its retained ingress
             // rather than releasing it before the return. Earlier weakening
             // still belongs to statement scheduling; only a loan live through
@@ -294,26 +309,35 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     && !returned.reference_sources.is_empty()
             }) {
                 let authored = program.state_by_symbol(state)?;
-                let boundary = super::super::super::reference_results::release_boundary(
-                    program, facts, machine, state, loan,
-                )?;
-                if (boundary as usize)
-                    < program
-                        .statement_table
-                        .statements(authored.statement_nodes)
-                        .len()
-                {
+                let statement_count = program
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .len();
+                if !facts.borrow.loan_group(loans)?.all(|(loan, _)| {
+                    super::super::super::reference_results::release_boundary(
+                        program, facts, machine, state, loan,
+                    )
+                    .is_some_and(|boundary| boundary as usize >= statement_count)
+                }) {
                     return None;
                 }
                 continue;
             }
-            let boundary = super::super::super::reference_results::release_statement(
-                facts, machine, state, loan,
-            )?;
+            let boundary =
+                facts
+                    .borrow
+                    .loan_group(loans)?
+                    .try_fold(0u32, |boundary, (loan, _)| {
+                        Some(boundary.max(
+                            super::super::super::reference_results::release_statement(
+                                facts, machine, state, loan,
+                            )?,
+                        ))
+                    })?;
             if !operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
+                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
             }) && !pending.iter().any(|operation: &(u32, CheckedUnitEffectOperationPlan)| {
-                matches!(operation, (_, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. }) if *released == loan)
+                matches!(operation, (_, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. }) if *released == loans)
             }) {
                 pending.push((boundary, CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index: boundary,
@@ -325,12 +349,27 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         ).get(boundary.checked_sub(1)? as usize)?,
                         StatementNode::Transition(_)
                     ),
-                    loan,
+                    loans,
                 }));
             }
         }
     }
     pending.sort_by_key(|(boundary, _)| *boundary);
+    for (_, release) in &pending {
+        if let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal,
+            defer_to_exit: false,
+            ..
+        } = release
+        {
+            let (_, discard) = operations.iter_mut().find_map(|operation| {
+                operation
+                    .discardable_structural_result_mut()
+                    .filter(|(result, _)| result.binding_ordinal == *binding_ordinal)
+            })?;
+            *discard = false;
+        }
+    }
     operations.extend(pending.into_iter().map(|(_, operation)| operation));
     Some(())
 }
@@ -504,7 +543,7 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     ) || producer
         .call()
         .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
-        .is_some_and(|custody| custody.reference_loan.is_valid());
+        .is_some_and(|custody| !custody.reference_loans.is_empty());
     if reference_carrier {
         // Formation and call results own the same permission carrier. Lending
         // its referent leaves disposal with the producer; it does not require

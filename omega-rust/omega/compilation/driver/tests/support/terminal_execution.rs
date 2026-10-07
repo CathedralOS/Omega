@@ -3,10 +3,7 @@
 //! dummy receiver, expected-output callback or Unit-returning exit mock.
 
 use compiler::runtime::{TerminalRuntimeError, TerminalRuntimeRequest};
-use terminal_interpreter::{
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
-    TerminalUnsupportedCapability,
-};
+use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
 #[derive(Default)]
 pub(super) struct Observation {
@@ -53,20 +50,6 @@ pub(super) fn interpret(
         Ok(result) => result,
         Err(TerminalRuntimeError::MissingProvision { capability, reason }) => {
             return Observation::missing(capability, "TERMINAL-RUNTIME-DRIVERS", reason);
-        }
-        Err(TerminalRuntimeError::Requirements(TerminalInterpretError::UnsupportedCapability(
-            TerminalUnsupportedCapability::SelectedReferenceResultBacking {
-                machine,
-                result_path,
-            },
-        ))) => {
-            return Observation::missing(
-                "selected-reference-result-backing",
-                "TERMINAL-CONST-STRUCTURES",
-                format!(
-                    "machine {machine:?} result leaf {result_path:?} needs alternative backing transport"
-                ),
-            );
         }
         Err(error) => return Observation::failure(error),
     };

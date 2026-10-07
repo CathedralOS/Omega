@@ -91,7 +91,7 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
         return false;
     }
     call.structural_custody().is_some_and(|custody| {
-        !custody.reference_loan.is_valid() && custody.result_claims.is_empty()
+        custody.reference_loans.is_empty() && custody.result_claims.is_empty()
     }) && crate::declarations::state_declaration(checked, call.target.state).is_ok_and(
         |(_, callee_state)| {
             let returned = callee_state.return_type;
@@ -709,7 +709,7 @@ pub(crate) fn validate_usage(
     if let Some(custody) = operations[producer.operation_index]
         .call()
         .and_then(|call| call.structural_custody())
-        && custody.reference_loan.is_valid()
+        && !custody.reference_loans.is_empty()
     {
         if returned_carrier || consumed {
             // A whole move forwards the exact carrier and its outstanding loan;
@@ -786,7 +786,7 @@ pub(crate) fn validate_consumer(
         || (call.is_module()
             && call
                 .structural_custody()
-                .is_some_and(|custody| custody.reference_loan.is_valid()));
+                .is_some_and(|custody| !custody.reference_loans.is_empty()));
     // A structural call keeps its transfers in its custody record; a boundary
     // call's are its completion receipts.
     let (coordinate, structural_arguments, claim_transfers) = (

@@ -110,16 +110,16 @@ pub(super) fn validate_consumer(
     if !primitive && !plain_record {
         return unsupported("reference consumer has no plain record or primitive referent");
     }
-    let loan = match producer {
+    let loans = match producer {
         CheckedUnitEffectOperationPlan::EstablishReference { .. } => None,
         _ => {
             let Some((_, custody)) = ordinary_structural_result(producer) else {
                 return unsupported("reference carrier producer has no retained custody");
             };
-            if !custody.reference_loan.is_valid() {
+            if custody.reference_loans.is_empty() {
                 return unsupported("reference carrier producer lost its source loan");
             }
-            Some(custody.reference_loan)
+            Some(custody.reference_loans)
         }
     };
     if !caller.operations.iter().any(|operation| {
@@ -129,9 +129,13 @@ pub(super) fn validate_consumer(
     }) {
         return unsupported("reference consumer has no exact call occurrence");
     }
-    if let Some(loan) = loan
+    if let Some(loans) = loans
         && argument.path.len() > 1
-        && !active_result_loan(checked, caller, coordinate, loan)
+        && !checked.facts.borrow.loan_group(loans).is_some_and(|group| {
+            group
+                .into_iter()
+                .all(|(loan, _)| active_result_loan(checked, caller, coordinate, loan))
+        })
     {
         return unsupported("reference consumer is outside its captured loan lifetime");
     }

@@ -5,8 +5,8 @@
 
 mod structural;
 pub use structural::{
-    TargetReferenceResult, TargetStructuralArgument, TargetStructuralArgumentSource,
-    TargetStructuralParameter,
+    TargetReferenceOrigin, TargetReferenceResult, TargetStructuralArgument,
+    TargetStructuralArgumentSource, TargetStructuralParameter,
 };
 mod byte_view;
 pub use byte_view::TargetByteView;

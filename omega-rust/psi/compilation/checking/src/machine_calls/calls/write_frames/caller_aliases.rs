@@ -294,7 +294,25 @@ pub(super) fn assignment_destination_origins(
         true,
         &evidence.stored,
     )?;
-    Some(origins.into_iter().map(LocalWriteSource::from).collect())
+    // A stable place can name a stored reference descriptor. Performed writes
+    // target its captured referents, not the private carrier slot. Resolve
+    // every selected reference leaf; unresolved candidates invalidate the
+    // judgment rather than silently dropping a possible destination.
+    let mut destinations = Vec::new();
+    for origin in origins {
+        for destination in super::stored_origins::canonical_reference_origins(
+            program,
+            &Some(origin),
+            &[],
+            &evidence.stored,
+        ) {
+            let destination = LocalWriteSource::from(destination?);
+            if !destinations.contains(&destination) {
+                destinations.push(destination);
+            }
+        }
+    }
+    Some(destinations)
 }
 
 fn assignment_evidence(

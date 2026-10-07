@@ -174,8 +174,9 @@ pub(super) fn access_reference_custody(
                                 carrier_path,
                                 argument.access,
                             )
-                            && enclosing.root.paths().iter().any(|origin_path| {
-                                let origin_place = enclosing.root.place();
+                            && enclosing.root.origins().iter().any(|origin| {
+                                let origin_path = &origin.path;
+                                let origin_place = origin.root;
                                 origin_place == place
                                     && source_contract(function, live, origin_place)
                                         .map(|(contract, _)| contract)
@@ -198,8 +199,9 @@ pub(super) fn access_reference_custody(
                     dependencies.push(leaf.root.clone());
                     let mut ancestors = ancestors.clone();
                     ancestors.push(leaf.identity.clone());
-                    for path in leaf.root.paths() {
-                        let place = leaf.root.place();
+                    for origin in leaf.root.origins() {
+                        let place = origin.root;
+                        let path = origin.path;
                         if source_contract(function, live, place)
                             .map(|(contract, _)| contract)
                             .and_then(|contract| leaf_type(types, contract, &path))

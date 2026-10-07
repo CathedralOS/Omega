@@ -14,8 +14,8 @@
 //! source verification's concern, so this replay only tracks which leaf lives
 //! at which carrier path and which root it suspends.
 
-use std::collections::{BTreeMap, BTreeSet};
 use abstract_operations::call_source;
+use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
     AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
@@ -50,21 +50,21 @@ pub(super) enum BoundaryCallRow {
 enum Root {
     Place(PlaceId),
     Ingress(PlaceId, Vec<StructuralPathSegment>),
-    Alternatives(PlaceId, Vec<Vec<StructuralPathSegment>>),
+    Alternatives(Vec<target_operations::TargetReferenceOrigin>),
 }
 
 impl Root {
-    fn place(&self) -> PlaceId {
+    pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
-            Self::Place(place) | Self::Ingress(place, _) | Self::Alternatives(place, _) => *place,
-        }
-    }
-
-    fn paths(&self) -> Vec<Vec<StructuralPathSegment>> {
-        match self {
-            Self::Place(_) => vec![Vec::new()],
-            Self::Ingress(_, path) => vec![path.clone()],
-            Self::Alternatives(_, paths) => paths.clone(),
+            Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
+                root: *root,
+                path: Vec::new(),
+            }],
+            Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
+                root: *root,
+                path: path.clone(),
+            }],
+            Self::Alternatives(origins) => origins.clone(),
         }
     }
 }
@@ -926,32 +926,6 @@ fn call_result_leaves(
             StructuralTypeShape::Reference { access, .. } => access,
             _ => return None,
         };
-        if mapping.sources.len() > 1 {
-            let referent = bare_referent(declarations, result.structural_type)?;
-            if !mapping.path.is_empty()
-                || !matches!(
-                    result_access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                || !matches!(
-                    lookup(declarations, referent).map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::Record { .. })
-                )
-                || mapping.sources.iter().any(|formal| {
-                    formal.place != mapping.sources[0].place
-                        || formal.path.is_empty()
-                        || formal.path.iter().any(|segment| {
-                            !matches!(
-                                segment,
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                            )
-                        })
-                })
-            {
-                return None;
-            }
-        }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             if formal.access != result_access
@@ -1009,8 +983,7 @@ fn call_result_leaves(
         let leaf = combine_alternatives(candidates)?;
         roster.push(TargetReferenceResult {
             path: mapping.path.clone(),
-            root: leaf.root.place(),
-            root_paths: leaf.root.paths(),
+            origins: leaf.root.origins(),
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
@@ -1040,23 +1013,13 @@ fn combine_roots(roots: Vec<Root>) -> Option<Root> {
     if roots.len() == 0 {
         return Some(root);
     }
-    let place = root.place();
-    let mut paths = Vec::new();
-    for root in std::iter::once(root).chain(roots) {
-        if root.place() != place {
-            return None;
-        }
-        match root {
-            Root::Ingress(_, path) => paths.push(path),
-            Root::Alternatives(_, alternatives) => paths.extend(alternatives),
-            Root::Place(_) => return None,
-        }
+    let mut origins = root.origins();
+    for root in roots {
+        origins.extend(root.origins());
     }
-    paths.sort();
-    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
-        return None;
-    }
-    Some(Root::Alternatives(place, paths))
+    origins.sort();
+    origins.dedup();
+    Some(Root::Alternatives(origins))
 }
 
 /// The custody effect of one authored or resolved provider call: owned

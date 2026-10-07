@@ -136,7 +136,7 @@ pub(super) fn prepare(
     let structural_arguments = &call.structural_arguments;
     let claim_transfers = call.claim_transfers();
     if call.structural_custody().is_some_and(|custody| {
-        custody.reference_loan.is_valid()
+        !custody.reference_loans.is_empty()
             || !custody.result_qualifications.is_empty()
             || !custody.result_claims.is_empty()
     }) {

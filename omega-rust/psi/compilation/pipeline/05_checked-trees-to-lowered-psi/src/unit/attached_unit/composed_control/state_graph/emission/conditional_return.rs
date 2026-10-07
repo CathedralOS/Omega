@@ -157,6 +157,7 @@ impl StateGraphEmission<'_, '_> {
                                 self.catalogs,
                                 state_parameters,
                                 &mut arm_evaluation,
+                                next_block,
                                 next_edge,
                                 operations,
                             )?
@@ -284,6 +285,9 @@ impl StateGraphEmission<'_, '_> {
                 cleanup_actions, ..
             }
             | Terminator::ReturnUnit {
+                cleanup_actions, ..
+            }
+            | Terminator::Jump {
                 cleanup_actions, ..
             } => {
                 cleanup_actions.retain(|action| {

@@ -148,81 +148,14 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
-                // An owned place is a structural value just like a
-                // constructor operand, whether the authored expression names
-                // the whole root or one of its projected children. Let the
-                // same builder check its selected type and storage; local
-                // copies and partial moves must not lose their operation
-                // merely because they are the root of an initializer.
-                //
-                // What narrows this admission is the destination's owning
-                // lane, not the shape of the place expression: a scalar
-                // destination belongs to the primitive-local route. A
-                // reference-valued place is still a structural value: its
-                // checked operation distinguishes a stored descriptor move
-                // from a borrowed formal's referent. Every structural
-                // destination is a structural carrier, and `structural_value`
-                // remains the authority over which operation the read becomes
-                // -- a copy, a borrow, or the projected selection transfer a
-                // partial move out of a transparent record records. Reference
-                // nodes remain valid inside record constructors. A
-                // `let view: &T = &place` initializer is the same carrier a
-                // selection arm admits; restricting that admission to
-                // LocalData keeps a returned `&place` on its
-                // reference-completion owner.
+                // Destination type selects the value owner, not the authored
+                // source shape. The structural builder owns construction,
+                // projections and reference descriptors equally in a local
+                // initializer and a return; primitive destinations stay with
+                // the scalar route unless they carry a checked case value.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
-                        || (program.primitive_type_reference(expected).is_none()
-                            && matches!(
-                                program.expression_table.expression(expression),
-                                ExpressionNode::Name(_)
-                                    | ExpressionNode::Member(_)
-                                    | ExpressionNode::Indexed(_)
-                            ))
-                        || structural_values::is_record_value(program, expression, expected)
-                        || structural_values::is_scalar_case_place_value(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            expression,
-                            expected,
-                        )
-                        || structural_values::is_structural_case_value(
-                            program,
-                            expression,
-                            expected,
-                        )
-                        // A copyable `Unrestricted` leaf under a shared borrow
-                        // is the same admission shape — the copy op observes
-                        // where the case fan-out cannot reconstruct payloads.
-                        || structural_values::needs_copied_place_root(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            expression,
-                            expected,
-                        )
-                        || (matches!(statement, StatementNode::LocalData(_))
-                            && structural_values::is_shared_borrow_value(
-                                program, expression, expected,
-                            ))
-                        // A shared or mutable slice local lends a collection the
-                        // same way `&place` lends a record: its value is the
-                        // lent place under the loan checked borrow admission
-                        // already recorded, so it belongs to the same
-                        // LocalData admission rather than to a producer family
-                        // of its own.
-                        || (matches!(statement, StatementNode::LocalData(_))
-                            && structural_values::is_borrowed_slice_view_value(program, expected))
-                        // Array construction owns the same child values in
-                        // a local initializer and a returned expression. Each
-                        // element keeps its value node and declared type so
-                        // completion can retain its loan custody as well.
-                        || structural_values::is_fixed_array_value(
-                            program,
-                            expression,
-                            expected,
-                        ))
+                        || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
                 {
                     builder.structural_values.roots.append(

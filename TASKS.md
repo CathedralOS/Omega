@@ -3226,8 +3226,9 @@ deletions, which the commit lists.
 
   Carry backing and encoding through joins, returns, recursion and stored
   references in native and both interpreters without losing the original
-  endpoint or authored storage codec. Multi-origin reference results still lack
-  a complete source-loan resource. Runtime encoding choices cannot be solved by
+  endpoint or authored storage codec. Recursive transport and joins with live
+  external loan parents still need complete lineage; selecting an origin must
+  not detach those parents. Runtime encoding choices cannot be solved by
   specialization; raw carrier-width pointers and delayed copy-out are not
   substitutes. Foreign pointers need compatible checked adapters.
 
@@ -3237,6 +3238,10 @@ deletions, which the commit lists.
   `layouts/runtime_returned_encoded_reference_exit` and
   `layouts/runtime_stored_returned_encoded_reference_exit` with the checked-tree
   oracle selected by `--checked-interpreter` as well as Native and Terminal.
+  `layouts/runtime_multi_origin_encoded_reference_exit` constrains selection
+  across encoded-byte and ordinary-integer backing. Its overflow control
+  `layouts/callee_integer_at_multi_origin_reference_requires_fit` and
+  `borrows/multi_origin_returned_reference_live_source_write` must reject.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:

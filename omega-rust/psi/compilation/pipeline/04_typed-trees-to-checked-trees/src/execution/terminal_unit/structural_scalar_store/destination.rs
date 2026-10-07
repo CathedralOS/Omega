@@ -967,7 +967,13 @@ fn borrowed_view_local_root<'a>(
         .iter()
         .filter(|loan| loan.owner_symbol == root_symbol && loan.statement_index == local_ordinal);
     let loan = loans.next()?;
-    if loans.next().is_some() || loan.kind != checked_trees::BorrowAccessKind::Mutable {
+    // Runtime selection changes which captured source supplies this reference,
+    // not its declared referent shape. Every possible source must retain mutable
+    // access; a singular-loan requirement would reject ordinary joined values.
+    if !std::iter::once(loan)
+        .chain(loans)
+        .all(|loan| loan.kind == checked_trees::BorrowAccessKind::Mutable)
+    {
         return None;
     }
     Some(Destination {

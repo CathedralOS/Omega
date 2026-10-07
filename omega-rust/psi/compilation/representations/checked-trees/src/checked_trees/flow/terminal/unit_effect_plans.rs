@@ -235,7 +235,8 @@ pub enum CheckedUnitEffectOperationPlan {
         /// A transition observes its operands before its selected edge closes
         /// their custody. Lowering consumes this checked timing directly.
         defer_to_exit: bool,
-        loan: arena::Handle<crate::BorrowLoanFact>,
+        /// All alternative sources end together; the descriptor retires once.
+        loans: arena::HandleSpan<crate::BorrowLoanFact>,
     },
     /// Establish the byte value declared by one local initializer.
     /// The binding retains its declared borrowed or owned carrier. Only the

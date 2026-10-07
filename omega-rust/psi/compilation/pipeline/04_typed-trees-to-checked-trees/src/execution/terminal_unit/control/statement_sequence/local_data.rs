@@ -613,7 +613,10 @@ pub(super) fn plan(
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity,
-            multiplicity: validation::reference_result_custody::binding_multiplicity(
+            // This root materializes a carrier, including a reusable shared
+            // reference's lifetime resource. Borrowed-formal presentation
+            // multiplicity cannot replace the producer's result custody.
+            multiplicity: validation::reference_result_custody::result_multiplicity(
                 program,
                 local.type_reference,
             ),

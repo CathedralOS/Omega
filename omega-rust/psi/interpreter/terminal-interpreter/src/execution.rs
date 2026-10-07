@@ -202,7 +202,7 @@ pub(crate) enum SuspendedCallResult {
     Structural {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,
-        expected_reference_backings: Vec<TerminalStructuralValue>,
+        expected_reference_backings: Vec<Vec<TerminalStructuralValue>>,
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),

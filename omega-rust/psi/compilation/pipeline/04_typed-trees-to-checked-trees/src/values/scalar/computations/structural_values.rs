@@ -27,12 +27,9 @@ mod place_types;
 mod place_values;
 mod value_predicates;
 
-pub(super) use place_types::{
-    canonical_place_is_borrowable, is_scalar_case_place_value, needs_copied_place_root,
-};
+pub(super) use place_types::{canonical_place_is_borrowable, needs_copied_place_root};
 pub(super) use value_predicates::{
-    is_borrowed_slice_view_value, is_fixed_array_value, is_record_value, is_shared_borrow_value,
-    is_structural_case_value,
+    is_borrowed_slice_view_value, is_fixed_array_value, is_record_value, is_structural_case_value,
 };
 
 impl Builder<'_, '_> {
