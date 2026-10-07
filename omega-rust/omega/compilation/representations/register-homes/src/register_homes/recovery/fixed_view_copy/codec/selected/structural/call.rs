@@ -4,7 +4,9 @@ use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
 };
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
+use legalized_operations::{
+    LegalizedScalarArgument, LegalizedScalarCall, encode_call_plan, encode_placement,
+};
 use selected_instructions::{SelectedCallContract, SelectedInstructionId};
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ValueId};
 use terminal_psi::ClaimTransfer;

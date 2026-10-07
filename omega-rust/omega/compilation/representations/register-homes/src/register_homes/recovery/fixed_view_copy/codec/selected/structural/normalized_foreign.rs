@@ -18,7 +18,11 @@ use calling_conventions::{
     StaticMachineBinderId, encode_state_plan_identity,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
-use legalized_operations::{LegalizedNormalizedForeignCall, encode_provider_execution};
+use legalized_operations::{
+    LegalizedNormalizedForeignCall, encode_call_binding, encode_call_plan,
+    encode_machine_function_identity, encode_native_place, encode_placement,
+    encode_provider_execution, encode_shape,
+};
 use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
 use symbols::SymbolHandle;
@@ -36,11 +40,8 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     call::{decode_runtime_indices, encode_runtime_indices},
-    calling::{
-        decode_call_plan, decode_native_place, decode_placement, decode_shape, encode_call_plan,
-        encode_native_place, encode_placement, encode_shape,
-    },
-    declarations::{decode_string, decode_target_argument, encode_string, encode_target_argument},
+    calling::{decode_call_plan, decode_native_place, decode_placement, decode_shape},
+    declarations::{decode_string, decode_target_argument, encode_target_argument},
     settlements::{
         decode_effect, decode_ownership, decode_provider_execution, encode_effect, encode_ownership,
     },
@@ -295,27 +296,6 @@ fn decode_native_callback_argument(
     })
 }
 
-/// The continuation's arena coordinates are exact identity; the kind tag and
-/// thunk placement slot follow them on the wire.
-fn encode_machine_function_identity(bytes: &mut Vec<u8>, identity: &MachineFunctionIdentity) {
-    let continuation = identity.associated_source_continuation();
-    bytes.extend_from_slice(&continuation.machine.arena_index().to_le_bytes());
-    bytes.extend_from_slice(&continuation.machine.generation().to_le_bytes());
-    bytes.extend_from_slice(&continuation.state.arena_index().to_le_bytes());
-    bytes.extend_from_slice(&continuation.state.generation().to_le_bytes());
-    bytes.extend_from_slice(&(continuation.segment_index as u64).to_le_bytes());
-    if let Some(placement_index) = identity.callback_thunk_placement_index() {
-        bytes.push(3);
-        bytes.extend_from_slice(&(placement_index as u64).to_le_bytes());
-    } else if identity.source_key().is_some() {
-        bytes.push(1);
-    } else if identity.program_storage_entry_continuation().is_some() {
-        bytes.push(2);
-    } else {
-        bytes.push(0);
-    }
-}
-
 fn decode_machine_function_identity(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineFunctionIdentity, FixedViewCopyDecodeError> {
@@ -335,45 +315,6 @@ fn decode_machine_function_identity(
         tag => return Err(FixedViewCopyDecodeError::UnknownMachineFunctionKind(tag)),
     }
     .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
-}
-
-/// The complete evaluated binding and its mechanism-specific custody.
-fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
-    // Empty target names cannot be import locators. Reserve that discriminant
-    // for kernel entries while keeping existing import bytes unchanged.
-    let (locator, contribution) = match &binding.mechanism {
-        target_operations::NormalizedForeignCallMechanism::Import {
-            locator,
-            same_stack_contribution,
-        } => (locator, same_stack_contribution),
-        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
-            encode_string(bytes, "");
-            encode_string(bytes, kernel.target.target_name());
-            bytes.extend_from_slice(&kernel.number.to_le_bytes());
-            bytes.extend_from_slice(&kernel.provider_plan_report_identity.to_le_bytes());
-            bytes.extend_from_slice(&kernel.provider_plan_commitment);
-            encode_string(bytes, &kernel.requirement_identity);
-            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-            return;
-        }
-    };
-    encode_locator(bytes, locator);
-    encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-    encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-    bytes.extend_from_slice(
-        &contribution
-            .report_identity()
-            .normalized_identity()
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&contribution.commitment().as_bytes());
-    bytes.extend_from_slice(&contribution.provider_plan_report_identity().to_le_bytes());
-    bytes.extend_from_slice(&contribution.provider_plan_commitment().as_bytes());
-    encode_string(bytes, contribution.requirement_identity());
-    bytes.extend_from_slice(&contribution.receipt().normalized_identity().to_le_bytes());
-    bytes.extend_from_slice(&contribution.bytes().to_le_bytes());
-    bytes.extend_from_slice(&contribution.alignment().to_le_bytes());
 }
 
 fn decode_call_binding(
@@ -463,43 +404,6 @@ fn decode_call_binding(
     })
 }
 
-/// The normalized locator revalidates its exact target profile and every
-/// sealed coordinate on decode; the derived fingerprint and digest are
-/// recomputed rather than trusted from the wire.
-fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {
-    encode_string(bytes, locator.target().target_name());
-    match locator.locator() {
-        ForeignLocatorCandidate::PeByName { library, export } => {
-            bytes.push(1);
-            encode_coordinate(bytes, library);
-            encode_coordinate(bytes, export);
-        }
-        ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-            bytes.push(2);
-            encode_coordinate(bytes, library);
-            bytes.extend_from_slice(&ordinal.to_le_bytes());
-        }
-        ForeignLocatorCandidate::ElfVersioned {
-            object,
-            symbol,
-            version,
-        } => {
-            bytes.push(3);
-            encode_coordinate(bytes, object);
-            encode_coordinate(bytes, symbol);
-            encode_coordinate(bytes, version);
-        }
-        ForeignLocatorCandidate::MachODylibSymbol {
-            install_name,
-            symbol,
-        } => {
-            bytes.push(4);
-            encode_coordinate(bytes, install_name);
-            encode_coordinate(bytes, symbol);
-        }
-    }
-}
-
 #[cfg(test)]
 fn decode_locator(
     cursor: &mut Cursor<'_>,
@@ -536,11 +440,6 @@ fn decode_locator_for_target(
     };
     normalize_foreign_locator(candidate, profile)
         .map_err(|_| FixedViewCopyDecodeError::InvalidForeignLocator)
-}
-
-fn encode_coordinate(bytes: &mut Vec<u8>, coordinate: &[u8]) {
-    length(bytes, coordinate.len());
-    bytes.extend_from_slice(coordinate);
 }
 
 fn decode_coordinate(cursor: &mut Cursor<'_>) -> Result<Vec<u8>, FixedViewCopyDecodeError> {

@@ -7,8 +7,7 @@ use calling_conventions::{
 
 use crate::FixedViewCopyDecodeError;
 
-use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{Cursor, length};
-use legalized_operations::encode_register;
+use crate::register_homes::recovery::fixed_view_copy::codec::primitives::Cursor;
 
 #[cfg(test)]
 #[test]
@@ -46,49 +45,6 @@ fn wide_shape_and_fragment_offsets_round_trip_without_truncation() {
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_placement(&mut cursor).unwrap(), placement);
         assert_eq!(cursor.remaining(), 0);
-    }
-}
-
-pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
-    bytes.push(match plan.policy {
-        CallingPolicy::MicrosoftX64 => 1,
-        CallingPolicy::SystemVAMD64 => 2,
-        CallingPolicy::Aapcs64 => 3,
-        CallingPolicy::LinuxSyscallX86_64 => 4,
-        CallingPolicy::LinuxSyscallAarch64 => 5,
-    });
-    length(bytes, plan.parameters.len());
-    for placement in &plan.parameters {
-        encode_placement(bytes, placement);
-    }
-    match &plan.result {
-        None => bytes.push(0),
-        Some(result) => {
-            bytes.push(1);
-            encode_placement(bytes, result);
-        }
-    }
-    length(bytes, plan.callback_materializations.len());
-    for row in &plan.callback_materializations {
-        encode_callback(bytes, row);
-    }
-    length(bytes, plan.ordinary_clobbers.as_slice().len());
-    for register in plan.ordinary_clobbers.as_slice() {
-        encode_register(bytes, *register);
-    }
-    bytes.extend_from_slice(&plan.stack_alignment.to_le_bytes());
-    bytes.extend_from_slice(&plan.shadow_bytes.to_le_bytes());
-    match plan.entry_control {
-        EntryControl::CallReturn => bytes.push(1),
-        EntryControl::SupervisorCall {
-            number_register,
-            immediate,
-        } => {
-            bytes.push(2);
-            encode_register(bytes, number_register);
-            bytes.extend_from_slice(&immediate.to_le_bytes());
-        }
-        EntryControl::InterruptReturn => bytes.push(3),
     }
 }
 
@@ -146,11 +102,6 @@ pub(super) fn decode_call_plan(
     })
 }
 
-fn encode_callback(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
-    bytes.extend_from_slice(&row.binder.get().to_le_bytes());
-    encode_native_place(bytes, &row.destination);
-}
-
 fn decode_callback(
     cursor: &mut Cursor<'_>,
 ) -> Result<CallbackMaterialization, FixedViewCopyDecodeError> {
@@ -159,28 +110,6 @@ fn decode_callback(
         binder,
         destination: decode_native_place(cursor)?,
     })
-}
-
-pub(super) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
-    match destination {
-        NativePlace::Parameter(parameter) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&parameter.get().to_le_bytes());
-        }
-        NativePlace::Field {
-            parameter,
-            layout,
-            field_path,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&parameter.get().to_le_bytes());
-            bytes.extend_from_slice(&layout.get().to_le_bytes());
-            length(bytes, field_path.len());
-            for slot in field_path {
-                bytes.extend_from_slice(&slot.get().to_le_bytes());
-            }
-        }
-    }
 }
 
 pub(super) fn decode_native_place(
@@ -206,55 +135,6 @@ pub(super) fn decode_native_place(
             })
         }
         tag => Err(FixedViewCopyDecodeError::UnknownNativePlace(tag)),
-    }
-}
-
-pub(super) fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
-    encode_shape(bytes, placement.shape);
-    length(bytes, placement.locations.len());
-    for location in &placement.locations {
-        match *location {
-            ValueLocation::Register {
-                register,
-                value_byte_offset,
-                byte_size,
-            } => {
-                bytes.push(1);
-                encode_register(bytes, register);
-                bytes.extend_from_slice(&value_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-            }
-            ValueLocation::Stack {
-                stack_byte_offset,
-                value_byte_offset,
-                byte_size,
-                alignment,
-            } => {
-                bytes.push(2);
-                bytes.extend_from_slice(&stack_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&value_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
-            }
-            ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset,
-                byte_size,
-                alignment,
-            } => {
-                bytes.push(3);
-                encode_indirect_pointer(bytes, pointer);
-                match copy_stack_byte_offset {
-                    None => bytes.push(0),
-                    Some(offset) => {
-                        bytes.push(1);
-                        bytes.extend_from_slice(&offset.to_le_bytes());
-                    }
-                }
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
-            }
-        }
     }
 }
 
@@ -293,23 +173,6 @@ pub(super) fn decode_placement(
     Ok(ValuePlacement { shape, locations })
 }
 
-fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
-    match pointer {
-        IndirectPointerLocation::Register(register) => {
-            bytes.push(1);
-            encode_register(bytes, register);
-        }
-        IndirectPointerLocation::Stack {
-            stack_byte_offset,
-            alignment,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&stack_byte_offset.to_le_bytes());
-            bytes.extend_from_slice(&alignment.to_le_bytes());
-        }
-    }
-}
-
 fn decode_indirect_pointer(
     cursor: &mut Cursor<'_>,
 ) -> Result<IndirectPointerLocation, FixedViewCopyDecodeError> {
@@ -323,25 +186,6 @@ fn decode_indirect_pointer(
         }),
         tag => Err(FixedViewCopyDecodeError::UnknownIndirectPointer(tag)),
     }
-}
-
-pub(super) fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
-    match shape.class {
-        ValueClass::Integer => bytes.push(1),
-        ValueClass::Float => bytes.push(2),
-        ValueClass::BorrowedReference => bytes.push(5),
-        ValueClass::HomogeneousFloatAggregate { members } => {
-            bytes.push(3);
-            bytes.push(members);
-        }
-        ValueClass::SystemVAggregate { first, second } => {
-            bytes.push(4);
-            encode_eightbyte_class(bytes, first);
-            encode_eightbyte_class(bytes, second);
-        }
-    }
-    bytes.extend_from_slice(&shape.byte_size.to_le_bytes());
-    bytes.extend_from_slice(&shape.alignment.to_le_bytes());
 }
 
 pub(super) fn decode_shape(
@@ -365,13 +209,6 @@ pub(super) fn decode_shape(
         byte_size: cursor.u32()?,
         alignment: cursor.u16()?,
     })
-}
-
-fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
-    bytes.push(match class {
-        SystemVEightbyteClass::Integer => 1,
-        SystemVEightbyteClass::Sse => 2,
-    });
 }
 
 fn decode_eightbyte_class(

@@ -16,12 +16,13 @@ use terminal_psi::{
 use crate::FixedViewCopyDecodeError;
 
 use super::argument_source::{decode_argument_source, encode_argument_source};
-use super::calling::{decode_placement, decode_shape, encode_placement, encode_shape};
+use super::calling::{decode_placement, decode_shape};
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
     values::{decode_scalar, encode_scalar},
 };
+use legalized_operations::{encode_placement, encode_shape};
 
 mod bounded_integer;
 

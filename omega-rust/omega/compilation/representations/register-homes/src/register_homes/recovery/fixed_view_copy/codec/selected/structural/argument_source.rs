@@ -4,9 +4,10 @@
 use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::TargetStructuralArgumentSource;
 
-use super::calling::{decode_placement, encode_placement};
+use super::calling::decode_placement;
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{Cursor, decode_id};
+use legalized_operations::encode_placement;
 
 pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructuralArgumentSource) {
     match source {

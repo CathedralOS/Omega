@@ -5,7 +5,7 @@ use calling_conventions::{
     NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
 
-pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
+pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     bytes.push(match plan.policy {
         CallingPolicy::MicrosoftX64 => 1,
         CallingPolicy::SystemVAMD64 => 2,
@@ -48,12 +48,12 @@ pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     }
 }
 
-pub(super) fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
+pub fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     bytes.extend_from_slice(&row.binder.get().to_le_bytes());
     encode_native_place(bytes, &row.destination);
 }
 
-pub(super) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
+pub fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
     match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
@@ -75,7 +75,7 @@ pub(super) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace
     }
 }
 
-pub(super) fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
+pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
     encode_shape(bytes, placement.shape);
     encode_len(bytes, placement.locations.len());
     for location in &placement.locations {
@@ -124,7 +124,7 @@ pub(super) fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) 
     }
 }
 
-pub(super) fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
+pub fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
     match pointer {
         IndirectPointerLocation::Register(register) => {
             bytes.push(1);
@@ -141,7 +141,7 @@ pub(super) fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPoin
     }
 }
 
-pub(super) fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
+pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     match shape.class {
         ValueClass::Integer => bytes.push(1),
         ValueClass::Float => bytes.push(2),
@@ -160,7 +160,7 @@ pub(super) fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     bytes.extend_from_slice(&shape.alignment.to_le_bytes());
 }
 
-pub(super) fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
+pub fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
     bytes.push(match class {
         SystemVEightbyteClass::Integer => 1,
         SystemVEightbyteClass::Sse => 2,

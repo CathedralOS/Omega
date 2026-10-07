@@ -116,7 +116,7 @@ fn encode_native_callback_argument(
 /// Machine-function identity encodes its kind, retained source continuation,
 /// and thunk placement slot. The continuation's arena coordinates are exact
 /// identity, not an addressable reference.
-fn encode_machine_function_identity(
+pub fn encode_machine_function_identity(
     bytes: &mut Vec<u8>,
     identity: &function_identity::MachineFunctionIdentity,
 ) {
@@ -141,7 +141,7 @@ fn encode_machine_function_identity(
 /// The complete evaluated binding: mechanism, boundary-entry plan and custody.
 /// Only imports carry an admitted same-stack claim. Kernel identity instead
 /// retains its target, number, exact requirement and provider-plan commitment.
-pub(super) fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
+pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     // Empty target names cannot be import locators. Reserve that discriminant
     // for kernel entries while keeping existing import bytes unchanged.
     let (locator, contribution) = match &binding.mechanism {

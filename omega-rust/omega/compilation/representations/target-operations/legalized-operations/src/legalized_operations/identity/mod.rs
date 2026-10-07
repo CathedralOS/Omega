@@ -21,6 +21,11 @@ pub fn legalized_operation_plan_identity(
 }
 mod ordinary_calls;
 mod read_byte;
+pub use calling::{
+    encode_call_plan, encode_callback_materialization, encode_eightbyte_class,
+    encode_indirect_pointer, encode_native_place, encode_placement, encode_shape,
+};
+pub use normalized_foreign::{encode_call_binding, encode_machine_function_identity};
 pub use read_byte::encode_hosted_read_byte_identity;
 pub use scalar::{encode_register, encode_scalar_type};
 pub use structural::encode_provider_execution;
