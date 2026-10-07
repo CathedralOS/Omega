@@ -417,6 +417,44 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
 /// selected trait has supplied their categories. Type-reference parsing keeps
 /// `Trait::requirement` as one delimiter-safe named leaf; this pass binds that
 /// leaf to the exact State symbol without pretending it is a runtime type.
+/// Assign the proposition and machine-identity slot symbols of one
+/// conformance-bound argument list: look up the bound trait in the slot
+/// tables, then delegate each kind to its argument walker.
+pub(in crate::symbols) fn assign_trait_bound_slot_argument_symbols(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    bound_trait_symbol: SymbolHandle,
+    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    trait_proposition_slots: &[(SymbolHandle, Vec<bool>)],
+    trait_machine_identity_slots: &[(SymbolHandle, Vec<bool>)],
+) {
+    if let Some((_, proposition_slots)) = trait_proposition_slots
+        .iter()
+        .find(|(symbol, _)| *symbol == bound_trait_symbol)
+    {
+        assign_proposition_family_argument_symbols(
+            symbols,
+            child_type_references,
+            local_type_parameters,
+            arguments,
+            proposition_slots,
+        );
+    }
+    if let Some((_, machine_slots)) = trait_machine_identity_slots
+        .iter()
+        .find(|(symbol, _)| *symbol == bound_trait_symbol)
+    {
+        assign_machine_declaration_identity_argument_symbols(
+            symbols,
+            child_type_references,
+            local_type_parameters,
+            arguments,
+            machine_slots,
+        );
+    }
+}
+
 pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,

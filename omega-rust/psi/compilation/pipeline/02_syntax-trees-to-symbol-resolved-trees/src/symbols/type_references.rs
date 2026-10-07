@@ -12,6 +12,7 @@ pub(super) use assignment::{
     assign_generic_application_origin_symbols,
     assign_machine_declaration_identity_argument_symbols,
     assign_proposition_family_argument_symbols,
+    assign_trait_bound_slot_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints,
     assign_type_reference_symbol_with_locals_and_self_type,
