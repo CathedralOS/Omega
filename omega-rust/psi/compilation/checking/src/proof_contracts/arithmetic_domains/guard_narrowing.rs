@@ -755,17 +755,7 @@ pub(super) fn narrow_environment_by_comparison(
             low: None,
             high: None,
         };
-        if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
-            if let Some(type_interval) = program
-                .primitive_type_reference(handle)
-                .and_then(primitive_range)
-            {
-                interval = interval.intersect(type_interval);
-            }
-            if let Some(declared_range) = range_constraint_interval(program, handle) {
-                interval = interval.intersect(declared_range);
-            }
-        }
+        intersect_declared_place_ranges(program, machine, state, place_expr, &mut interval);
         if interval.low == Some(literal) {
             interval.low = literal.checked_add(1);
         }
@@ -782,20 +772,34 @@ pub(super) fn narrow_environment_by_comparison(
     // `i: i32 [0..=7]` seeded [i32::MIN, 6] into the environment, which SHADOWS the
     // declared [0, 7] in the operand analysis (environment wins over the constraint
     // there) -- `7 - i` then "may overflow" even though it provably cannot.
-    if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
-        if let Some(type_interval) = program
-            .primitive_type_reference(handle)
-            .and_then(primitive_range)
-        {
-            interval = interval.intersect(type_interval);
-        }
-        if let Some(declared_range) = range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared_range);
-        }
-    }
+    intersect_declared_place_ranges(program, machine, state, place_expr, &mut interval);
     // `narrow` intersects with anything already established, so a prior
     // conjunct on the SAME place composes: `dir >= 0 && dir <= 1` lands [0, 1].
     environment.narrow(name, interval);
+}
+
+/// Intersect `interval` with the place's primitive type range and its
+/// declared `[a..=b]` range constraint, retaining the bounds the guard
+/// leaves open.
+fn intersect_declared_place_ranges(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    place_expr: ExpressionHandle,
+    interval: &mut Interval,
+) {
+    let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) else {
+        return;
+    };
+    if let Some(type_interval) = program
+        .primitive_type_reference(handle)
+        .and_then(primitive_range)
+    {
+        *interval = interval.intersect(type_interval);
+    }
+    if let Some(declared_range) = range_constraint_interval(program, handle) {
+        *interval = interval.intersect(declared_range);
+    }
 }
 
 /// Recognize the exact guard `left <= MAX - right` (including its `>=`
