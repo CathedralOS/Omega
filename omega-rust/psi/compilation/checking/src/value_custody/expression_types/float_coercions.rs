@@ -11,6 +11,8 @@
 //! than the range type alone supplies and remain unproved here.
 //! Integer destinations additionally require every enclosed source value to
 //! be integral and representable; named truncation is a weaker operation.
+//! This applies under every arithmetic policy: the suffix changes future
+//! operations, not the source payload or the coercion's proof obligation.
 //! The cast binder retains the authored target on its derived call so this
 //! check shares the ordinary walk's guard and write lifetime, not a second
 //! initializer or guard replay before binding.

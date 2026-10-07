@@ -2052,12 +2052,23 @@ crash and native exit behavior.
   float conversion casts (`validation::bind_float_conversion_casts`) execute.
   Remaining:
   - **Float/receiver signatures.** Complete call composition for the
-    remaining signatures. Value-dependent integer-to-float representability and
+    remaining signatures. Integer-to-float coercions still need a sealed
+    selected-conversion guarantee before enabling policy-qualified widening;
+    their current whole-carrier route recognizes the family by name.
+    Value-dependent integer-to-float representability and
     semantic-domain-qualified carrier conversions still need lowering that keeps
     the qualification; a rounding
-    conversion cannot stand in for an exact cast. Domain-qualified float casts
-    still take the legacy truncating/clamping route: enforce unchanged denotation
-    for `as`, leaving policy-bearing conversions on the named-call surface.
+    conversion cannot stand in for an exact cast. Integer policy-qualified
+    carrier changes still take legacy conversion semantics: enforce unchanged
+    denotation for `as`, leaving policy-bearing conversions on the named-call
+    surface. `core/numeric_unsigned_narrowing_policies` still uses
+    `(70000u32 as u16 in Saturating) as u16` to clamp its source; migrate that
+    invalid fixture premise to a named conversion as the integer route is repaired.
+    `float/float_to_int_trapping_nan_traps` uses an explicitly named Trapping
+    conversion but stage 05 rejects its result erasure with `scalar graph integer
+    guard parameter type does not match`; this also reproduces with that legal
+    source on the unchanged `8794607` compiler. Finish the ordinary scalar binding
+    transport rather than restoring a policy-conversion cast fallback.
     Run `float/named_integer_conversion_source_proofs_exit` (78) on
     Linux/Windows; those matching-host results remain unverified.
     `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
@@ -3185,6 +3196,15 @@ deletions, which the commit lists.
   conversion beneath explicit target ranges and same-carrier call completion;
   `float/refined_conversion_target_requires_source_proof` must reject wrong or
   excluded bounds independently of fractional and lossy coercion obligations.
+  `float/runtime_coercion_future_policy_exit` (0) constrains value-preserving
+  float coercions and subsequent Wrapping/Saturating/Trapping operations;
+  `float/policy_cast_requires_unchanged_denotation` and
+  `arithmetic/float_policy_cast_fractional` must reject policy-qualified
+  fractional, lossy and out-of-range coercions; policy qualification cannot
+  authorize a payload-changing conversion.
+  `float/runtime_named_policy_conversion_composition_exit` and
+  `expressions/runtime_numeric_cast_exit` (70) constrain explicitly named
+  truncation/clamping across calls and state transfers.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

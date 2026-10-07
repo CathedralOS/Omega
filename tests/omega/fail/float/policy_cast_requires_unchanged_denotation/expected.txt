@@ -1,0 +1,2 @@
+preserves its denotation
+named conversion to round or truncate

@@ -8,7 +8,6 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionNode, Interval, PrimitiveType, cast_ranges,
-    float_source_proves_integer_conversion,
 };
 use crate::value_custody::literals;
 use typed_trees::expression::TableCastExpression;
@@ -67,7 +66,7 @@ pub(super) fn analyze(
         walk.owner,
         diagnostics,
     );
-    require_float_to_integer_policy(walk, cast, &source, primitive, diagnostics);
+    require_float_to_integer_denotation(walk, cast, &source, primitive, diagnostics);
     require_exact_integer_fit(walk, cast, &source, primitive, diagnostics);
     require_trapping_conversion_coverage(walk, expression, cast, &source, primitive, diagnostics);
     if !diagnostics[first_diagnostic..]
@@ -165,9 +164,9 @@ fn source_value(
     }
 }
 
-/// F4, the float-to-int cast ruling: proof or policy, never a target-defined
-/// number.
-fn require_float_to_integer_policy(
+/// Arithmetic policy qualifies future operations; every float-to-integer
+/// coercion must preserve the source value, independently of that policy.
+fn require_float_to_integer_denotation(
     walk: &ExpressionWalk,
     cast: &TableCastExpression,
     source: &Analysis,
@@ -184,28 +183,16 @@ fn require_float_to_integer_policy(
         return;
     };
     let owner = walk.owner;
-    // There is NO MODULAR READING of a float, so `f as iN in Wrapping` is a
-    // compile error (ch5; the ruling's precedent generalized to the float
-    // domain list). Saturating (NaN -> 0, clamp to the target range) and
-    // Trapping (trap on NaN/out-of-range) are the defined policies.
-    if cast.domain == ArithmeticDomain::Wrapping {
-        diagnostics.push(Diagnostic::error(format!(
-            "float-to-int cast `in Wrapping` in {owner}: there is no modular reading \
-             of a float (ch5 cast ruling). Use `in Saturating` (NaN -> 0, clamp to \
-             the target range) or `in Trapping` (trap on NaN/out-of-range) instead.",
-        )));
-    }
-    // Exact is unchanged denotation, not a guarantee about a truncated result.
+    // Unchanged denotation is not a guarantee about a truncated result.
     // Every value permitted by the source facts must be integral and fit.
-    if cast.domain == ArithmeticDomain::Exact
-        && !super::super::float_source_bounds(
-            walk.program,
-            walk.machine,
-            walk.state,
-            walk.environment,
-            cast.value,
-        )
-        .is_some_and(|bounds| bounds.is_exact_integer(target))
+    if !super::super::float_source_bounds(
+        walk.program,
+        walk.machine,
+        walk.state,
+        walk.environment,
+        cast.value,
+    )
+    .is_some_and(|bounds| bounds.is_exact_integer(target))
     {
         diagnostics.push(Diagnostic::error(format!(
             "Exact float-to-int cast in {owner} is not provably integral and representable in `{}`; \
@@ -247,7 +234,7 @@ fn require_exact_integer_fit(
 
 /// A Trapping numeric conversion traps exactly when its Exact counterpart is
 /// not provably representable: an integer (or address) operand outside the
-/// target carrier, or a float operand that is NaN or truncates outside it.
+/// target carrier. Float coercions never trap: their source proof is mandatory.
 /// That same judgment, over this conversion's own operand and carriers,
 /// decides whether the machine's published Trap ceiling covers the site.
 fn require_trapping_conversion_coverage(
@@ -267,27 +254,15 @@ fn require_trapping_conversion_coverage(
     let Some(source_primitive) = source.primitive else {
         return;
     };
-    let float_source = matches!(source_primitive, PrimitiveType::F32 | PrimitiveType::F64);
-    if !float_source && primitive_range(source_primitive).is_none() {
+    if primitive_range(source_primitive).is_none() {
         return;
     }
-    let forms = |walk: &ExpressionWalk, source: &Analysis| {
-        if float_source {
-            float_source_proves_integer_conversion(
-                walk.program,
-                walk.machine,
-                walk.state,
-                walk.environment,
-                cast.value,
-                target,
-            )
-        } else {
-            integer_interval_fits_primitive(source.interval, source_primitive, target)
-        }
+    let forms = |source: &Analysis| {
+        integer_interval_fits_primitive(source.interval, source_primitive, target)
     };
     walk.require_trap_coverage(
         expression,
-        || forms(walk, source),
+        || forms(source),
         |covering| {
             let source = source_value(
                 covering,
@@ -296,19 +271,14 @@ fn require_trapping_conversion_coverage(
                 &mut Vec::new(),
                 &mut super::ArithmeticDecisions::default(),
             );
-            source.primitive == Some(source_primitive) && forms(covering, &source)
+            source.primitive == Some(source_primitive) && forms(&source)
         },
         || {
             format!(
-                "Trapping conversion of `{}` from `{}` to `{target}` traps when that value {} \
+                "Trapping conversion of `{}` from `{}` to `{target}` traps when that value lies outside \
                  `{target}`",
                 walk.operand_label(cast.value),
                 primitive_name(source_primitive),
-                if float_source {
-                    "is NaN or truncates outside"
-                } else {
-                    "lies outside"
-                },
                 target = primitive_name(target),
             )
         },

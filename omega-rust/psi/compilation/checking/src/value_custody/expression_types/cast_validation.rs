@@ -1,5 +1,4 @@
 use super::expression_type_name_handle;
-use super::operator_validation::expression_is_float_typed;
 use super::shape_validation::value_shape_is_array;
 use super::value_classification::{ValueClass, value_class, value_concrete_data_name};
 use diagnostics::Diagnostic;
@@ -28,9 +27,7 @@ pub(crate) fn validate_cast_types(
     if cast.form.is_recast() {
         return;
     }
-    if let Some(state) = state
-        && cast.domain == ArithmeticDomain::Exact
-    {
+    if let Some(state) = state {
         super::validate_exact_float_coercion(
             program,
             machine,
@@ -129,22 +126,6 @@ pub(crate) fn validate_cast_types(
             );
         }
         _ => {}
-    }
-
-    if cast.domain == ArithmeticDomain::Wrapping
-        && expression_is_float_typed(program, machine, state, cast.value)
-        && target_name
-            .and_then(|target| PrimitiveType::from_name(target.as_str()))
-            .is_some_and(|target| target.accepts_integer_literal())
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` casts a float to `{}` in `Wrapping`, but floats have no \
-             modular conversion semantics; use an Exact cast with a proven finite/in-range \
-             operand, `in Saturating`, or `in Trapping`",
-            machine.name.as_str(),
-            state.map(|state| state.name.as_str()).unwrap_or(""),
-            target_name.map(|name| name.as_str()).unwrap_or("integer"),
-        )));
     }
 }
 

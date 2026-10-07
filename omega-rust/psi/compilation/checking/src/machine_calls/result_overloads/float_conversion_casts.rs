@@ -1,6 +1,6 @@
 //! Bind numeric casts involving floats to their selected conversion requirements.
 //!
-//! Exact casts retain their authored target on the derived call, so ordinary
+//! All casts retain their authored target on the derived call, so ordinary
 //! occurrence checking discharges unchanged denotation using live value facts.
 //! Selection alone proves nothing. Integer-to-float widening
 //! uses whole-carrier representability. Named conversions may round, but `as`
@@ -8,14 +8,10 @@
 //! not an invitation to call a similarly named operator. All three conversion
 //! directions share selection and source custody with explicit named calls.
 //!
-//! The legacy domain-qualified cast route still selects a truncating/clamping
-//! conversion. It does not yet enforce the coercion law for non-Exact domains;
-//! policy-bearing conversion belongs on the explicitly named call surface.
-//! This pass must not be mistaken for evidence that those casts comply.
 //! Terminal Psi has no float-to-integer primitive: every float
 //! realization is a requirement-level `BoundaryCall` that Omega installs from
-//! the selected provider. A cast that stays a cast therefore reaches no
-//! executable route.
+//! the selected provider. An unbound carrier-changing float cast therefore
+//! reaches no executable conversion route.
 //!
 //! This pass puts the ordinary conversion call beneath the authored cast.
 //! The call owns carrier realization and the cast keeps qualification,
@@ -24,25 +20,25 @@
 //! and its annotation is never a premise about the conversion's result.
 //! The cast names the requirement path by the conversion-naming law
 //! (destination `I32`, source `f64`) and selects its overload by the cast's
-//! complete result qualification under the
-//! [result-domain overload rule](../../../../../../../wiki/spec/language/domains.md#result-domain-overloads):
-//! the requested dispatch set is the cast's `in Saturating`/`in Trapping`
-//! policy and must equal exactly one visible overload's result projection.
-//! No overload with another policy substitutes for it. When the conversion
-//! family is not visible (no `core::float_operations` import) the cast is
+//! unqualified carrier result. An `in Saturating`, `in Trapping` or `in Wrapping`
+//! suffix qualifies future operations; it cannot select a conversion that
+//! clamps, traps or truncates an unrepresentable source. The unqualified named
+//! operation is executable only after proving unchanged denotation. Explicit
+//! named calls still select their result-domain overload normally. See
+//! [exact coercion](../../../../../../../wiki/spec/language/domains.md#exact-coercion-and-erasure).
+//! When the conversion family is not visible (no `core::float_operations` import) the cast is
 //! left as it is: it still checks and interprets, and native production keeps
 //! rejecting it for want of a route.
 //!
-//! Exact float-to-integer casts select the unqualified conversion through the
+//! Float-to-integer casts select the unqualified conversion through the
 //! same route. Selection grants no conversion proof: ordinary call validation
 //! still checks the selected requirement's finite/truncated-range premises,
 //! and Terminal publication retains those obligations. Leaving the carrier
 //! conversion unbound would give valid checked expressions no executable operation.
 //!
 //! The pass runs after `resolve_named_result_overloads`. That pass re-selects
-//! a named operator call from the result type its context expects, and a
-//! cast's context (`(value as i32 in Saturating) as i32`) expects none, so a
-//! call bound earlier would be rebound to the unqualified overload.
+//! a named operator call from the result type its context expects. A derived
+//! carrier call must not inherit the authored cast's future arithmetic policy.
 //!
 //! The call keeps the cast's source span and receives a resolved `Call`
 //! selection occurrence at that span. Review custody and provider
@@ -196,11 +192,7 @@ fn collect_expression_bindings(
             selected_conversion(program, machine, state, expression, cast)
     {
         bindings.push(ConversionCastBinding {
-            exact_coercion_target: if cast.domain == ArithmeticDomain::Exact {
-                cast.target_type
-            } else {
-                typed_trees::types::TypeReferenceHandle::invalid()
-            },
+            exact_coercion_target: cast.target_type,
             cast: expression,
             operand: cast.value,
             requirement,
@@ -234,15 +226,11 @@ fn selected_conversion(
     let source_is_float = matches!(source, PrimitiveType::F32 | PrimitiveType::F64);
     let destination_is_float = matches!(destination, PrimitiveType::F32 | PrimitiveType::F64);
     let supported = if destination_is_float {
-        cast.domain == ArithmeticDomain::Exact
-            && ((source_is_float && source != destination)
-                || integer_to_float_widening(source, destination))
+        (source_is_float && source != destination)
+            || (cast.domain == ArithmeticDomain::Exact
+                && integer_to_float_widening(source, destination))
     } else {
         source_is_float
-            && matches!(
-                cast.domain,
-                ArithmeticDomain::Exact | ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-            )
     };
     if !supported {
         return None;
@@ -251,9 +239,7 @@ fn selected_conversion(
     if source_span.span.start >= source_span.span.end {
         return None;
     }
-    let requested = program.callable_result_dispatch_identity(
-        &program.normalized_result_dispatch_set(cast.result_type),
-    );
+    let requested = program.callable_result_dispatch_identity(&Default::default());
     let requirement_member = format!("from_{}", source.name());
     let mut selected = program.operators().iter().filter(|operator| {
         let path = program.operator_path_members(operator.name);

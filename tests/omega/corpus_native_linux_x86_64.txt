@@ -616,7 +616,6 @@ pass/float/nearest_even_binary_arithmetic_exit built 4132ms exit:70 @2d8ed253669
 pass/float/nested_float_operator_applications_exit built 7752ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_float_digit_separators_exit built 87648ms exit:0 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit built 2906ms exit:70 @2d8ed253669f+wt
-pass/float/runtime_float_to_integer_policy_casts_exit built 3035ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_named_float_to_integer_conversion_exit built 3232ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_named_format_conversion_exit built 4456ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_std_is_finite_exit built 2997ms exit:70 @2d8ed253669f+wt
