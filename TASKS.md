@@ -5124,7 +5124,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   via **MATCH-SELECTIVE-LOWERING**), and a fail fixture where an overlapping
   candidate rejects the stale bound. Add fixtures for nested helpers,
   named-state results, codec arguments and finite write cycles; parameter
-  permutations keep finite write sets; `omega --check source/psi/gates/parser/main.omg`
+  permutations keep finite write sets; `omega --check tests/psi/parser/main.omg`
   still converges.
 
 - **TPR6.** Carry exact progress subjects through calls, state arrivals, private
@@ -5835,14 +5835,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
-  Current blocker: `omega --check source/omega/main.omg` and
-  `omega --check source/psi/gates/parser/main.omg` reach `Parser::parse` and
-  omit its unit plan at state 7 (`conditional successors: guard expression`).
-  Minimize the nested `Token::Keyword { keyword: KeywordKind::Data }` guard in
-  `source/psi/parse/parser.omg` before assigning the lowering repair to
-  **STATE-LOCAL-VALUE-FRONTIER**. Unverified: recheck both roots on current
-  main. Then build and run `source/psi/test-parser.sh` with explicit freshly
-  built `OMEGA_CLI` and `OMEGA_TARGET`, keeping the parser gate's
+  Current blocker: `OMEGA_CLI=<fresh debug CLI> OMEGA_TARGET=macos_arm64
+  tests/psi/parser/test-parser.sh` reviews and checks the gate's three
+  packages (the gate package's check takes 113 s), then Terminal production
+  refuses the gate: "Unit graph state-local loan chain is re-lent beyond its
+  exclusive members". Identify the machine and loan chain, reduce it to a
+  corpus fixture and repair that lowering on the
+  **STATE-LOCAL-VALUE-FRONTIER** route. `omega --check source/omega/main.omg`
+  is unverified on current main. Then run all 75 gate cases, keeping the
   acceptance/rejection, lexical handoff, structural identity, capacity and
   determinism controls. Keep range-proven narrowing casts.
 

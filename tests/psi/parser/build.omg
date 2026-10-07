@@ -9,9 +9,9 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, ParserHarness::main);
     Build::bind(builder, macos_arm64::ProgramEntry, ParserHarness::main);
     Build::depend(builder, Source::Path {
-        location: "../../../library/std"
+        location: "../../../source/library/std"
     });
     Build::depend_as(builder, "psi", Source::Path {
-        location: "../.."
+        location: "../../../source/psi"
     });
 }

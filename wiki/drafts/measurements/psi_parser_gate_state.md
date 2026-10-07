@@ -1,6 +1,6 @@
 # The Omega-written parser gate does not check
 
-`omega --check source/psi/gates/parser/main.omg` is named as acceptance on at
+`omega --check tests/psi/parser/main.omg` is named as acceptance on at
 least one board item, and convergence on it is asked for by name. Measured
 2026-09-29 on `7102f6917ea`, it fails:
 

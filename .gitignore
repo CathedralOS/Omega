@@ -14,6 +14,9 @@
 /samples/**/omega.admissions
 /tests/omega/**/omega.lock
 /tests/omega/**/omega.admissions
+/tests/psi/**/build/
+/tests/psi/**/omega.lock
+/tests/psi/**/omega.admissions
 
 # Claude Code local worktrees, settings, and skill link; canonical skills are in .agents
 .claude/*

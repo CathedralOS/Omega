@@ -12,6 +12,8 @@ span more than one bootstrap rung.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
 - `omega/` contains the Omega language corpus and the package projects the
   package manager tests build.
+- `psi/` contains black-box gates for the Omega-written Psi product source in
+  `source/psi/`; each gate is its own package beside, not inside, that root.
 
 Rust tests whose subject is one crate remain beside that crate in its `tests/`
 directory (or its internal `#[cfg(test)]` modules). Those directories are local

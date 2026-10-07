@@ -29,7 +29,8 @@ The maintained Rust implementation lives at `omega-rust/psi/`. It
 remains a differential comparator and may continue in parallel; no Rust
 implementation belongs in this product subtree.
 
-`test-parser.sh` compiles the gate-owned Omega harness once and runs the parser's
+[`tests/psi/parser/test-parser.sh`](../../tests/psi/parser/test-parser.sh)
+compiles the gate-owned Omega harness once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
 against that one native artifact. Its Python helper only decodes and compares
 versioned parser observations; it implements no compiler semantics. No lexical
@@ -39,7 +40,11 @@ Set `OMEGA_CLI` to the exact freshly built compiler and `OMEGA_TARGET` to the
 selected target profile. Acceptance evidence prints the CLI and Omega artifact
 SHA-256 identities beside that target. The gate has no cached-artifact or ambient
 `target/debug` lookup; focused iteration may invoke the Python decoder directly
-with the explicit Omega executable path.
+with the explicit Omega executable path. The gate is its own package beside this
+root: under it, the gate's lock and build output would be `psi` source. Delete
+the gate only when an equal or stronger product-source gate subsumes every
+retained failure class, and the harness only when an equal or stronger
+semantic-free gate preserves all 75 cases.
 
 The source closure and harness previously passed checked-source compilation,
 but fresh native publication remained fail-closed at the attached Unit transitive
@@ -78,7 +83,6 @@ owns bounded token selection and trivia traversal;
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
 | `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows. | Absorb the parser only into its canonical successor. |
-| `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary across 75 structural cases. `gates/parser/harness.omg` is the gate package's own product entry: gate-only black-box serialization, absent from the product closure. Its selected profile is immutable compiler invocation input; the harness declares no target-support set. | Delete the gate only when an equal or stronger product-source gate subsumes every retained failure class; delete the harness when an equal or stronger semantic-free gate preserves all 75 cases. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

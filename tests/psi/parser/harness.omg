@@ -1,6 +1,8 @@
-// Gate-owned black-box lexer/parser harness. It lives in the gate package so
-// the gate's build root can bind `ParserHarness::main` as its own product
-// entry; the product compiler closure under `source/psi` never includes it.
+// Gate-owned black-box lexer/parser harness. The gate package's build root
+// binds `ParserHarness::main` as its own product entry; the product compiler
+// closure never includes it. The package lives outside `source/psi`: a package
+// nested under another package's root is that package's source, its build
+// output and lock included, so a nested gate could never hold a stable lock.
 
 use omega_language_std::console;
 use omega::language::core::binding;
