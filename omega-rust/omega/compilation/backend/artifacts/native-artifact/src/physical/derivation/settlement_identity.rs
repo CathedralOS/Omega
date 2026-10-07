@@ -4,9 +4,9 @@
 use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::hashing::{
-    canonical_usize, hash_boundary_settlement_record, hash_bytes,
+    canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
     hash_internal_scalar_argument_source, hash_port_effect_record, hash_structural_argument,
-    hash_structural_parameter_declaration, hash_structural_path, hash_sum_layout, hash_target,
+    hash_structural_parameter_declaration, hash_target,
 };
 use crate::{
     CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
@@ -54,7 +54,9 @@ pub(crate) fn hosted_builtin_settlement_identity(
         hash_builtin_scalar_argument(&mut digest, scalar_argument)?;
     }
     if let CompilerBuiltinResult::Structural(result) = result {
-        hash_builtin_structural_result(&mut digest, result)?;
+        hash_boundary_structural_result(&mut digest, result).map_err(
+            |_| "hosted builtin settlement result declaration cannot be encoded canonically",
+        )?;
     }
     Ok(digest.finalize().into())
 }
@@ -83,42 +85,6 @@ fn hash_builtin_scalar_argument(
             hash_internal_scalar_argument_source(digest, &scalar_argument.source);
         }
     }
-    Ok(())
-}
-
-fn hash_builtin_structural_result(
-    digest: &mut Sha256,
-    result: &machine_code::BoundaryStructuralResultRecord,
-) -> Result<(), &'static str> {
-    digest.update(result.defining_operation.get().to_le_bytes());
-    digest.update(result.result.place.get().to_le_bytes());
-    digest.update(result.result.structural_type.get().to_le_bytes());
-    digest.update([match result.result.multiplicity {
-        terminal_psi::StructuralMultiplicity::Unrestricted => 1,
-        terminal_psi::StructuralMultiplicity::Affine => 2,
-        terminal_psi::StructuralMultiplicity::Linear => 3,
-    }]);
-    digest.update((result.result.qualifications.len() as u64).to_le_bytes());
-    for domain in &result.result.qualifications {
-        digest.update(domain.get().to_le_bytes());
-    }
-    digest.update((result.result.projected_qualifications.len() as u64).to_le_bytes());
-    for qualification in &result.result.projected_qualifications {
-        hash_structural_path(digest, &qualification.path);
-        digest.update(qualification.domain.get().to_le_bytes());
-    }
-    digest.update((result.result.claims.len() as u64).to_le_bytes());
-    for claim in &result.result.claims {
-        digest.update(claim.claim.get().to_le_bytes());
-        hash_structural_path(digest, &claim.path);
-    }
-    let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)
-        .map_err(
-            |_| "hosted builtin settlement result declaration cannot be encoded canonically",
-        )?;
-    hash_bytes(digest, &declaration);
-    hash_sum_layout(digest, &result.layout);
-    digest.update(result.home_byte_offset.to_le_bytes());
     Ok(())
 }
 

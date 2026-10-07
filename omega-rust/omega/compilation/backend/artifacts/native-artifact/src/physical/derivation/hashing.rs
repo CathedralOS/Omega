@@ -253,7 +253,9 @@ fn hash_boundary_result_record(
         }
         machine_code::BoundaryResultRecord::Structural(result) => {
             digest.update([2]);
-            hash_boundary_structural_result(digest, result)?;
+            hash_boundary_structural_result(digest, result).map_err(
+                |_| "boundary structural result declaration cannot be encoded canonically",
+            )?;
         }
     }
     Ok(())
@@ -261,10 +263,10 @@ fn hash_boundary_result_record(
 
 /// The complete structural-result record body shared by the hosted read-byte
 /// parent identity and the installed-settlement record hash.
-fn hash_boundary_structural_result(
+pub(super) fn hash_boundary_structural_result(
     digest: &mut Sha256,
     result: &machine_code::BoundaryStructuralResultRecord,
-) -> Result<(), &'static str> {
+) -> Result<(), terminal_codec::CodecError> {
     digest.update(result.defining_operation.get().to_le_bytes());
     digest.update(result.result.place.get().to_le_bytes());
     digest.update(result.result.structural_type.get().to_le_bytes());
@@ -287,8 +289,7 @@ fn hash_boundary_structural_result(
         digest.update(claim.claim.get().to_le_bytes());
         hash_structural_path(digest, &claim.path);
     }
-    let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)
-        .map_err(|_| "boundary structural result declaration cannot be encoded canonically")?;
+    let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)?;
     hash_bytes(digest, &declaration);
     hash_sum_layout(digest, &result.layout);
     digest.update(result.home_byte_offset.to_le_bytes());
