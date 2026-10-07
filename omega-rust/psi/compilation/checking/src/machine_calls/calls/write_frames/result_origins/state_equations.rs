@@ -96,19 +96,47 @@ pub(super) fn solve<'program>(
             })
         })
         .collect();
+/// The shared transfer preamble each propagate phase runs: instantiate the
+/// source equation's edge into a fresh output before the phase's own masks.
+#[allow(clippy::too_many_arguments)]
+fn instantiate_into(
+    program: &TypedTrees,
+    machine: &Machine,
+    equations: &[Equation<'_>],
+    source: usize,
+    edge: &Edge<'_>,
+    target: &mut AggregateOrigins,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+) -> Option<AggregateOrigins> {
+    let mut output = AggregateOrigins::default();
+    instantiate(
+        program,
+        machine,
+        &equations[source],
+        edge,
+        target,
+        &mut output,
+        symbols,
+        inference,
+        include_shared,
+    )?;
+    Some(output)
+}
+
     let moves = propagate(
         &equations,
         &successors,
         move_seeds,
         |source, edge, target| {
-            let mut output = AggregateOrigins::default();
-            instantiate(
+            let mut output = instantiate_into(
                 program,
                 machine,
-                &equations[source],
+                &equations,
+                source,
                 edge,
                 target,
-                &mut output,
                 symbols,
                 inference,
                 include_shared,
@@ -133,14 +161,13 @@ pub(super) fn solve<'program>(
         })
         .collect();
     let complete = propagate(&equations, &successors, seeds, |source, edge, target| {
-        let mut output = AggregateOrigins::default();
-        instantiate(
+        let output = instantiate_into(
             program,
             machine,
-            &equations[source],
+            &equations,
+            source,
             edge,
             target,
-            &mut output,
             symbols,
             inference,
             include_shared,
