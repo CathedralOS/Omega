@@ -282,6 +282,28 @@ pub struct QuotientFamily {
 }
 
 impl QuotientFamily {
+    /// `DECL level args…` — a lemma constant applied under its own level
+    /// rather than the description's `[u, v]` instantiation spine.
+    fn unspined(
+        &self,
+        arena: &mut TermArena,
+        declaration: u32,
+        level: Level,
+        arguments: &[TermHandle],
+    ) -> TermHandle {
+        let mut term = arena.insert(Term::Constant {
+            declaration,
+            levels: vec![level],
+        });
+        for &argument in arguments {
+            term = arena.insert(Term::Apply {
+                function: term,
+                argument,
+            });
+        }
+        term
+    }
+
     fn spine(
         &self,
         arena: &mut TermArena,
@@ -425,17 +447,12 @@ impl QuotientFamily {
         first: TermHandle,
         second: TermHandle,
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_ID_TRANS,
-            levels: vec![level],
-        });
-        for argument in [ty, left, middle, right, first, second] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        self.unspined(
+            arena,
+            QUOTIENT_ID_TRANS,
+            level,
+            &[ty, left, middle, right, first, second],
+        )
     }
 
     /// `lift A R B setB f respect z : B` — the quotient-owned operation:
@@ -511,17 +528,7 @@ impl QuotientFamily {
         right: TermHandle,
         proof: TermHandle,
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_ID_SYM,
-            levels: vec![level],
-        });
-        for argument in [ty, left, right, proof] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        self.unspined(arena, QUOTIENT_ID_SYM, level, &[ty, left, right, proof])
     }
 
     /// `idCancel B x y p : Id (Id B y y) (trans (sym p) p) (refl B y)`
@@ -535,17 +542,7 @@ impl QuotientFamily {
         right: TermHandle,
         proof: TermHandle,
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_ID_CANCEL,
-            levels: vec![level],
-        });
-        for argument in [ty, left, right, proof] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        self.unspined(arena, QUOTIENT_ID_CANCEL, level, &[ty, left, right, proof])
     }
 
     /// `propIsSet X f : isSet X` — a mere proposition is a set, where
@@ -557,17 +554,7 @@ impl QuotientFamily {
         ty: TermHandle,
         evidence: TermHandle,
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_PROP_IS_SET,
-            levels: vec![level],
-        });
-        for argument in [ty, evidence] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        self.unspined(arena, QUOTIENT_PROP_IS_SET, level, &[ty, evidence])
     }
 
     /// `boxProp S x y : Id (Box S) x y` — a boxed strict proposition is
@@ -580,17 +567,7 @@ impl QuotientFamily {
         left: TermHandle,
         right: TermHandle,
     ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_BOX_PROP,
-            levels: vec![level],
-        });
-        for argument in [strict, left, right] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
+        self.unspined(arena, QUOTIENT_BOX_PROP, level, &[strict, left, right])
     }
 
     /// `indProp A R P d z : P z` — proposition-valued induction for
