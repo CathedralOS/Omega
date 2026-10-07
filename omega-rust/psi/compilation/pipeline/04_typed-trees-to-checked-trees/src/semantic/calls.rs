@@ -18,9 +18,10 @@ use traversal::{CallSiteTraversal, find_call_site_in_statement};
 /// type, storage, loan validity and any temporary-owner cleanup. In particular,
 /// a reference formal must never turn a value constructor into a reference
 /// carrier, and this rule grants no implicit mutable or write-only lending.
-/// A slice view lends a descriptor, not an owned slice referent: preserve its
-/// complete expression and type so preparation and consumption name the same
-/// evaluated descriptor even when an explicit borrow encloses a range.
+/// A computed slice view lends a new descriptor, not an owned slice referent:
+/// preserve its complete expression and type so preparation and consumption
+/// name the same evaluated descriptor even when an explicit borrow encloses a
+/// range. A view of existing storage peels like any shared borrow.
 pub(crate) fn shared_argument_referent(
     program: &typed_trees::TypedTrees,
     argument: ExpressionHandle,
@@ -34,7 +35,9 @@ pub(crate) fn shared_argument_referent(
     else {
         return None;
     };
-    if validation::slice_view_shell(program, formal, &[]).is_some() {
+    if validation::slice_view_shell(program, formal, &[]).is_some()
+        && !view_argument_names_existing_place(program, argument)
+    {
         return Some((argument, formal));
     }
     let value = match program.expression_table.expression(argument) {
@@ -47,6 +50,20 @@ pub(crate) fn shared_argument_referent(
         _ => argument,
     };
     Some((value, *referee))
+}
+
+/// Whether a view argument names existing storage, a stored view or a whole
+/// collection lent as one, rather than computing a new descriptor such as a
+/// range window or a call's view result. Existing storage lends through its
+/// place's loan route; only a computed formation is an evaluated operand with
+/// its own result. The place builder roots exactly the computed forms at their
+/// expression.
+pub(crate) fn view_argument_names_existing_place(
+    program: &typed_trees::TypedTrees,
+    argument: ExpressionHandle,
+) -> bool {
+    crate::flow::canonical_place_from_expression(program, argument)
+        .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Symbol(_)))
 }
 
 #[derive(Clone, Copy)]

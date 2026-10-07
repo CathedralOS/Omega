@@ -876,27 +876,13 @@ impl Builder<'_, '_> {
                 TypeReferenceNode::Reference { .. }
                     if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
                 {
-                    // Lending an existing descriptor uses its live storage,
-                    // not an owned-value copy of the descriptor. Only a new
-                    // formation needs an operand result. Use the place's
-                    // declared carrier, not its source spelling: projections
-                    // of stored views obey the same rule as whole bindings.
-                    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                    // Existing storage, a stored view however qualified or a
+                    // whole array lent as a view, keeps its loan route. Only a
+                    // computed formation needs an operand result.
+                    if crate::semantic::calls::view_argument_names_existing_place(
                         self.program,
-                        self.state,
-                        self.statement_index,
                         expression,
-                    ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
-                        && let Some(declared) = crate::flow::canonical_place_type_reference(
-                            self.program,
-                            self.state,
-                            self.statement_index,
-                            &place,
-                        )
-                        && validation::slice_view_shell(self.program, declared, &[]).is_some()
-                        && self.program.normalized_type_identity(declared)
-                            == self.program.normalized_type_identity(expected)
-                    {
+                    ) {
                         return None;
                     }
                     (expression, expected)
