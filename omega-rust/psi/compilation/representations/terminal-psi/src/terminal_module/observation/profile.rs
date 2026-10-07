@@ -212,12 +212,21 @@ pub struct TerminalTraceV1Rows {
 pub struct TerminalTraceV1Profile {
     pub schema: TerminalObservationSchema,
     pub module_identity: TerminalPsiIdentity,
-    pub root: TerminalTraceRootRow,
-    pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
-    pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
-    pub operation_crash_sites: Vec<TerminalTraceOperationCrashSiteRow>,
-    pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
-    pub external_completion_sites: Vec<TerminalTraceExternalCompletionSiteRow>,
+    pub rows: TerminalTraceV1Rows,
+}
+
+impl std::ops::Deref for TerminalTraceV1Profile {
+    type Target = TerminalTraceV1Rows;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rows
+    }
+}
+
+impl std::ops::DerefMut for TerminalTraceV1Profile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.rows
+    }
 }
 
 impl TerminalTraceV1Profile {
@@ -881,7 +890,8 @@ mod tests {
         TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
         TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,
         TerminalTraceV1ConstructionError, TerminalTraceV1Event, TerminalTraceV1Outcome,
-        TerminalTraceV1Profile, TerminalTraceValueComparison, TrappingIntegerPrimitive,
+        TerminalTraceV1Profile, TerminalTraceV1Rows, TerminalTraceValueComparison,
+        TrappingIntegerPrimitive,
     };
     use crate::{CrashRouteGuard, SemanticFingerprint, VocabularyMarker};
     use semantic_vocabulary::IntegerSign;
@@ -967,79 +977,81 @@ mod tests {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
             },
-            root: TerminalTraceRootRow {
-                entry: machine,
-                scalar_inputs: vec![u16_schema()],
-                structural_inputs: Vec::new(),
-                result: TerminalTraceResultSchema::Scalar(u16_schema()),
-            },
-            crash_sites: vec![TerminalTraceCrashSiteRow {
-                machine,
-                block,
-                edge: id(CRASH_EDGE, EdgeId::new),
-                cause: CrashCause::Trap,
-            }],
-            boundary_crash_sites: vec![TerminalTraceBoundaryCrashSiteRow {
-                machine,
-                block,
-                operation: id(CALL, OperationId::new),
-                boundary,
-                boundary_identity: "pkg::Port".into(),
-                route: crash_route(CrashCause::Abort),
-            }],
-            operation_crash_sites: vec![TerminalTraceOperationCrashSiteRow {
-                machine,
-                block,
-                operation: id(TRAPPING_ADD, OperationId::new),
-                cause: CrashCause::Trap,
-                denotation: TerminalOperationCrashDenotation::Integer {
-                    primitive: TrappingIntegerPrimitive::Add,
-                    result_type: integer_type(IntegerSign::Unsigned, 8),
-                    operand_type: integer_type(IntegerSign::Unsigned, 8),
+            rows: TerminalTraceV1Rows {
+                root: TerminalTraceRootRow {
+                    entry: machine,
+                    scalar_inputs: vec![u16_schema()],
+                    structural_inputs: Vec::new(),
+                    result: TerminalTraceResultSchema::Scalar(u16_schema()),
                 },
-            }],
-            external_completion_sites: Vec::new(),
-            ordinary_events: vec![
-                TerminalTraceOrdinaryEventRow {
+                crash_sites: vec![TerminalTraceCrashSiteRow {
+                    machine,
+                    block,
+                    edge: id(CRASH_EDGE, EdgeId::new),
+                    cause: CrashCause::Trap,
+                }],
+                boundary_crash_sites: vec![TerminalTraceBoundaryCrashSiteRow {
                     machine,
                     block,
                     operation: id(CALL, OperationId::new),
-                    kind: TerminalTraceOrdinaryEventKind::BoundaryCall {
-                        boundary,
-                        boundary_identity: "pkg::Port".into(),
-                    },
-                    scalar_arguments: vec![u16_schema()],
-                    structural_arguments: Vec::new(),
-                    result: TerminalTraceResultSchema::Unit,
-                },
-                TerminalTraceOrdinaryEventRow {
+                    boundary,
+                    boundary_identity: "pkg::Port".into(),
+                    route: crash_route(CrashCause::Abort),
+                }],
+                operation_crash_sites: vec![TerminalTraceOperationCrashSiteRow {
                     machine,
                     block,
-                    operation: id(WRITE, OperationId::new),
-                    kind: TerminalTraceOrdinaryEventKind::PortWrite {
-                        service: id(1, ServiceId::new),
-                        service_identity: "pkg::port".into(),
+                    operation: id(TRAPPING_ADD, OperationId::new),
+                    cause: CrashCause::Trap,
+                    denotation: TerminalOperationCrashDenotation::Integer {
+                        primitive: TrappingIntegerPrimitive::Add,
+                        result_type: integer_type(IntegerSign::Unsigned, 8),
+                        operand_type: integer_type(IntegerSign::Unsigned, 8),
                     },
-                    scalar_arguments: vec![
-                        TerminalTraceScalarSchema {
-                            scalar_type: ScalarType::Integer(integer_type(
-                                IntegerSign::Unsigned,
-                                16,
-                            )),
-                            comparison: TerminalTraceValueComparison::ExactSemanticValue,
+                }],
+                external_completion_sites: Vec::new(),
+                ordinary_events: vec![
+                    TerminalTraceOrdinaryEventRow {
+                        machine,
+                        block,
+                        operation: id(CALL, OperationId::new),
+                        kind: TerminalTraceOrdinaryEventKind::BoundaryCall {
+                            boundary,
+                            boundary_identity: "pkg::Port".into(),
                         },
-                        TerminalTraceScalarSchema {
-                            scalar_type: ScalarType::Integer(integer_type(
-                                IntegerSign::Unsigned,
-                                8,
-                            )),
-                            comparison: TerminalTraceValueComparison::ExactSemanticValue,
+                        scalar_arguments: vec![u16_schema()],
+                        structural_arguments: Vec::new(),
+                        result: TerminalTraceResultSchema::Unit,
+                    },
+                    TerminalTraceOrdinaryEventRow {
+                        machine,
+                        block,
+                        operation: id(WRITE, OperationId::new),
+                        kind: TerminalTraceOrdinaryEventKind::PortWrite {
+                            service: id(1, ServiceId::new),
+                            service_identity: "pkg::port".into(),
                         },
-                    ],
-                    structural_arguments: Vec::new(),
-                    result: TerminalTraceResultSchema::Unit,
-                },
-            ],
+                        scalar_arguments: vec![
+                            TerminalTraceScalarSchema {
+                                scalar_type: ScalarType::Integer(integer_type(
+                                    IntegerSign::Unsigned,
+                                    16,
+                                )),
+                                comparison: TerminalTraceValueComparison::ExactSemanticValue,
+                            },
+                            TerminalTraceScalarSchema {
+                                scalar_type: ScalarType::Integer(integer_type(
+                                    IntegerSign::Unsigned,
+                                    8,
+                                )),
+                                comparison: TerminalTraceValueComparison::ExactSemanticValue,
+                            },
+                        ],
+                        structural_arguments: Vec::new(),
+                        result: TerminalTraceResultSchema::Unit,
+                    },
+                ],
+            },
         }
     }
 
