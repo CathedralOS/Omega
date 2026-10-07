@@ -116,23 +116,12 @@ impl Default for WireMember {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireField {
     pub number: u64,
     pub name: Identifier,
     pub relevance: language_core::BindingRelevance,
     pub type_reference: TypeReferenceHandle,
-}
-
-impl Default for WireField {
-    fn default() -> Self {
-        Self {
-            number: 0,
-            name: Identifier::default(),
-            relevance: Default::default(),
-            type_reference: TypeReferenceHandle::invalid(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

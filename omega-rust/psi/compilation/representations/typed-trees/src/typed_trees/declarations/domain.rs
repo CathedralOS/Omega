@@ -67,19 +67,10 @@ pub struct DomainAliasDefinition {
     pub constituents: Vec<DomainAliasConstituent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
 pub struct DomainAliasConstituent {
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
-}
-
-impl Default for DomainAliasConstituent {
-    fn default() -> Self {
-        Self {
-            domain: HandleSpan::empty(),
-            domain_symbol: SymbolHandle::invalid(),
-        }
-    }
 }
 
 /// Deterministic identity of one closed indexed-domain instance. Both initial

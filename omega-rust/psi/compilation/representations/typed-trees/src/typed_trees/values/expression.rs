@@ -1037,7 +1037,7 @@ pub struct TableNamePath {
     pub symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: Identifier,
     pub type_symbol: SymbolHandle,
@@ -1048,33 +1048,11 @@ pub struct TableStructLiteral {
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
-impl Default for TableStructLiteral {
-    fn default() -> Self {
-        Self {
-            type_name: Identifier::default(),
-            type_symbol: SymbolHandle::invalid(),
-            case_name: None,
-            case_symbol: None,
-            fields: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableStructLiteralField {
     pub name: Identifier,
     pub field_symbol: SymbolHandle,
     pub value: ExpressionHandle,
-}
-
-impl Default for TableStructLiteralField {
-    fn default() -> Self {
-        Self {
-            name: Identifier::default(),
-            field_symbol: SymbolHandle::invalid(),
-            value: ExpressionHandle::invalid(),
-        }
-    }
 }
 
 impl Default for Expression {

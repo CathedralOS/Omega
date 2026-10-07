@@ -5,7 +5,7 @@ use crate::statement::StatementNode;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct State {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -13,17 +13,4 @@ pub struct State {
     pub return_type: crate::types::TypeReferenceHandle,
     pub contracts: HandleSpan<SignatureContract>,
     pub statement_nodes: HandleSpan<StatementNode>,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            parameters: HandleSpan::empty(),
-            return_type: crate::types::TypeReferenceHandle::invalid(),
-            contracts: HandleSpan::empty(),
-            statement_nodes: HandleSpan::empty(),
-        }
-    }
 }

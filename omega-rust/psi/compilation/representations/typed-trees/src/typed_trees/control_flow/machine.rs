@@ -217,7 +217,7 @@ pub struct GenericConformanceBound {
     pub arguments: Vec<TypeReferenceHandle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -225,7 +225,7 @@ pub struct OwnedData {
     pub initial_value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -257,24 +257,6 @@ pub struct TraitConformance {
     /// Exact authored `via` keyword occurrence retained separately from the
     /// semantic binding identity for package-review source custody.
     pub external_binding_source_span: Option<source::SourceSpan>,
-}
-
-impl Default for TraitConformance {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            trait_lifetime_arguments: Vec::new(),
-            arguments: HandleSpan::empty(),
-            requirement: None,
-            requirement_symbol: SymbolHandle::invalid(),
-            requirement_source_span: None,
-            alias: None,
-            external_binding: None,
-            via_expression: crate::expression::ExpressionHandle::invalid(),
-            external_binding_source_span: None,
-        }
-    }
 }
 
 /// Canonical public identity of an exact requirement lifetime application.
@@ -397,15 +379,4 @@ pub fn resolve_satisfied_declaration<'program>(
         return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
     }
     Some(SatisfiedDeclaration::Operator(operator))
-}
-
-impl Default for OwnedData {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            type_reference: TypeReferenceHandle::invalid(),
-            initial_value: ExpressionHandle::invalid(),
-        }
-    }
 }

@@ -3,7 +3,7 @@ use crate::signature::StateSignature;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
@@ -23,24 +23,6 @@ pub struct TraitDefinition {
     /// `machine *` / `machine Base::requirement` narrowing clauses carrying
     /// operational axes only (`reaches`, `suspends`, `blocks`, `terminates`).
     pub refinement_clauses: Vec<TraitRefinementClause>,
-}
-
-impl Default for TraitDefinition {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            is_boundary: false,
-            is_public: false,
-            name: Identifier::default(),
-            lifetime_parameters: Vec::new(),
-            type_parameters: HandleSpan::empty(),
-            conformance_bounds: Vec::new(),
-            requires: HandleSpan::empty(),
-            machines: HandleSpan::empty(),
-            refines: None,
-            refinement_clauses: Vec::new(),
-        }
-    }
 }
 
 /// One `machine *` or `machine Base::requirement` narrowing clause of a
@@ -141,7 +123,7 @@ impl ConformanceRowSource {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -165,16 +147,4 @@ pub struct TraitRequirement {
 pub enum DynamicSignatureIneligibility {
     BoundaryRequirement,
     RequirementLocalGenerics,
-}
-
-impl Default for TraitRequirement {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            lifetime_arguments: Vec::new(),
-            arguments: HandleSpan::empty(),
-            source_span: source::SourceSpan::default(),
-        }
-    }
 }

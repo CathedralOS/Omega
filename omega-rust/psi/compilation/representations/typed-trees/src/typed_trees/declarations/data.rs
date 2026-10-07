@@ -249,25 +249,13 @@ pub struct PropositionParameterSignature {
     pub parameters: HandleSpan<crate::signature::StateParameter>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataField {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub relevance: language_core::BindingRelevance,
     pub type_reference: TypeReferenceHandle,
-}
-
-impl Default for DataField {
-    fn default() -> Self {
-        Self {
-            identity: None,
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            relevance: language_core::BindingRelevance::default(),
-            type_reference: TypeReferenceHandle::invalid(),
-        }
-    }
 }
 
 /// The canonical structural path segment spelling for a data member: its
@@ -294,7 +282,7 @@ impl DataVariant {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
     pub identity: Option<u64>,
     pub symbol: SymbolHandle,
@@ -306,17 +294,4 @@ pub struct DataVariant {
     /// the case declares none.
     pub where_facts: HandleSpan<crate::domain::ProofFact>,
     pub retired_payload_identities: Vec<u64>,
-}
-
-impl Default for DataVariant {
-    fn default() -> Self {
-        Self {
-            identity: None,
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            payload: HandleSpan::empty(),
-            where_facts: HandleSpan::empty(),
-            retired_payload_identities: Vec::new(),
-        }
-    }
 }

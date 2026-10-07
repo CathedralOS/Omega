@@ -666,7 +666,7 @@ pub struct TableAssignment {
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableCall {
     /// Exact current-state storage or namespace root; `receiver_symbol` is
     /// the final projected member and need not descend from this declaration.
@@ -692,27 +692,6 @@ pub struct TableCall {
     pub source_span: SourceSpan,
     pub authored_call_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
-}
-
-impl Default for TableCall {
-    fn default() -> Self {
-        Self {
-            receiver_root_symbol: SymbolHandle::invalid(),
-            receiver_symbol: SymbolHandle::invalid(),
-            target_symbol: SymbolHandle::invalid(),
-            static_machine_parameter: SymbolHandle::invalid(),
-            receiver: HandleSpan::empty(),
-            target: Identifier::default(),
-            static_requirement_dispatch: None,
-            machine_arguments: Box::default(),
-            arguments: HandleSpan::empty(),
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: Default::default(),
-            discards_result: false,
-            source_span: Default::default(),
-            authored_call_selection: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
