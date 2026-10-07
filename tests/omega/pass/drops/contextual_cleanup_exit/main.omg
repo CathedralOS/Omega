@@ -32,9 +32,30 @@ linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
     satisfies Console::exit_process;
 
 // Windows uses the existing authored import route for process exit.
+// Windows writes the byte to stdout through MSVCRT `_write`, one byte from
+// the low byte of an i32 cell.
+data WindowsConsoleIo { }
+boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+reaches Console;
+data WindowsConsoleImports { }
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    }
+}
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
-    via ForeignBinding::CompilerIntrinsic;
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
 windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {

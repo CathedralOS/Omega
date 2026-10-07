@@ -1,21 +1,94 @@
-// Complete windows_x86_64 Console provider closure over compiler-known native
-// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
-// same nominal provider type.
-// The string arguments below are bootstrap syntax. The destination
-// `ForeignBinding::CompilerIntrinsic` is payload-free and keys lowering by this exact
-// realization symbol, normalized signature, and target.
+// Complete windows_x86_64 Console provider closure. Friendly line and write
+// adapters live in std/console.omg on the same nominal provider type.
+//
+// Windows has no stable syscall ABI, so every leaf realizes through DLL
+// linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:
+//   `int _write(int fd, const void *buffer, unsigned int count)`
+//   `int _read(int fd, void *buffer, unsigned int count)`
+// Both return the byte count moved, `_read` returns 0 at end of input, and both
+// return -1 on failure. Each call moves one byte through the low byte of an
+// i32 cell (x86-64 is little-endian), so the cell's upper bytes stay zero.
+// Process termination is kernel32's `ExitProcess`; nothing is buffered above
+// it, so no output is lost at exit.
 use omega::language::core::external_binding;
+
+data WindowsConsoleIo { }
+
+boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+reaches Console;
+
+// A console read waits for host input, so the import publishes `blocks`.
+boundary requirement WindowsConsoleIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+reaches Console
+blocks;
+
+data WindowsConsoleImports { }
+
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    }
+}
+
+windows_x86_64 machine console_read_binding() -> ForeignBinding<10, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_read",
+        },
+    }
+}
+
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
+
+windows_x86_64 machine WindowsConsoleImports::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::read
+    via console_read_binding();
+
+// Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
+// -1 is a failed host read, which traps: converting the negative status to u8
+// in Trapping is the trap site the published `crashes Trap` names.
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
-    via ForeignBinding::CompilerIntrinsic
-    crashes Trap
-    blocks;
+reaches Console
+blocks;
+crashes Trap
+{
+    let mut cell: i32 = 0;
+    let count: i32 = block WindowsConsoleIo::read(0, &mut cell, 1);
+    transition count {
+        1 -> byte(cell)
+        0 -> end()
+        _ -> failed(count)
+    }
+
+    state byte(cell: i32) -> ByteRead {
+        let value: u8 = (cell as u8 in Wrapping) as u8;
+        ByteRead::Byte { value: value as i32 }
+    }
+
+    state end() -> ByteRead { ByteRead::Eof }
+
+    state failed(count: i32) -> ByteRead {
+        let trapped: u8 = (count as u8 in Trapping) as u8;
+        ByteRead::Eof
+    }
+}
+
+// Descriptor 1 is stdout.
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
-    via ForeignBinding::CompilerIntrinsic;
-// Windows has no stable syscall ABI: process termination is kernel32's
-// `ExitProcess`, reached through DLL linkage like every other Windows
-// boundary leaf. It never returns.
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+
 windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {

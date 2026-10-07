@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -20,12 +20,14 @@ pass/arithmetic/runtime_bitwise_high_ops_exit built 1369ms exit:70 @0484de104502
 pass/arithmetic/runtime_comparison_signedness_exit built 1357ms exit:70 @0484de104502
 pass/arithmetic/runtime_domain_boundaries_exit built 1291ms exit:70 @0484de104502
 pass/arithmetic/runtime_exact_guarded_shift_count_exit built 1333ms exit:70 @0484de104502
+pass/arithmetic/runtime_exact_projection_sibling_exit built 4711ms exit:70 stdout:match @a23a13432354+wt
 pass/arithmetic/runtime_float_nan_comparison_exit built 4551ms @7fc7a3a06d34
 pass/arithmetic/runtime_float_self_compare_nan_exit built 3707ms @7fc7a3a06d34
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit built 1113ms exit:70 @0484de104502
 pass/arithmetic/runtime_integer_casts_exit built 1209ms exit:70 @0484de104502
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit built 4161ms exit:70 @0484de104502
 pass/arithmetic/runtime_monte_carlo_pi_exit built 2213ms @7fc7a3a06d34
+pass/arithmetic/runtime_nested_record_observation_exit built 4242ms exit:70 stdout:match @a23a13432354+wt
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 1308ms exit:70 @0484de104502
 pass/arithmetic/runtime_payload_range_narrowing_exit built 944ms exit:70 @0484de104502
 pass/arithmetic/runtime_requires_one_sided_bound_exit built 859ms exit:42 @0484de104502
@@ -49,6 +51,7 @@ pass/atomics/shared_receiver_atomic_store rejected 983ms @0484de104502
 pass/blockexec/blocking_executor_custody_claims_compile built 490ms @0484de104502
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 397ms @0484de104502
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 448ms @0484de104502
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit built 4040ms exit:70 stdout:match @a23a13432354+wt
 pass/borrow/runtime_exclusive_loan_local_write_exit built 1175ms exit:70 @0484de104502
 pass/borrow/runtime_method_view_write_after_last_use_exit rejected 1000ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 1)
@@ -84,6 +87,7 @@ pass/calls/cyclic_projected_borrow_call_exit built 1337ms @0484de104502
 pass/calls/cyclic_scalar_query_reborrow_exit built 1329ms @0484de104502
 pass/calls/guard_call_scalar_argument_exit checked 409ms @0484de104502
 pass/calls/guarded_value_call_arm_exit built 1655ms exit:70 @0484de104502
+pass/calls/inline_record_scalar_call_arguments_exit built 4175ms exit:70 stdout:match @a23a13432354+wt
 pass/calls/local_nested_record_call_then_state_exit built 3836ms exit:70 @e72f620f1da8+wt
 pass/calls/machine_self_call_recursion_compile built 668ms @0484de104502
 pass/calls/mutable_output_host_call rejected 2044ms @7fc7a3a06d34
@@ -102,6 +106,7 @@ pass/calls/nested_value_call_arg_compile built 1495ms @0484de104502
 pass/calls/ordered_field_selector_calls_exit built 1145ms exit:70 @6a1a9e480036
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 1509ms @7fc7a3a06d34
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 1790ms @7fc7a3a06d34
+pass/calls/runtime_borrowed_binding_field_state_loan_exit built 3968ms exit:70 stdout:match @a23a13432354+wt
 pass/calls/runtime_case_record_return_exit built 1929ms exit:70 @0484de104502
 pass/calls/runtime_constructor_computed_field_exit built 1594ms exit:1 @0484de104502
 pass/calls/runtime_cross_machine_substate_name_exit built 1105ms exit:70 @e3c2b7f94a0b
@@ -113,6 +118,8 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit built 1551ms @7fc7a3a06d
 pass/calls/runtime_distinct_receiver_value_calls_exit built 1449ms exit:70 @0484de104502
 pass/calls/runtime_enum_self_method_exit built 1485ms @7fc7a3a06d34
 pass/calls/runtime_explicit_discard_executes_exit built 1333ms @7fc7a3a06d34
+pass/calls/runtime_fixed_element_view_field_loan_exit rejected 4032ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/calls/runtime_guard_call_vs_call_exit built 1770ms exit:70 @0484de104502
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 3848ms exit:70 @0484de104502
 pass/calls/runtime_indexed_scalar_calls_exit built 1745ms exit:70 @e3c2b7f94a0b
@@ -150,6 +157,7 @@ pass/calls/runtime_value_call_single_execution_exit built 1463ms @7fc7a3a06d34
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 1563ms exit:70 @0484de104502
 pass/calls/runtime_value_call_terminal_exit rejected 2731ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
+pass/calls/serviceful_borrowed_scalar_exit built 4209ms exit:70 stdout:match @a23a13432354+wt
 pass/calls/state_and_machine_names_exit built 646ms exit:0 @0484de104502
 pass/calls/statement_call_recursive_overload_compile checked 455ms @0484de104502
 pass/calls/static_arithmetic_name_callback_exit built 2495ms exit:7 @313d9f292579+wt
@@ -184,6 +192,8 @@ pass/capabilities/windows_provides_import_exit rejected 1005ms @0484de104502
 pass/collections/array_local_control checked 427ms @0484de104502
 pass/collections/case_array_literal_field_store_exit built 1209ms exit:42
 pass/collections/owned_array_scalar_comparisons checked 433ms @0484de104502
+pass/collections/record_array_field_access_exit rejected 4096ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("anonymous shared result has no exact dying call continuation"))
 pass/collections/record_array_literal_field_store_exit built 1321ms exit:25
 pass/collections/runtime_argmax_index_exit built 1440ms exit:70 @0484de104502
 pass/collections/runtime_case_array_element_write_exit built 2405ms @7fc7a3a06d34
@@ -204,6 +214,9 @@ pass/collections/runtime_indexed_struct_field_rmw_exit built 1295ms @7fc7a3a06d3
 pass/collections/runtime_maze_pathfind_exit built 5662ms @7fc7a3a06d34
 pass/collections/runtime_nested_const_row_indexed_read_exit built 1314ms exit:1 @0484de104502
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 1821ms exit:70 @3ff24ec6504a+wt
+pass/collections/runtime_shared_array_dot_product_exit built 4107ms exit:32 stdout:match @a23a13432354+wt
+pass/collections/runtime_shared_array_polynomial_exit built 4143ms exit:70 stdout:match @a23a13432354+wt
+pass/collections/runtime_shared_fixed_array_cycle_exit built 4282ms exit:42 stdout:match @a23a13432354+wt
 pass/collections/runtime_signed_element_offset_read_exit built 1269ms exit:70 @0484de104502
 pass/collections/runtime_vec_u32_growth_exit built 20416ms @7fc7a3a06d34
 pass/collections/runtime_whole_array_value_copy_exit rejected 1085ms @0484de104502
@@ -242,6 +255,7 @@ pass/control_flow/guarded_jump_field_view_forward rejected 449ms @0484de104502
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms @060ebc39ce11
 pass/control_flow/guarded_mid_arm_return built 1236ms @0484de104502
+pass/control_flow/guarded_transition_dispatch_exit built 4073ms exit:0 stdout:match @a23a13432354+wt
 pass/control_flow/guarded_value_transition_roster rejected 927ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/nested_parameter_receiver_call checked 381ms @0484de104502
@@ -252,7 +266,9 @@ pass/control_flow/runtime_branching_helper_string rejected 459ms @0484de104502
 pass/control_flow/runtime_captured_local_remutated_field_exit built 1244ms exit:70 @0484de104502
 pass/control_flow/runtime_compare_pair_dispatch_exit built 1080ms exit:70 @0484de104502
 pass/control_flow/runtime_integer_literal_dispatch_exit built 1126ms exit:22 @0484de104502
+pass/control_flow/runtime_later_state_shared_array_loan built 4594ms exit:0 stdout:match @a23a13432354+wt
 pass/control_flow/runtime_loop_patterns_exit built 1384ms exit:70 @0484de104502
+pass/control_flow/runtime_namespace_local_state_loan built 5002ms exit:0 stdout:match @a23a13432354+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 910ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: jump followed by a transition` (state 0)
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 899ms @0484de104502
@@ -339,8 +355,12 @@ pass/domains/explicit_domain_erasure checked 393ms @0484de104502
 pass/domains/local_alias_domain_transfer checked 391ms @0484de104502
 pass/domains/match_domain_patterns checked 430ms @0484de104502
 pass/domains/module_domain_narrow_import_spelling checked 405ms @0484de104502
+pass/domains/record_literal_view_member_store_exit rejected 3227ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/domains/refinement_chain_predicates checked 400ms @0484de104502
 pass/domains/refinement_chain_routed_provenance checked 397ms @0484de104502
+pass/domains/runtime_qualified_view_field_parameter_store_exit rejected 3195ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("anonymous shared result has no exact dying call continuation"))
 pass/domains/runtime_result_domain_machine_overload_exit rejected 1003ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural value: value calls` (state 0, statement 1)
 pass/domains/semantic_cast_guard_chain_mint checked 429ms @0484de104502
@@ -354,11 +374,61 @@ pass/domains/utf8_field_read_carries_domain_exit rejected 1050ms @0484de104502
 pass/domains/utf8_field_write_from_param rejected 501ms @0484de104502
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at signature)") })
 pass/domains/vacuous_domain_qualification checked 394ms @0484de104502
-pass/drops/cleanup_machine_drop_shape checked 421ms @0484de104502
-pass/drops/core_drop_explicit_consume checked 446ms @0484de104502
-pass/drops/core_drop_owner_hook checked 440ms @0484de104502
-pass/drops/core_drop_owner_hook_body checked 419ms @0484de104502
-pass/drops/transfer_cleanup_into_state checked 414ms @0484de104502
+pass/drops/cleanup_machine_drop_shape checked 942ms @a23a13432354+wt
+pass/drops/conditional_structural_return_cleanup_exit built 5042ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/contextual_cleanup_exit built 4346ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/contextual_core_drop_exit built 5005ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/core_drop_explicit_consume built 4184ms exit:0 @a23a13432354+wt
+pass/drops/core_drop_owner_hook built 4284ms exit:0 @a23a13432354+wt
+pass/drops/core_drop_owner_hook_body built 4257ms exit:0 @a23a13432354+wt
+pass/drops/erased_record_initializer_exit built 3945ms exit:70 @a23a13432354+wt
+pass/drops/runtime_abandoned_record_construction_prefix_exit built 4157ms exit:0 @a23a13432354+wt
+pass/drops/runtime_borrowed_nominal_replacement_exit built 4132ms exit:0 @a23a13432354+wt
+pass/drops/runtime_claim_bearing_temporary_cleanup_exit built 4218ms exit:0 @a23a13432354+wt
+pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 4316ms exit:0 @a23a13432354+wt
+pass/drops/runtime_composed_nominal_output_hook_exit built 4711ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_composed_nominal_return_hook_exit built 4436ms exit:0 @a23a13432354+wt
+pass/drops/runtime_computed_call_owner_retirement_exit built 3180ms exit:0 @a23a13432354+wt
+pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 4426ms exit:0 @a23a13432354+wt
+pass/drops/runtime_empty_array_owner_cleanup_exit built 4460ms exit:0 @a23a13432354+wt
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit built 5607ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_generic_nominal_integer_prerequisite_exit built 5498ms exit:0 @a23a13432354+wt
+pass/drops/runtime_generic_reserved_construction_exit built 4902ms exit:0 @a23a13432354+wt
+pass/drops/runtime_indexed_nominal_cleanup_exit built 4903ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_local_indexed_transition_cleanup_exit built 3177ms exit:0 @a23a13432354+wt
+pass/drops/runtime_local_nominal_cleanup_exit built 4715ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_local_nominal_return_exit built 4645ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_mixed_temporary_effects_continuation_exit built 4724ms exit:0 @a23a13432354+wt
+pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 4811ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 5159ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nested_cleanup_postcondition_exit built 4802ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nested_empty_array_owner_cleanup_exit built 4826ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nested_nominal_producer_loans_exit built 4834ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nested_temporary_capture_cleanup_exit built 5244ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nominal_cleanup_compound_contract_exit built 5246ms exit:0 @a23a13432354+wt
+pass/drops/runtime_nominal_successor_argument_order_exit built 4912ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_nominal_temporary_helper_closure_exit built 4775ms exit:0 @a23a13432354+wt
+pass/drops/runtime_owned_nominal_replacement_exit built 4773ms exit:0 @a23a13432354+wt
+pass/drops/runtime_owned_record_replacement_exit built 4733ms exit:0 @a23a13432354+wt
+pass/drops/runtime_owned_replacement_composition_exit built 4740ms exit:0 @a23a13432354+wt
+pass/drops/runtime_owned_replacement_reestablishment_exit built 4574ms exit:0 @a23a13432354+wt
+pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 4506ms exit:0 @a23a13432354+wt
+pass/drops/runtime_projected_nominal_cleanup_exit built 4696ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_projected_nominal_core_exit built 4534ms exit:0 @a23a13432354+wt
+pass/drops/runtime_projected_reference_siblings_exit built 3187ms exit:0 @a23a13432354+wt
+pass/drops/runtime_projected_reference_transition_cleanup_exit built 3211ms exit:0 @a23a13432354+wt
+pass/drops/runtime_projected_transition_cleanup_exit built 3233ms exit:0 @a23a13432354+wt
+pass/drops/runtime_record_construction_cleanup_order_exit built 4638ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 4641ms exit:0 stdout:match @a23a13432354+wt
+pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 4499ms exit:0 @a23a13432354+wt
+pass/drops/runtime_scalar_temporary_residual_partition_exit built 4485ms exit:0 @a23a13432354+wt
+pass/drops/runtime_temporary_integer_capture_cleanup_exit built 4458ms exit:0 @a23a13432354+wt
+pass/drops/runtime_temporary_nominal_integer_contract_exit built 3981ms exit:0 @a23a13432354+wt
+pass/drops/runtime_temporary_nominal_prerequisite_exit built 3988ms exit:0 @a23a13432354+wt
+pass/drops/runtime_unit_temporary_nominal_continuation_exit built 3762ms exit:0 @a23a13432354+wt
+pass/drops/runtime_unobserved_owned_state_transfer_exit built 3779ms exit:0 @a23a13432354+wt
+pass/drops/statically_skipped_claim_bearing_temporary checked 1055ms @a23a13432354+wt
+pass/drops/transfer_cleanup_into_state checked 1068ms @a23a13432354+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 1727ms exit:73 @0484de104502
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1265ms @7fc7a3a06d34
 pass/effects/generic_callback_schema_reach checked 397ms @0484de104502
@@ -403,6 +473,7 @@ pass/expressions/owned_match_record_values checked 464ms @0484de104502
 pass/expressions/owned_match_values checked 485ms @0484de104502
 pass/expressions/qualified_call_result_argument checked 476ms @0484de104502
 pass/expressions/runtime_flat_boolean_logic_exit built 1541ms exit:70 @0484de104502
+pass/expressions/runtime_nested_record_field_reads_exit built 3309ms exit:70 stdout:match @a23a13432354+wt
 pass/expressions/runtime_numeric_cast_exit built 3440ms @7fc7a3a06d34
 pass/expressions/runtime_widened_comparison_exit built 1656ms exit:70 @0484de104502
 pass/filesystem/cross_linux_value_syscalls checked 9769ms @0484de104502
@@ -412,28 +483,30 @@ pass/filesystem/native_canonicalize rejected 609ms @0484de104502
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_close rejected 584ms @0484de104502
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_crud rejected 586ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_errno rejected 577ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_filetype rejected 721ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_fs_workflow rejected 788ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_blocks rejected 732ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_ctime_dev rejected 726ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_crud rejected 6515ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/filesystem/native_errno rejected 6475ms @a23a13432354+wt
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
+pass/filesystem/native_filetype rejected 7594ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
+pass/filesystem/native_fs_workflow rejected 7740ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
+pass/filesystem/native_metadata_blocks rejected 7644ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
+pass/filesystem/native_metadata_ctime_dev rejected 7637ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_metadata_ino rejected 732ms @0484de104502
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_nlink rejected 746ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_read_dir_iter rejected 661ms @0484de104502
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_metadata_nlink rejected 7616ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
+pass/filesystem/native_read_dir_iter rejected 6225ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_dir", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_dir` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, statement 3)") })
 pass/filesystem/native_wrapper_write_all_result rejected 9574ms @0484de104502
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit rejected 1078ms @0484de104502
 	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/runtime_posix_borrowed_view_io_exit rejected 5522ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
 pass/filesystem/windows_canonicalize_exit rejected 9786ms @0484de104502
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_raw_breadth_exit rejected 1116ms @0484de104502
@@ -524,12 +597,20 @@ pass/generics/runtime_generic_multiple_specializations_exit built 1213ms @7fc7a3
 pass/generics/runtime_mixed_generic_erased_sum_exit built 1357ms @7fc7a3a06d34
 pass/generics/runtime_nested_generic_instantiations_exit built 1365ms @7fc7a3a06d34
 pass/generics/runtime_value_generic_subject_exit built 1279ms @7fc7a3a06d34
+pass/host/console_exit_process_exit built 3182ms exit:70 stdout:match @a23a13432354+wt
 pass/host/process_exit_i32_status_mapped built 955ms @0484de104502
-pass/host/process_exit_i32_status_ordered rejected 1301ms @7fc7a3a06d34
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+pass/host/process_exit_i32_status_ordered built 4071ms exit:70 stdout:match @a23a13432354+wt
 pass/host/runtime_console_bounded_line_exit rejected 2258ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+pass/host/runtime_console_bounded_line_full_exit rejected 3224ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/host/runtime_console_bounded_line_lf_exit rejected 3264ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/host/runtime_console_bounded_line_middle_window_exit rejected 3198ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/host/runtime_console_bounded_line_partial_eof_exit rejected 3223ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/host/runtime_console_byte_echo_exit rejected 1169ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
@@ -601,6 +682,8 @@ pass/modules/qualified_constants checked 514ms @0484de104502
 pass/modules/qualified_declarations checked 496ms @0484de104502
 pass/modules/rational_boolean_indices checked 525ms @0484de104502
 pass/modules/repeated_exact_declaration_selection_compile checked 432ms @0484de104502
+pass/modules/runtime_foreign_generic_scoped_constant_exit built 4412ms exit:0 stdout:match @a23a13432354+wt
+pass/modules/same_name_requirement_field_calls_exit built 3314ms exit:70 stdout:match @a23a13432354+wt
 pass/modules/use_imports_sibling_trait checked 434ms @0484de104502
 pass/objc/gui_provider_substitution checked 516ms @0484de104502
 pass/objc/native_gui_loop checked 1694ms @0484de104502
@@ -685,6 +768,7 @@ pass/proofs/runtime_decreases_u64_measure_exit built 1491ms exit:70 @0484de10450
 pass/proofs/runtime_nat_structural_recursion_exit built 1133ms exit:70 @0484de104502
 pass/proofs/runtime_ranked_accumulator_early_exit built 1746ms exit:70 @0484de104502
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 1775ms exit:70 @0484de104502
+pass/providers/borrowed_service_field_forward_exit built 3251ms exit:70 stdout:match @a23a13432354+wt
 pass/providers/boundary_scalar_field_store built 1506ms exit:70 @0484de104502
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 1224ms exit:70 @0484de104502
 pass/providers/checked_boundary_operator_physical_custody built 1297ms @7fc7a3a06d34
@@ -748,6 +832,8 @@ pass/slices/guarded_slice_parameter_empty_false_index_compile checked 385ms @048
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 378ms @0484de104502
 pass/slices/guarded_slice_parameter_successor_index_compile checked 393ms @0484de104502
 pass/slices/inclusive_subslice_literal_bounds_compile checked 385ms @0484de104502
+pass/slices/projected_array_call_exit rejected 3175ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
 pass/slices/recursive_subslice_element_accumulator_exit built 1363ms exit:70 @0484de104502
 pass/slices/requires_field_count_alias_index_compile checked 415ms @0484de104502
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1011ms @0484de104502
@@ -878,10 +964,15 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1016ms @0484de1
 pass/termination/stored_reference_endpoint_arrivals checked 434ms @0484de104502
 pass/termination/symbolic_quotient_endpoints checked 430ms @0484de104502
 pass/termination/unsigned_identity_measure_rank_range checked 385ms @0484de104502
+pass/text/local_record_byte_field_copy_exit built 3211ms exit:70 stdout:match @a23a13432354+wt
+pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 3182ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: state signature: parameter signature: structural parameter type, state 1)") })
 pass/text/runtime_alias_string_write built 469ms @7fc7a3a06d34
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1726ms exit:70 @0484de104502
 pass/text/runtime_bounded_carrier_concat_exit built 1531ms exit:70 @0484de104502
+pass/text/runtime_bounded_carrier_copy_exit built 3239ms exit:70 stdout:match @a23a13432354+wt
 pass/text/runtime_bounded_carrier_length_exit built 1361ms @7fc7a3a06d34
+pass/text/runtime_bounded_carrier_normal_status_exit built 3189ms exit:70 stdout:match @a23a13432354+wt
 pass/text/runtime_bounded_carrier_write_read_exit built 1450ms exit:70 @0484de104502
 pass/text/runtime_carrier_indexed_read_exit built 1411ms exit:70 @0484de104502
 pass/text/runtime_chained_string_append_exit rejected 1376ms @7fc7a3a06d34
@@ -897,10 +988,10 @@ pass/text/runtime_param_domain_forward_exit rejected 1068ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 0)
 pass/text/runtime_slice_indexed_string_guard_exit rejected 1072ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/text/runtime_stdin_command_branch_exit rejected 1047ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
-pass/text/runtime_stdin_line_buffering_exit rejected 1106ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::echo_line`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 6, statement 0)
+pass/text/runtime_stdin_command_branch_exit rejected 3000ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/text/runtime_stdin_line_buffering_exit rejected 2855ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/text/runtime_string_concat_two_fields_exit rejected 1474ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/text/runtime_string_stored_suffix_exit rejected 1060ms @0484de104502
@@ -910,6 +1001,8 @@ pass/text/runtime_text_builder rejected 1281ms @7fc7a3a06d34
 pass/text/runtime_text_not_equals_exit rejected 1048ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 0)
 pass/text/runtime_utf16_literal_exit built 1367ms exit:70 @0484de104502
+pass/text/runtime_view_local_boundary_write_exit rejected 3706ms @a23a13432354+wt
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/text/utf8_boundary_established checked 446ms @0484de104502
 pass/text/zii_default_string_equality_exit rejected 1095ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 2, statement 0)
