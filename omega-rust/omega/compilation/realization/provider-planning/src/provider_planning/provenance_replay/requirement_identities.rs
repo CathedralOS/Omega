@@ -127,19 +127,15 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     {
         return None;
     }
-    let origins = target_machine_origins
-        .iter()
-        .filter(|origin| {
-            origin.machine == machine.symbol
-                && match selected_target {
-                    Some(target) => origin.target == target,
-                    None => supports_target(&origin.target),
-                }
-        })
-        .collect::<Vec<_>>();
-    let [origin] = origins.as_slice() else {
-        return None;
-    };
+    let origin =
+        sole_machine_origin(
+            target_machine_origins,
+            machine.symbol,
+            |origin| match selected_target {
+                Some(target) => origin.target == target,
+                None => supports_target(&origin.target),
+            },
+        )?;
     let typed_trees::machine::SatisfiedDeclaration::Trait {
         definition,
         requirement,
@@ -213,15 +209,9 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     {
         return None;
     }
-    let origins = target_machine_origins
-        .iter()
-        .filter(|origin| {
-            origin.machine == machine.symbol && selected_target == Some(origin.target.as_str())
-        })
-        .collect::<Vec<_>>();
-    let [origin] = origins.as_slice() else {
-        return None;
-    };
+    let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
+        selected_target == Some(origin.target.as_str())
+    })?;
     let typed_trees::machine::SatisfiedDeclaration::Trait {
         definition,
         requirement,
@@ -407,4 +397,21 @@ pub fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) 
         (true, false) => format!("{provider_type}::satisfies::{trait_name}"),
         (false, false) => format!("{target}::{provider_type}::satisfies::{trait_name}"),
     }
+}
+
+/// The single target-machine origin claiming `machine` under `admits`, when
+/// exactly one does.
+fn sole_machine_origin<'origins>(
+    target_machine_origins: &'origins [SelectedTargetMachineOrigin],
+    machine: symbols::SymbolHandle,
+    admits: impl Fn(&SelectedTargetMachineOrigin) -> bool,
+) -> Option<&'origins SelectedTargetMachineOrigin> {
+    let origins = target_machine_origins
+        .iter()
+        .filter(|origin| origin.machine == machine && admits(origin))
+        .collect::<Vec<_>>();
+    let [origin] = origins.as_slice() else {
+        return None;
+    };
+    Some(origin)
 }
