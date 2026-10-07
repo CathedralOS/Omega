@@ -97,13 +97,7 @@ fn exact_evaluated_binding_boundary_requirement(
     {
         return None;
     }
-    let typed_trees::machine::SatisfiedDeclaration::Trait {
-        definition,
-        requirement,
-    } = typed_trees::machine::resolve_satisfied_declaration(program, machine, conformance)?
-    else {
-        return None;
-    };
+    let (definition, requirement) = satisfied_trait_parts(program, machine, conformance)?;
     (definition.symbol == conformance.symbol
         && definition.is_boundary
         && definition.lifetime_parameters.is_empty()
@@ -124,6 +118,26 @@ fn exact_evaluated_binding_boundary_requirement(
             ),
         ))
     .then_some((requirement.symbol, machine.attached_data_symbol))
+}
+
+/// The satisfied trait's resolved definition and requirement, or `None`
+/// when the conformance is not a plain trait satisfaction.
+fn satisfied_trait_parts<'program>(
+    program: &'program TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    conformance: &'program typed_trees::machine::TraitConformance,
+) -> Option<(
+    &'program typed_trees::trait_definition::TraitDefinition,
+    &'program typed_trees::signature::StateSignature,
+)> {
+    let typed_trees::machine::SatisfiedDeclaration::Trait {
+        definition,
+        requirement,
+    } = typed_trees::machine::resolve_satisfied_declaration(program, machine, conformance)?
+    else {
+        return None;
+    };
+    Some((definition, requirement))
 }
 
 /// Parameter-for-parameter equality of two runtime signatures: position,
@@ -210,13 +224,7 @@ pub fn exact_compiler_intrinsic_boundary_requirement(
             {
                 return None;
             }
-            let typed_trees::machine::SatisfiedDeclaration::Trait {
-                definition,
-                requirement,
-            } = typed_trees::machine::resolve_satisfied_declaration(program, machine, conformance)?
-            else {
-                return None;
-            };
+            let (definition, requirement) = satisfied_trait_parts(program, machine, conformance)?;
             let provider_prefix = inferred_hosted_intrinsic
                 .map(|(provider_name, _)| provider_name)
                 .unwrap_or_default();
