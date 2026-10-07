@@ -2788,7 +2788,7 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   native restoration results (`--filter borrows/,borrow/,references/`).
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`
+  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
   now judges `validate_generic_machine_contract_entailment` once and
   `validate_conformance_applications` once before and once after
   convergence. Each iteration still runs
@@ -2799,7 +2799,7 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   (2) and `land_float_literal_destinations` (2–3). Split selection derivation
   from its validation so the loop specializes and binds only, and run each
   remaining pass once after convergence. Coordinate with
-  **TYPED-FROZEN-BEFORE-CHECKING**, which moves the loop to its own stage.
+  **TYPED-FROZEN-BEFORE-CHECKING**, which qualifies the immutable boundary after this stage.
   Acceptance: each named pass runs once per check except the per-iteration
   specialize/bind step; the generic-value-call fence and call-contract
   diagnostics are unchanged; corpus `--filter generics,operators,traits/`

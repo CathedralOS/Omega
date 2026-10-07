@@ -88,7 +88,7 @@ fn main() {
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
+        let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (expected, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(program.clone(), &preparation_request)
                 .unwrap();

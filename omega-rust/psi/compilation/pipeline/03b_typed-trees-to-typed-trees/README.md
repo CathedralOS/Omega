@@ -9,6 +9,8 @@ additional program IR and no dependency on the following checking transform.
 `PreparationRequest` carries this invocation's pending-input checkpoint,
 privileged-instruction authority, representation receipts and authored wire
 demands. Admission runs before any exact-input checking memo can reuse a result.
+The opaque preparation result retains its producer's checkpoint and judgments;
+callers cannot replace its sidecar fields or choose a second checkpoint for checking.
 Package declaration authority belongs to the following checking stage; runtime
 provider selection belongs to Omega and is not a source-elaboration input.
 

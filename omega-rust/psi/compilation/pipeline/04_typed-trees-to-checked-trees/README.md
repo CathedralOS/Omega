@@ -53,8 +53,8 @@ the independent validation owner's `machine_calls/calls`, not through the
 semantic fact builder.
 
 `lower_typed_trees` is the crate's one lowering entrance. Its `CheckingRequest`
-names the preliminary-package or settled-package checkpoint and carries
-invocation-owned package declaration authority. Representation receipts, wire
+carries invocation-owned package declaration authority. The preparation result
+carries its producer's admission checkpoint; checking cannot select a different one. Representation receipts, wire
 demands, and instruction admission belong to `PreparationRequest`. It accepts no
 runtime provider choices. [Operator candidates](../03b_typed-trees-to-typed-trees/src/monomorphization/operator_candidates.rs)
 derive from authored conformance edges; [finite families](../03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs)

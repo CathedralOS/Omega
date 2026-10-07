@@ -28,61 +28,32 @@ use crate::facts::build_check_facts;
 use checked_trees::CheckedTrees;
 use typed_trees_to_typed_trees::TypedPreparation;
 
-/// One typed->checked lowering request. `settled()` is the final package
-/// checkpoint. Candidate specializations derive from the source itself.
-/// Standalone programs and package builds
-/// share it: ordinary package selections stay strict while unresolved
-/// compiler-owned toolchain selections remain TCB input. A package build supplies
-/// its declaration authority, which this stage checks before returning the
-/// result. `preliminary()` is the pre-settlement checkpoint: unresolved
-/// selections are retained only for compiler-owned toolchain source, pending
-/// opaque-copy evidence and deferred const array lengths/range endpoints are
-/// tolerated; supplied package authority still rejects unresolved ordinary-package
-/// selections before the caller can grant build authority.
-///
-/// Psi derives applications from authored uses and uses ordinary
-/// authoritative specialization; the request carries no application strings,
-/// capability assertions, or provider-selection policy.
-#[derive(Clone, Copy)]
-pub struct CheckingRequest<'a> {
-    /// The pre-settlement checkpoint: deferred constants and pending opaque
-    /// `[copy]` claims are tolerated.
-    pub(crate) admits_pending_inputs: bool,
-    pub(crate) declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
+/// Invocation-owned package declaration authority. The preparation producer
+/// carries its admission checkpoint in TypedPreparation; checking cannot choose
+/// a different checkpoint over that producer's result.
+#[derive(Clone, Copy, Default)]
+pub struct CheckingRequest<'request> {
+    declaration_authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
 }
 
-impl<'a> CheckingRequest<'a> {
-    const fn at_checkpoint(admits_pending_inputs: bool) -> Self {
+impl<'request> CheckingRequest<'request> {
+    pub const fn new() -> Self {
         Self {
-            admits_pending_inputs,
             declaration_authority: None,
         }
     }
 
-    /// The final package checkpoint without invocation-owned admission evidence.
-    pub const fn settled() -> Self {
-        Self::at_checkpoint(false)
-    }
-
-    /// The pre-settlement package checkpoint.
-    pub const fn preliminary() -> Self {
-        Self::at_checkpoint(true)
-    }
-
-    /// Reconciled package authority for this invocation. Psi checks authored
-    /// selections before returning the program; loading a declaration does not
-    /// authorize its use. Standalone source has no package admission request.
+    /// Admit checked selections against this invocation's reconciled package authority.
     pub const fn with_declaration_authority(
         mut self,
-        authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
+        authority: Option<&'request dyn validation::DeclarationSelectionAuthority>,
     ) -> Self {
         self.declaration_authority = authority;
         self
     }
 }
 
-/// Check typed trees under one explicit request: the checkpoint mode plus
-/// the source admission evidence supplied by its caller. Toolchain-owned
+/// Check the prepared typed input under this invocation's declaration authority. Toolchain-owned
 /// selections may remain late-bound until build-time evaluation; ordinary
 /// authored selections remain strict in both modes.
 pub fn lower_typed_trees(
@@ -115,7 +86,7 @@ pub struct CheckingOutcome {
 }
 
 /// [`lower_typed_trees`], taking `prior`'s judgment when its program, checkpoint
-/// and receipts equal this request's, and returning this request's judgment
+/// and receipts equal this preparation's, and returning this request's judgment
 /// for a later request when `retain`. Retention clones the input program and
 /// the result; only a caller that will ask again should request it.
 pub fn lower_typed_trees_reusing(
@@ -125,10 +96,11 @@ pub fn lower_typed_trees_reusing(
     prior: Option<&RetainedCheck>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
-    let opaque_property_receipts = &preparation.opaque_property_receipts;
+    let (admits_pending_inputs, static_machine_selections, mathematics, opaque_property_receipts) =
+        preparation.into_checking_judgments();
     let equal_prior = prior.filter(|prior| {
-        prior.admits_pending_inputs == request.admits_pending_inputs
-            && prior.opaque_property_receipts == *opaque_property_receipts
+        prior.admits_pending_inputs == admits_pending_inputs
+            && prior.opaque_property_receipts == opaque_property_receipts
             && *prior.program == program
     });
     let took_prior = equal_prior.is_some();
@@ -138,13 +110,19 @@ pub fn lower_typed_trees_reusing(
             let input = retain.then(|| {
                 (
                     std::sync::Arc::new(program.clone()),
-                    preparation.opaque_property_receipts.clone(),
+                    opaque_property_receipts.clone(),
                 )
             });
-            let checked = check_program(program, preparation, request)?;
+            let checked = check_program(
+                program,
+                admits_pending_inputs,
+                static_machine_selections,
+                mathematics,
+                opaque_property_receipts,
+            )?;
             let retained = input.map(|(program, opaque_property_receipts)| RetainedCheck {
                 program,
-                admits_pending_inputs: request.admits_pending_inputs,
+                admits_pending_inputs,
                 opaque_property_receipts,
                 checked: std::sync::Arc::new(checked.clone()),
             });
@@ -174,18 +152,11 @@ pub fn lower_typed_trees_reusing(
 /// The check itself, over a program `lower_typed_trees` has found complete.
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
-    preparation: TypedPreparation,
-    request: &CheckingRequest<'_>,
+    admits_pending_inputs: bool,
+    static_machine_selections: validation::ValidatedStaticMachineSelections,
+    mathematics: proof::mathematical_declarations::CheckedMathematics,
+    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let CheckingRequest {
-        admits_pending_inputs,
-        declaration_authority: _,
-    } = *request;
-    let TypedPreparation {
-        static_machine_selections,
-        mathematics,
-        opaque_property_receipts,
-    } = preparation;
     // Preparation's specialization and call rebinding have finished. Open
     // the immutable plan scope here: the first consumer computes program-pure
     // operational and service-reach plans and the rest serve from them.

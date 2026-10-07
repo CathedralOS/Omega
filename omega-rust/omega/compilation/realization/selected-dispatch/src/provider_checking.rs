@@ -99,7 +99,7 @@ impl ProviderCheckingInputs {
                         settings.privileged_services.interrupt_table,
                     ),
             );
-        let checking = typed_trees_to_checked_trees::CheckingRequest::settled()
+        let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(
                 settlement
                     .package_inputs

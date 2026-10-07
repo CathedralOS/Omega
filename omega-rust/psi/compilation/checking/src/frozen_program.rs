@@ -117,12 +117,15 @@ impl<'program> CheckingContext<'program> {
     }
 
     /// Borrow checked selections for final visibility and cleanup judgments
-    /// without replacing or cloning the immutable typed program or its memos.
+    /// without replacing or cloning the immutable typed program. Selection
+    /// authority is an input to meaning queries, so replacing it invalidates
+    /// any prior memo even though the source tables remain equal.
     pub fn with_authored_declaration_selections(
         mut self,
         selections: &'program AuthoredDeclarationSelections,
     ) -> Self {
         self.finalized_selections = Some(selections);
+        self.memos = CheckingMemos::default();
         self
     }
 

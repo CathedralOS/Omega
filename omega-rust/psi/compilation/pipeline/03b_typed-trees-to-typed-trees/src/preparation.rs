@@ -71,9 +71,32 @@ impl<'request> PreparationRequest<'request> {
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
-    pub static_machine_selections: validation::ValidatedStaticMachineSelections,
-    pub mathematics: proof::mathematical_declarations::CheckedMathematics,
-    pub opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    admits_pending_inputs: bool,
+    static_machine_selections: validation::ValidatedStaticMachineSelections,
+    mathematics: proof::mathematical_declarations::CheckedMathematics,
+    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+}
+
+impl TypedPreparation {
+    /// Transfer the producer's immutable judgments and admission checkpoint.
+    /// Only preparation constructs this sidecar; callers cannot replace its
+    /// receipts or change the checkpoint independently of source admission.
+    /// This is an internal pipeline handoff, not foreign evidence admission.
+    pub fn into_checking_judgments(
+        self,
+    ) -> (
+        bool,
+        validation::ValidatedStaticMachineSelections,
+        proof::mathematical_declarations::CheckedMathematics,
+        Vec<validation::OpaqueDataPropertyReceipt>,
+    ) {
+        (
+            self.admits_pending_inputs,
+            self.static_machine_selections,
+            self.mathematics,
+            self.opaque_property_receipts,
+        )
+    }
 }
 
 /// Complete typed bodies before their immutable checking boundary. Input
@@ -230,6 +253,7 @@ pub fn prepare_typed_trees(
     Ok((
         program.into(),
         TypedPreparation {
+            admits_pending_inputs: request.admits_pending_inputs,
             static_machine_selections,
             mathematics,
             opaque_property_receipts,
@@ -241,7 +265,7 @@ pub fn prepare_typed_trees(
 /// indexed-domain semantic ID. Orchestration calls this before typed
 /// snapshots and trust receipts; checked lowering calls it before capturing
 /// generic template fingerprints and again after specialization.
-pub fn normalize_open_index_identities(
+fn normalize_open_index_identities(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     ::validation::normalize_open_index_expressions(program)?;

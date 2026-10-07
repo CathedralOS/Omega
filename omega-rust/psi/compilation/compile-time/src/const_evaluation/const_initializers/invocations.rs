@@ -63,7 +63,7 @@ impl CheckedInitializers {
             bodies.push_machine(machine);
         }
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
+        let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (bodies, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
         let checked =
@@ -176,7 +176,7 @@ impl Invocation<'_> {
             self.machine.symbol,
             "@const-invocation",
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            &typed_trees_to_checked_trees::CheckingRequest::new(),
             expression,
             &callee,
             return_type,

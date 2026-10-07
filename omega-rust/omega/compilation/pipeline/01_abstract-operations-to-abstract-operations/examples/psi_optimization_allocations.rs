@@ -93,7 +93,7 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-    let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
+    let checking = typed_trees_to_checked_trees::CheckingRequest::new();
     let (typed, preparation) =
         typed_trees_to_typed_trees::prepare_typed_trees(typed, &preparation_request)
             .expect("check");

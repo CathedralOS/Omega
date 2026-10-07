@@ -13,6 +13,5 @@ mod preparation;
 mod receivers;
 
 pub use preparation::{
-    PreparationRequest, TypedPreparation, normalize_open_index_identities, prepare_typed_trees,
-    specialize_static_machine_calls,
+    PreparationRequest, TypedPreparation, prepare_typed_trees, specialize_static_machine_calls,
 };

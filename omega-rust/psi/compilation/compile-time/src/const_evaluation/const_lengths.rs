@@ -336,7 +336,7 @@ impl<'selection> LengthJobs<'selection> {
             &EvaluationDomain::all(),
         )?;
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let checking = typed_trees_to_checked_trees::CheckingRequest::settled();
+        let checking = typed_trees_to_checked_trees::CheckingRequest::new();
         let (execution, preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
         let checked =

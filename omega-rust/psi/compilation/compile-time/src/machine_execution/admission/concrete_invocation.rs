@@ -89,7 +89,7 @@ pub(super) fn zero_argument_invocation_discharges(
     // same mode. Contract checking is not gated on the mode, so authored
     // `requires` premises are still decided at the synthesized call.
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
-    let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
+    let checking = typed_trees_to_checked_trees::CheckingRequest::new();
     let Ok((probe, preparation)) =
         typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
     else {
@@ -129,7 +129,7 @@ pub(super) fn argument_independent_closure_discharges(
     // Same preliminary-package window as the zero-argument probe above.
     probe.pending_const_range_endpoints.clear();
     let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
-    let checking = typed_trees_to_checked_trees::CheckingRequest::preliminary();
+    let checking = typed_trees_to_checked_trees::CheckingRequest::new();
     let Ok((probe, preparation)) =
         typed_trees_to_typed_trees::prepare_typed_trees(probe, &preparation_request)
     else {
