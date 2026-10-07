@@ -1024,20 +1024,24 @@ pub(super) fn nested_arrival_chain(
 /// revisit a record it already crossed reads a slot it left, not a new
 /// arrival. Collection stops at two: a second path already makes the
 /// carriage ambiguous, so no caller needs the rest.
-pub(super) fn collect_record_paths(
+/// Depth-16 owned-record descent shared by the path collectors: `step`
+/// answers `(record_this_path, descend_into)` for each field — the walk owns
+/// the definition lookup, visited-record guard, path push/pop, and the
+/// two-path cap.
+fn for_each_record_field_path(
     program: &TypedTrees,
     from: SymbolHandle,
-    to: SymbolHandle,
     paths: &mut Vec<Vec<SymbolHandle>>,
+    step: impl Fn(&TypedTrees, &DataField) -> (bool, Option<SymbolHandle>),
 ) {
     fn visit(
         program: &TypedTrees,
         owner: SymbolHandle,
-        target: SymbolHandle,
         visiting: &mut Vec<SymbolHandle>,
         path: &mut Vec<SymbolHandle>,
         paths: &mut Vec<Vec<SymbolHandle>>,
         depth: usize,
+        step: &dyn Fn(&TypedTrees, &DataField) -> (bool, Option<SymbolHandle>),
     ) {
         if paths.len() >= 2 || depth >= 16 {
             return;
@@ -1052,23 +1056,15 @@ pub(super) fn collect_record_paths(
             let DataMember::Field(field) = member else {
                 continue;
             };
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            else {
-                continue;
-            };
+            let (record, descend_into) = step(program, field);
             path.push(field.symbol);
-            // A step landing on the target records its own path even when
-            // the record is already crossed -- `x` and `x.y` both landing on
-            // the target are genuinely two readings. Deeper paths through an
-            // already-crossed record keep reading slots this path left, so
-            // recursion continues only into fresh records.
-            if *next == target {
+            if record {
                 paths.push(path.clone());
             }
-            if !visiting.contains(next) {
-                visit(program, *next, target, visiting, path, paths, depth + 1);
+            if let Some(next) = descend_into
+                && !visiting.contains(&next)
+            {
+                visit(program, next, visiting, path, paths, depth + 1, step);
             }
             path.pop();
             if paths.len() >= 2 {
@@ -1077,18 +1073,38 @@ pub(super) fn collect_record_paths(
         }
         visiting.pop();
     }
-    if from == to {
-        paths.push(Vec::new());
-    }
     visit(
         program,
         from,
-        to,
         &mut Vec::new(),
         &mut Vec::new(),
         paths,
         0,
+        &step,
     );
+}
+
+pub(super) fn collect_record_paths(
+    program: &TypedTrees,
+    from: SymbolHandle,
+    to: SymbolHandle,
+    paths: &mut Vec<Vec<SymbolHandle>>,
+) {
+    if from == to {
+        paths.push(Vec::new());
+    }
+    for_each_record_field_path(program, from, paths, |program, field| {
+        let TypeReferenceNode::Named { symbol: next, .. } = program
+            .type_reference_table
+            .type_reference(unwrap_constraint_shells(program, field.type_reference))
+        else {
+            return (false, None);
+        };
+        // A step landing on the target records its own path even when the
+        // record is already crossed -- `x` and `x.y` both landing on the
+        // target are genuinely two readings.
+        (*next == to, Some(*next))
+    });
 }
 
 /// Every field path under `from`'s declaration that lands on a leaf `accept`
@@ -1104,59 +1120,22 @@ pub(super) fn collect_leaf_paths(
     accept: impl Fn(&TypedTrees, &DataField) -> bool,
     paths: &mut Vec<Vec<SymbolHandle>>,
 ) {
-    fn visit(
-        program: &TypedTrees,
-        owner: SymbolHandle,
-        accept: &dyn Fn(&TypedTrees, &DataField) -> bool,
-        visiting: &mut Vec<SymbolHandle>,
-        path: &mut Vec<SymbolHandle>,
-        paths: &mut Vec<Vec<SymbolHandle>>,
-        depth: usize,
-    ) {
-        if paths.len() >= 2 || depth >= 16 {
-            return;
-        }
-        let Some(declaration) =
-            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
-        else {
-            return;
-        };
-        visiting.push(owner);
-        for member in program.data_members(declaration) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            path.push(field.symbol);
-            if accept(program, field) {
-                paths.push(path.clone());
-            } else if let TypeReferenceNode::Named { symbol: next, .. } = program
+    for_each_record_field_path(program, from, paths, |program, field| {
+        if accept(program, field) {
+            (true, None)
+        } else {
+            // A reference boundary or a scalar leaf ends the descent, matching
+            // `for_parameter`'s chain resolution.
+            let descend = match program
                 .type_reference_table
                 .type_reference(unwrap_constraint_shells(program, field.type_reference))
-                && crate::program_scope::data_definitions::data_definition_by_symbol(program, *next)
-                    .is_some()
-                && !visiting.contains(next)
             {
-                // A reference boundary or a scalar leaf ends the descent,
-                // matching `for_parameter`'s chain resolution; a path through
-                // an already-crossed record reads a slot this path left.
-                visit(program, *next, accept, visiting, path, paths, depth + 1);
-            }
-            path.pop();
-            if paths.len() >= 2 {
-                break;
-            }
+                TypeReferenceNode::Named { symbol: next, .. } => Some(*next),
+                _ => None,
+            };
+            (false, descend)
         }
-        visiting.pop();
-    }
-    visit(
-        program,
-        from,
-        &accept,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        paths,
-        0,
-    );
+    });
 }
 
 /// The natural coordinate a bare integer entry role takes inside
