@@ -882,23 +882,39 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         );
     }
 
+    fn validate_state_signature(
+        program: &TypedTrees,
+        signature: &typed_trees::signature::StateSignature,
+        owner: String,
+        seen: &mut Vec<ExpressionHandle>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        validate_contracts(
+            program,
+            program.state_signature_contracts(signature),
+            &owner,
+            AbstractSpecificationBindings {
+                parameters: program.state_signature_parameters(signature),
+                result_type: signature
+                    .return_type
+                    .is_valid()
+                    .then_some(signature.return_type),
+                ..Default::default()
+            },
+            seen,
+            diagnostics,
+        );
+    }
+
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
-            validate_contracts(
+            validate_state_signature(
                 program,
-                program.state_signature_contracts(signature),
-                &format!(
+                signature,
+                format!(
                     "trait `{}` state `{}`",
                     trait_definition.name, signature.name
                 ),
-                AbstractSpecificationBindings {
-                    parameters: program.state_signature_parameters(signature),
-                    result_type: signature
-                        .return_type
-                        .is_valid()
-                        .then_some(signature.return_type),
-                    ..Default::default()
-                },
                 &mut seen,
                 diagnostics,
             );
@@ -913,18 +929,10 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             continue;
         };
         let signature = signature.signature();
-        validate_contracts(
+        validate_state_signature(
             program,
-            program.state_signature_contracts(signature),
-            &format!("machine-parameter requirement `{}`", parameter.name),
-            AbstractSpecificationBindings {
-                parameters: program.state_signature_parameters(signature),
-                result_type: signature
-                    .return_type
-                    .is_valid()
-                    .then_some(signature.return_type),
-                ..Default::default()
-            },
+            signature,
+            format!("machine-parameter requirement `{}`", parameter.name),
             &mut seen,
             diagnostics,
         );
