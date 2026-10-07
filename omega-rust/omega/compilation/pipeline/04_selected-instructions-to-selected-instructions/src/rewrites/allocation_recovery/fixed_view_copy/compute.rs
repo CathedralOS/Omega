@@ -16,8 +16,8 @@ use register_model::{
 };
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionProvenance, SelectedTerminator, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;

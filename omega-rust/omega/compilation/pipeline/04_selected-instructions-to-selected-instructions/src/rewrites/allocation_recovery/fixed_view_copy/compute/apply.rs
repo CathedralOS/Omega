@@ -1,11 +1,12 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
 use super::{
     RegisterInstructionConstraint, ScalarType, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
-    VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
+    VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterOrigin,
 };
 use crate::FixedViewCopy;
 use crate::FixedViewCopyError;
+use crate::rewrites::selected_operands::selected_operand;
 
 pub(super) fn apply_copy(
     function_index: usize,
@@ -156,21 +157,6 @@ fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut Selec
         | SelectedTerminator::Return { instruction, .. }
         | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}
-
-fn selected_operand(
-    constraint: &register_model::RegisterOperandConstraint,
-    register: VirtualRegisterId,
-) -> SelectedOperand {
-    SelectedOperand {
-        operand: constraint.operand,
-        virtual_register: register,
-        access: constraint.access,
-        class: constraint.class,
-        fixed_view: constraint.fixed_view,
-        tied_to: constraint.tied_to,
-        early_clobber: constraint.early_clobber,
     }
 }
 

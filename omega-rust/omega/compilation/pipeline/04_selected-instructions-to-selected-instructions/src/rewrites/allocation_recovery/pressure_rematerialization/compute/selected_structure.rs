@@ -1,24 +1,10 @@
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedOperand,
-    SelectedTerminator, VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
 use crate::PressureRematerializationError;
 
-pub(super) fn operand(
-    constraint: &register_model::RegisterOperandConstraint,
-    register: VirtualRegisterId,
-) -> SelectedOperand {
-    SelectedOperand {
-        operand: constraint.operand,
-        virtual_register: register,
-        access: constraint.access,
-        class: constraint.class,
-        fixed_view: constraint.fixed_view,
-        tied_to: constraint.tied_to,
-        early_clobber: constraint.early_clobber,
-    }
-}
+pub(super) use crate::rewrites::selected_operands::selected_operand as operand;
 
 pub(super) fn find_instruction(
     block: &selected_instructions::SelectedBlock,
