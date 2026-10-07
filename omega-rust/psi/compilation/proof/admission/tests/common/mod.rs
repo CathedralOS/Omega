@@ -292,3 +292,20 @@ pub(crate) fn tag_selected_children(
     let body = apply(arena, selected, payload);
     lambda(arena, carrier, body)
 }
+
+/// `Payload = λ(tag : Two). caseTwo(λ_.Type 0, Two, Σ(e : Elem). Nat,
+/// tag)` — the `⟨element, predecessor-length⟩` payload the vector family
+/// and the nested family's element-vector share.
+pub(crate) fn elem_nat_payload(arena: &mut TermArena) -> TermHandle {
+   let motive = type_motive(arena);
+    let nil_payload = two(arena);
+    let cons_payload = {
+        let element = elem(arena);
+        let length = nat(arena);
+        sigma(arena, element, length)
+    };
+    let tag = variable(arena, 0);
+    let body = case_two(arena, motive, nil_payload, cons_payload, tag);
+    let domain = two(arena);
+    lambda(arena, domain, body)
+}

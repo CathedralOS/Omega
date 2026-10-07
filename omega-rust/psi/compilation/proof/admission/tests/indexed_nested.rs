@@ -107,27 +107,10 @@ fn family_budget() -> Budget {
 // here exactly as `indexed_vector.rs` encodes it, since the nested
 // family's payload references it.
 
-/// `Payload_v = λ(tag : Two). caseTwo(λ_.Type 0, Two, Σ(e : Elem). Nat,
-/// tag)` — nil carries a dummy `Two` payload; cons carries
-/// `⟨element, predecessor-length⟩`.
-fn vec_payload(arena: &mut TermArena) -> TermHandle {
-    let motive = type_motive(arena);
-    let nil_payload = two(arena);
-    let cons_payload = {
-        let element = elem(arena);
-        let length = nat(arena);
-        sigma(arena, element, length)
-    };
-    let tag = variable(arena, 0);
-    let body = case_two(arena, motive, nil_payload, cons_payload, tag);
-    let domain = two(arena);
-    lambda(arena, domain, body)
-}
-
 /// The vector's constructor carrier `A_v = Σ(tag : Two). Payload_v tag`.
 fn vec_carrier(arena: &mut TermArena) -> TermHandle {
     let tag = variable(arena, 0);
-    let payload_fn = vec_payload(arena);
+    let payload_fn = elem_nat_payload(arena);
     let codomain = apply(arena, payload_fn, tag);
     let domain = two(arena);
     sigma(arena, domain, codomain)
@@ -153,7 +136,7 @@ fn vec_branching(arena: &mut TermArena) -> TermHandle {
 fn vec_out(arena: &mut TermArena) -> TermHandle {
     let motive = {
         let tag = variable(arena, 0);
-        let payload_fn = vec_payload(arena);
+        let payload_fn = elem_nat_payload(arena);
         let payload_at = apply(arena, payload_fn, tag);
         let length = nat(arena);
         let codomain = pi(arena, payload_at, length);
@@ -185,7 +168,7 @@ fn vec_out(arena: &mut TermArena) -> TermHandle {
 fn vec_next(arena: &mut TermArena) -> TermHandle {
     let motive = {
         let tag = variable(arena, 0);
-        let payload_fn = vec_payload(arena);
+        let payload_fn = elem_nat_payload(arena);
         let payload_at = apply(arena, payload_fn, tag);
         let branching_at = {
             // Under the `p` binder the tag is index 1.
