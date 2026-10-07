@@ -90,6 +90,7 @@ pub fn encode_observation_provider(provider: FilesystemObservationProvider) -> u
         FilesystemObservationProvider::Virtual => 0,
         FilesystemObservationProvider::RealUnscoped => 1,
         FilesystemObservationProvider::RealScoped => 2,
+        FilesystemObservationProvider::Captured => 3,
     }
 }
 
@@ -98,6 +99,7 @@ pub fn recover_observation_provider(tag: u8) -> Option<FilesystemObservationProv
         0 => Some(FilesystemObservationProvider::Virtual),
         1 => Some(FilesystemObservationProvider::RealUnscoped),
         2 => Some(FilesystemObservationProvider::RealScoped),
+        3 => Some(FilesystemObservationProvider::Captured),
         _ => None,
     }
 }

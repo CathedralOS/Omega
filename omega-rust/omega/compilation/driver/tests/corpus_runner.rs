@@ -131,7 +131,8 @@ mod fixture_package_inputs;
 #[path = "support/terminal_execution.rs"]
 mod terminal_execution;
 use fixture_package_inputs::{
-    repo_root, reviewed_repository_fixture_package_inputs, sealed_fixture_staging,
+    fixture_build_snapshot, repo_root, reviewed_repository_fixture_package_inputs,
+    sealed_fixture_staging,
 };
 
 fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
@@ -430,6 +431,7 @@ fn produce_terminal_semantic(
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
+    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let options = CompileOptions {
         root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),
@@ -442,6 +444,9 @@ fn produce_terminal_semantic(
     }
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
+    }
+    if let Some(snapshot) = build_snapshot {
+        request = request.with_build_snapshot(snapshot);
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
@@ -549,6 +554,7 @@ fn published_files(
             root_path,
             declared_realization_target(root_path).as_deref(),
         )?;
+        let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let options = CompileOptions {
             root_path: prepared.root_path,
             build_dir: Some(build_dir.clone()),
@@ -561,6 +567,9 @@ fn published_files(
         }
         if let Some(package_inputs) = prepared.package_inputs {
             request = request.with_package_inputs(package_inputs);
+        }
+        if let Some(snapshot) = build_snapshot {
+            request = request.with_build_snapshot(snapshot);
         }
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)
     })();
@@ -613,6 +622,7 @@ fn check_pass_fixture(
     build_dir: PathBuf,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CompileRequest::for_destinations(
         prepared.root_path,
         vec![CompileDestination {
@@ -623,6 +633,9 @@ fn check_pass_fixture(
     .with_requested_product(RequestedCompileProduct::Check);
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
+    }
+    if let Some(snapshot) = build_snapshot {
+        request = request.with_build_snapshot(snapshot);
     }
     let result = compiler::compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
@@ -781,6 +794,7 @@ fn build_native_fixture(
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CompileRequest::for_destinations(
         prepared.root_path,
         vec![CompileDestination {
@@ -797,6 +811,9 @@ fn build_native_fixture(
     }
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
+    }
+    if let Some(snapshot) = build_snapshot {
+        request = request.with_build_snapshot(snapshot);
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
@@ -924,8 +941,10 @@ fn check_fail_fixture(
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
+    request.build_snapshot = build_snapshot;
     // A fail fixture's build machine may still reach the build filesystem
     // before the rule it is pinned on refuses, and the staging a compilation
     // defaults to is beside its root source, which is the sealed snapshot
@@ -1025,6 +1044,7 @@ fn realize_fixture(
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
+    let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let options = CompileOptions {
         root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),
@@ -1037,6 +1057,9 @@ fn realize_fixture(
     }
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
+    }
+    if let Some(snapshot) = build_snapshot {
+        request = request.with_build_snapshot(snapshot);
     }
     let result = compiler::compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)

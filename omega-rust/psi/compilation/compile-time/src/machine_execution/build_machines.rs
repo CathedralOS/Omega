@@ -12,6 +12,7 @@ use typed_trees::TypedTrees;
 
 pub use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,
     FilesystemAccess as BuildMachineFilesystemAccess,
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,

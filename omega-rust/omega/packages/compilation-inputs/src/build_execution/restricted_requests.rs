@@ -268,6 +268,14 @@ impl BuildMachineFilesystemScope {
                 &grants.write_roots[..],
                 Some(sponsor),
             ),
+            BuildMachineFilesystemAccess::CapturedScoped {
+                grants, sponsor, ..
+            } => (
+                RestrictedBuildOperation::ScopedFilesystemExecution,
+                &grants.read_roots[..],
+                &grants.write_roots[..],
+                sponsor.as_ref(),
+            ),
             BuildMachineFilesystemAccess::RealUnscoped => (
                 RestrictedBuildOperation::UnscopedFilesystemExecution,
                 &[][..],
@@ -295,9 +303,25 @@ impl BuildMachineFilesystemScope {
                 captured,
             }
         };
+        let mut read_grants: Vec<_> = read_roots.iter().map(&grant).collect();
+        if let BuildMachineFilesystemAccess::CapturedScoped { inputs, .. } = filesystem {
+            read_grants.extend(inputs.iter().map(|input| RestrictedBuildGrant {
+                root: if input.identity == BUILD_SOURCE_ROOT_IDENTITY {
+                    RestrictedBuildGrantRoot::SourceInventory
+                } else {
+                    RestrictedBuildGrantRoot::Other(input.identity.get())
+                },
+                narrowed: true,
+                captured: if input.identity == BUILD_SOURCE_ROOT_IDENTITY {
+                    captured
+                } else {
+                    self.named_input_inventory(input.identity)
+                },
+            }));
+        }
         vec![RestrictedBuildRequest {
             operation,
-            read_grants: read_roots.iter().map(&grant).collect(),
+            read_grants,
             write_grants: write_roots.iter().map(&grant).collect(),
             bounds: RestrictedBuildBounds {
                 filesystem_sponsor_limits: filesystem_sponsor

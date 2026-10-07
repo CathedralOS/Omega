@@ -230,6 +230,7 @@ const fn filesystem_provider_tag(provider: BuildFilesystemProvider) -> u8 {
         BuildFilesystemProvider::Virtual => 0,
         BuildFilesystemProvider::RealUnscoped => 1,
         BuildFilesystemProvider::RealScoped => 2,
+        BuildFilesystemProvider::Captured => 3,
     }
 }
 

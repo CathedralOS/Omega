@@ -189,13 +189,18 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             match cloned {
                 Ok((file, path, append, canonical_metadata)) => {
                     let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
-                    self.real_fs_mut().insert_preselected(
-                        file,
-                        path,
-                        sponsor_descriptor,
-                        append,
-                        canonical_metadata,
-                    )
+                    self.real_fs_mut()
+                        .insert_preselected(
+                            file,
+                            path,
+                            sponsor_descriptor,
+                            append,
+                            canonical_metadata,
+                        )
+                        .unwrap_or_else(|errno| {
+                            self.real_fs_mut().errno = errno;
+                            -1
+                        })
                 }
                 Err(errno) => {
                     self.real_fs_mut().errno = errno;

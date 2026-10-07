@@ -121,3 +121,18 @@ stdin as described in the [CLI guide](../../../application/cli/README.md).
 The local lock retains this project's exact source/compiler acceptance, not a
 portable fixture oracle. Source or compiler changes require fresh review, not
 copying bindings or deleting a stale lock to turn it into an unlocked request.
+
+### Captured Build input fixtures
+
+An authored fixture may supply named host-API inputs as immediate directories
+under `build-inputs/<slot>/`. The corpus harness captures each sealed directory
+and calls `BuildSnapshotRequest::with_inputs` before both preliminary acceptance
+and production compilation. Build reads those slots through
+`BuildInputs::get(&builder.inputs, "<slot>")` and ordinary `BuildSource`
+operations. Slot names do not select host paths at evaluation time.
+
+The shipped CLI currently exposes Source capture selection, not named slot
+assignments. A manual CLI control for a named-input fixture must therefore
+observe a missing-slot refusal; it is not a successful named-input run. The
+corpus supplies the public compilation host API, without fixture handling in
+the shipped product.

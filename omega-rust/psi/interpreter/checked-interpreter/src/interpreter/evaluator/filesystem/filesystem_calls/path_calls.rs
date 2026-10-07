@@ -21,6 +21,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_open_path_handle")
         };
+        let path = path.into_native()?;
         Ok({
             // Hermetic CreateFileA model for metadata/query handles. The
             // wrapper supplies access=0 + OPEN_EXISTING; the virtual fd
@@ -43,6 +44,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::OpenCreate { path, flags, mode } = call else {
             unreachable!("dispatched serve_open_create")
         };
+        let path = path.into_native()?;
         Ok({
             // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
             // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
@@ -81,6 +83,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_remove")
         };
+        let path = path.into_native()?;
         Ok({
             if self.virtual_files.remove(&path).is_some() {
                 0
@@ -100,6 +103,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_create_dir")
         };
+        let path = path.into_native()?;
         Ok({
             // -1 (EEXIST) if the dir already exists.
             if self.virtual_dirs.insert(path) {
@@ -117,6 +121,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_remove_dir")
         };
+        let path = path.into_native()?;
         Ok({
             if self.virtual_dirs.remove(&path) {
                 0
@@ -181,6 +186,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::SetPermissions { path, mode } = call else {
             unreachable!("dispatched serve_set_permissions")
         };
+        let path = path.into_native()?;
         Ok({
             // `chmod(path, mode)`: record the mode. ENOENT if the path names
             // neither a file nor a directory. `mode` is the second arg.
@@ -200,6 +206,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_change_owner")
         };
+        let path = path.into_native()?;
         Ok({
             // `chown`/`lchown(path, uid, gid)`: change owner/group. ENOENT if
             // the path is absent. The hermetic model's process identity is
@@ -226,6 +233,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::Rename { from, to } = call else {
             unreachable!("dispatched serve_rename")
         };
+        let from = from.into_native()?;
+        let to = to.into_native()?;
         Ok({
             match self.virtual_files.remove(&from) {
                 Some(content) => {
@@ -244,6 +253,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::HardLink { original, link } = call else {
             unreachable!("dispatched serve_hard_link")
         };
+        let original = original.into_native()?;
+        let link = link.into_native()?;
         Ok({
             // `link(original, link)`: a second name for the same inode.
             // ENOENT if the original is absent; EEXIST if the link name is
@@ -278,6 +289,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_create_hard_link")
         };
+        let link = link.into_native()?;
+        let existing = existing.into_native()?;
         Ok({
             // `CreateHardLinkA(link, existing, security)` -- the WINDOWS
             // hard-link primitive (session slice 3): the ARG ORDER is
@@ -304,6 +317,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::Symlink { target, link } = call else {
             unreachable!("dispatched serve_symlink")
         };
+        let link = link.into_native()?;
         Ok({
             // `symlink(target, linkpath)`: record the link -> target mapping.
             // EEXIST if the link name already names a file/dir/symlink.
@@ -329,6 +343,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             unreachable!("dispatched serve_read_link")
         };
+        let path = path.into_native()?;
         Ok({
             // `readlink(path, buf, count)`: write the target bytes into the
             // buffer (up to `count`), returning the number written. ENOENT if
@@ -351,6 +366,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::Canonicalize { path, buffer } = call else {
             unreachable!("dispatched serve_canonicalize")
         };
+        let path = path.into_native()?;
         Ok({
             // `realpath(path, buf)`: resolve `path` to its canonical absolute
             // form and write it NUL-terminated into the buffer. The hermetic FS
@@ -377,6 +393,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::ReadMetadata { path, buffer } = call else {
             unreachable!("dispatched serve_read_metadata")
         };
+        let path = path.into_native()?;
         Ok({
             // `stat(path, buf)`: fill the buffer's st_mode (off 4, u16) and
             // st_size (off 96, i64) as the darwin kernel would. A regular
@@ -434,6 +451,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } = call else {
             unreachable!("dispatched serve_read_symlink_metadata")
         };
+        let path = path.into_native()?;
         Ok({
             // `lstat(path, buf)`: like `stat`, but does NOT follow a final
             // symlink. A symlink reports S_IFLNK(0o120000)|0o777 with size =

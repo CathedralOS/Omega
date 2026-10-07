@@ -143,8 +143,44 @@ impl<'program> Evaluator<'program> {
                 facet: expected,
                 operation,
             } => self.evaluate_filesystem_operation(operation, |evaluator| {
-                evaluator.build_root_argument(*facet, expected, frame)?;
-                evaluator.prepare_filesystem_call(operation, operands, frame)
+                let root = evaluator.build_root_argument(*facet, expected, frame)?;
+                let call = evaluator.prepare_filesystem_call(operation, operands, frame)?;
+                match &call {
+                    crate::interpreter::evaluator::PreparedFilesystemCall::Open { .. }
+                    | crate::interpreter::evaluator::PreparedFilesystemCall::Create { .. } => {
+                        let issued = evaluator
+                            .filesystem_operation_attempt_stack
+                            .last()
+                            .and_then(|index| {
+                                evaluator.filesystem_operation_attempts[*index]
+                                    .rooted_path_operand_resolutions
+                                    .first()
+                            })
+                            .map(|resolution| resolution.root());
+                        if issued != Some(root) {
+                            return Err(Halt::Trap(
+                                "Build filesystem path belongs to another facet root".into(),
+                            ));
+                        }
+                    }
+                    crate::interpreter::evaluator::PreparedFilesystemCall::Read { fd, .. }
+                    | crate::interpreter::evaluator::PreparedFilesystemCall::Write { fd, .. }
+                    | crate::interpreter::evaluator::PreparedFilesystemCall::Close { fd } => {
+                        if let Some(issued) = evaluator
+                            .real_fs
+                            .as_ref()
+                            .and_then(|filesystem| filesystem.descriptor_root(*fd))
+                        {
+                            if issued != root {
+                                return Err(Halt::Trap(
+                                    "Build descriptor belongs to another facet root".into(),
+                                ));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                Ok(call)
             })?,
             BuildPathOperation::IncludeSource => {
                 let root = self.build_root_argument(*facet, OUTPUT_ROOT_FACET_TYPE, frame)?;

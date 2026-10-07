@@ -22,20 +22,56 @@ use crate::interpreter::evaluator::{
     Frame, Halt, Value, rooted_build_path_parts, trap, unsupported, validate_build_relative_path,
 };
 
+/// A prepared path retains captured root custody all the way to provider
+/// dispatch. Native paths alone contain physical spellings.
+pub(crate) enum PreparedFilesystemPath {
+    Native(Vec<u8>),
+    Captured {
+        root: crate::FilesystemGrantRootIdentity,
+        relative: Vec<u8>,
+    },
+}
+
+impl PreparedFilesystemPath {
+    pub(crate) fn captured(&self) -> Option<(crate::FilesystemGrantRootIdentity, &[u8])> {
+        match self {
+            Self::Native(_) => None,
+            Self::Captured { root, relative } => Some((*root, relative)),
+        }
+    }
+
+    pub(crate) fn into_native(self) -> EvalResult<Vec<u8>> {
+        match self {
+            Self::Native(bytes) => Ok(bytes),
+            Self::Captured { .. } => trap("captured input path cannot enter a native provider"),
+        }
+    }
+}
+
+impl std::ops::Deref for PreparedFilesystemPath {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            Self::Native(bytes) => bytes,
+            Self::Captured { relative, .. } => relative,
+        }
+    }
+}
+
 /// Every canonical authored operand is represented, including ABI-shape
 /// operands a modeled provider does not otherwise need.
 #[allow(dead_code)]
 pub(crate) enum PreparedFilesystemCall {
     Create {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         mode: i32,
     },
     Open {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         flags: i32,
     },
     OpenCreate {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         flags: i32,
         mode: i32,
     },
@@ -63,7 +99,7 @@ pub(crate) enum PreparedFilesystemCall {
         fd: i32,
     },
     Remove {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
     },
     Seek {
         fd: i32,
@@ -71,14 +107,14 @@ pub(crate) enum PreparedFilesystemCall {
         whence: i32,
     },
     CreateDir {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         mode: i32,
     },
     RemoveDir {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
     },
     CreateDirName {
-        name: Vec<u8>,
+        name: PreparedFilesystemPath,
         mode: i32,
     },
     OpenAt {
@@ -92,7 +128,7 @@ pub(crate) enum PreparedFilesystemCall {
         flags: i32,
     },
     SetPermissions {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         mode: u32,
     },
     SetFilePermissions {
@@ -100,24 +136,24 @@ pub(crate) enum PreparedFilesystemCall {
         mode: u32,
     },
     Rename {
-        from: Vec<u8>,
-        to: Vec<u8>,
+        from: PreparedFilesystemPath,
+        to: PreparedFilesystemPath,
     },
     HardLink {
-        original: Vec<u8>,
-        link: Vec<u8>,
+        original: PreparedFilesystemPath,
+        link: PreparedFilesystemPath,
     },
     Symlink {
         target: Vec<u8>,
-        link: Vec<u8>,
+        link: PreparedFilesystemPath,
     },
     ReadLink {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         buffer: PreparedByteOutput,
         count: PreparedTransferCount,
     },
     Canonicalize {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         buffer: PreparedByteOutput,
     },
     ReadDir {
@@ -138,12 +174,12 @@ pub(crate) enum PreparedFilesystemCall {
         handle: i64,
     },
     CreateHardLink {
-        link: Vec<u8>,
-        existing: Vec<u8>,
+        link: PreparedFilesystemPath,
+        existing: PreparedFilesystemPath,
         security_attributes: i64,
     },
     OpenPathHandle {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         desired_access: u32,
         share_mode: u32,
         security_attributes: i64,
@@ -186,13 +222,13 @@ pub(crate) enum PreparedFilesystemCall {
     },
     GetLastError,
     RemoveName {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
     },
     RemoveDirName {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
     },
     ReadMetadata {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         buffer: PreparedByteOutput,
     },
     ReadFileMetadata {
@@ -200,7 +236,7 @@ pub(crate) enum PreparedFilesystemCall {
         buffer: PreparedByteOutput,
     },
     ReadSymlinkMetadata {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         buffer: PreparedByteOutput,
     },
     SetLen {
@@ -225,12 +261,12 @@ pub(crate) enum PreparedFilesystemCall {
         operation: i32,
     },
     ChangeOwner {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         uid: i32,
         gid: i32,
     },
     ChangeOwnerNoFollow {
-        path: Vec<u8>,
+        path: PreparedFilesystemPath,
         uid: i32,
         gid: i32,
     },
@@ -243,6 +279,67 @@ pub(crate) enum PreparedFilesystemCall {
 }
 
 impl PreparedFilesystemCall {
+    /// Closed path projection: adding a path operation requires explicitly
+    /// assigning its provider custody here, not slipping through native I/O.
+    pub(crate) fn has_captured_path(&self) -> bool {
+        match self {
+            Self::Create { path, .. }
+            | Self::Open { path, .. }
+            | Self::OpenCreate { path, .. }
+            | Self::Remove { path }
+            | Self::CreateDir { path, .. }
+            | Self::RemoveDir { path }
+            | Self::SetPermissions { path, .. }
+            | Self::ReadLink { path, .. }
+            | Self::Canonicalize { path, .. }
+            | Self::OpenPathHandle { path, .. }
+            | Self::RemoveName { path }
+            | Self::RemoveDirName { path }
+            | Self::ReadMetadata { path, .. }
+            | Self::ReadSymlinkMetadata { path, .. }
+            | Self::ChangeOwner { path, .. }
+            | Self::ChangeOwnerNoFollow { path, .. }
+            | Self::CreateDirName { name: path, .. }
+            | Self::Symlink { link: path, .. } => path.captured().is_some(),
+            Self::Rename { from, to } => from.captured().is_some() || to.captured().is_some(),
+            Self::HardLink { original, link } => {
+                original.captured().is_some() || link.captured().is_some()
+            }
+            Self::CreateHardLink { link, existing, .. } => {
+                link.captured().is_some() || existing.captured().is_some()
+            }
+            Self::Read { .. }
+            | Self::Write { .. }
+            | Self::ReadAt { .. }
+            | Self::WriteAt { .. }
+            | Self::Close { .. }
+            | Self::Seek { .. }
+            | Self::OpenAt { .. }
+            | Self::UnlinkAt { .. }
+            | Self::SetFilePermissions { .. }
+            | Self::ReadDir { .. }
+            | Self::FindFirst { .. }
+            | Self::FindNext { .. }
+            | Self::FindClose { .. }
+            | Self::CloseHandle { .. }
+            | Self::GetOsfHandle { .. }
+            | Self::FinalPathNameByHandle { .. }
+            | Self::SetFileTime { .. }
+            | Self::LockFileEx { .. }
+            | Self::UnlockFile { .. }
+            | Self::GetLastError
+            | Self::ReadFileMetadata { .. }
+            | Self::SetLen { .. }
+            | Self::SetFileTimes { .. }
+            | Self::Sync { .. }
+            | Self::SyncData { .. }
+            | Self::Duplicate { .. }
+            | Self::LockFile { .. }
+            | Self::ChangeFileOwner { .. }
+            | Self::Errno => false,
+        }
+    }
+
     /// Later arguments can alias earlier carriers. Validate their current
     /// contents without retaining another copy before entering the provider.
     pub(crate) fn validate_output_carriers(&self) -> EvalResult<()> {
@@ -624,7 +721,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         Ok(bytes)
     }
 
-    fn path(&mut self) -> EvalResult<Vec<u8>> {
+    fn path(&mut self) -> EvalResult<PreparedFilesystemPath> {
         let (operand_ordinal, value) = self.value()?;
         let Some((root, relative)) = rooted_build_path_parts(&value)? else {
             if self.evaluator.rooted_build_paths_required
@@ -643,11 +740,15 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 Value::Str(text) => {
                     let text = text.borrow();
                     check_byte_len(text.len())?;
-                    Ok(text.to_vec())
+                    Ok(PreparedFilesystemPath::Native(text.to_vec()))
                 }
                 Value::Array(cells) => {
                     check_byte_len(cells.len())?;
-                    cells.iter().map(prepared_byte).collect()
+                    cells
+                        .iter()
+                        .map(prepared_byte)
+                        .collect::<EvalResult<Vec<_>>>()
+                        .map(PreparedFilesystemPath::Native)
                 }
                 other => unsupported(format!(
                     "filesystem call expected path byte data, got {other:?}"
@@ -660,7 +761,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
             })?;
             filesystem
-                .rooted_path_bytes(root, &relative)
+                .prepare_rooted_path(root, &relative)
                 .ok_or_else(|| {
                     Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
                 })?
@@ -814,7 +915,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::RemoveDir { path: a.path()? }
             }
             FilesystemHostOperation::CreateDirName => PreparedFilesystemCall::CreateDirName {
-                name: a.path_like_bytes()?,
+                name: PreparedFilesystemPath::Native(a.path_like_bytes()?),
                 mode: a.i32()?,
             },
             FilesystemHostOperation::OpenAt => {
@@ -964,7 +1065,7 @@ impl<'program> Evaluator<'program> {
             },
             FilesystemHostOperation::GetLastError => PreparedFilesystemCall::GetLastError,
             FilesystemHostOperation::RemoveName => PreparedFilesystemCall::RemoveName {
-                path: a.path_like_bytes()?,
+                path: PreparedFilesystemPath::Native(a.path_like_bytes()?),
             },
             FilesystemHostOperation::RemoveDirName => PreparedFilesystemCall::RemoveDirName {
                 path: a.path_like_bytes()?,

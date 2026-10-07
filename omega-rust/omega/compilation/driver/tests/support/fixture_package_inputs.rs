@@ -677,6 +677,64 @@ pub struct ReviewedFixtureCompilation {
     pub package_inputs: Option<PackageCompilationInputs>,
 }
 
+/// Generic authored host-input fixtures: each immediate directory under
+/// `build-inputs/` is one named inventory. Read the already sealed fixture
+/// staging, not an ambient host path selected by Omega code. This is request
+/// setup in the harness, never a shipped CLI fixture recognizer.
+pub fn fixture_build_snapshot(
+    root_path: &Path,
+) -> Result<Option<package_compilation::BuildSnapshotRequest>, Vec<Diagnostic>> {
+    let Some(root) = root_path.parent() else {
+        return Ok(None);
+    };
+    let input_root = root.join("build-inputs");
+    let listing = match fs::read_dir(&input_root) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(vec![Diagnostic::error(format!(
+                "cannot list fixture build inputs: {error}"
+            ))]);
+        }
+    };
+    let mut inputs = std::collections::BTreeMap::new();
+    for entry in listing {
+        let entry = entry.map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot read fixture input slot: {error}"
+            ))]
+        })?;
+        if !entry
+            .file_type()
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+            .is_dir()
+        {
+            return Err(vec![Diagnostic::error(
+                "fixture build input slots must be concrete directories",
+            )]);
+        }
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "fixture input slot must have a UTF-8 name",
+                )]
+            })?
+            .into_bytes();
+        let captured =
+            package_compilation::capture_package_source_input(&entry.path()).map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "cannot capture fixture input slot: {reason}"
+                ))]
+            })?;
+        inputs.insert(name, captured);
+    }
+    package_compilation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+        .with_inputs(inputs)
+        .map(Some)
+}
+
 /// The authored package graph plus this repository's test acceptance: the
 /// bundled library's target entry candidate when present, then the services the
 /// preliminary checked graph requires, including root-owned services. The
@@ -742,6 +800,7 @@ pub fn reviewed_repository_fixture_package_inputs(
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
         permit_unsettled_fused_service_fields: true,
+        build_snapshot: fixture_build_snapshot(&root_path)?,
         build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
             &repo_root(),
             authored_project_root,

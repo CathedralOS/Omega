@@ -7,11 +7,8 @@ use diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Per-process counter giving every captured-source snapshot a unique fresh
-/// backing directory. The backing must sit outside the source root (so its
-/// residue can never enter a later canonical capture) and outside the build
-/// write root (so the machine cannot reach it through its Output grant).
-static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
+/// Unique private output roots; captured inputs require no host directories.
+static NEXT_PRIVATE_OUTPUT: AtomicU64 = AtomicU64::new(0);
 
 /// Bind the request's package/root staging scope before build admission.
 /// The execution profile joins the retained activation identity.
@@ -89,7 +86,7 @@ pub fn prepare_filesystem_scope(
                 let root = std::env::temp_dir().join(format!(
                     "omega-build-output-{}-{}",
                     std::process::id(),
-                    NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed),
+                    NEXT_PRIVATE_OUTPUT.fetch_add(1, Ordering::Relaxed),
                 ));
                 match BuildMachineFilesystemSponsor::create_private(&root) {
                     Ok(sponsor) => break sponsor,
@@ -204,38 +201,6 @@ pub fn prepare_filesystem_scope(
                 })?
             }
         };
-        // The snapshot backing lives under a private parent the occurrence
-        // alone can traverse: create-exclusive 0o700 custody mirrors
-        // `FilesystemSponsor::create_private`, while staying outside the
-        // sponsor's session root keeps snapshot reads on the accounting
-        // bypass every other outside-session read uses. The leaf name is
-        // fixed because the parent is already unique; the release path
-        // removes it once every backing it held is discarded.
-        let snapshot_parent = loop {
-            let candidate = std::env::temp_dir().join(format!(
-                "omega-captured-source-session-{}-{}",
-                std::process::id(),
-                NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed)
-            ));
-            #[cfg_attr(not(unix), allow(unused_mut))]
-            let mut builder = std::fs::DirBuilder::new();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                builder.mode(0o700);
-            }
-            match builder.create(&candidate) {
-                Ok(()) => break candidate,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "could not create the private captured-source snapshot staging directory `{}`: {error}",
-                        candidate.display()
-                    ))]);
-                }
-            }
-        };
-        let snapshot_dir = snapshot_parent.join("captured-source");
         build_machine_filesystem_scope = if package_inputs.is_some()
             && matches!(
                 build_snapshot.capture(),
@@ -258,14 +223,10 @@ pub fn prepare_filesystem_scope(
                     &physical_complete
                 }
             };
-            build_machine_filesystem_scope.with_scoped_package_source_input(
-                captured_input,
-                complete,
-                snapshot_dir,
-            )?
-        } else {
             build_machine_filesystem_scope
-                .with_captured_source_input(captured_input, snapshot_dir)?
+                .with_scoped_package_source_input(captured_input, complete)?
+        } else {
+            build_machine_filesystem_scope.with_captured_source_input(captured_input)?
         }
         .with_named_inputs(build_snapshot.inputs())
         .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;

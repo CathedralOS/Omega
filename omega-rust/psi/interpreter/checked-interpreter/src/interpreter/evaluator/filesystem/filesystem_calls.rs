@@ -63,14 +63,25 @@ impl<'program> Evaluator<'program> {
         self.filesystem_operation_attempt_stack.push(attempt_index);
         let mut outcome = (|| {
             let call = prepare(self)?;
-            call.validate_output_carriers()?;
             let logical_handle_plan = call.logical_handle_plan();
+            let captured = self.real_fs.as_ref().is_some_and(|filesystem| {
+                filesystem.call_uses_captured_input(&call, &logical_handle_plan)
+            });
+            if captured {
+                self.filesystem_operation_attempts[attempt_index].provider =
+                    FilesystemObservationProvider::Captured;
+            }
+            call.validate_output_carriers()?;
             self.validate_incremental_logical_handle_inputs(attempt_index, &logical_handle_plan)?;
             self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)?;
             self.reject_rooted_final_path_result(attempt_index, &call)?;
             let live_handle_lease =
                 self.reserve_prepared_live_filesystem_handle(&logical_handle_plan)?;
-            let value = self.serve_filesystem_call(call)?;
+            let value = if captured {
+                self.serve_captured_filesystem_call(call, &logical_handle_plan)?
+            } else {
+                self.serve_filesystem_call(call)?
+            };
             Ok((value, logical_handle_plan, live_handle_lease))
         })();
         if let Some(message) = self.filesystem_observation_resource_halt.take() {
@@ -173,10 +184,10 @@ impl<'program> Evaluator<'program> {
         let result: i64 = match call {
             PreparedFilesystemCall::Create { path, mode: _ } => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
-                self.virtual_open(path, true, true) as i64
+                self.virtual_open(path.into_native()?, true, true) as i64
             }
             PreparedFilesystemCall::Open { path, flags } => {
-                self.virtual_open_flags(path, flags) as i64
+                self.virtual_open_flags(path.into_native()?, flags) as i64
             }
             PreparedFilesystemCall::OpenPathHandle { .. } => self.serve_open_path_handle(call)?,
             PreparedFilesystemCall::OpenCreate { .. } => self.serve_open_create(call)?,

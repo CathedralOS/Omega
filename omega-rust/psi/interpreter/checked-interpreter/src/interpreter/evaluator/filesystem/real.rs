@@ -32,6 +32,7 @@
 //! `real_*` method in `descriptor_calls`, `path_calls` or `directory_calls`.
 
 mod authorized_paths;
+mod captured;
 mod descriptor_calls;
 mod directory_calls;
 mod grants;
@@ -94,6 +95,9 @@ pub(in crate::interpreter) struct RealFs {
     /// descriptors start at 3 (0/1/2 are the standard streams).
     files: BTreeMap<i32, RealFd>,
     next_fd: i32,
+    captured_roots: BTreeMap<FilesystemGrantRootIdentity, source::SourceSnapshot>,
+    captured_descriptors: BTreeMap<i32, captured::CapturedDescriptor>,
+    captured_descriptions: BTreeMap<i32, captured::CapturedOpenDescription>,
     /// Thread-local errno model, mirroring `virtual_errno`: set from the host
     /// `io::Error` on a failing op, read back by `errno`.
     pub(in crate::interpreter::evaluator) errno: i32,
@@ -111,17 +115,98 @@ impl RealFs {
         Ok(Self {
             files: BTreeMap::new(),
             next_fd: 3,
+            captured_roots: BTreeMap::new(),
+            captured_descriptors: BTreeMap::new(),
+            captured_descriptions: BTreeMap::new(),
             errno: 0,
             grants,
             sponsor,
         })
     }
 
+    pub(in crate::interpreter) fn with_captured_inputs(
+        grants: crate::FsGrants,
+        sponsor: Option<crate::FilesystemSponsor>,
+        inputs: Vec<crate::CapturedFilesystemRoot>,
+    ) -> Result<Self, String> {
+        let mut filesystem = Self::new(Some(grants), sponsor)?;
+        for input in inputs {
+            if filesystem
+                .grants
+                .as_ref()
+                .is_some_and(|grants| grants.root(input.identity).is_some())
+                || filesystem
+                    .captured_roots
+                    .insert(input.identity, input.snapshot)
+                    .is_some()
+            {
+                return Err(format!(
+                    "filesystem root identity {} is duplicated across provider storage",
+                    input.identity.get()
+                ));
+            }
+        }
+        Ok(filesystem)
+    }
+
+    /// Physical and captured descriptors share this checked allocator. No
+    /// provider may recycle a number that observation custody has retired.
+    fn allocate_descriptor(&mut self) -> Result<i32, i32> {
+        let descriptor = self.next_fd;
+        self.next_fd = descriptor.checked_add(1).ok_or(24)?;
+        Ok(descriptor)
+    }
+
+    pub(in crate::interpreter::evaluator) fn descriptor_root(
+        &self,
+        descriptor: i32,
+    ) -> Option<FilesystemGrantRootIdentity> {
+        self.captured_descriptors
+            .get(&descriptor)
+            .map(|entry| entry.root)
+            .or_else(|| {
+                self.files.get(&descriptor).and_then(|entry| {
+                    self.grants
+                        .as_ref()?
+                        .matching_root(&entry.path, false)
+                        .map(|root| root.identity)
+                })
+            })
+    }
+
+    pub(in crate::interpreter::evaluator) fn prepare_rooted_path(
+        &self,
+        identity: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Option<super::preparation::PreparedFilesystemPath> {
+        if self.captured_roots.contains_key(&identity) {
+            return Some(super::preparation::PreparedFilesystemPath::Captured {
+                root: identity,
+                relative: relative.to_vec(),
+            });
+        }
+        self.rooted_path_bytes(identity, relative)
+            .map(super::preparation::PreparedFilesystemPath::Native)
+    }
+
+    pub(in crate::interpreter::evaluator) fn call_uses_captured_input(
+        &self,
+        call: &PreparedFilesystemCall,
+        plan: &super::preparation::PreparedFilesystemLogicalHandlePlan,
+    ) -> bool {
+        call.has_captured_path()
+            || plan.inputs.iter().any(|input| {
+                i32::try_from(input.raw)
+                    .ok()
+                    .is_some_and(|descriptor| self.captured_descriptors.contains_key(&descriptor))
+            })
+    }
+
     pub(in crate::interpreter::evaluator) fn is_scoped(&self) -> bool {
         self.grants.is_some()
     }
 
-    pub(in crate::interpreter::evaluator) fn rooted_path_bytes(
+    fn rooted_path_bytes(
         &self,
         identity: FilesystemGrantRootIdentity,
         relative: &[u8],
@@ -145,7 +230,7 @@ impl RealFs {
                 return Err(EACCES);
             }
         }
-        Ok(self.insert_preselected(file, path, sponsor_descriptor, append, canonical_metadata))
+        self.insert_preselected(file, path, sponsor_descriptor, append, canonical_metadata)
     }
 
     fn insert_preselected(
@@ -155,13 +240,12 @@ impl RealFs {
         sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
         append: bool,
         canonical_metadata: Option<CanonicalFilesystemMetadataRowKind>,
-    ) -> i64 {
+    ) -> Result<i64, i32> {
         let write_granted = self
             .grants
             .as_ref()
             .is_none_or(|grants| grants.matching_root(&path, true).is_some());
-        let fd = self.next_fd;
-        self.next_fd += 1;
+        let fd = self.allocate_descriptor()?;
         self.files.insert(
             fd,
             RealFd {
@@ -173,7 +257,7 @@ impl RealFs {
                 canonical_metadata,
             },
         );
-        i64::from(fd)
+        Ok(i64::from(fd))
     }
 
     /// Select metadata for an already-authorized physical path. `Ok(None)` is
@@ -240,7 +324,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let result: i64 = match call {
             PreparedFilesystemCall::Create { .. } => self.real_create(call)?,
             PreparedFilesystemCall::Open { path, flags } => {
-                self.real_open_prepared(path, flags, 0, false)?
+                self.real_open_prepared(path.into_native()?, flags, 0, false)?
             }
             PreparedFilesystemCall::OpenCreate { .. } => self.real_open_create(call)?,
             PreparedFilesystemCall::OpenPathHandle { .. } => self.real_open_path_handle(call)?,
@@ -290,13 +374,13 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             PreparedFilesystemCall::FindNext { .. } => self.real_find_next(call)?,
             PreparedFilesystemCall::FindClose { .. } => self.real_find_close(call)?,
             PreparedFilesystemCall::ReadMetadata { path, buffer } => self.real_read_metadata(
-                path,
+                path.into_native()?,
                 &buffer,
                 FilesystemMetadataObservationKind::FollowedPath,
             )?,
             PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => self
                 .real_read_metadata(
-                    path,
+                    path.into_native()?,
                     &buffer,
                     FilesystemMetadataObservationKind::UnfollowedFinalPath,
                 )?,
@@ -325,7 +409,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             PreparedFilesystemCall::GetLastError => i64::from(self.real_fs_mut().errno),
             PreparedFilesystemCall::ChangeOwner { .. } => self.real_change_owner(call)?,
             PreparedFilesystemCall::ChangeOwnerNoFollow { path, uid, gid } => {
-                self.real_change_owner_no_follow(path, uid, gid)
+                self.real_change_owner_no_follow(path.into_native()?, uid, gid)
             }
             PreparedFilesystemCall::ChangeFileOwner { .. } => self.real_change_file_owner(call)?,
             PreparedFilesystemCall::UnlinkAt { .. } => self.real_unlink_at(call)?,

@@ -10,6 +10,42 @@
 
 mod file_read;
 
+/// The package boundary adapts Build inventory storage downward to the neutral
+/// source protocol. Neither Psi nor Build-output knows the other's models.
+pub(crate) fn captured_source_view(
+    input: &build_output::CapturedBuildSourceInput,
+) -> source::SourceSnapshot {
+    source::SourceSnapshot::new(BuildSourceSnapshotStorage(input.clone()))
+}
+
+struct BuildSourceSnapshotStorage(build_output::CapturedBuildSourceInput);
+
+fn snapshot_entry(entry: &build_output::CapturedSourceEntry) -> source::SourceSnapshotEntry<'_> {
+    match entry {
+        build_output::CapturedSourceEntry::Directory => source::SourceSnapshotEntry::Directory,
+        build_output::CapturedSourceEntry::File { bytes, .. } => {
+            source::SourceSnapshotEntry::File(bytes)
+        }
+        build_output::CapturedSourceEntry::Symlink { target, .. } => {
+            source::SourceSnapshotEntry::Symlink(target)
+        }
+    }
+}
+
+impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
+    fn entry(&self, path: &[u8]) -> Option<source::SourceSnapshotEntry<'_>> {
+        self.0.retained_entry(path).map(snapshot_entry)
+    }
+
+    fn entries(&self) -> Box<dyn Iterator<Item = (&[u8], source::SourceSnapshotEntry<'_>)> + '_> {
+        Box::new(
+            self.0
+                .retained_entries()
+                .map(|(path, entry)| (path, snapshot_entry(entry))),
+        )
+    }
+}
+
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use filesystem_authority::{

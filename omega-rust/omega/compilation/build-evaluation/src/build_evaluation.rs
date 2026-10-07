@@ -152,9 +152,6 @@ pub fn evaluate_build(
         filesystem_sponsor,
         snapshot,
     )?;
-    // Admission can establish captured backing, and a consumption charge may
-    // reject before execute takes ownership. Release on every return path.
-    let _captured_scope_release = CapturedBuildScopeRelease(&filesystem_scope);
     let admitted = crate::admit_build_program(
         prepared,
         selected_machine,
@@ -187,10 +184,6 @@ pub fn evaluate_build(
         .transpose()?
         .flatten();
     let configuration = if let Some(configuration) = reusable {
-        admitted
-            .filesystem_scope
-            .captured_snapshot_release()
-            .release();
         configuration
     } else {
         let configuration = Arc::new(admitted.execute()?);
@@ -206,14 +199,4 @@ pub fn evaluate_build(
         base_source_consumption_commitment,
         retained_check,
     })
-}
-
-/// Admission/consumption failures do not enter execution's own cleanup owner.
-/// Keep this scope borrowed until its captured backing has been relinquished.
-struct CapturedBuildScopeRelease<'scope>(&'scope package_compilation::BuildMachineFilesystemScope);
-
-impl Drop for CapturedBuildScopeRelease<'_> {
-    fn drop(&mut self) {
-        self.0.captured_snapshot_release().release();
-    }
 }

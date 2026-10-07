@@ -25,7 +25,6 @@ pub use completed_outputs::RetainedBuildOutputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
-    CapturedSnapshotRelease,
 };
 pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;

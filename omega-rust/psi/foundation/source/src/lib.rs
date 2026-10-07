@@ -10,7 +10,9 @@
 //!
 //! `captured_source_tree.rs` retains immutable source bytes and namespace, and
 //! `source_file_system.rs` routes compiler reads through captured roots without
-//! reopening absent members. Acquisition, admission, Build and materialization
+//! reopening absent members. `source_snapshot.rs` supplies exact non-following inventory queries to
+//! consumers independently of compiler-following lookup. Acquisition, admission,
+//! Build and materialization
 //! stay with their respective consumers; these models carry no authority.
 //!
 //! `read_accounting.rs` counts how many times the host was read for one source
@@ -23,6 +25,7 @@ pub mod read_accounting;
 mod source_file;
 mod source_file_system;
 mod source_map;
+mod source_snapshot;
 mod source_text;
 
 pub use captured_source_tree::{CapturedSourceNode, CapturedSourceTree};
@@ -32,6 +35,10 @@ pub use source_file::{
 };
 pub use source_file_system::SourceFileSystem;
 pub use source_map::SourceMap;
+pub use source_snapshot::{
+    SourceSnapshot, SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata,
+    SourceSnapshotStorage, source_snapshot_path_is_canonical,
+};
 pub use source_text::SourceText;
 
 /// Render exact literal bytes without assuming UTF-8. This is diagnostic text,

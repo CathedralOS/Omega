@@ -61,10 +61,12 @@ development library and verifies release-library digests. This package's
 Package import discovery never substitutes requester-local content for those
 bundled toolchain sources.
 
-[source_snapshot.rs](src/source_snapshot.rs) owns complete physical-root capture:
+[source_snapshot.rs](src/source_snapshot.rs) owns complete physical-root capture
+and adapts retained Build inventories to Psi's neutral snapshot-read protocol:
 metadata rows, canonical modes, bounded traversal and byte-content commitments.
-Input construction and final compiler evidence both revalidate captured metadata
-by recapturing the root. A matching file length is not a matching snapshot.
+Retained acquisition storage supplies package source bytes without reopening the
+root. A physical-custody adapter captures sealed roots when no retained tree is
+available. A matching file length is not a matching snapshot.
 
 [source_consumption.rs](src/source_consumption.rs) owns the exact source units
 actually consumed by compilation and their package commitment, including generated
@@ -88,7 +90,7 @@ observations, settling sealed-output obligations, and selecting generated source
 Capture precedes validation of the returned Build value; output settlement
 follows it. No partially settled observation is published, and the evaluator
 does not reconstruct the evidence fields. The subordinate filesystem scope owns
-root-overlap checks, snapshot materialization and release; observations retain
+physical output root-overlap checks and memory input-root issuance; observations retain
 their canonical identity independently of their compiler consumer.
 The [completed output owner](src/build_execution/completed_outputs.rs) selects
 only settled required files, commits their manifest, and publishes or verifies

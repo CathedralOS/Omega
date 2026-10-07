@@ -546,6 +546,11 @@ fn evaluate_granted_arguments(
                             },
                         )?);
                     }
+                    FilesystemAccess::CapturedScoped { inputs, grants, sponsor } => {
+                        evaluator.real_fs = Some(crate::interpreter::evaluator::filesystem::real::RealFs::with_captured_inputs(grants, sponsor, inputs).map_err(|message| {
+                            BuildMachineEvaluationFailure::without_evidence(BuildMachineEvaluationFailureKind::InvalidFilesystemGrant, message)
+                        })?);
+                    }
                     FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
                         evaluator.real_fs = Some(
                             crate::interpreter::evaluator::filesystem::real::RealFs::new(Some(grants), Some(sponsor)).map_err(
@@ -777,6 +782,25 @@ fn interpret_on_current_thread(
                 }
             };
             evaluator.real_fs = Some(filesystem);
+        }
+        FilesystemAccess::CapturedScoped {
+            inputs,
+            grants,
+            sponsor,
+        } => {
+            match crate::interpreter::evaluator::filesystem::real::RealFs::with_captured_inputs(
+                grants, sponsor, inputs,
+            ) {
+                Ok(filesystem) => evaluator.real_fs = Some(filesystem),
+                Err(message) => {
+                    return InterpretOutcome::error(
+                        message,
+                        evaluator.stdout,
+                        evaluator.stderr,
+                        evaluator.usage,
+                    );
+                }
+            }
         }
         FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
             let filesystem = match crate::interpreter::evaluator::filesystem::real::RealFs::new(

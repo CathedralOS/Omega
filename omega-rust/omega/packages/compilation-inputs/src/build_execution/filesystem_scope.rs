@@ -7,13 +7,12 @@ use super::observations::{
 };
 use crate::BuildCanonicalSourceMetadataIdentity;
 use build_output::{
-    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
-    discard_materialized_snapshot, empty,
+    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
 };
 use build_time_evaluation::{
-    BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
-    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemSponsor,
+    BuildMachineCapturedFilesystemRoot, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
+    BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor,
 };
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemSponsorEntry;
@@ -37,10 +36,8 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
 /// also permits read-back through the checked interpreter's `RealScoped`
 /// contract.
 ///
-/// When a captured source input is bound, source reads execute against a
-/// fresh private materialization of that inventory — never the live source
-/// root — while the inventory's canonical metadata index narrows every
-/// granted operation to captured membership and kind.
+/// Captured roots are exact non-following memory views; physical source grants
+/// remain a separate, explicitly authorized host protocol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
     source_root: PathBuf,
@@ -58,7 +55,7 @@ pub struct BuildMachineFilesystemScope {
     root_role: Option<crate::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
     captured_source_input: Option<CapturedBuildSourceInput>,
-    snapshot_dir: Option<PathBuf>,
+    captured_source_view: Option<source::SourceSnapshot>,
     required_outputs: BTreeSet<Vec<u8>>,
     named_inputs: Vec<NamedBuildInput>,
 }
@@ -69,8 +66,8 @@ pub struct BuildMachineFilesystemScope {
 struct NamedBuildInput {
     name: Vec<u8>,
     input: CapturedBuildSourceInput,
+    snapshot: source::SourceSnapshot,
     root: BuildMachineFilesystemGrantRootIdentity,
-    snapshot_dir: PathBuf,
 }
 
 /// Maximum declared required sealed outputs for one build occurrence.
@@ -143,71 +140,13 @@ fn roots_overlap(left: &Path, right: &Path) -> bool {
     left.starts_with(&right) || right.starts_with(&left)
 }
 
-/// The root-overlap fence each scoped directory must clear before binding:
-/// `roots_overlap` already covers `..`, relative, and host-alias spellings,
-/// so every root pairing routes through this one diagnostic shape rather
-/// than duplicating the check per pair.
-fn reject_overlapping_roots(
-    candidate: &Path,
-    fenced: &Path,
-    candidate_role: &str,
-    fenced_role: &str,
-) -> Result<(), Vec<Diagnostic>> {
-    if roots_overlap(candidate, fenced) {
-        return Err(vec![Diagnostic::error(format!(
-            "{candidate_role} `{}` must not overlap the {fenced_role} `{}`",
-            candidate.display(),
-            fenced.display()
-        ))]);
-    }
-    Ok(())
-}
-
-/// Release handle for one occurrence's private captured-source backing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapturedSnapshotRelease {
-    snapshot_dirs: Vec<PathBuf>,
-}
-
-impl CapturedSnapshotRelease {
-    /// Discard the private materialization if this occurrence bound one.
-    /// An already-absent backing is not an error, so the release may run on
-    /// the settlement path and again on the occurrence's final exit.
-    pub fn release(&self) {
-        let mut parents = Vec::new();
-        for snapshot_dir in &self.snapshot_dirs {
-            let _ = discard_materialized_snapshot(snapshot_dir);
-            if let Some(parent) = snapshot_dir.parent()
-                && !parents.iter().any(|known| *known == parent)
-            {
-                parents.push(parent.to_path_buf());
-            }
-        }
-        // The create-exclusive `omega-captured-source-session-*` parent is
-        // this occurrence's own private staging root: once every backing it
-        // held is discarded, an empty parent is removable. `remove_dir` only
-        // succeeds on an empty directory, so a parent still holding anything
-        // is left for the host's temp reaper instead of being forced.
-        for parent in parents {
-            let owned_session = parent.file_name().is_some_and(|name| {
-                name.to_string_lossy()
-                    .starts_with("omega-captured-source-session-")
-            });
-            if owned_session {
-                let _ = std::fs::remove_dir(parent);
-            }
-        }
-    }
-}
-
 impl BuildMachineFilesystemScope {
-    /// Establish the write fence and immutable input snapshots before granting access.
+    /// Establish the physical write fence before granting captured or host access.
     pub fn establish_filesystem_access(
         &self,
     ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
         self.ensure_write_roots()?;
         self.ensure_canonical_source_metadata()?;
-        self.ensure_captured_snapshot()?;
         Ok(self.filesystem_access())
     }
 
@@ -233,7 +172,7 @@ impl BuildMachineFilesystemScope {
             root_role: None,
             build_execution_profile: None,
             captured_source_input: None,
-            snapshot_dir: None,
+            captured_source_view: None,
             required_outputs: BTreeSet::new(),
             named_inputs: Vec::new(),
         }
@@ -258,7 +197,7 @@ impl BuildMachineFilesystemScope {
             root_role: None,
             build_execution_profile: None,
             captured_source_input: None,
-            snapshot_dir: None,
+            captured_source_view: None,
             required_outputs: BTreeSet::new(),
             named_inputs: Vec::new(),
         }
@@ -292,15 +231,10 @@ impl BuildMachineFilesystemScope {
     /// Bind this build occurrence's source reads to one compiler-captured
     /// immutable input inventory.
     ///
-    /// The inventory's canonical metadata index must equal any index the
-    /// sponsor already validated, and becomes the index bound into the
-    /// build's Source grant. `snapshot_dir` names the fresh private
-    /// materialization backing the Source root for this occurrence; it must
-    /// not overlap the source root or the build write root.
+    /// Its canonical metadata must match the binding's validated index.
     pub fn with_captured_source_input(
         mut self,
         input: CapturedBuildSourceInput,
-        snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
         if let Some(existing) = &self.canonical_source_metadata {
             if existing != input.canonical_source_metadata() {
@@ -311,7 +245,7 @@ impl BuildMachineFilesystemScope {
         } else {
             self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
         }
-        self.bind_captured_source_input(input, snapshot_dir)
+        Ok(self.bind_captured_source_input(input))
     }
 
     /// Keep full package provenance while narrowing the build's read grant.
@@ -321,7 +255,6 @@ impl BuildMachineFilesystemScope {
         self,
         input: CapturedBuildSourceInput,
         complete: &CapturedBuildSourceInput,
-        snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
         if self.canonical_source_metadata.as_ref() != Some(complete.canonical_source_metadata())
             || !input.is_subset_of(complete)
@@ -330,29 +263,13 @@ impl BuildMachineFilesystemScope {
                 "scoped build source input does not match the validated complete package capture",
             )]);
         }
-        self.bind_captured_source_input(input, snapshot_dir)
+        Ok(self.bind_captured_source_input(input))
     }
 
-    fn bind_captured_source_input(
-        mut self,
-        input: CapturedBuildSourceInput,
-        snapshot_dir: PathBuf,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        reject_overlapping_roots(
-            &snapshot_dir,
-            &self.build_dir,
-            "captured source snapshot directory",
-            "build write root",
-        )?;
-        reject_overlapping_roots(
-            &snapshot_dir,
-            &self.source_root,
-            "captured source snapshot directory",
-            "source root",
-        )?;
+    fn bind_captured_source_input(mut self, input: CapturedBuildSourceInput) -> Self {
+        self.captured_source_view = Some(crate::source_snapshot::captured_source_view(&input));
         self.captured_source_input = Some(input);
-        self.snapshot_dir = Some(snapshot_dir);
-        Ok(self)
+        self
     }
 
     pub(crate) fn with_named_inputs(
@@ -362,19 +279,15 @@ impl BuildMachineFilesystemScope {
         if inputs.is_empty() {
             return self;
         }
-        let source_backing = self
-            .snapshot_dir
-            .as_ref()
-            .expect("named inputs accompany captured source");
         self.named_inputs = inputs
             .iter()
             .enumerate()
             .map(|(index, (name, input))| NamedBuildInput {
                 name: name.clone(),
                 input: input.clone(),
+                snapshot: crate::source_snapshot::captured_source_view(input),
                 root: BuildMachineFilesystemGrantRootIdentity::new(index as u32 + 3)
                     .expect("bounded slot ordinal follows the source and output roots"),
-                snapshot_dir: source_backing.with_extension(format!("input-{index}")),
             })
             .collect();
         self
@@ -489,27 +402,28 @@ impl BuildMachineFilesystemScope {
     }
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
-        // A captured input switches the Source grant to this occurrence's
-        // fresh private materialization. Its selected index narrows access;
-        // the full package index remains separate package provenance.
-        let read_root = self
-            .snapshot_dir
-            .clone()
-            .unwrap_or_else(|| self.source_root.clone());
-        let mut source_root =
-            BuildMachineFilesystemGrantRoot::new(BUILD_SOURCE_ROOT_IDENTITY, read_root);
-        if let Some(metadata) = self
-            .captured_source_input
-            .as_ref()
-            .map(CapturedBuildSourceInput::canonical_source_metadata)
-            .or(self.canonical_source_metadata.as_ref())
-        {
-            source_root = source_root.with_canonical_metadata(metadata.clone());
+        let mut read_roots = Vec::new();
+        let mut captured_roots = Vec::new();
+        if let Some(snapshot) = &self.captured_source_view {
+            captured_roots.push(BuildMachineCapturedFilesystemRoot {
+                identity: BUILD_SOURCE_ROOT_IDENTITY,
+                snapshot: snapshot.clone(),
+            });
+        } else {
+            let mut source_root = BuildMachineFilesystemGrantRoot::new(
+                BUILD_SOURCE_ROOT_IDENTITY,
+                self.source_root.clone(),
+            );
+            if let Some(metadata) = &self.canonical_source_metadata {
+                source_root = source_root.with_canonical_metadata(metadata.clone());
+            }
+            read_roots.push(source_root);
         }
-        let mut read_roots = vec![source_root];
-        read_roots.extend(self.named_inputs.iter().map(|input| {
-            BuildMachineFilesystemGrantRoot::new(input.root, input.snapshot_dir.clone())
-                .with_canonical_metadata(input.input.canonical_source_metadata().clone())
+        captured_roots.extend(self.named_inputs.iter().map(|input| {
+            BuildMachineCapturedFilesystemRoot {
+                identity: input.root,
+                snapshot: input.snapshot.clone(),
+            }
         }));
         let grants = BuildMachineFilesystemGrants {
             read_roots,
@@ -518,6 +432,13 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.clone(),
             )],
         };
+        if !captured_roots.is_empty() {
+            return BuildMachineFilesystemAccess::CapturedScoped {
+                inputs: captured_roots,
+                grants,
+                sponsor: self.sponsor.clone(),
+            };
+        }
         match &self.sponsor {
             Some(sponsor) => BuildMachineFilesystemAccess::RealScopedSponsored {
                 grants,
@@ -532,11 +453,16 @@ impl BuildMachineFilesystemScope {
     /// Here every read uses captured membership, and the only write root belongs
     /// to a fresh private session whose shared owner also handles cleanup.
     pub fn is_private_snapshot_execution(&self, access: &BuildMachineFilesystemAccess) -> bool {
-        let BuildMachineFilesystemAccess::RealScopedSponsored { sponsor, .. } = access else {
+        let BuildMachineFilesystemAccess::CapturedScoped {
+            sponsor: Some(sponsor),
+            grants,
+            ..
+        } = access
+        else {
             return false;
         };
         self.captured_source_input.is_some()
-            && self.snapshot_dir.is_some()
+            && grants.read_roots.is_empty()
             && sponsor.owns_private_staging_root(&self.build_dir)
             && access == &self.filesystem_access()
     }
@@ -568,16 +494,6 @@ impl BuildMachineFilesystemScope {
                 self.source_root.display()
             ))]);
         }
-        for input in &self.named_inputs {
-            let snapshot = resolved_write_fence(&input.snapshot_dir);
-            if write_root.starts_with(&snapshot) || snapshot.starts_with(&write_root) {
-                return Err(vec![Diagnostic::error(format!(
-                    "admitted build write root `{}` resolved onto named input snapshot directory `{}` after admission — a racing alias replaced an ancestor",
-                    self.build_dir.display(),
-                    input.snapshot_dir.display()
-                ))]);
-            }
-        }
         Ok(())
     }
 
@@ -596,18 +512,6 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.display(),
                 self.source_root.display()
             ))]);
-        }
-        // Each named input's read root derives from the captured source
-        // backing as `<snapshot>.input-N` — a sibling spelling the source
-        // fence never sees, so the write root is rechecked here after the
-        // inventory is bound.
-        for input in &self.named_inputs {
-            reject_overlapping_roots(
-                &self.build_dir,
-                &input.snapshot_dir,
-                "build write root",
-                "named input snapshot directory",
-            )?;
         }
         // Compare against admission's recorded key before any mutation: an
         // ancestor aliased between them must refuse here, not after
@@ -710,75 +614,6 @@ impl BuildMachineFilesystemScope {
         Ok(())
     }
 
-    /// Materialize this occurrence's captured source input into its fresh
-    /// private backing directory, replacing any residue from a previous
-    /// occurrence. The backing is created read-only and independently
-    /// re-inspected before the build is admitted to it.
-    pub(crate) fn ensure_captured_snapshot(&self) -> Result<(), Vec<Diagnostic>> {
-        let snapshots = self
-            .captured_source_input
-            .as_ref()
-            .zip(self.snapshot_dir.as_deref())
-            .into_iter()
-            .chain(
-                self.named_inputs
-                    .iter()
-                    .map(|input| (&input.input, input.snapshot_dir.as_path())),
-            );
-        for (input, directory) in snapshots {
-            if let Err(diagnostics) = Self::materialize_snapshot(input, directory) {
-                self.captured_snapshot_release().release();
-                return Err(diagnostics);
-            }
-        }
-        Ok(())
-    }
-
-    fn materialize_snapshot(
-        input: &CapturedBuildSourceInput,
-        snapshot_dir: &Path,
-    ) -> Result<(), Vec<Diagnostic>> {
-        match std::fs::symlink_metadata(snapshot_dir) {
-            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
-                discard_materialized_snapshot(snapshot_dir).map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "failed to clear the previous captured source snapshot `{}`: {}",
-                        snapshot_dir.display(),
-                        error.message()
-                    ))]
-                })?;
-            }
-            Ok(_) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "captured source snapshot `{}` exists and is not a concrete directory",
-                    snapshot_dir.display()
-                ))]);
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "failed to inspect the captured source snapshot `{}`: {error}",
-                    snapshot_dir.display()
-                ))]);
-            }
-        }
-        std::fs::create_dir(snapshot_dir).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "failed to create the captured source snapshot `{}`: {error}",
-                snapshot_dir.display()
-            ))]
-        })?;
-        if let Err(error) = input.materialize_into(snapshot_dir) {
-            let _ = discard_materialized_snapshot(snapshot_dir);
-            return Err(vec![Diagnostic::error(format!(
-                "failed to materialize the captured source snapshot `{}`: {}",
-                snapshot_dir.display(),
-                error.message()
-            ))]);
-        }
-        Ok(())
-    }
-
     /// Verify every declared required output is completed by exactly one
     /// sealed regular file in this occurrence's retained staged-output tree.
     /// Completion is linear: a required member cannot be omitted, and a
@@ -838,34 +673,10 @@ impl BuildMachineFilesystemScope {
         ))]
     }
 
-    /// The release handle for this occurrence's private captured-source
-    /// materialization. The backing is scratch for one run only: it must be
-    /// discarded on every exit of the occurrence, including evaluator halts
-    /// and rejected settlements, so a failed build leaves no residue behind.
-    /// The handle carries only the backing path, so the caller can hold it
-    /// across the run without cloning retained inventory bytes.
-    pub fn captured_snapshot_release(&self) -> CapturedSnapshotRelease {
-        CapturedSnapshotRelease {
-            snapshot_dirs: self
-                .snapshot_dir
-                .iter()
-                .cloned()
-                .chain(
-                    self.named_inputs
-                        .iter()
-                        .map(|input| input.snapshot_dir.clone()),
-                )
-                .collect(),
-        }
-    }
-
     pub(crate) fn staged_output_tree(
         &self,
         filesystem_reachable: bool,
     ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
-        // The private captured-source backing is scratch for the completed
-        // run only; release it before staged-output custody is captured.
-        self.captured_snapshot_release().release();
         // When the selected build machine cannot reach the filesystem, the
         // Output namespace is exactly empty without needing a physical
         // staging sponsor. Canonicalize that semantic fact so sponsored

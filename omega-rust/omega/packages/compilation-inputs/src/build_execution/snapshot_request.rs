@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 ///
 /// The request is a plain carrier: it expresses intent but grants nothing by
 /// itself. The caller binds the captured input inventory and the roster onto
-/// the build's filesystem scope; admission then materializes the inventory's
-/// fresh private snapshot and completion checking enforces the roster against
+/// the build's filesystem scope; admission then serves the retained inventory directly through
+/// an exact non-following memory view and completion checking enforces the roster against
 /// retained staged-output custody. Capture requires the source root's
 /// canonical sealed form (the same physical inventory validated for canonical
 /// Source metadata); an unsealed or mutating root fails capture rather than
@@ -67,7 +67,7 @@ impl BuildSnapshotRequest {
     ///
     /// Compiler-validated canonical Source metadata means the resolver has
     /// already fixed this package's membership, so the activation captures
-    /// that sealed inventory into a fresh private backing and requires no
+    /// that sealed inventory into immutable memory storage and requires no
     /// invocation roster — the same source custody package review uses. A
     /// binding carrying no such index stays live and captures nothing.
     ///
@@ -174,7 +174,7 @@ impl BuildSnapshotRequest {
 }
 
 // These are implementation resource ceilings, not extra authority. Count
-// complete inventories, including unread files and names, before materializing.
+// complete inventories, including unread files and names, before issuing views.
 fn insert_named_input(
     slots: &mut BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
     name: Vec<u8>,

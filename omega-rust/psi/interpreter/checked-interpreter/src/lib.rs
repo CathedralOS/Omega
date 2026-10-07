@@ -135,7 +135,7 @@ pub use evaluation::{
     InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS, MAX_INCLUDED_BUILD_SOURCES,
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
 };
-pub use filesystem_access::FilesystemAccess;
+pub use filesystem_access::{CapturedFilesystemRoot, FilesystemAccess};
 pub use filesystem_authority::*;
 pub use filesystem_observations::{
     FILESYSTEM_METADATA_API_CARRIER_BYTES, FilesystemMetadataObservation,

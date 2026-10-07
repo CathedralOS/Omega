@@ -23,7 +23,7 @@ mod tree_from_entries;
 pub use capture::capture;
 pub use captured_source::{
     CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, CapturedSourceEntryRef,
-    CapturedSourceFile, CapturedSourceMaterializationError, discard_materialized_snapshot,
+    CapturedSourceFile,
 };
 pub use staged_output_tree::{
     BuildStagedOutputEntry, BuildStagedOutputEntryInput, BuildStagedOutputEntryKind,

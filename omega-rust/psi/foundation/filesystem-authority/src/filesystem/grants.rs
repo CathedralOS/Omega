@@ -11,6 +11,8 @@ pub enum FilesystemObservationProvider {
     RealUnscoped,
     /// Real filesystem constrained by compiler-supplied path grants.
     RealScoped,
+    /// Exact immutable memory input view, with no host-path resolution.
+    Captured,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

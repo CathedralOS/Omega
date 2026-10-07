@@ -54,7 +54,7 @@ One admission object follows initialization through decoding. The compiler
 retains the settings whole beside separately checked root/provider/trust rows;
 it does not reproduce the value protocol or reconstruct its fields.
 
-Filesystem preparation, captured-input lifetime, observation identities and
+Filesystem preparation, retained captured-input views, observation identities and
 sealed-output settlement belong to
 [package compilation custody](../../packages/compilation-inputs/src/build_execution.rs).
 The evaluator captures the interpreter observations, validates the returned

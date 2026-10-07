@@ -7,9 +7,8 @@
 //! that narrows the build's scoped filesystem reads.
 //!
 //! The inventory is immutable compiler custody. Package code never receives
-//! this value; it executes against a fresh private materialization of the
-//! inventory, so a build cannot observe or depend on host path spellings,
-//! checkout location, directory iteration order, or post-capture mutation.
+//! this value; it executes against a strict non-following view of this retained
+//! storage. Source reads have no physical spelling or materialized directory.
 
 use diagnostics::Diagnostic;
 use filesystem_authority::{
@@ -18,8 +17,6 @@ use filesystem_authority::{
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::fmt;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// One compiler-captured immutable source-tree entry.
@@ -150,8 +147,8 @@ impl<'a> CapturedSourceFile<'a> {
 /// filesystem grants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedBuildSourceInput {
-    canonical_source_metadata: CanonicalFilesystemMetadataIndex,
-    entries: BTreeMap<Vec<u8>, CapturedSourceEntry>,
+    canonical_source_metadata: Arc<CanonicalFilesystemMetadataIndex>,
+    entries: Arc<BTreeMap<Vec<u8>, CapturedSourceEntry>>,
     file_bytes: u64,
 }
 
@@ -216,8 +213,8 @@ impl CapturedBuildSourceInput {
             }
         }
         Ok(Self {
-            canonical_source_metadata,
-            entries: retained,
+            canonical_source_metadata: Arc::new(canonical_source_metadata),
+            entries: Arc::new(retained),
             file_bytes,
         })
     }
@@ -225,7 +222,7 @@ impl CapturedBuildSourceInput {
     /// The canonical metadata index bound into the build's scoped filesystem
     /// reads. The inventory's content commitment is this index's source
     /// commitment; host path spellings and capture order are unobservable.
-    pub const fn canonical_source_metadata(&self) -> &CanonicalFilesystemMetadataIndex {
+    pub fn canonical_source_metadata(&self) -> &CanonicalFilesystemMetadataIndex {
         &self.canonical_source_metadata
     }
 
@@ -272,9 +269,12 @@ impl CapturedBuildSourceInput {
         })
     }
 
-    /// Borrow exact retained entries for compiler-owned inventory selection.
-    /// Cloning an entry shares its file or link payload allocation; callers
-    /// need not materialize a tree or copy bytes to derive a narrower view.
+    /// Borrow an exact retained entry without following links or reopening host data.
+    pub fn retained_entry(&self, path: &[u8]) -> Option<&CapturedSourceEntry> {
+        self.entries.get(path)
+    }
+
+    /// List retained entries without copying inventory models or their payloads.
     pub fn retained_entries(&self) -> impl ExactSizeIterator<Item = (&[u8], &CapturedSourceEntry)> {
         self.entries
             .iter()
@@ -293,371 +293,6 @@ impl CapturedBuildSourceInput {
             }),
             _ => None,
         }
-    }
-
-    /// Materialize this inventory into an existing empty concrete directory.
-    ///
-    /// Only directories and regular files are materialized; captured symlink
-    /// spellings remain inert evidence and produce no host link a build could
-    /// traverse. Materialized directories are read-only (0o555 on Unix) and
-    /// materialized files are read-only (0o444 ordinary, 0o555 executable), so
-    /// the private backing can never become a write root.
-    pub fn materialize_into(
-        &self,
-        destination: impl AsRef<Path>,
-    ) -> Result<(), CapturedSourceMaterializationError> {
-        materialize_captured_source(self, destination.as_ref())
-    }
-}
-
-/// Failure to validate or materialize a captured source inventory into its
-/// fresh private backing directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapturedSourceMaterializationError {
-    message: String,
-}
-
-impl CapturedSourceMaterializationError {
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-}
-
-impl fmt::Display for CapturedSourceMaterializationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for CapturedSourceMaterializationError {}
-
-fn materialize_captured_source(
-    input: &CapturedBuildSourceInput,
-    destination: &Path,
-) -> Result<(), CapturedSourceMaterializationError> {
-    let destination_metadata = std::fs::symlink_metadata(destination).map_err(|error| {
-        materialization_error(format!(
-            "cannot inspect captured-source backing `{}`: {error}",
-            destination.display()
-        ))
-    })?;
-    if !destination_metadata.is_dir() || destination_metadata.file_type().is_symlink() {
-        return Err(materialization_error(format!(
-            "captured-source backing `{}` is not a concrete directory",
-            destination.display()
-        )));
-    }
-    let mut listing = std::fs::read_dir(destination).map_err(|error| {
-        materialization_error(format!(
-            "cannot enumerate captured-source backing `{}`: {error}",
-            destination.display()
-        ))
-    })?;
-    if listing
-        .next()
-        .transpose()
-        .map_err(|error| {
-            materialization_error(format!(
-                "cannot enumerate captured-source backing `{}`: {error}",
-                destination.display()
-            ))
-        })?
-        .is_some()
-    {
-        return Err(materialization_error(format!(
-            "captured-source backing `{}` must be an empty directory",
-            destination.display()
-        )));
-    }
-
-    // Kind validation finishes before any write so a rejected inventory
-    // leaves the backing untouched rather than partially materialized.
-    for (relative_path, entry) in &input.entries {
-        if let CapturedSourceEntry::File { executable, .. } = entry {
-            validate_captured_executable_mode(relative_path, *executable)?;
-        }
-    }
-
-    for (relative_path, entry) in &input.entries {
-        let native = captured_native_path(destination, relative_path)?;
-        match entry {
-            CapturedSourceEntry::Directory => {
-                // Directory sealing waits for the second pass: a sealed
-                // directory rejects the creation of its later siblings.
-                std::fs::create_dir(&native).map_err(|error| {
-                    materialization_error(format!(
-                        "cannot materialize captured source directory `{relative_path:?}`: {error}"
-                    ))
-                })?;
-            }
-            CapturedSourceEntry::File {
-                bytes, executable, ..
-            } => {
-                let mut file = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&native)
-                    .map_err(|error| {
-                        materialization_error(format!(
-                            "cannot materialize captured source file `{relative_path:?}`: {error}"
-                        ))
-                    })?;
-                std::io::Write::write_all(&mut file, bytes).map_err(|error| {
-                    materialization_error(format!(
-                        "cannot write captured source file `{relative_path:?}`: {error}"
-                    ))
-                })?;
-                drop(file);
-                set_captured_file_mode(&native, *executable)?;
-            }
-            CapturedSourceEntry::Symlink { .. } => {
-                // Captured links are inert evidence; no host link is created.
-            }
-        }
-    }
-    for (relative_path, entry) in &input.entries {
-        if let CapturedSourceEntry::Directory = entry {
-            set_captured_dir_mode(&captured_native_path(destination, relative_path)?)?;
-        }
-    }
-    Ok(())
-}
-
-/// Remove a materialized captured-source snapshot. Materialization seals
-/// directories and files read-only (0o555/0o444 on Unix, the readonly
-/// attribute elsewhere), so an ordinary recursive remove cannot unlink the
-/// tree; every entry regains a writable mode first. The destination is
-/// scratch custody — partial materializations and residue clear the same way.
-pub fn discard_materialized_snapshot(
-    destination: impl AsRef<Path>,
-) -> Result<(), CapturedSourceMaterializationError> {
-    let destination = destination.as_ref();
-    match std::fs::symlink_metadata(destination) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(materialization_error(format!(
-                "cannot inspect materialized captured source snapshot `{}`: {error}",
-                destination.display()
-            )));
-        }
-    }
-    unseal_materialized_tree(destination)?;
-    std::fs::remove_dir_all(destination).map_err(|error| {
-        materialization_error(format!(
-            "cannot discard materialized captured source snapshot `{}`: {error}",
-            destination.display()
-        ))
-    })
-}
-
-fn unseal_materialized_tree(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
-        materialization_error(format!(
-            "cannot inspect materialized captured source `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    if metadata.is_dir() {
-        unseal_captured_dir(path)?;
-        let children = std::fs::read_dir(path).map_err(|error| {
-            materialization_error(format!(
-                "cannot enumerate materialized captured source `{}`: {error}",
-                path.display()
-            ))
-        })?;
-        for child in children {
-            let child = child.map_err(|error| {
-                materialization_error(format!(
-                    "cannot enumerate materialized captured source `{}`: {error}",
-                    path.display()
-                ))
-            })?;
-            unseal_materialized_tree(&child.path())?;
-        }
-    } else if !aliases_external_custody(&metadata, path) {
-        unseal_captured_file(path)?;
-    }
-    Ok(())
-}
-
-/// A symlink or hard link inside the private tree aliases custody that is
-/// not this snapshot's alone: the mode write would follow the alias or share
-/// its inode with a host file outside the tree. Removal unlinks the entry
-/// itself, so an aliased entry has no mode to restore.
-/// An entry whose link count cannot be read counts as aliased: refusing to
-/// unseal fails the later remove loudly, where unsealing a shared inode would
-/// rewrite a host file's attributes silently.
-fn aliases_external_custody(metadata: &std::fs::Metadata, path: &Path) -> bool {
-    metadata.file_type().is_symlink()
-        || !platform_custody::has_single_hard_link(path).unwrap_or(false)
-}
-
-#[cfg(unix)]
-fn unseal_captured_dir(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).map_err(|error| {
-        materialization_error(format!(
-            "cannot unseal materialized captured source directory `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-#[cfg(not(unix))]
-fn unseal_captured_dir(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    unseal_captured_file(path)
-}
-
-#[cfg(unix)]
-fn unseal_captured_file(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).map_err(|error| {
-        materialization_error(format!(
-            "cannot unseal materialized captured source file `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-#[cfg(not(unix))]
-fn unseal_captured_file(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    let mut permissions = std::fs::metadata(path)
-        .map_err(|error| {
-            materialization_error(format!(
-                "cannot inspect materialized captured source file `{}`: {error}",
-                path.display()
-            ))
-        })?
-        .permissions();
-    // This arm never compiles on Unix: the readonly attribute is the seal
-    // here, so clearing it is exactly the unseal this host needs.
-    #[allow(clippy::permissions_set_readonly_false)]
-    permissions.set_readonly(false);
-    std::fs::set_permissions(path, permissions).map_err(|error| {
-        materialization_error(format!(
-            "cannot unseal materialized captured source file `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-fn captured_native_path(
-    destination: &Path,
-    relative_path: &[u8],
-) -> Result<PathBuf, CapturedSourceMaterializationError> {
-    let mut native = destination.to_path_buf();
-    for component in relative_path.split(|byte| *byte == b'/') {
-        if component.is_empty() || component == b"." || component == b".." {
-            return Err(materialization_error(format!(
-                "captured source relative path is not canonical: {relative_path:?}"
-            )));
-        }
-        native.push(captured_os_str(component).ok_or_else(|| {
-            materialization_error(format!(
-                "captured source name is not portable on this host: {relative_path:?}"
-            ))
-        })?);
-    }
-    Ok(native)
-}
-
-#[cfg(unix)]
-fn captured_os_str(component: &[u8]) -> Option<std::ffi::OsString> {
-    use std::os::unix::ffi::OsStringExt;
-    Some(std::ffi::OsString::from_vec(component.to_vec()))
-}
-
-#[cfg(not(unix))]
-fn captured_os_str(component: &[u8]) -> Option<std::ffi::OsString> {
-    std::str::from_utf8(component)
-        .ok()
-        .map(std::ffi::OsString::from)
-}
-
-#[cfg(unix)]
-fn set_captured_dir_mode(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).map_err(|error| {
-        materialization_error(format!(
-            "cannot seal materialized captured source directory `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-#[cfg(not(unix))]
-fn set_captured_dir_mode(_path: &Path) -> Result<(), CapturedSourceMaterializationError> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn set_captured_file_mode(
-    path: &Path,
-    executable: bool,
-) -> Result<(), CapturedSourceMaterializationError> {
-    use std::os::unix::fs::PermissionsExt;
-    let mode = if executable { 0o555 } else { 0o444 };
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|error| {
-        materialization_error(format!(
-            "cannot seal materialized captured source file `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-#[cfg(not(unix))]
-fn set_captured_file_mode(
-    path: &Path,
-    _executable: bool,
-) -> Result<(), CapturedSourceMaterializationError> {
-    let mut permissions = std::fs::metadata(path)
-        .map_err(|error| {
-            materialization_error(format!(
-                "cannot inspect materialized captured source file `{}`: {error}",
-                path.display()
-            ))
-        })?
-        .permissions();
-    permissions.set_readonly(true);
-    std::fs::set_permissions(path, permissions).map_err(|error| {
-        materialization_error(format!(
-            "cannot seal materialized captured source file `{}`: {error}",
-            path.display()
-        ))
-    })
-}
-
-#[cfg(unix)]
-fn validate_captured_executable_mode(
-    _relative_path: &[u8],
-    _executable: bool,
-) -> Result<(), CapturedSourceMaterializationError> {
-    Ok(())
-}
-
-/// A host without an executable file class cannot materialize a captured
-/// executable source file faithfully; the inventory refuses before any write
-/// rather than produce a snapshot that disagrees with the canonical metadata
-/// index the build's grants enforce.
-#[cfg(not(unix))]
-fn validate_captured_executable_mode(
-    relative_path: &[u8],
-    executable: bool,
-) -> Result<(), CapturedSourceMaterializationError> {
-    if executable {
-        Err(materialization_error(format!(
-            "this host cannot materialize captured source file `{}`'s executable mode",
-            String::from_utf8_lossy(relative_path)
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-fn materialization_error(message: impl Into<String>) -> CapturedSourceMaterializationError {
-    CapturedSourceMaterializationError {
-        message: message.into(),
     }
 }
 

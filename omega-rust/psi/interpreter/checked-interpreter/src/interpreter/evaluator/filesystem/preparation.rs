@@ -12,7 +12,7 @@ mod prepared_outputs;
 pub(crate) use logical_handle_plans::{
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
 };
-pub(crate) use prepared_calls::PreparedFilesystemCall;
+pub(crate) use prepared_calls::{PreparedFilesystemCall, PreparedFilesystemPath};
 pub(crate) use prepared_outputs::{PreparedByteOutput, PreparedTransferCount};
 
 use crate::interpreter::evaluator::{EvalResult, FilesystemHostOperation, Halt, trap};
