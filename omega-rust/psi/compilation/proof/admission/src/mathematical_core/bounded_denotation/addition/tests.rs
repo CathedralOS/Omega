@@ -11,45 +11,7 @@ use std::collections::BTreeSet;
 
 #[test]
 fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let value = ValueId::new(1).unwrap();
-    let context =
-        PropositionContext::from_value_types([(value, ScalarType::Integer(integer))]).unwrap();
-    let large = IntegerMathTerm::ShiftLeft {
-        value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
-        count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(65_536))),
-    };
-    let open = IntegerMathTerm::Add(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer,
-            value,
-        }),
-        Box::new(large.clone()),
-    );
-    let goal = Proposition::IntegerMathEqual(open.clone(), open);
-    let proof = assumption_proof(goal.clone(), 0);
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        std::slice::from_ref(&goal),
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-    let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
-    let closed_proof = assumption_proof(closed_goal.clone(), 0);
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &closed_goal,
-            std::slice::from_ref(&closed_goal),
-            &[],
-            &closed_proof,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Add);
 }
 
 #[test]

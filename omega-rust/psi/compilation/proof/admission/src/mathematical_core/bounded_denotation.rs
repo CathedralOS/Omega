@@ -4776,8 +4776,8 @@ mod test_utilities {
     use crate::proof::assumption_proof;
     use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
     use semantic_vocabulary::{
-        IntegerMathTerm, IntegerType, Proposition, PropositionContext, PropositionError, ScalarTerm,
-        ScalarType,
+        IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
+        PropositionError, ScalarTerm, ScalarType, ValueId,
     };
     use std::collections::BTreeSet;
 
@@ -4793,6 +4793,53 @@ mod test_utilities {
             ScalarTerm::Integer { value, .. } => IntegerMathTerm::literal(*value),
             _ => unreachable!(),
         }
+    }
+
+    /// A skipped numeric resource refusal stays refused: the open
+    /// operation embedding a value verifies while the closed giant term
+    /// keeps failing resource admission.
+    pub(crate) fn open_operation_preserves_skipped_numeric_resource_refusals(
+        operation: fn(Box<IntegerMathTerm>, Box<IntegerMathTerm>) -> IntegerMathTerm,
+    ) {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let value = ValueId::new(1).unwrap();
+        let context =
+            PropositionContext::from_value_types([(value, ScalarType::Integer(integer))]).unwrap();
+        let large = IntegerMathTerm::ShiftLeft {
+            value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+            count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(65_536))),
+        };
+        let open = operation(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer,
+                value,
+            }),
+            Box::new(large.clone()),
+        );
+        let goal = Proposition::IntegerMathEqual(open.clone(), open);
+        let proof = assumption_proof(goal.clone(), 0);
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&goal),
+            &[],
+            &proof,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
+        let closed_proof = assumption_proof(closed_goal.clone(), 0);
+        assert!(
+            verify_bounded_certificate(
+                &context,
+                &closed_goal,
+                std::slice::from_ref(&closed_goal),
+                &[],
+                &closed_proof,
+                &mut Budget::default()
+            )
+            .is_err()
+        );
     }
 
     pub(crate) fn direct_fixture(
