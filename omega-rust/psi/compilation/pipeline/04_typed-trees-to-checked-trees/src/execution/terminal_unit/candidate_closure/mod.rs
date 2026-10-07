@@ -117,6 +117,32 @@ impl CandidateClosure {
     }
 }
 
+/// Fold a scalar-target availability verdict into dependency edges or a
+/// missing-target drop.
+fn apply_scalar_target_verdict(
+    closure: &mut CandidateClosure,
+    candidate_count: usize,
+    caller_index: usize,
+    target: SymbolHandle,
+    verdict: Option<scalar_targets::AvailableScalarTarget>,
+) {
+    match verdict {
+        Some(scalar_targets::AvailableScalarTarget::Registered) => {}
+        Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {
+            closure.dependents.push((target_index, caller_index));
+        }
+        Some(scalar_targets::AvailableScalarTarget::ComposedBody(composed_index)) => {
+            closure
+                .dependents
+                .push((candidate_count + composed_index, caller_index));
+        }
+        None => closure.drop_candidate(
+            caller_index,
+            CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target },
+        ),
+    }
+}
+
 fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
@@ -336,36 +362,28 @@ pub(super) fn retain_available(
                             call.target.state,
                         ),
                         (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
-                        match scalar_targets::ScalarCallSite::of_composed_operation(plan.machine, state, operation)
-                            .and_then(|site| scalar_targets::available_target(
-                            program,
-                            facts,
-                            scalar_callees,
-                            candidates,
-                            composed_machines,
-                            &site,
-                            operation,
-                        )) {
-                            Some(scalar_targets::AvailableScalarTarget::Registered) => {}
-                            Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(
-                                target_index,
-                            )) => {
-                                closure.dependents.push((target_index, caller_index));
-                            }
-                            Some(scalar_targets::AvailableScalarTarget::ComposedBody(
-                                composed_index,
-                            )) => {
-                                closure
-                                    .dependents
-                                    .push((candidates.len() + composed_index, caller_index));
-                            }
-                            None => closure.drop_candidate(
-                                caller_index,
-                                CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
-                                    target: call.target.machine,
-                                },
-                            ),
-                        }
+                        apply_scalar_target_verdict(
+                            &mut closure,
+                            candidates.len(),
+                            caller_index,
+                            call.target.machine,
+                            scalar_targets::ScalarCallSite::of_composed_operation(
+                                plan.machine,
+                                state,
+                                operation,
+                            )
+                            .and_then(|site| {
+                                scalar_targets::available_target(
+                                    program,
+                                    facts,
+                                    scalar_callees,
+                                    candidates,
+                                    composed_machines,
+                                    &site,
+                                    operation,
+                                )
+                            }),
+                        )
                         }
                     },
                     CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
