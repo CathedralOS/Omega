@@ -11,7 +11,9 @@ use optimization_unit::{
     NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind,
     TotalScalarIdentityRewrite,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+};
 
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::global_value_numbering::exact_pure_scalar_effect;
@@ -131,4 +133,11 @@ pub(super) fn exact_total_scalar_identity(identity: &[u8]) -> OptimizationRuleCo
         OptimizationSafetyClass::ExactOperationSemantics,
     )
     .expect("built-in rule has nonzero version")
+}
+
+pub(super) fn all_ones(scalar_type: IntegerType) -> IntegerValue {
+    match scalar_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(-1),
+        IntegerSign::Unsigned => scalar_type.maximum_value(),
+    }
 }
