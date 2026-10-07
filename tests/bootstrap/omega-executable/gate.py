@@ -38,39 +38,8 @@ import struct
 import subprocess
 import time
 
-
-def run(command, payload, limit, label):
-    started = time.monotonic()
-    print(f"{label}: started, {limit}s watchdog", flush=True)
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, start_new_session=True)
-    try:
-        output, errors = process.communicate(payload, timeout=limit)
-    except subprocess.TimeoutExpired:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False)
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-        raise SystemExit(f"{label}: timed out; no compiler judgment")
-    print(f"{label}: status {process.returncode}, {time.monotonic() - started:.3f}s", flush=True)
-    return process.returncode, output, errors
-
-
-def evaluate(directory, program, sealed_input, limit, label):
-    code, output, errors = run([str(directory / "evaluator.exe")],
-                              struct.pack("<I", len(program)) + program + sealed_input,
-                              limit, label)
-    if code != 0 or errors:
-        raise SystemExit(f"{label}: evaluator failure {code}, {output[:40].hex()}, {errors!r}")
-    return output
-
-
-def require_identity(label, source, length, digest):
-    actual = hashlib.sha256(source).hexdigest()
-    if len(source) != length or actual != digest:
-        raise SystemExit(
-            f"{label} identity changed: {len(source)} bytes, SHA-256 {actual}")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from gate_lib import evaluate, require_identity, run  # noqa: E402
 
 
 def ocreq_request(source, path):
@@ -229,14 +198,15 @@ def main():
         print("Epsilon receipt reconstruction: cache hit", flush=True)
     if receipt is None:
         receipt = evaluate(directory, delta_compiler,
-                           request, receipt_limit, "Epsilon receipt reconstruction")
+                           request, receipt_limit, "Epsilon receipt reconstruction",
+                           "no compiler judgment")
     require_identity("Epsilon execution receipt", receipt, 721484,
                      "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
     if receipt_cache and not Path(receipt_cache).exists():
         Path(receipt_cache).write_bytes(receipt)
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer + sealed_input,
-                           limit, "Omega source to Alpha tape")
+                           limit, "Omega source to Alpha tape", "no compiler judgment")
     if controls:
         expected_tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
         if observation != b"\x00\x00\x00\x00\x00C" + expected_tape:
