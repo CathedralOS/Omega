@@ -4,9 +4,10 @@
 
 use abstract_operations::AbstractOperation as O;
 use semantic_vocabulary::{
-    OperationId, PlaceId, StructuralCaseId, StructuralPlaceKind, StructuralTypeId,
+    OperationId, PlaceId, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId,
 };
-use terminal_psi::StructuralPlaceDeclaration;
+use terminal_psi::{RecordFieldValue, StructuralPlaceDeclaration};
 
 use super::PsiOptimizationFunction;
 
@@ -137,4 +138,56 @@ pub fn declared_structural_type(
             .structural()
             .and_then(|result| (result.place == declaration.id).then_some(result.structural_type)),
     }
+}
+
+/// The `EstablishRecord` or `EstablishCase` node's field initializers when
+/// `producer` is that node on `place`, or `None` when no such node exists.
+pub fn establishment_fields(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+) -> Option<&[terminal_psi::RecordFieldInitializer]> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::EstablishRecord {
+                psi_operation,
+                result,
+                fields,
+            }
+            | O::EstablishCase {
+                psi_operation,
+                result,
+                fields,
+                ..
+            } if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
+            _ => None,
+        })
+}
+
+/// The child place the `EstablishRecord` producer stores whole into `field`,
+/// or `None` when the producer node is absent, is not an `EstablishRecord`
+/// on this place, or `field`'s initializer is not an owned, complete
+/// structural argument — a pathed argument or a borrow does not carry the
+/// child's own establishment.
+pub fn structural_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<PlaceId> {
+    establishment_fields(function, producer, place)?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Structural(argument)
+                if argument.path.is_empty()
+                    && argument.access == terminal_psi::StructuralAccess::Owned =>
+            {
+                Some(argument.place)
+            }
+            _ => None,
+        })
 }

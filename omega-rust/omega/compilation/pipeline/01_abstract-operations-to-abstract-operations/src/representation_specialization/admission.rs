@@ -12,7 +12,7 @@ use super::{
     PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use abstract_operations::StructuralCopyPath;
-use optimization_unit::declared_structural_type;
+use optimization_unit::{declared_structural_type, structural_child};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -518,47 +518,6 @@ fn descended_field_matching(
         StructuralFieldType::Structural(next) => Some((field.id, next)),
         _ => None,
     }
-}
-
-/// The child place an `EstablishRecord` or `EstablishCase` producer stores
-/// whole into `field`, or `None` when the producer node is absent, is not
-/// an establishment on this place, or `field`'s initializer is not an
-/// owned, complete structural argument — a pathed argument or a borrow does
-/// not carry the child's own establishment.
-fn structural_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<PlaceId> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                fields,
-            }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => Some(fields),
-            _ => None,
-        })?
-        .iter()
-        .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match &initializer.value {
-            RecordFieldValue::Structural(argument)
-                if argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
-            {
-                Some(argument.place)
-            }
-            _ => None,
-        })
 }
 
 /// The source place and canonical projection of the `StructuralLeafCopy`

@@ -42,7 +42,8 @@ use optimization_unit::{
     OptimizationNode, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RootProducer,
     ScalarSubstitution, ValueDefinition, ValueDefinitionSite, declared_structural_type,
-    field_evidence, recompute_psi_optimization_unit_identity, root_producer,
+    establishment_fields, field_evidence, recompute_psi_optimization_unit_identity, root_producer,
+    structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralFieldId,
@@ -712,33 +713,6 @@ fn forwarded_resolution(
     })
 }
 
-/// The `EstablishRecord`/`EstablishCase` node's field initializers when
-/// `producer` is that node on `place`, or `None` when no such node exists.
-fn establishment_fields(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-) -> Option<&[terminal_psi::RecordFieldInitializer]> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                fields,
-            }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
-            _ => None,
-        })
-}
-
 /// The `ValueId` the `EstablishRecord` producer stores into `field`, or
 /// `None` when the producer node is absent, is not an `EstablishRecord` on
 /// this place, or the initializer is not a scalar.
@@ -753,31 +727,6 @@ fn record_initializer(
         .find(|initializer| initializer.field == field)
         .and_then(|initializer| match &initializer.value {
             RecordFieldValue::Scalar { value, .. } => Some(*value),
-            _ => None,
-        })
-}
-
-/// The child place the `EstablishRecord` producer stores whole into `field`,
-/// or `None` when the producer node is absent, is not an `EstablishRecord`
-/// on this place, or `field`'s initializer is not an owned, complete
-/// structural argument — a pathed argument or a borrow does not carry the
-/// child's own establishment.
-fn structural_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<PlaceId> {
-    establishment_fields(function, producer, place)?
-        .iter()
-        .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match &initializer.value {
-            RecordFieldValue::Structural(argument)
-                if argument.path.is_empty()
-                    && argument.access == terminal_psi::StructuralAccess::Owned =>
-            {
-                Some(argument.place)
-            }
             _ => None,
         })
 }

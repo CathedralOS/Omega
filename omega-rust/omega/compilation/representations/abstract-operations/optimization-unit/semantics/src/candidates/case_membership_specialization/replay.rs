@@ -29,7 +29,7 @@ use optimization_unit::{
     FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
-    recompute_psi_optimization_unit_identity,
+    recompute_psi_optimization_unit_identity, structural_child,
 };
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, ScalarType,
@@ -37,8 +37,8 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    RecordFieldValue, StructuralAccess, StructuralCaseDeclaration, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
 /// The evidence every membership observing `place` resolves against: the
@@ -476,47 +476,6 @@ fn descended_field_matching(
         StructuralFieldType::Structural(next) => Some((field.id, next)),
         _ => None,
     }
-}
-
-/// The child place the `EstablishRecord`/`EstablishCase` producer stores
-/// whole into `field`, or `None` when the producer node is absent, is not
-/// an establishment on this place, or `field`'s initializer is not an
-/// owned, complete structural argument — a pathed argument or a borrow does
-/// not carry the child's own establishment.
-fn structural_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<PlaceId> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                fields,
-            }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => Some(fields),
-            _ => None,
-        })?
-        .iter()
-        .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match &initializer.value {
-            RecordFieldValue::Structural(argument)
-                if argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
-            {
-                Some(argument.place)
-            }
-            _ => None,
-        })
 }
 
 /// The one case of the closed roster the `path` resolves to under the

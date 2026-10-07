@@ -201,5 +201,6 @@ impl PsiOptimizationUnit {
     }
 }
 pub use structural_places::{
-    FieldEvidence, RootProducer, declared_structural_type, field_evidence, root_producer,
+    FieldEvidence, RootProducer, declared_structural_type, establishment_fields, field_evidence,
+    root_producer, structural_child,
 };
