@@ -114,6 +114,20 @@ impl OperationFrame<'_, '_> {
         if staged {
             return Ok(Some(value));
         }
+        self.publish_scalar_result(coordinate, value)?;
+        Ok(None)
+    }
+
+    /// Publish after private argument temporaries have been retired. Refinement
+    /// belongs to call completion; publication joins the checked binding to its
+    /// actual runtime slot, which need not equal its authored ordinal.
+    pub(in crate::unit::attached_unit) fn publish_scalar_result(
+        &mut self,
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        value: ValueDeclaration,
+    ) -> Result<(), LoweringError> {
+        let names_local =
+            crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         if !crate::call_sites::discards_result(self.checked, self.state, coordinate) {
             let position = self.values.len();
             self.values.push(value);
@@ -129,7 +143,7 @@ impl OperationFrame<'_, '_> {
                 }
             }
         }
-        Ok(None)
+        Ok(())
     }
 
     /// Publish one completed structural call result. The dense roster keeps

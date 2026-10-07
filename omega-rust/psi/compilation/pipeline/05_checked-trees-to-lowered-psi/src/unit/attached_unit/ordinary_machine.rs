@@ -121,8 +121,15 @@ pub(super) struct MachineEmission<'a> {
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     subslice_places: Vec<StructuralPlaceDeclaration>,
     retained_scalar_prefix: Option<usize>,
-    staged_scalar_result: Option<ValueDeclaration>,
+    staged_scalar_result: Option<StagedScalarResult>,
     scalar_calls: CallEmissionContext<'a>,
+}
+
+/// The outer call's completed result waits until private argument cells are
+/// retired before it acquires a checked source binding.
+struct StagedScalarResult {
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    value: ValueDeclaration,
 }
 
 /// What one scheduled operation hands the lowering methods.
@@ -309,6 +316,8 @@ pub(super) fn emit(
     // first statement onward, just as composed states do. Rebuilding bindings
     // from the growing SSA roster would make a preceding field-store result
     // occupy the next source local's ordinal.
+    // Captured observations and staged argument cells likewise stay private;
+    // neither establishes an authored formal or local binding.
     evaluation.scalar_bindings = Some(
         crate::expression_preparation::bindings::ScalarBindings::new(
             scalar_parameters.iter().map(|value| value.scalar_type),
@@ -661,6 +670,13 @@ pub(super) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "scalar completion binding position overflows",
                     ))?;
+                let position = evaluation
+                    .scalar_bindings
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar completion has no runtime binding",
+                    ))?
+                    .immutable_position(position)?;
                 let source =
                     scalar_result_values
                         .get(position)
@@ -1246,7 +1262,8 @@ impl MachineEmission<'_> {
                 // Argument temporaries are never source-local bindings.
                 // Only the successful outer result extends that namespace.
                 if let Some(result) = self.staged_scalar_result.take() {
-                    self.scalar_result_values.push(result);
+                    self.frame(prefix)
+                        .publish_scalar_result(result.coordinate, result.value)?;
                 }
                 return Ok(());
             }
@@ -1495,10 +1512,20 @@ impl<'a> MachineEmission<'a> {
             },
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        if let Some(value) = staged_result
-            && self.staged_scalar_result.replace(value).is_some()
-        {
-            return unsupported("nested argument group produces more than one scalar binding");
+        if let Some(value) = staged_result {
+            let coordinate = operation
+                .call()
+                .ok_or(LoweringError::Unsupported(
+                    "staged scalar result has no source call",
+                ))?
+                .coordinate;
+            if self
+                .staged_scalar_result
+                .replace(StagedScalarResult { coordinate, value })
+                .is_some()
+            {
+                return unsupported("nested argument group produces more than one scalar binding");
+            }
         }
         Ok(())
     }
