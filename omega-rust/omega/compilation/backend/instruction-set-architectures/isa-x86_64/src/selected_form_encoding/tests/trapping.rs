@@ -5,6 +5,203 @@
 
 use super::*;
 
+/// Apple clang (`clang -target x86_64-apple-macos -c`, bytes read back with
+/// `otool -t`) assembled every Trapping realization from hand-written Intel
+/// assembly, independently of this encoder, in `TrappingForm::ALL` order for
+/// the low register assignment of `trapping_operand_names`. Every check jumps
+/// to a local label just past its UD2, which the assembler emits as a
+/// two-byte rel8 jump:
+///
+/// * i64 and u64 add, subtract, and multiply: `mov rax, rdi; add|sub|imul
+///   rax, rsi; jno|jae 1f; ud2`.
+/// * narrow add, subtract, and multiply: the same arithmetic, then `movsx
+///   rcx, al|ax` or `movsxd rcx, eax; cmp rcx, rax` (signed) or `mov rcx,
+///   rax; shr rcx, 8|16|32` (unsigned), then `je 1f; ud2`.
+/// * u64 multiply: `mul rcx; jno 1f; ud2`.
+/// * divide and remainder: `test rcx, rcx; jne 1f; ud2`, then `xor rdx, rdx;
+///   div rcx` (unsigned) or `cmp rcx, -1; jne 2f; cmp rax, -128|-32768|
+///   -2147483648; jne 3f; ud2; 3: 2: cqo; idiv rcx` (signed; i64 compares
+///   `cmp rax, 1; jno 3f`), then `mov rax, rdx` for a remainder.
+/// * shifts: `cmp rcx, 8|16|32|64; jb 1f; ud2; 1: mov rax, rdi`, then `sar|shr
+///   rax, cl` (right), or `shl rax, cl` and either the narrow range check of
+///   rax through rdx or `mov rdx, rax; sar|shr rdx, cl; cmp rdx, rdi; je 2f;
+///   ud2` (i64, u64).
+/// * conversions: `movsx rcx, dil|di` or `movsxd rcx, edi; cmp rcx, rdi`
+///   (signed source into a narrow signed carrier) or `mov rcx, rdi; shr rcx,
+///   7|8|15|16|31|32|63` (every other checked pair), then `je 1f; ud2; 1: mov
+///   rax, rdi`; or the bare `mov rax, rdi`.
+const CLANG_TRAPPING_LOW: [&str; 72] = [
+    // Add
+    "4889f84801f0480fbec84839c174020f0b", // I8
+    "4889f84801f0480fbfc84839c174020f0b", // I16
+    "4889f84801f04863c84839c174020f0b",   // I32
+    "4889f84801f071020f0b",               // I64
+    "4889f84801f04889c148c1e90874020f0b", // U8
+    "4889f84801f04889c148c1e91074020f0b", // U16
+    "4889f84801f04889c148c1e92074020f0b", // U32
+    "4889f84801f073020f0b",               // U64
+    // Subtract
+    "4889f84829f0480fbec84839c174020f0b", // I8
+    "4889f84829f0480fbfc84839c174020f0b", // I16
+    "4889f84829f04863c84839c174020f0b",   // I32
+    "4889f84829f071020f0b",               // I64
+    "4889f84829f04889c148c1e90874020f0b", // U8
+    "4889f84829f04889c148c1e91074020f0b", // U16
+    "4889f84829f04889c148c1e92074020f0b", // U32
+    "4889f84829f073020f0b",               // U64
+    // Multiply
+    "4889f8480fafc6480fbec84839c174020f0b", // I8
+    "4889f8480fafc6480fbfc84839c174020f0b", // I16
+    "4889f8480fafc64863c84839c174020f0b",   // I32
+    "4889f8480fafc671020f0b",               // I64
+    "4889f8480fafc64889c148c1e90874020f0b", // U8
+    "4889f8480fafc64889c148c1e91074020f0b", // U16
+    "4889f8480fafc64889c148c1e92074020f0b", // U32
+    "48f7e171020f0b",                       // U64
+    // Divide
+    "4885c975020f0b4883f9ff75084883f88075020f0b489948f7f9", // I8
+    "4885c975020f0b4883f9ff750a483d0080ffff75020f0b489948f7f9", // I16
+    "4885c975020f0b4883f9ff750a483d0000008075020f0b489948f7f9", // I32
+    "4885c975020f0b4883f9ff75084883f80171020f0b489948f7f9", // I64
+    "4885c975020f0b4831d248f7f1",                           // U8
+    "4885c975020f0b4831d248f7f1",                           // U16
+    "4885c975020f0b4831d248f7f1",                           // U32
+    "4885c975020f0b4831d248f7f1",                           // U64
+    // Remainder
+    "4885c975020f0b4883f9ff75084883f88075020f0b489948f7f94889d0", // I8
+    "4885c975020f0b4883f9ff750a483d0080ffff75020f0b489948f7f94889d0", // I16
+    "4885c975020f0b4883f9ff750a483d0000008075020f0b489948f7f94889d0", // I32
+    "4885c975020f0b4883f9ff75084883f80171020f0b489948f7f94889d0", // I64
+    "4885c975020f0b4831d248f7f14889d0",                           // U8
+    "4885c975020f0b4831d248f7f14889d0",                           // U16
+    "4885c975020f0b4831d248f7f14889d0",                           // U32
+    "4885c975020f0b4831d248f7f14889d0",                           // U64
+    // ShiftLeft
+    "4883f90872020f0b4889f848d3e0480fbed04839c274020f0b", // I8
+    "4883f91072020f0b4889f848d3e0480fbfd04839c274020f0b", // I16
+    "4883f92072020f0b4889f848d3e04863d04839c274020f0b",   // I32
+    "4883f94072020f0b4889f848d3e04889c248d3fa4839fa74020f0b", // I64
+    "4883f90872020f0b4889f848d3e04889c248c1ea0874020f0b", // U8
+    "4883f91072020f0b4889f848d3e04889c248c1ea1074020f0b", // U16
+    "4883f92072020f0b4889f848d3e04889c248c1ea2074020f0b", // U32
+    "4883f94072020f0b4889f848d3e04889c248d3ea4839fa74020f0b", // U64
+    // ShiftRight
+    "4883f90872020f0b4889f848d3f8", // I8
+    "4883f91072020f0b4889f848d3f8", // I16
+    "4883f92072020f0b4889f848d3f8", // I32
+    "4883f94072020f0b4889f848d3f8", // I64
+    "4883f90872020f0b4889f848d3e8", // U8
+    "4883f91072020f0b4889f848d3e8", // U16
+    "4883f92072020f0b4889f848d3e8", // U32
+    "4883f94072020f0b4889f848d3e8", // U64
+    // Convert { Signed }
+    "480fbecf4839f974020f0b4889f8", // I8
+    "480fbfcf4839f974020f0b4889f8", // I16
+    "4863cf4839f974020f0b4889f8",   // I32
+    "4889f8",                       // I64
+    "4889f948c1e90874020f0b4889f8", // U8
+    "4889f948c1e91074020f0b4889f8", // U16
+    "4889f948c1e92074020f0b4889f8", // U32
+    "4889f948c1e93f74020f0b4889f8", // U64
+    // Convert { Unsigned }
+    "4889f948c1e90774020f0b4889f8", // I8
+    "4889f948c1e90f74020f0b4889f8", // I16
+    "4889f948c1e91f74020f0b4889f8", // I32
+    "4889f948c1e93f74020f0b4889f8", // I64
+    "4889f948c1e90874020f0b4889f8", // U8
+    "4889f948c1e91074020f0b4889f8", // U16
+    "4889f948c1e92074020f0b4889f8", // U32
+    "4889f8",                       // U64
+];
+
+/// The same assembly with every movable operand on r8 through r11 (`[r8,
+/// r11, r10, r9]`, `[r8, rcx, r10, r9]`, `[r8, r10, r9]`, and the divisor on
+/// r9 of `[rax, r9, rax, rdx]`), assembled by Apple clang in the same way to
+/// pin REX.R and REX.B.
+const CLANG_TRAPPING_HIGH: [&str; 72] = [
+    // Add
+    "4d89c24d01da4d0fbeca4d39d174020f0b", // I8
+    "4d89c24d01da4d0fbfca4d39d174020f0b", // I16
+    "4d89c24d01da4d63ca4d39d174020f0b",   // I32
+    "4d89c24d01da71020f0b",               // I64
+    "4d89c24d01da4d89d149c1e90874020f0b", // U8
+    "4d89c24d01da4d89d149c1e91074020f0b", // U16
+    "4d89c24d01da4d89d149c1e92074020f0b", // U32
+    "4d89c24d01da73020f0b",               // U64
+    // Subtract
+    "4d89c24d29da4d0fbeca4d39d174020f0b", // I8
+    "4d89c24d29da4d0fbfca4d39d174020f0b", // I16
+    "4d89c24d29da4d63ca4d39d174020f0b",   // I32
+    "4d89c24d29da71020f0b",               // I64
+    "4d89c24d29da4d89d149c1e90874020f0b", // U8
+    "4d89c24d29da4d89d149c1e91074020f0b", // U16
+    "4d89c24d29da4d89d149c1e92074020f0b", // U32
+    "4d89c24d29da73020f0b",               // U64
+    // Multiply
+    "4d89c24d0fafd34d0fbeca4d39d174020f0b", // I8
+    "4d89c24d0fafd34d0fbfca4d39d174020f0b", // I16
+    "4d89c24d0fafd34d63ca4d39d174020f0b",   // I32
+    "4d89c24d0fafd371020f0b",               // I64
+    "4d89c24d0fafd34d89d149c1e90874020f0b", // U8
+    "4d89c24d0fafd34d89d149c1e91074020f0b", // U16
+    "4d89c24d0fafd34d89d149c1e92074020f0b", // U32
+    "49f7e171020f0b",                       // U64
+    // Divide
+    "4d85c975020f0b4983f9ff75084883f88075020f0b489949f7f9", // I8
+    "4d85c975020f0b4983f9ff750a483d0080ffff75020f0b489949f7f9", // I16
+    "4d85c975020f0b4983f9ff750a483d0000008075020f0b489949f7f9", // I32
+    "4d85c975020f0b4983f9ff75084883f80171020f0b489949f7f9", // I64
+    "4d85c975020f0b4831d249f7f1",                           // U8
+    "4d85c975020f0b4831d249f7f1",                           // U16
+    "4d85c975020f0b4831d249f7f1",                           // U32
+    "4d85c975020f0b4831d249f7f1",                           // U64
+    // Remainder
+    "4d85c975020f0b4983f9ff75084883f88075020f0b489949f7f94889d0", // I8
+    "4d85c975020f0b4983f9ff750a483d0080ffff75020f0b489949f7f94889d0", // I16
+    "4d85c975020f0b4983f9ff750a483d0000008075020f0b489949f7f94889d0", // I32
+    "4d85c975020f0b4983f9ff75084883f80171020f0b489949f7f94889d0", // I64
+    "4d85c975020f0b4831d249f7f14889d0",                           // U8
+    "4d85c975020f0b4831d249f7f14889d0",                           // U16
+    "4d85c975020f0b4831d249f7f14889d0",                           // U32
+    "4d85c975020f0b4831d249f7f14889d0",                           // U64
+    // ShiftLeft
+    "4883f90872020f0b4d89c249d3e24d0fbeca4d39d174020f0b", // I8
+    "4883f91072020f0b4d89c249d3e24d0fbfca4d39d174020f0b", // I16
+    "4883f92072020f0b4d89c249d3e24d63ca4d39d174020f0b",   // I32
+    "4883f94072020f0b4d89c249d3e24d89d149d3f94d39c174020f0b", // I64
+    "4883f90872020f0b4d89c249d3e24d89d149c1e90874020f0b", // U8
+    "4883f91072020f0b4d89c249d3e24d89d149c1e91074020f0b", // U16
+    "4883f92072020f0b4d89c249d3e24d89d149c1e92074020f0b", // U32
+    "4883f94072020f0b4d89c249d3e24d89d149d3e94d39c174020f0b", // U64
+    // ShiftRight
+    "4883f90872020f0b4d89c249d3fa", // I8
+    "4883f91072020f0b4d89c249d3fa", // I16
+    "4883f92072020f0b4d89c249d3fa", // I32
+    "4883f94072020f0b4d89c249d3fa", // I64
+    "4883f90872020f0b4d89c249d3ea", // U8
+    "4883f91072020f0b4d89c249d3ea", // U16
+    "4883f92072020f0b4d89c249d3ea", // U32
+    "4883f94072020f0b4d89c249d3ea", // U64
+    // Convert { Signed }
+    "4d0fbec84d39c174020f0b4d89c2", // I8
+    "4d0fbfc84d39c174020f0b4d89c2", // I16
+    "4d63c84d39c174020f0b4d89c2",   // I32
+    "4d89c2",                       // I64
+    "4d89c149c1e90874020f0b4d89c2", // U8
+    "4d89c149c1e91074020f0b4d89c2", // U16
+    "4d89c149c1e92074020f0b4d89c2", // U32
+    "4d89c149c1e93f74020f0b4d89c2", // U64
+    // Convert { Unsigned }
+    "4d89c149c1e90774020f0b4d89c2", // I8
+    "4d89c149c1e90f74020f0b4d89c2", // I16
+    "4d89c149c1e91f74020f0b4d89c2", // I32
+    "4d89c149c1e93f74020f0b4d89c2", // I64
+    "4d89c149c1e90874020f0b4d89c2", // U8
+    "4d89c149c1e91074020f0b4d89c2", // U16
+    "4d89c149c1e92074020f0b4d89c2", // U32
+    "4d89c2",                       // U64
+];
+
 fn trapping_kind(form: TrappingForm) -> SelectedInstructionKind {
     SelectedInstructionKind::TrappingInteger { form }
 }
