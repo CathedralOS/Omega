@@ -13,9 +13,10 @@ use super::precondition::{
 use super::proof_fact_identity::{
     ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
 };
+use super::representative::RepresentativeRuntimeParameter;
 use super::runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftArgumentSource, DirectLiftRuntimeCorrespondence,
-    landed_primitive,
+    DirectLiftRuntimePosition, landed_primitive,
 };
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
@@ -466,33 +467,15 @@ fn arithmetic_bindings_for_runtime(
             continue;
         };
         match &position.source {
-            DirectLiftArgumentSource::PublicParameter(public_symbol) => {
-                let value = bindings
-                    .iter()
-                    .find_map(|binding: &StrictArithmeticSymbolBinding| {
-                        (binding.symbol == *public_symbol).then(|| binding.value.clone())
-                    })
-                    .unwrap_or_else(|| StrictArithmeticBindingValue::Atom {
-                        identity: format!("$runtime_parameter_{position_index}"),
-                        unsigned,
-                    });
-                push_arithmetic_binding(&mut bindings, *public_symbol, value.clone());
-                push_arithmetic_binding(&mut bindings, representative_parameter.symbol, value);
-            }
-            DirectLiftArgumentSource::Literal(
-                super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
-            ) if landing.domain == ArithmeticDomain::Exact
-                && landed_primitive(landing.landed_type) == primitive =>
-            {
-                if let Some(value) = integer_spelling_value(spelling) {
-                    push_arithmetic_binding(
-                        &mut bindings,
-                        representative_parameter.symbol,
-                        StrictArithmeticBindingValue::Integer(value),
-                    );
-                }
-            }
-            _ => {}
+            DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
+            => push_position_arithmetic_bindings(
+                &mut bindings,
+                position,
+                representative_parameter,
+                primitive,
+                unsigned,
+                || format!("$runtime_parameter_{position_index}"),
+            ),
         }
     }
     append_static_integer_bindings(&mut bindings, representative);
@@ -522,33 +505,15 @@ fn arithmetic_bindings_for_application(
             continue;
         };
         match &position.source {
-            DirectLiftArgumentSource::PublicParameter(public_symbol) => {
-                let value = bindings
-                    .iter()
-                    .find_map(|binding: &StrictArithmeticSymbolBinding| {
-                        (binding.symbol == *public_symbol).then(|| binding.value.clone())
-                    })
-                    .unwrap_or_else(|| StrictArithmeticBindingValue::Atom {
-                        identity: format!("$theorem_parameter_{theorem_position}"),
-                        unsigned,
-                    });
-                push_arithmetic_binding(&mut bindings, *public_symbol, value.clone());
-                push_arithmetic_binding(&mut bindings, representative_parameter.symbol, value);
-            }
-            DirectLiftArgumentSource::Literal(
-                super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
-            ) if landing.domain == ArithmeticDomain::Exact
-                && landed_primitive(landing.landed_type) == primitive =>
-            {
-                if let Some(value) = integer_spelling_value(spelling) {
-                    push_arithmetic_binding(
-                        &mut bindings,
-                        representative_parameter.symbol,
-                        StrictArithmeticBindingValue::Integer(value),
-                    );
-                }
-            }
-            _ => {}
+            DirectLiftArgumentSource::PublicParameter(_) | DirectLiftArgumentSource::Literal(_)
+            => push_position_arithmetic_bindings(
+                &mut bindings,
+                position,
+                representative_parameter,
+                primitive,
+                unsigned,
+                || format!("$theorem_parameter_{theorem_position}"),
+            ),
         }
     }
     append_static_integer_bindings(&mut bindings, representative);
@@ -576,6 +541,49 @@ fn append_static_integer_bindings(
             binding.parameter,
             StrictArithmeticBindingValue::Integer(value),
         );
+    }
+}
+
+/// The shared per-position arithmetic binding arms: a public parameter
+/// reuses or mints the `atom_identity` atom binding for itself and the
+/// representative parameter; an exact-domain integer literal binds its
+/// value on the representative parameter.
+fn push_position_arithmetic_bindings(
+    bindings: &mut Vec<StrictArithmeticSymbolBinding>,
+    position: &DirectLiftRuntimePosition,
+    representative_parameter: &RepresentativeRuntimeParameter,
+    primitive: PrimitiveType,
+    unsigned: bool,
+    atom_identity: impl FnOnce() -> String,
+) {
+    match &position.source {
+        DirectLiftArgumentSource::PublicParameter(public_symbol) => {
+            let value = bindings
+                .iter()
+                .find_map(|binding: &StrictArithmeticSymbolBinding| {
+                    (binding.symbol == *public_symbol).then(|| binding.value.clone())
+                })
+                .unwrap_or_else(|| StrictArithmeticBindingValue::Atom {
+                    identity: atom_identity(),
+                    unsigned,
+                });
+            push_arithmetic_binding(bindings, *public_symbol, value.clone());
+            push_arithmetic_binding(bindings, representative_parameter.symbol, value);
+        }
+        DirectLiftArgumentSource::Literal(
+            super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
+        ) if landing.domain == ArithmeticDomain::Exact
+            && landed_primitive(landing.landed_type) == primitive =>
+        {
+            if let Some(value) = integer_spelling_value(spelling) {
+                push_arithmetic_binding(
+                    bindings,
+                    representative_parameter.symbol,
+                    StrictArithmeticBindingValue::Integer(value),
+                );
+            }
+        }
+        _ => {}
     }
 }
 
