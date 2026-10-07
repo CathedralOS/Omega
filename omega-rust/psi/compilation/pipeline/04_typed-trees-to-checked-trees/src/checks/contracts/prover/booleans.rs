@@ -98,54 +98,36 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
         }
         typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
             typed_trees::expression::BinaryOperator::And => {
-                semantic_context_proves_instantiated_boolean_expression(
-                    program,
-                    facts,
-                    call_frames,
-                    context,
-                    contexts,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    binary.left,
-                ) && semantic_context_proves_instantiated_boolean_expression(
-                    program,
-                    facts,
-                    call_frames,
-                    context,
-                    contexts,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    binary.right,
-                )
+                [binary.left, binary.right].iter().all(|operand| {
+                    semantic_context_proves_instantiated_boolean_expression(
+                        program,
+                        facts,
+                        call_frames,
+                        context,
+                        contexts,
+                        caller_state_symbol,
+                        statement_index,
+                        call_site,
+                        target_state,
+                        *operand,
+                    )
+                })
             }
             typed_trees::expression::BinaryOperator::Or => {
-                semantic_context_proves_instantiated_boolean_expression(
-                    program,
-                    facts,
-                    call_frames,
-                    context,
-                    contexts,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    binary.left,
-                ) || semantic_context_proves_instantiated_boolean_expression(
-                    program,
-                    facts,
-                    call_frames,
-                    context,
-                    contexts,
-                    caller_state_symbol,
-                    statement_index,
-                    call_site,
-                    target_state,
-                    binary.right,
-                )
+                [binary.left, binary.right].iter().any(|operand| {
+                    semantic_context_proves_instantiated_boolean_expression(
+                        program,
+                        facts,
+                        call_frames,
+                        context,
+                        contexts,
+                        caller_state_symbol,
+                        statement_index,
+                        call_site,
+                        target_state,
+                        *operand,
+                    )
+                })
             }
             _ => prove_instantiated_boolean_expression_via_context_domain_membership(
                 program,
