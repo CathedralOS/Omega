@@ -364,9 +364,7 @@ pub(crate) fn resolve_typed(
         // A mixed shape's common fields sit directly on the carrier beside the
         // tag, addressed exactly like a record's; its payload fields need the
         // `Case` step above.
-        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
-            &declaration.shape
-        else {
+        let Some(fields) = declaration.shape.direct_fields() else {
             return unsupported("runtime field observation requires a record carrier");
         };
         let mut selected = fields.iter().filter(|field| field.identity == *identity);

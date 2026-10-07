@@ -76,6 +76,16 @@ pub struct StructuralFieldDeclaration {
 }
 
 impl StructuralTypeShape {
+    /// The fields addressed directly on the carrier, without a `Case` step: a
+    /// record's fields, or a mixed shape's common fields, which sit at one
+    /// offset in every case.
+    pub fn direct_fields(&self) -> Option<&[StructuralFieldDeclaration]> {
+        match self {
+            Self::Record { fields } | Self::Mixed { fields, .. } => Some(fields),
+            _ => None,
+        }
+    }
+
     /// Whether this shape is a borrowed `[u8]` view, whatever access the view
     /// carries. Most readers ask only that -- the descriptor geometry is the
     /// same for a shared and an exclusive view -- and comparing against a

@@ -2609,6 +2609,7 @@ pass/core/zii_default_composite_exit checked 1479ms check-target:macos_arm64 @2d
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms check-target:macos_arm64 @2d8ed253669f
 pass/data/match_exhaustive_by_case_union_domain checked 1449ms check-target:macos_arm64 @ca8c127c90c5
+pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 1400ms check-target:macos_arm64 @e3ac41b56b10+wt
 pass/data/opaque_copy_selected checked 720ms check-target:macos_arm64 @2d8ed253669f
 pass/data/payload_less_case_equality checked 276ms @474542aa7f86
 pass/data/property_carry_declared checked 283ms @2d8ed253669f

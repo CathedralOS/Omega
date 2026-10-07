@@ -659,6 +659,7 @@ pass/core/zii_default_composite_exit built 1810ms exit:70 @fb2178def922
 pass/data/case_first_payload_zero_established checked 220ms
 pass/data/case_membership_union_guard_exit built 599ms exit:70
 pass/data/match_exhaustive_by_case_union_domain built 1620ms exit:70 @bed5f45e9185+wt
+pass/data/mixed_record_common_field_and_payload_dispatch_exit built 1262ms exit:70 @e3ac41b56b10+wt
 pass/data/opaque_copy_selected built 1854ms exit:0 @467bec194212
 pass/data/payload_less_case_equality checked 186ms
 pass/data/property_carry_declared checked 171ms

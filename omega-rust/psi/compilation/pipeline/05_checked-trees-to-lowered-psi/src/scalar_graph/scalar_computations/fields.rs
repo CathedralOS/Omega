@@ -1146,14 +1146,12 @@ pub(crate) fn prepare(
                 };
                 let fields = match selected_case_fields.take() {
                     Some(fields) => fields,
-                    None => {
-                        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                            return unsupported(
-                                "record read carrier path left its record namespace",
-                            );
-                        };
-                        fields.as_slice()
-                    }
+                    None => declaration
+                        .shape
+                        .direct_fields()
+                        .ok_or(LoweringError::Unsupported(
+                            "record read carrier path left its record namespace",
+                        ))?,
                 };
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
@@ -1178,14 +1176,16 @@ pub(crate) fn prepare(
                         "record read carrier type is absent",
                     ))?;
             }
+            // A mixed carrier's common field reads like a record's; its
+            // payload fields arrive through the `Case` step above.
             let fields = match selected_case_fields {
                 Some(fields) => fields,
-                None => {
-                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                        return unsupported("record read requires a record namespace");
-                    };
-                    fields.as_slice()
-                }
+                None => declaration
+                    .shape
+                    .direct_fields()
+                    .ok_or(LoweringError::Unsupported(
+                        "record read requires a record namespace",
+                    ))?,
             };
             let retained = fields
                 .iter()

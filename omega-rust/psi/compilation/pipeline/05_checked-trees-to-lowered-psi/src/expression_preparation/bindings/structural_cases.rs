@@ -59,10 +59,13 @@ pub(crate) fn resolve_at(
             checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
             ),
+            checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => Ok(
+                checked_trees::CheckedStructuralPredicatePathSegment::Case(identity.clone()),
+            ),
             checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
             }
-            _ => unsupported("static case observation requires record fields and fixed indices"),
+            _ => unsupported("static case observation requires fields, cases and fixed indices"),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let (sum, path) = walk(declarations, structural_type, &steps)?;
@@ -172,12 +175,16 @@ fn walk(
     steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<(StructuralTypeId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
     let mut path = Vec::with_capacity(steps.len());
+    // A `Case` step selects the namespace of the payload field that follows;
+    // otherwise a field is a record's or a mixed carrier's common field.
+    let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     for segment in steps {
-        match (segment, &declaration(declarations, structural_type)?.shape) {
-            (
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
+        let shape = &declaration(declarations, structural_type)?.shape;
+        match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                let fields = case_fields.take().or_else(|| shape.direct_fields()).ok_or(
+                    LoweringError::Unsupported("case observation field left its record namespace"),
+                )?;
                 let mut selected = fields.iter().filter(|field| field.identity == *identity);
                 let field = selected.next().ok_or(LoweringError::Unsupported(
                     "case observation lost its carrier field",
@@ -193,10 +200,30 @@ fn walk(
                 structural_type = child;
                 path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
             }
-            (
-                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if element_index < length => {
+            checked_trees::CheckedStructuralPredicatePathSegment::Case(identity)
+                if case_fields.is_none() =>
+            {
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    shape
+                else {
+                    return unsupported("case observation case step left its sum namespace");
+                };
+                let mut selected = cases.iter().filter(|case| case.identity == *identity);
+                let (Some(case), None) = (selected.next(), selected.next()) else {
+                    return unsupported("case observation case step names no single case");
+                };
+                case_fields = Some(case.fields.as_slice());
+                path.push(terminal_psi::StructuralPathSegment::Case(case.id));
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index)
+                if case_fields.is_none() =>
+            {
+                let StructuralTypeShape::FixedArray { element, length } = shape else {
+                    return unsupported("case observation index left its array namespace");
+                };
+                if element_index >= length {
+                    return unsupported("case observation index is outside its array");
+                }
                 structural_type = *element;
                 path.push(terminal_psi::StructuralPathSegment::FixedIndex(
                     *element_index,
@@ -204,10 +231,13 @@ fn walk(
             }
             _ => {
                 return unsupported(
-                    "case observation requires relevant record fields and in-range fixed indices",
+                    "case observation requires fields, case payload fields and fixed indices",
                 );
             }
         }
+    }
+    if case_fields.is_some() {
+        return unsupported("case observation ends on a case step without its payload field");
     }
     Ok((structural_type, path))
 }
