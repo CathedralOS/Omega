@@ -15,10 +15,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("compiler intrinsic binding should parse");
+    let parsed = super::parse_source(source, "compiler intrinsic binding should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -119,10 +116,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
         satisfies Kernel32Requirements::write_file
         via write_file_binding();
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("ordinary via call should parse");
+    let parsed = super::parse_source(source, "ordinary via call should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -259,10 +253,7 @@ fn parses_field_relevance_on_record_and_case_payload_bindings() {
             case Wrapped(witness [erased]: i32);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("field relevance should parse");
+    let parsed = super::parse_source(source, "field relevance should parse");
     let data = parsed
         .root_items()
         .find_map(|item| match item {
@@ -324,10 +315,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             let mut y: i32 = 1;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("binding relevance should parse");
+    let parsed = super::parse_source(source, "binding relevance should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -489,10 +477,7 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
 
     let data = parsed
         .root_items()
@@ -527,10 +512,7 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
         machine borrow<'call>(value: &'call i32) -> View<'call, i32> {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -633,10 +615,7 @@ fn parses_generic_standalone_conformance_arguments() {
         ScalarConversion: Adapter satisfies Converter<i32, bool> {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("generic conformance should parse");
+    let parsed = super::parse_source(source, "generic conformance should parse");
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
@@ -673,10 +652,7 @@ fn parses_name_owned_generic_conformance_telescope() {
         {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("generic conformance should parse");
+    let parsed = super::parse_source(source, "generic conformance should parse");
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
@@ -723,10 +699,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("subjectless conformance should parse");
+    let parsed = super::parse_source(source, "subjectless conformance should parse");
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
@@ -796,10 +769,7 @@ fn parses_closed_conformance_block_members() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("closed conformance block should parse");
+    let parsed = super::parse_source(source, "closed conformance block should parse");
     let conformance = parsed
         .root_items()
         .find_map(|item| match item {
@@ -942,10 +912,7 @@ fn retains_named_dynamic_conformance_path() {
         machine inspect(value: &dyn Card::PowerOrder) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("named dynamic conformance should parse");
+    let parsed = super::parse_source(source, "named dynamic conformance should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -989,10 +956,7 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
         machine borrow(shared: &u8, mutable: &mut u8, output: &write u8) {}
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("reference access modes should parse");
+    let parsed = super::parse_source(source, "reference access modes should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1042,10 +1006,7 @@ fn parses_trait_header_evidence_binder() {
         { }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("trait header binder should parse");
+    let parsed = super::parse_source(source, "trait header binder should parse");
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1073,10 +1034,7 @@ fn parses_attached_main_state_name_as_main() {
         machine Main::main(main: &mut Main) {}
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {

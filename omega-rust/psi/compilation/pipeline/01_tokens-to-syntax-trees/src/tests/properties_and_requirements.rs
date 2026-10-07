@@ -138,10 +138,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
         data Receipt [linear] {}
         data Envelope<T [linear]> [linear] { value: T; }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("linear properties should parse");
+    let parsed = super::parse_source(source, "linear properties should parse");
     let data: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -169,10 +166,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
 #[test]
 fn multiplicity_property_lists_accept_trailing_commas() {
     let source = "data Copy [copy,] {} data Linear [linear,] {}";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("trailing property commas should parse");
+    let parsed = super::parse_source(source, "trailing property commas should parse");
     let multiplicities = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -291,10 +285,7 @@ fn parses_plain_and_boundary_traits() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let traits: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -327,10 +318,7 @@ fn parses_trait_owned_fixed_operator_requirements() {
             operator equivalent(left: T, right: T) -> bool;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("trait operators should parse");
+    let parsed = super::parse_source(source, "trait operators should parse");
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -364,10 +352,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("operational clauses should parse");
+    let parsed = super::parse_source(source, "operational clauses should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -482,10 +467,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("requires before reaches should parse");
+    let parsed = super::parse_source(source, "requires before reaches should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -537,10 +519,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("clause orderings should parse");
+    let parsed = super::parse_source(source, "clause orderings should parse");
 
     let machine = |name: &str| {
         parsed
@@ -667,10 +646,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("crash buckets should parse");
+    let parsed = super::parse_source(source, "crash buckets should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -719,10 +695,7 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
         crashes Trap
             denominator == 0;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("operator crash bucket should parse");
+    let parsed = super::parse_source(source, "operator crash bucket should parse");
     let operator = parsed
         .root_items()
         .find_map(|item| match item {
@@ -752,10 +725,7 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
         boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
         operator named(left: i32, right: i32) -> i32;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("fixed-token heads should parse");
+    let parsed = super::parse_source(source, "fixed-token heads should parse");
     let operators = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -819,10 +789,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         }
         machine ordinary(value: u64) -> u64 { value }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("machine token heads should parse");
+    let parsed = super::parse_source(source, "machine token heads should parse");
     let machines = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1013,10 +980,7 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
             crash Abort;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("explicit crash should parse");
+    let parsed = super::parse_source(source, "explicit crash should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1110,10 +1074,7 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
         boundary requirement Task::finish(task: u64);
         boundary machine Transitional::claim();
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("top-level boundary requirements should parse");
+    let parsed = super::parse_source(source, "top-level boundary requirements should parse");
     let machines = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1361,10 +1322,7 @@ fn parses_machine_contract_clauses() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1585,10 +1543,7 @@ fn parses_explicit_state_arrival_requires() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("state arrival requires should parse");
+    let parsed = super::parse_source(source, "state arrival requires should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1623,10 +1578,7 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
             left == right
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("bodyless crash bucket should parse");
+    let parsed = super::parse_source(source, "bodyless crash bucket should parse");
     let machines = parsed
         .root_items()
         .filter_map(|item| match item {

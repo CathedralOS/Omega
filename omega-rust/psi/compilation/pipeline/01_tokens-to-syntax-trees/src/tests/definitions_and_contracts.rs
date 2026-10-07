@@ -44,10 +44,7 @@ fn parses_domain_definition_surface() {
             player.health > 0
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let domains = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -105,10 +102,7 @@ fn parses_domain_requires_and_requirement_routes_independently() {
             Imported::Reservations::restore;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
@@ -178,10 +172,7 @@ fn parses_explicit_progress_profile_classification() {
         established by SchedulerAdmission::grant_weak_fair;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
@@ -317,10 +308,7 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
             true;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let domains = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -353,10 +341,7 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
             Socket::Connected & Socket::Authenticated;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let domain = parsed
         .root_items()
         .find_map(|item| match item {
@@ -398,10 +383,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
         machine Main::main(main: &mut Main) {}
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -453,10 +435,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed borrow-expression node");
@@ -478,10 +457,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed shared-borrow expression node");
@@ -501,10 +477,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -562,10 +535,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -779,10 +749,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("machine parameter should parse");
+    let parsed = super::parse_source(source, "machine parameter should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -825,10 +792,7 @@ fn parses_nominal_machine_parameter_requirement() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("nominal machine contract should parse");
+    let parsed = super::parse_source(source, "nominal machine contract should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -864,10 +828,7 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
         where machine Selected satisfies WindowProcedure::call;
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("bodyless nominal binder should parse");
+    let parsed = super::parse_source(source, "bodyless nominal binder should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -928,10 +889,7 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("mixed machine contracts should parse");
+    let parsed = super::parse_source(source, "mixed machine contracts should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -966,10 +924,7 @@ fn retains_nominal_machine_parameter_trait_application() {
             Step(context);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("an applied nominal binder should parse");
+    let parsed = super::parse_source(source, "an applied nominal binder should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1079,10 +1034,7 @@ fn parses_higher_order_machine_parameter_contract() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("higher-order contract should parse");
+    let parsed = super::parse_source(source, "higher-order contract should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1160,10 +1112,7 @@ fn parses_machine_parameter_on_proof_data_declaration() {
             case More(tail: Stream<S>);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("proof-data machine parameter should parse");
+    let parsed = super::parse_source(source, "proof-data machine parameter should parse");
     let data = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1192,10 +1141,7 @@ fn parses_proof_quotient_data_declaration() {
 
         data Quotient = Carrier % Laws::equivalent;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("quotient declaration should parse");
+    let parsed = super::parse_source(source, "quotient declaration should parse");
     let quotient = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1250,10 +1196,7 @@ fn parses_static_machine_symbol_call_argument() {
             map<Card::power>(card);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("static machine argument should parse");
+    let parsed = super::parse_source(source, "static machine argument should parse");
     let (_, call) = parsed
         .expressions
         .iter_expressions()
@@ -1291,10 +1234,7 @@ fn parses_nested_static_conformance_application() {
             send<Message, SequenceEncoding<'scope, Bytes, Message>>();
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("nested static application should parse");
+    let parsed = super::parse_source(source, "nested static application should parse");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1336,10 +1276,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
             consume<proof.modulus>();
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("evidence projection should parse");
+    let parsed = super::parse_source(source, "evidence projection should parse");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1377,10 +1314,7 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
             let { left__value, right as _ } = pair;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("destructure should parse");
+    let parsed = super::parse_source(source, "destructure should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1486,10 +1420,7 @@ fn parse_domain_facts(
     syntax_trees::SyntaxTrees,
     Vec<syntax_trees::item::ProofFact>,
 ) {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let facts = parsed
         .root_items()
         .find_map(|item| match item {

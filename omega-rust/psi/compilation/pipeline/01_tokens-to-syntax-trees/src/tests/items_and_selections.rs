@@ -927,10 +927,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 
         proposition reflexive(value: i32) = related(value, value);
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("all settled proposition forms should parse");
+    let parsed = super::parse_source(source, "all settled proposition forms should parse");
     let propositions = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -1042,10 +1039,7 @@ fn parses_type_and_integer_const_proposition_arguments() {
         proposition indexed<T, const N: i32>();
         proposition selected() = indexed<i32, 7>();
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("static proposition arguments should parse");
+    let parsed = super::parse_source(source, "static proposition arguments should parse");
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1107,10 +1101,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("proposition parameter should parse");
+    let parsed = super::parse_source(source, "proposition parameter should parse");
     let trait_definitions = parsed
         .root_items()
         .filter_map(|item| match item {

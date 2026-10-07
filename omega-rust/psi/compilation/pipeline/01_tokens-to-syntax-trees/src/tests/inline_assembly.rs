@@ -13,10 +13,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -53,10 +50,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -93,10 +87,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -139,10 +130,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -190,10 +178,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -259,10 +244,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let parsed = super::parse_source(source, "parse should succeed");
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -405,10 +387,7 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("register moves should parse");
+    let parsed = super::parse_source(source, "register moves should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -459,10 +438,7 @@ fn parses_memory_transfers_as_place_assignments() {
         }
         "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("memory transfers should parse");
+    let parsed = super::parse_source(source, "memory transfers should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
