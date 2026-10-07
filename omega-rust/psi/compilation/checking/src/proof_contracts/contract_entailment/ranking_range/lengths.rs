@@ -3,19 +3,18 @@
 //! of whether the source extent is declared or observed. Saved initializers
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
+use super::coordinate::{Coordinate, CoordinateKind};
 use super::fields::{
-    collect_leaf_paths, declared_field, declared_spelling_verified, member_chain,
-    member_coordinate_parts, nested_arrival_chain, record_referent, rooted_carrier,
+    collect_leaf_paths, declared_spelling_verified, member_chain, record_referent, rooted_carrier,
     unique_literal_field,
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, TypedTrees,
-    projections, unwrap_constraint_shells,
+    Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, TypedTrees, projections,
+    unwrap_constraint_shells,
 };
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
-use typed_trees::data::DataField;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
@@ -30,8 +29,7 @@ pub(super) fn parameter<'program>(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, expression)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
     else {
         return None;
     };
@@ -273,7 +271,8 @@ fn evaluate_length(
         // spellings; its atom is fabricated here only as a substitution
         // result, so a chain the state never established stays an unknown
         // value and fails the membership proofs it would have needed.
-        SliceCoordinate::resolve(program, state, expression).map(|coordinate| coordinate.value())
+        SliceCoordinate::resolve_length(program, state, expression)
+            .map(|coordinate| coordinate.value())
     };
     if let Some(length) = coordinate(expression) {
         return Some(length);
@@ -550,28 +549,17 @@ fn slice_view_call_length(
 /// formal's own declaration and re-resolved onto the arrival's carrier through
 /// the discovered telescope — a telescope names a role, so duplicated record
 /// roles resolve to no coordinate rather than a guessed copy.
-pub(super) struct SliceCoordinate<'program> {
-    /// The formal whose record carries the collection.
-    pub parameter: &'program StateParameter,
-    /// The formal names its record through a reference; a borrowed arrival
-    /// unwraps one `&` before the literal walk.
-    pub borrowed: bool,
-    /// The record the formal's (referent) type declares.
-    pub root: SymbolHandle,
-    /// The record-typed fields from `root` down to `field`'s owner, in order.
-    pub steps: Vec<&'program DataField>,
-    /// The slice-typed leaf field the length is produced from.
-    pub field: &'program DataField,
-    pub identity: String,
-}
+/// The produced-length coordinate: a [`coordinate::Coordinate`] whose step
+/// owners are exact named records and whose leaf is a slice field.
+pub(super) type SliceCoordinate<'program> = Coordinate<'program>;
 
-impl<'program> SliceCoordinate<'program> {
+impl<'program> Coordinate<'program> {
     /// The coordinate an authored member chain names: every step an exact
     /// declared field, by resolved symbol and spelling, of the record before
     /// it, and the leaf a slice. Bare formals keep the `bindings` coordinate;
     /// a slice leaf reached through a reference boundary inside the chain is
     /// not a projected coordinate (the field owner has the same rule).
-    pub(super) fn resolve(
+    pub(super) fn resolve_length(
         program: &'program TypedTrees,
         state: &State,
         expression: ExpressionHandle,
@@ -581,154 +569,11 @@ impl<'program> SliceCoordinate<'program> {
             program,
             parameter,
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
+            CoordinateKind::Length,
+            false,
         )?;
         declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
             .then_some(coordinate)
-    }
-
-    fn for_parameter(
-        program: &'program TypedTrees,
-        parameter: &'program StateParameter,
-        chain: &[SymbolHandle],
-    ) -> Option<Self> {
-        // A mutable record still denotes its arrival value at an edge whose
-        // evaluated prefix is proven to preserve its path; mutability is a
-        // storage capability, not evidence the collection moved.
-        // An intermediate step is an owned exact record; a reference
-        // boundary inside the chain needs its own load evidence. The produced
-        // coordinate is the collection's length; an integer or record leaf
-        // is a different produced value, not a slice length.
-        let parts = member_coordinate_parts(
-            program,
-            parameter,
-            chain,
-            |program, field| {
-                let TypeReferenceNode::Named { symbol: next, .. } = program
-                    .type_reference_table
-                    .type_reference(unwrap_constraint_shells(program, field.type_reference))
-                else {
-                    return None;
-                };
-                Some(*next)
-            },
-            |program, field| is_slice(program, field.type_reference),
-            "\0ranking:length:",
-        )?;
-        Some(Self {
-            parameter,
-            borrowed: parts.borrowed,
-            root: parts.root,
-            steps: parts.steps,
-            field: parts.field,
-            identity: parts.identity,
-        })
-    }
-
-    /// The resolved field symbols from the root record down to `field`.
-    pub(super) fn chain(&self) -> Vec<SymbolHandle> {
-        self.steps
-            .iter()
-            .chain([&self.field])
-            .map(|field| field.symbol)
-            .collect()
-    }
-
-    /// A telescope names a role, not record compatibility or equality between
-    /// copies. Only a unique formal with the exact declaration can carry this
-    /// coordinate; duplicated record roles need independent length facts.
-    /// The coordinate rebound to its arrival at `state`, or itself when the
-    /// judgment already reads at the entry edge.
-    pub(super) fn arrive_unless_at_entry(
-        self,
-        program: &'program TypedTrees,
-        state: &State,
-        entry_parameters: &[SymbolHandle],
-        at_entry: bool,
-    ) -> Option<Self> {
-        if at_entry {
-            return Some(self);
-        }
-        self.at_arrival(
-            program,
-            RankingRangeState {
-                state,
-                entry_parameters,
-            },
-            self.parameter.symbol,
-        )
-    }
-
-    /// The coordinate rebound to its arrival when the judgment carries an
-    /// entry-edge parameter roster, or itself without one.
-    pub(super) fn at_entry_arrival(
-        self,
-        program: &'program TypedTrees,
-        state: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
-    ) -> Option<Self> {
-        match entry_parameters {
-            Some(entries) => self.at_arrival(
-                program,
-                RankingRangeState {
-                    state,
-                    entry_parameters: entries,
-                },
-                self.parameter.symbol,
-            ),
-            None => Some(self),
-        }
-    }
-
-    pub(super) fn at_arrival(
-        &self,
-        program: &'program TypedTrees,
-        arrival: RankingRangeState<'_>,
-        entry_symbol: SymbolHandle,
-    ) -> Option<Self> {
-        if !entry_symbol.is_valid() {
-            return None;
-        }
-        let mut parameters = program
-            .state_parameters(arrival.state)
-            .iter()
-            .zip(arrival.entry_parameters)
-            .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
-        let parameter = parameters.next()?;
-        if parameters.next().is_some() {
-            return None;
-        }
-        self.for_carrier(program, parameter)
-    }
-
-    /// The coordinate this chain names on `carrier`'s own record: the chain
-    /// resolved directly against the carrier's declaration, else the unique
-    /// nested path that declaration admits for the chain's boundary records.
-    /// These are the same two readings `at_arrival` keeps once a telescope has
-    /// located the role's carrier. A caller that already holds the formal asks
-    /// this directly; two admissible readings keep no coordinate rather than
-    /// guess which record the carriage meant.
-    pub(super) fn for_carrier(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-    ) -> Option<Self> {
-        let chain = self.chain();
-        if let Some(coordinate) = Self::for_parameter(program, carrier, &chain)
-            && coordinate.root == self.root
-        {
-            return Some(coordinate);
-        }
-        // The role may instead arrive nested inside the carrier formal's own
-        // record -- `pair.bag` carries the collection's record -- or as a
-        // record this chain descends partway. The formal's declaration must
-        // admit exactly one such reading; two readings leave the carriage
-        // ambiguous and keep no coordinate, exactly as the field owner does.
-        let chain = nested_arrival_chain(program, carrier, self.root, &self.steps, &chain)?;
-        Self::for_parameter(program, carrier, &chain)
-    }
-
-    pub(super) fn value(&self) -> Polynomial {
-        Polynomial::atom(self.identity.clone())
     }
 
     /// The length this coordinate holds after `expression` arrives in its
@@ -741,7 +586,7 @@ impl<'program> SliceCoordinate<'program> {
     /// how the source slot stored its record. A literal of another
     /// declaration, a foreign record, or a missing step is not this
     /// coordinate.
-    pub(super) fn arrived(
+    pub(super) fn arrived_length(
         &self,
         program: &'program TypedTrees,
         machine: &Machine,
@@ -792,56 +637,6 @@ impl<'program> SliceCoordinate<'program> {
         }
         actual(program, machine, state, leaf, bindings, engine)
     }
-
-    /// The coordinate this chain reads through `carrier`'s member `prefix`:
-    /// `p.f` (or a bare formal) denotes a record, and this coordinate's chain
-    /// resumes there once the prefix lands on this coordinate's own root
-    /// record. A prefix step through anything but an exact named record -- a
-    /// reference, a slice, or a primitive -- has no carrier coordinate.
-    fn through_carrier(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-        prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
-    ) -> Option<Self> {
-        self.through_carrier_at(program, carrier, prefix, self.root, 0)
-    }
-
-    /// The coordinate this chain reads when `carrier.prefix` supplies the
-    /// record `expected` at chain position `depth`: the prefix walks the
-    /// carrier's own declaration, must land on `expected`, and the remaining
-    /// chain steps resolve there. A prefix landing on any other record names
-    /// a different carriage, not this coordinate.
-    fn through_carrier_at(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-        prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
-        expected: SymbolHandle,
-        depth: usize,
-    ) -> Option<Self> {
-        let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
-        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1 - depth);
-        let mut owner = carrier_root;
-        for (symbol, _) in prefix {
-            let (_, field) = declared_field(program, owner, *symbol)?;
-            // A prefix step must land on an exact declared record so this
-            // coordinate's chain resumes at one nominal root.
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            else {
-                return None;
-            };
-            chain.push(*symbol);
-            owner = *next;
-        }
-        if owner != expected {
-            return None;
-        }
-        chain.extend(self.chain().into_iter().skip(depth));
-        Self::for_parameter(program, carrier, &chain)
-    }
 }
 
 /// The produced-length coordinate a bare slice entry role takes inside
@@ -865,7 +660,7 @@ pub(super) fn slice_leaf_coordinate<'program>(
     let [path] = paths.as_slice() else {
         return None;
     };
-    SliceCoordinate::for_parameter(program, parameter, path)
+    SliceCoordinate::for_parameter(program, parameter, path, CoordinateKind::Length, false)
 }
 
 /// The projected slice coordinates one range judgment reads: the produced
@@ -952,7 +747,7 @@ impl<'program> SliceCoordinates<'program> {
                     Some(state),
                     expression,
                 )
-                .and_then(|receiver| SliceCoordinate::resolve(program, state, receiver))
+                .and_then(|receiver| SliceCoordinate::resolve_length(program, state, receiver))
                 .or_else(|| {
                     let receiver = crate::value_custody::places::collection_length_receiver(
                         program,
@@ -960,7 +755,7 @@ impl<'program> SliceCoordinates<'program> {
                         Some(root),
                         expression,
                     )?;
-                    let coordinate = SliceCoordinate::resolve(program, root, receiver)?;
+                    let coordinate = SliceCoordinate::resolve_length(program, root, receiver)?;
                     coordinate.at_arrival(
                         program,
                         RankingRangeState {
@@ -1059,7 +854,7 @@ impl<'program> SliceCoordinates<'program> {
             let actual = match destination {
                 Some(destination) => {
                     let arrived = coordinate.at_arrival(program, destination, entry_symbol)?;
-                    arrived.arrived(
+                    arrived.arrived_length(
                         program,
                         machine,
                         state,
@@ -1069,7 +864,7 @@ impl<'program> SliceCoordinates<'program> {
                         bindings,
                     )?
                 }
-                None => coordinate.arrived(
+                None => coordinate.arrived_length(
                     program,
                     machine,
                     state,

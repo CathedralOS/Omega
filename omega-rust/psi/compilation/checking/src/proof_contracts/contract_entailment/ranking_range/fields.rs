@@ -4,10 +4,11 @@
 //! Resolution supplies a coordinate, not a frozen value. State and call edge
 //! owners establish exact arrival equality and complete write-frame preservation
 //! of its reference bindings and referent contents before consuming its bounds.
+use super::coordinate::{Coordinate, CoordinateKind};
 use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, TypedTrees,
+    Machine, Polynomial, PrimitiveType, State, TypeReferenceNode, TypedTrees,
     exact_integer_parameter,
 };
 use symbols::{SymbolHandle, SymbolKind};
@@ -151,11 +152,7 @@ fn operations_land_under(
         ExpressionNode::Atomic(atomic) => {
             return operations_land_under(engine, program, machine, state, atomic.value, arrival);
         }
-        ExpressionNode::Binary(binary)
-            if super::dependency_binary(binary.operator) =>
-        {
-            binary
-        }
+        ExpressionNode::Binary(binary) if super::dependency_binary(binary.operator) => binary,
         _ => return true,
     };
     // Denotation and result representability alone cannot form division:
@@ -289,24 +286,16 @@ fn operand_primitive(
 
 /// One `u64` field reached from a state formal through an exact chain of
 /// declared record fields: `parameter.steps[0]. ... .steps[n].field`.
-pub(super) struct FieldCoordinate<'program> {
-    pub parameter: &'program StateParameter,
-    /// The formal names its record through a reference; an arrival actual is
-    /// then a borrow of the rebuilt literal rather than the literal itself.
-    pub borrowed: bool,
-    /// The record the formal's (referent) type declares.
-    pub root: SymbolHandle,
-    /// Record or readable-reference fields from `root` to `field`'s owner.
-    pub steps: Vec<&'program DataField>,
-    pub field: &'program DataField,
-    pub identity: String,
-}
+/// The field-view produced coordinate: a [`coordinate::Coordinate`] whose
+/// step owners keep readable-reference hops and whose leaf is an exact
+/// integer field.
+pub(super) type FieldCoordinate<'program> = Coordinate<'program>;
 
-impl<'program> FieldCoordinate<'program> {
+impl<'program> Coordinate<'program> {
     /// The produced rank of the declared field view `measure` applied to
     /// `subject`: the measure body's projection chain, re-resolved against
     /// the subject formal's own declaration rather than trusted from the view.
-    pub(super) fn resolve(
+    pub(super) fn resolve_field(
         program: &'program TypedTrees,
         state: &State,
         subject: ExpressionHandle,
@@ -328,7 +317,7 @@ impl<'program> FieldCoordinate<'program> {
             .map(|step| step.field_symbol)
             .chain([field_symbol])
             .collect::<Vec<_>>();
-        Self::for_parameter(program, parameter, &chain, false)
+        Self::for_parameter(program, parameter, &chain, CoordinateKind::Field, false)
     }
 
     /// The coordinate an authored member chain names: every step an exact
@@ -336,7 +325,7 @@ impl<'program> FieldCoordinate<'program> {
     /// it, rooted at a state formal. The leaf may be any exact unsigned
     /// integer: a scalar rank subject or endpoint reads the projected
     /// natural coordinate, not only the `u64` a declared field view emits.
-    pub(super) fn resolve_projection(
+    pub(super) fn resolve_field_projection(
         program: &'program TypedTrees,
         state: &State,
         expression: ExpressionHandle,
@@ -346,179 +335,14 @@ impl<'program> FieldCoordinate<'program> {
             program,
             parameter,
             &chain.iter().map(|(symbol, _)| *symbol).collect::<Vec<_>>(),
+            CoordinateKind::Field,
             true,
         )?;
         declared_spelling_verified(&chain, &coordinate.steps, coordinate.field)
             .then_some(coordinate)
     }
 
-    fn for_parameter(
-        program: &'program TypedTrees,
-        parameter: &'program StateParameter,
-        chain: &[SymbolHandle],
-        natural_leaf: bool,
-    ) -> Option<Self> {
-        // A mutable record still denotes its arrival value at an edge whose
-        // evaluated prefix is proven to preserve its path; mutability is a
-        // storage capability, not evidence the field moved.
-        // The coordinate retains the complete declared chain, including
-        // stored readable references. Its edge owner separately proves
-        // that the carrier, reference bindings and pointee stay unwritten.
-        // The independently selected field view produces builtin u64.
-        // Other carriers need their own view-application proof. An authored
-        // member chain read directly as a natural coordinate admits any exact
-        // unsigned leaf -- a signed field has no natural rank coordinate.
-        let parts = member_coordinate_parts(
-            program,
-            parameter,
-            chain,
-            |program, field| {
-                record_referent(program, field.type_reference).map(|(next, _)| next)
-            },
-            |program, field| {
-                let leaf = exact_integer_parameter(program, field.type_reference);
-                if natural_leaf {
-                    matches!(
-                        leaf,
-                        Some(
-                            PrimitiveType::U8
-                                | PrimitiveType::U16
-                                | PrimitiveType::U32
-                                | PrimitiveType::U64
-                        )
-                    )
-                } else {
-                    leaf == Some(PrimitiveType::U64)
-                }
-            },
-            "\0ranking:field:",
-        )?;
-        Some(Self {
-            parameter,
-            borrowed: parts.borrowed,
-            root: parts.root,
-            steps: parts.steps,
-            field: parts.field,
-            identity: parts.identity,
-        })
-    }
-
-    /// The resolved field symbols from the root record down to `field`.
-    pub(super) fn chain(&self) -> Vec<SymbolHandle> {
-        self.steps
-            .iter()
-            .chain([&self.field])
-            .map(|field| field.symbol)
-            .collect()
-    }
-
-    /// A telescope names a role, not record compatibility or equality between
-    /// copies. Only a unique formal with the exact declaration can carry this
-    /// coordinate; duplicated record roles need independent field facts.
-    /// The coordinate rebound to its arrival at `state`, or itself when the
-    /// judgment already reads at the entry edge.
-    pub(super) fn arrive_unless_at_entry(
-        self,
-        program: &'program TypedTrees,
-        state: &State,
-        entry_parameters: &[SymbolHandle],
-        at_entry: bool,
-    ) -> Option<Self> {
-        if at_entry {
-            return Some(self);
-        }
-        self.at_arrival(
-            program,
-            RankingRangeState {
-                state,
-                entry_parameters,
-            },
-            self.parameter.symbol,
-        )
-    }
-
-    /// The coordinate rebound to its arrival when the judgment carries an
-    /// entry-edge parameter roster, or itself without one.
-    pub(super) fn at_entry_arrival(
-        self,
-        program: &'program TypedTrees,
-        state: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
-    ) -> Option<Self> {
-        match entry_parameters {
-            Some(entries) => self.at_arrival(
-                program,
-                RankingRangeState {
-                    state,
-                    entry_parameters: entries,
-                },
-                self.parameter.symbol,
-            ),
-            None => Some(self),
-        }
-    }
-
-    pub(super) fn at_arrival(
-        &self,
-        program: &'program TypedTrees,
-        arrival: RankingRangeState<'_>,
-        entry_symbol: SymbolHandle,
-    ) -> Option<Self> {
-        if !entry_symbol.is_valid() {
-            return None;
-        }
-        let mut parameters = program
-            .state_parameters(arrival.state)
-            .iter()
-            .zip(arrival.entry_parameters)
-            .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
-        let parameter = parameters.next()?;
-        if parameters.next().is_some() {
-            return None;
-        }
-        self.for_carrier(program, parameter)
-    }
-
-    /// The coordinate this chain names on `carrier`'s own record: the chain
-    /// resolved directly against the carrier's declaration, else the unique
-    /// nested path that declaration admits for the chain's boundary records.
-    /// These are the same two readings `at_arrival` keeps once a telescope has
-    /// located the role's carrier -- `pair.left` carries `countdown`, or the
-    /// formal is itself a record this chain reaches partway. A caller that
-    /// already holds the formal asks this directly; two admissible readings
-    /// keep no coordinate rather than guess which record the carriage meant.
-    pub(super) fn for_carrier(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-    ) -> Option<Self> {
-        // The re-resolved chain lands on the same declared leaf by
-        // construction, so the natural-leaf check is the origin's own.
-        let chain = self.chain();
-        if let Some(coordinate) = Self::for_parameter(program, carrier, &chain, true)
-            && coordinate.root == self.root
-        {
-            return Some(coordinate);
-        }
-        let chain = self.arrival_chain(program, carrier)?;
-        Self::for_parameter(program, carrier, &chain, true)
-    }
-
-    /// The chain this coordinate becomes when `parameter`'s record carries
-    /// the role at a nested path; see [`nested_arrival_chain`].
-    fn arrival_chain(
-        &self,
-        program: &'program TypedTrees,
-        parameter: &'program StateParameter,
-    ) -> Option<Vec<SymbolHandle>> {
-        nested_arrival_chain(program, parameter, self.root, &self.steps, &self.chain())
-    }
-
-    pub(super) fn value(&self) -> Polynomial {
-        Polynomial::atom(self.identity.clone())
-    }
-
-    pub(super) fn comparisons(&self, program: &TypedTrees) -> Vec<Comparison> {
+    pub(super) fn field_comparisons(&self, program: &TypedTrees) -> Vec<Comparison> {
         let mut comparisons = vec![(
             BinaryOperator::GreaterOrEqual,
             self.value(),
@@ -582,7 +406,7 @@ impl<'program> FieldCoordinate<'program> {
     /// forward of the exact prefix projection at any depth keeps the
     /// remaining chain's current value; a literal of another declaration, a
     /// foreign record, or a missing step is not this coordinate.
-    pub(super) fn actual(
+    pub(super) fn field_actual(
         &self,
         program: &TypedTrees,
         machine: &Machine,
@@ -592,7 +416,7 @@ impl<'program> FieldCoordinate<'program> {
         arrival_borrowed: bool,
     ) -> Option<Polynomial> {
         if let Some(coordinate) =
-            self.actual_coordinate(program, state, expression, arrival_borrowed)
+            self.field_actual_coordinate(program, state, expression, arrival_borrowed)
         {
             return Some(coordinate.value());
         }
@@ -645,7 +469,7 @@ impl<'program> FieldCoordinate<'program> {
     /// computed actual carries no coordinate; `actual` walks those field by
     /// field. Callers that keep a coordinate set may `include` the result so
     /// the carrier's declared field bounds become hypotheses.
-    pub(super) fn actual_coordinate(
+    pub(super) fn field_actual_coordinate(
         &self,
         program: &'program TypedTrees,
         state: &State,
@@ -671,46 +495,6 @@ impl<'program> FieldCoordinate<'program> {
     /// resumes there once the prefix lands on this coordinate's own root
     /// record. Each prefix step must resolve to an exact record, directly
     /// or through a readable reference; slices and primitives cannot carry it.
-    fn through_carrier(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-        prefix: &[(SymbolHandle, &Identifier)],
-    ) -> Option<Self> {
-        self.through_carrier_at(program, carrier, prefix, self.root, 0)
-    }
-
-    /// The coordinate this chain reads when `carrier.prefix` supplies the
-    /// record `expected` at chain position `depth`: the prefix walks the
-    /// carrier's own declaration, must land on `expected`, and the remaining
-    /// chain steps resolve there. A prefix landing on any other record names
-    /// a different carriage, not this coordinate.
-    fn through_carrier_at(
-        &self,
-        program: &'program TypedTrees,
-        carrier: &'program StateParameter,
-        prefix: &[(SymbolHandle, &Identifier)],
-        expected: SymbolHandle,
-        depth: usize,
-    ) -> Option<Self> {
-        let (carrier_root, _) = record_referent(program, carrier.type_reference)?;
-        let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1 - depth);
-        let mut owner = carrier_root;
-        for (symbol, _) in prefix {
-            let (_, field) = declared_field(program, owner, *symbol)?;
-            // Resume only at the exact declared record reached by this
-            // readable projection, preserving the reference-bearing prefix.
-            let (next, _) = record_referent(program, field.type_reference)?;
-            chain.push(*symbol);
-            owner = next;
-        }
-        if owner != expected {
-            return None;
-        }
-        chain.extend(self.chain().into_iter().skip(depth));
-        Self::for_parameter(program, carrier, &chain, true)
-    }
-
     /// The value `expression` installs for this coordinate's chain when it
     /// arrives at ANOTHER formal of the same record -- a cross-machine call
     /// actual, where `self.parameter` is the callee's formal rather than the
@@ -724,7 +508,7 @@ impl<'program> FieldCoordinate<'program> {
     /// bounds. A caller may forward a whole record without spelling this leaf;
     /// the callee's demanded projection must still read the source's bounded
     /// value. These are caller declaration facts, never callee requirements.
-    pub(super) fn arrived(
+    pub(super) fn arrived_field(
         &self,
         program: &'program TypedTrees,
         machine: &Machine,
@@ -744,7 +528,7 @@ impl<'program> FieldCoordinate<'program> {
         if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
             let coordinate = self.through_carrier(program, carrier, &prefix)?;
             return engine
-                .install_hypotheses(coordinate.comparisons(program))
+                .install_hypotheses(coordinate.field_comparisons(program))
                 .then(|| coordinate.value());
         }
         let mut owner = self.root;
@@ -759,7 +543,7 @@ impl<'program> FieldCoordinate<'program> {
                 let coordinate =
                     self.through_carrier_at(program, carrier, &prefix, owner, depth)?;
                 return engine
-                    .install_hypotheses(coordinate.comparisons(program))
+                    .install_hypotheses(coordinate.field_comparisons(program))
                     .then(|| coordinate.value());
             }
             current = unique_literal_field(program, current, owner, field)?;
@@ -873,7 +657,6 @@ pub(super) fn member_chain<'program>(
     chain.reverse();
     Some((parameter(program, state, cursor)?, chain))
 }
-
 
 /// A coordinate survives only when the member chain's spelled hops name the
 /// resolved fields in order — `steps` plus the leaf `field`.
@@ -1212,7 +995,7 @@ pub(super) fn integer_leaf_coordinate<'program>(
     let [path] = paths.as_slice() else {
         return None;
     };
-    FieldCoordinate::for_parameter(program, parameter, path, true)
+    FieldCoordinate::for_parameter(program, parameter, path, CoordinateKind::Field, true)
 }
 
 /// The unique non-self formal of `state` whose telescope slot claims `entry`,

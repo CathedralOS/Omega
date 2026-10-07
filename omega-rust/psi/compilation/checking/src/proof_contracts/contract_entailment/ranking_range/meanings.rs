@@ -67,7 +67,7 @@ pub(super) fn builtin(
             // A `.len` receiver is a slice formal or an exact projected slice
             // leaf; either names a produced length coordinate.
             if lengths::parameter(program, state, receiver).is_none()
-                && lengths::SliceCoordinate::resolve(program, state, receiver).is_none()
+                && lengths::SliceCoordinate::resolve_length(program, state, receiver).is_none()
             {
                 return None;
             }

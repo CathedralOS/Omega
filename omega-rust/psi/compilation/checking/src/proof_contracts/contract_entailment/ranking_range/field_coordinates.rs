@@ -52,7 +52,7 @@ impl<'program> FieldCoordinates<'program> {
 
     pub(super) fn comparisons(&self, program: &TypedTrees) -> Vec<Comparison> {
         self.coordinates()
-            .flat_map(|coordinate| coordinate.comparisons(program))
+            .flat_map(|coordinate| coordinate.field_comparisons(program))
             .collect()
     }
 
@@ -71,12 +71,12 @@ impl<'program> FieldCoordinates<'program> {
             program,
             expressions,
             |member, expression, visit| {
-                if let Some(coordinate) = FieldCoordinate::resolve_projection(
+                if let Some(coordinate) = FieldCoordinate::resolve_field_projection(
                     program, state, expression,
                 )
                 .or_else(|| {
                     let coordinate =
-                        FieldCoordinate::resolve_projection(program, root, expression)?;
+                        FieldCoordinate::resolve_field_projection(program, root, expression)?;
                     coordinate.at_arrival(
                         program,
                         RankingRangeState {
@@ -198,9 +198,16 @@ impl<'program> FieldCoordinates<'program> {
                             }
                         }
                     };
-                    arrived.actual(program, machine, state, engine, argument, arrived.borrowed)?
+                    arrived.field_actual(
+                        program,
+                        machine,
+                        state,
+                        engine,
+                        argument,
+                        arrived.borrowed,
+                    )?
                 }
-                None => coordinate.actual(
+                None => coordinate.field_actual(
                     program,
                     machine,
                     state,

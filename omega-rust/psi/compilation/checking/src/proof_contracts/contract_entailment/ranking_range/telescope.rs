@@ -658,7 +658,6 @@ fn state_call_occurrences<'program>(
     crate::machine_calls::call_cycles::runtime_ranking::internal_arrivals(program, machine)
 }
 
-
 /// Compose destination formal ordinal -> exact source parameter -> entry
 /// subject. States may drop or repeat unrelated parameters. The arithmetic
 /// query independently proves equality among required scalar copies on every

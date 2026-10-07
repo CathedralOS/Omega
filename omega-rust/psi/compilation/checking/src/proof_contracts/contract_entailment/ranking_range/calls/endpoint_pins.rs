@@ -134,7 +134,7 @@ impl<'program> LengthDependency<'program> {
                     lengths::actual(program, machine, site, actual, length_bindings, engine)
                 } else {
                     let coordinate = lengths::slice_leaf_coordinate(program, formal)?;
-                    coordinate.arrived(
+                    coordinate.arrived_length(
                         program,
                         machine,
                         site,
@@ -147,7 +147,7 @@ impl<'program> LengthDependency<'program> {
             }
             LengthDependency::Projected(coordinate) => {
                 let coordinate = coordinate.for_carrier(program, formal)?;
-                coordinate.arrived(
+                coordinate.arrived_length(
                     program,
                     machine,
                     site,
@@ -580,7 +580,7 @@ fn argument_sources<'program>(
                     let Some(coordinate) = dependency.for_carrier(program, parameter) else {
                         return vec![false; values.len()];
                     };
-                    let carried = coordinate.arrived(
+                    let carried = coordinate.arrived_field(
                         program,
                         caller.machine,
                         site,
@@ -726,7 +726,7 @@ fn endpoint_inputs<'program>(
                 {
                     LengthDependency::Bare(formal.symbol)
                 } else {
-                    LengthDependency::Projected(lengths::SliceCoordinate::resolve(
+                    LengthDependency::Projected(lengths::SliceCoordinate::resolve_length(
                         program, state, receiver,
                     )?)
                 };
@@ -757,7 +757,7 @@ fn endpoint_inputs<'program>(
             // reads: conservation transports that value, not the record
             // spelling.
             let coordinate =
-                fields::FieldCoordinate::resolve_projection(program, state, expression)?;
+                fields::FieldCoordinate::resolve_field_projection(program, state, expression)?;
             let index = match projections
                 .iter()
                 .position(|existing| existing.identity == coordinate.identity)

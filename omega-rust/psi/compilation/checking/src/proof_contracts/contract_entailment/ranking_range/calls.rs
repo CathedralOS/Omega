@@ -6,10 +6,10 @@ use super::super::{
 };
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State,
-    TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates,
-    fields, find_declared_measure, integer_bindings, lengths, meanings, measure_body_shape,
-    hypothesis_landed_endpoints, parameter_comparisons, projections, saved_arguments, validate_mapping,
+    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State, TypedTrees,
+    collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates, fields,
+    find_declared_measure, hypothesis_landed_endpoints, integer_bindings, lengths, meanings,
+    measure_body_shape, parameter_comparisons, projections, saved_arguments, validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
@@ -80,7 +80,8 @@ pub(crate) fn prove_ranking_range_call_entry(
         // the same kind of coordinate: its chain resolves against the carrier
         // formal's own declaration and binds here as the produced rank atom.
         let field_rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
-            let coordinate = fields::FieldCoordinate::resolve(program, state, subject, measure)?;
+            let coordinate =
+                fields::FieldCoordinate::resolve_field(program, state, subject, measure)?;
             let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
             let mut expressions = vec![range.start, range.end, subject];
             expressions.extend(projections::entry_expressions(
@@ -110,7 +111,7 @@ pub(crate) fn prove_ranking_range_call_entry(
         // requires facts, or view bounds the same auxiliary coordinates: a
         // produced length is a non-polynomial input, not an operand polynomial.
         let mut slice_rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
-            lengths::SliceCoordinate::resolve(program, state, subject)
+            lengths::SliceCoordinate::resolve_length(program, state, subject)
                 .map(lengths::SliceCoordinates::new)
         } else {
             Some(lengths::SliceCoordinates::empty())
@@ -394,7 +395,7 @@ pub(crate) fn prove_ranking_range_call(
     // projection inside a guard, actual, endpoint, or requires fact names
     // the same atom.
     let field_ranks = if let RankingRangeMeasure::Field { subject, measure } = source_measure {
-        let coordinate = fields::FieldCoordinate::resolve(program, entry, subject, measure)?;
+        let coordinate = fields::FieldCoordinate::resolve_field(program, entry, subject, measure)?;
         let coordinate = coordinate.arrive_unless_at_entry(
             program,
             source,
@@ -450,7 +451,7 @@ pub(crate) fn prove_ranking_range_call(
     // entry scope and re-resolved onto the site's carrier. Bare slice
     // formals keep the `length_bindings` coordinate installed above.
     let slice_ranks = if let RankingRangeMeasure::SliceLength(subject) = source_measure {
-        let resolved = match lengths::SliceCoordinate::resolve(program, entry, subject) {
+        let resolved = match lengths::SliceCoordinate::resolve_length(program, entry, subject) {
             Some(coordinate) => {
                 let coordinate = coordinate.arrive_unless_at_entry(
                     program,
@@ -694,13 +695,13 @@ pub(crate) fn prove_ranking_range_call(
         // over the actual's forward or rebuilt literal.
         RankingRangeMeasure::SliceLength(subject) => {
             if let Some(coordinate) =
-                lengths::SliceCoordinate::resolve(program, destination, subject)
+                lengths::SliceCoordinate::resolve_length(program, destination, subject)
             {
                 let position = program
                     .state_parameters(destination)
                     .iter()
                     .position(|parameter| parameter.symbol == coordinate.parameter.symbol)?;
-                coordinate.arrived(
+                coordinate.arrived_length(
                     program,
                     caller.machine,
                     source,
@@ -733,14 +734,14 @@ pub(crate) fn prove_ranking_range_call(
         // decides whether the actual reads under one `&`.
         RankingRangeMeasure::Field { subject, measure } => {
             let destination_coordinate =
-                fields::FieldCoordinate::resolve(program, destination, subject, measure)?;
+                fields::FieldCoordinate::resolve_field(program, destination, subject, measure)?;
             let position = program
                 .state_parameters(destination)
                 .iter()
                 .position(|parameter| {
                     parameter.symbol == destination_coordinate.parameter.symbol
                 })?;
-            destination_coordinate.arrived(
+            destination_coordinate.arrived_field(
                 program,
                 caller.machine,
                 source,
@@ -993,13 +994,15 @@ fn bind_destination_fields(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Member(member) => {
-                if let Some(coordinate) =
-                    fields::FieldCoordinate::resolve_projection(program, destination, expression)
-                    && let Some(position) = program
-                        .state_parameters(destination)
-                        .iter()
-                        .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
-                    && let Some(actual) = coordinate.arrived(
+                if let Some(coordinate) = fields::FieldCoordinate::resolve_field_projection(
+                    program,
+                    destination,
+                    expression,
+                ) && let Some(position) = program
+                    .state_parameters(destination)
+                    .iter()
+                    .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
+                    && let Some(actual) = coordinate.arrived_field(
                         program,
                         machine,
                         source,
@@ -1063,14 +1066,14 @@ fn bind_destination_lengths(
                     )
                 {
                     let actual = if let Some(coordinate) =
-                        lengths::SliceCoordinate::resolve(program, destination, receiver)
+                        lengths::SliceCoordinate::resolve_length(program, destination, receiver)
                     {
                         program
                             .state_parameters(destination)
                             .iter()
                             .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
                             .and_then(|position| {
-                                coordinate.arrived(
+                                coordinate.arrived_length(
                                     program,
                                     machine,
                                     source,
@@ -1330,7 +1333,11 @@ fn installation_expressions(
     }
     expressions.extend(arguments.iter().copied());
     expressions.extend(guards.iter().map(|(guard, _)| *guard));
-    expressions.extend(projections::entry_expressions(program, caller.machine, source));
+    expressions.extend(projections::entry_expressions(
+        program,
+        caller.machine,
+        source,
+    ));
     expressions
 }
 
@@ -1364,10 +1371,9 @@ fn member_subject_coordinates<'program>(
     let mut coordinates = field_coordinates::FieldCoordinates::empty();
     for subject in subjects {
         if let Some(coordinate) =
-            fields::FieldCoordinate::resolve_projection(program, authored, *subject)
+            fields::FieldCoordinate::resolve_field_projection(program, authored, *subject)
         {
-            let coordinate =
-                coordinate.at_entry_arrival(program, site, entry_parameters)?;
+            let coordinate = coordinate.at_entry_arrival(program, site, entry_parameters)?;
             coordinates.include(coordinate);
             continue;
         }
@@ -1453,7 +1459,7 @@ fn scalar_entry<'program>(
         {
             return None;
         }
-        fields::FieldCoordinate::resolve(program, state, *subject, measure.symbol)?;
+        fields::FieldCoordinate::resolve_field(program, state, *subject, measure.symbol)?;
         return Some((
             state,
             RankingRangeMeasure::Field {
@@ -1533,7 +1539,7 @@ fn scalar_entry<'program>(
             // a projected slice leaf of an entry record formal; its produced
             // length coordinate, not the collection value, carries the rank.
             if lengths::parameter(program, state, subject).is_none()
-                && lengths::SliceCoordinate::resolve(program, state, subject).is_none()
+                && lengths::SliceCoordinate::resolve_length(program, state, subject).is_none()
             {
                 return None;
             }
@@ -1573,8 +1579,7 @@ fn entry_scalar_parameter(
         )
         .then_some(());
     }
-    let Some(symbol) =
-        crate::expression_traversal::single_segment_name_symbol(program, subject)
+    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, subject)
     else {
         return None;
     };

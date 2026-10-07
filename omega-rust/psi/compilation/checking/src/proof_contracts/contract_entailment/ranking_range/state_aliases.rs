@@ -8,8 +8,7 @@
 //! the entry-relative ranking.
 use super::{
     ExpressionHandle, ExpressionNode, Machine, RankingRangeMeasure, RankingRangePremises,
-    TypedTrees,
-    exact_integer_parameter,
+    TypedTrees, exact_integer_parameter,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::TableRangeExpression;

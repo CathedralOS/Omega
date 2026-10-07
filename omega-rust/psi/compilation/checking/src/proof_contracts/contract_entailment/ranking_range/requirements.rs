@@ -204,13 +204,13 @@ fn prove(
             // so its declared field bounds join the hypotheses; only a literal
             // or computed actual falls to `actual`'s declaration walk.
             let actual = if let Some(actual) =
-                field.actual_coordinate(program, caller_state, *argument, field.borrowed)
+                field.field_actual_coordinate(program, caller_state, *argument, field.borrowed)
             {
                 let value = actual.value();
                 source_fields.include(actual);
                 value
             } else {
-                field.actual(
+                field.field_actual(
                     program,
                     caller,
                     caller_state,
@@ -300,7 +300,7 @@ fn prove(
             // resolves nothing and the site abstains, as before.
             program.machine_states(caller).first().and_then(|entry| {
                 let coordinate =
-                    fields::FieldCoordinate::resolve(program, entry, *subject, *measure)?;
+                    fields::FieldCoordinate::resolve_field(program, entry, *subject, *measure)?;
                 let coordinate = coordinate.at_arrival(
                     program,
                     RankingRangeState {
