@@ -119,14 +119,18 @@ impl Default for DataMember {
     }
 }
 
+/// A named declaration binder with an authored kind and declared property
+/// bounds — shared by generic type parameters and proposition binders.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TypeParameter {
+pub struct Binder<K> {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
-    pub kind: TypeParameterKind,
+    pub kind: K,
     /// Property bounds (`data Box<T [copy]>`, frozen decision 13).
     pub bounds: DataProperties,
 }
+
+pub type TypeParameter = Binder<TypeParameterKind>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum TypeParameterKind {

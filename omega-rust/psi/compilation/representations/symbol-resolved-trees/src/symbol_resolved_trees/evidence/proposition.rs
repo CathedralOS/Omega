@@ -1,4 +1,4 @@
-use crate::data::DataProperties;
+use crate::data::{Binder, DataProperties};
 use crate::expression::ExpressionHandle;
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
@@ -21,13 +21,7 @@ pub struct PropositionDefinition {
     pub body: PropositionBody,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PropositionBinder {
-    pub symbol: SymbolHandle,
-    pub name: DiagnosticName,
-    pub kind: PropositionBinderKind,
-    pub bounds: DataProperties,
-}
+pub type PropositionBinder = Binder<PropositionBinderKind>;
 
 /// Proof-static binder kinds admitted by the first proposition-family slice.
 /// In particular, `Machine` is an opaque machine identity index and is not a
