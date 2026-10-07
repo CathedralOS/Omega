@@ -11,6 +11,28 @@ use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 /// One structural type declaration's shape is well founded: its referent,
 /// fields, element, cases and mixed payloads name known types with the
 /// access, multiplicity and layout each shape allows.
+/// The erased-relevance identity rule every field-bearing shape restates:
+/// scalar-family field types must not be marked erased, since their semantic
+/// identity is already the opaque storage type.
+fn check_field_identity_relevance(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    erased_message: &'static str,
+) -> Result<(), CodecError> {
+    match field.field_type {
+        StructuralFieldType::Scalar(_)
+        | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::BoundedInteger(_)
+        | StructuralFieldType::RefinedScalar(_)
+        | StructuralFieldType::IeeeFloat(_)
+        | StructuralFieldType::Structural(_)
+            if field.relevance.is_erased() =>
+        {
+            malformed(erased_message)
+        }
+        _ => Ok(()),
+    }
+}
+
 pub(super) fn validate_type_shape(
     module: &TerminalModule,
     declaration: &StructuralTypeDeclaration,
@@ -145,19 +167,10 @@ pub(super) fn validate_type_shape(
                             "provider-backed attachment specialization is incomplete",
                         );
                     }
-                    StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::Atomic(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::RefinedScalar(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::Structural(_)
-                        if field.relevance.is_erased() =>
-                    {
-                        return malformed(
-                            "erased structural field must use its opaque semantic type identity",
-                        );
-                    }
-                    _ => {}
+                    _ => check_field_identity_relevance(
+                        field,
+                        "erased structural field must use its opaque semantic type identity",
+                    )?,
                 }
             }
             validate_authored_destination_intervals(destinations)?;
@@ -208,19 +221,10 @@ pub(super) fn validate_type_shape(
                                 "opaque structural case payload must have erased relevance and a nonempty type identity",
                             );
                         }
-                        StructuralFieldType::Scalar(_)
-                        | StructuralFieldType::Atomic(_)
-                        | StructuralFieldType::BoundedInteger(_)
-                        | StructuralFieldType::RefinedScalar(_)
-                        | StructuralFieldType::IeeeFloat(_)
-                        | StructuralFieldType::Structural(_)
-                            if field.relevance.is_erased() =>
-                        {
-                            return malformed(
-                                "erased structural case payload must use its opaque semantic type identity",
-                            );
-                        }
-                        _ => {}
+                        _ => check_field_identity_relevance(
+                            field,
+                            "erased structural case payload must use its opaque semantic type identity",
+                        )?,
                     }
                 }
             }
@@ -267,19 +271,10 @@ pub(super) fn validate_type_shape(
                             "opaque mixed structural field must have erased relevance and a nonempty type identity",
                         );
                     }
-                    StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::Atomic(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::RefinedScalar(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::Structural(_)
-                        if field.relevance.is_erased() =>
-                    {
-                        return malformed(
-                            "erased mixed structural field must use its opaque semantic type identity",
-                        );
-                    }
-                    _ => {}
+                    _ => check_field_identity_relevance(
+                        field,
+                        "erased mixed structural field must use its opaque semantic type identity",
+                    )?,
                 }
             }
         }
