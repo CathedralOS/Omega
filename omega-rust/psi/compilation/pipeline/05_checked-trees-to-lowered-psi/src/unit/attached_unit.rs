@@ -358,6 +358,7 @@ pub(crate) fn lower_unit_closure(
         } else {
             symbols::SymbolHandle::default()
         },
+        &closure,
         checked_scalar_callees,
         &type_ids,
         &domain_ids,

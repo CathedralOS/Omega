@@ -2014,6 +2014,7 @@ pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 1539ms check-target:
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 1526ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/exact_integer_cast_proven checked 306ms @2d8ed253669f
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/qualified_cast_in_entry_body_exit checked 1185ms check-target:macos_arm64 @2e29bd5fedcf
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 5261ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt

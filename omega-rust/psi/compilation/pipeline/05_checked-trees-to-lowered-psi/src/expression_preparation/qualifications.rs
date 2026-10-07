@@ -28,12 +28,17 @@ pub(crate) struct PreparedScalarQualifications {
 }
 
 impl PreparedScalarQualifications {
+    /// `signatures` are the machines whose scalar parameters and results
+    /// cross a call through this namespace (the scalar callees); `bodies`
+    /// are every machine whose retained computations resolve qualified
+    /// values against it (the scalar callees and the closure's Unit bodies).
     pub(crate) fn prepare(
         checked: &CheckedTrees,
-        machines: &[SymbolHandle],
+        signatures: &[SymbolHandle],
+        bodies: &[SymbolHandle],
     ) -> Result<Self, LoweringError> {
         let mut references = Vec::new();
-        for symbol in machines {
+        for symbol in signatures {
             let machine = checked
                 .machines()
                 .iter()
@@ -62,7 +67,7 @@ impl PreparedScalarQualifications {
         let roots = plans
             .roots
             .iter()
-            .filter_map(|(_, root)| machines.contains(&root.machine).then_some(root.root))
+            .filter_map(|(_, root)| bodies.contains(&root.machine).then_some(root.root))
             .collect::<Vec<_>>();
         // Structural operands can themselves contain qualified computations.
         // Consume the same retained dependency graph as operand preparation.
