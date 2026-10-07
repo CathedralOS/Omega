@@ -136,8 +136,7 @@ impl CheckedCrashSite {
         mut self,
         mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
     ) -> Self {
-        path_guard_conjuncts.sort();
-        path_guard_conjuncts.dedup();
+        path_guard_conjuncts = sorted_dedup(path_guard_conjuncts);
         self.path_guard_conjuncts = path_guard_conjuncts;
         self
     }
@@ -146,8 +145,7 @@ impl CheckedCrashSite {
         mut self,
         mut path_guard_consequences: Vec<CrashPredicateIdentity>,
     ) -> Self {
-        path_guard_consequences.sort();
-        path_guard_consequences.dedup();
+        path_guard_consequences = sorted_dedup(path_guard_consequences);
         self.path_guard_consequences = path_guard_consequences;
         self
     }
@@ -246,8 +244,7 @@ impl CrashContractCapsule {
         target_contract_commitment: MachineContractCommitment,
         mut published_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
-        published_buckets.sort();
-        published_buckets.dedup();
+        published_buckets = sorted_dedup(published_buckets);
         Self {
             target_machine,
             target_state,
@@ -270,10 +267,8 @@ impl CrashContractCapsule {
         published_may_block: bool,
         published_termination: TerminationGuarantee,
     ) -> Self {
-        published_service_reach.sort();
-        published_service_reach.dedup();
-        published_synchronous_invocations.sort();
-        published_synchronous_invocations.dedup();
+        published_service_reach = sorted_dedup(published_service_reach);
+        published_synchronous_invocations = sorted_dedup(published_synchronous_invocations);
         self.published_service_reach = published_service_reach;
         self.published_synchronous_invocations = published_synchronous_invocations;
         self.published_may_suspend = published_may_suspend;
@@ -349,8 +344,7 @@ impl CheckedCrashCallSite {
         target_contract_commitment: MachineContractCommitment,
         mut surviving_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
-        surviving_buckets.sort();
-        surviving_buckets.dedup();
+        surviving_buckets = sorted_dedup(surviving_buckets);
         Self {
             location,
             target_machine,
@@ -399,8 +393,7 @@ impl CheckedCrashCallSite {
         mut self,
         mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
     ) -> Self {
-        path_guard_conjuncts.sort();
-        path_guard_conjuncts.dedup();
+        path_guard_conjuncts = sorted_dedup(path_guard_conjuncts);
         self.path_guard_conjuncts = path_guard_conjuncts;
         self
     }
@@ -409,11 +402,18 @@ impl CheckedCrashCallSite {
         mut self,
         mut path_guard_consequences: Vec<CrashPredicateIdentity>,
     ) -> Self {
-        path_guard_consequences.sort();
-        path_guard_consequences.dedup();
+        path_guard_consequences = sorted_dedup(path_guard_consequences);
         self.path_guard_consequences = path_guard_consequences;
         self
     }
+}
+
+/// Sorted unique rows, the shape every roster field on the crash plans
+/// keeps.
+fn sorted_dedup<Row: Ord>(mut rows: Vec<Row>) -> Vec<Row> {
+    rows.sort();
+    rows.dedup();
+    rows
 }
 
 fn crash_frontier_claim_sort_key(
