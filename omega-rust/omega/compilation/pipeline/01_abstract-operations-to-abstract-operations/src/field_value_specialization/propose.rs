@@ -44,7 +44,7 @@ pub(crate) fn plan(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<FieldValueSpecializationRewrite> {
-    let evidence = admission::field_evidence(function, place)?;
+    let evidence = optimization_unit::field_evidence(function, place)?;
     let analysis = admission::function_analysis(function);
     let mut reads = Vec::new();
     for block in &function.blocks {

@@ -38,149 +38,21 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralCopyPath;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue, OptimizationNode,
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition,
-    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+    FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
+    OptimizationNode, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RootProducer,
+    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, declared_structural_type,
+    field_evidence, recompute_psi_optimization_unit_identity, root_producer,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralFieldId,
+    StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralTypeShape,
 };
-
-/// The establishing operation the place's operation-result producer resolves
-/// to, when it is one this family's proofs can draw on: `Record` for an
-/// `EstablishRecord`, `Variant` for an `EstablishCase` carrying its
-/// `result_case`, `Zeroed` for an `EstablishZeroedStructural` whose all-zero
-/// storage fixes every scalar leaf at zero, `None` for every other producer
-/// or place kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RootProducer {
-    None,
-    Record(OperationId),
-    Variant(OperationId, StructuralCaseId),
-    Zeroed(OperationId),
-}
-
-impl RootProducer {
-    /// The establishing operation identity, when the place's producer is an
-    /// establishing op this family's proofs can draw on.
-    const fn operation(&self) -> Option<OperationId> {
-        match self {
-            Self::Record(operation) | Self::Variant(operation, _) | Self::Zeroed(operation) => {
-                Some(*operation)
-            }
-            Self::None => None,
-        }
-    }
-}
-
-/// The evidence every field observation of `place` resolves against: the
-/// place's rostered declaration, its declared structural type (when the place
-/// kind carries one), and the establishing producer the place's
-/// operation-result kind names. `None` when `place` is not rostered in
-/// `function`.
-struct FieldEvidence<'a> {
-    declaration: &'a StructuralPlaceDeclaration,
-    root_type: Option<StructuralTypeId>,
-    root_producer: RootProducer,
-}
-
-/// The field evidence for one rostered place, or `None` when the place does
-/// not exist in `function`.
-fn field_evidence<'a>(
-    function: &'a PsiOptimizationFunction,
-    place: PlaceId,
-) -> Option<FieldEvidence<'a>> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?;
-    Some(FieldEvidence {
-        declaration,
-        root_type: declared_structural_type(function, declaration),
-        root_producer: root_producer(function, declaration),
-    })
-}
-
-/// The establishing producer `declaration`'s operation-result kind names, or
-/// `RootProducer::None` when the place is not an operation result or its
-/// producer is not an `EstablishRecord`/`EstablishCase` in `function`.
-fn root_producer(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> RootProducer {
-    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
-        return RootProducer::None;
-    };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return RootProducer::Record(producer);
-            }
-            O::EstablishCase {
-                psi_operation,
-                result,
-                result_case,
-                ..
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return RootProducer::Variant(producer, *result_case);
-            }
-            O::EstablishZeroedStructural {
-                psi_operation,
-                result,
-            } if *psi_operation == producer && result.place == declaration.id => {
-                return RootProducer::Zeroed(producer);
-            }
-            _ => {}
-        }
-    }
-    RootProducer::None
-}
-
-/// The declared structural type of one rostered place, or `None` when the
-/// place kind carries no resolvable type in this function.
-fn declared_structural_type(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Option<StructuralTypeId> {
-    match declaration.kind {
-        StructuralPlaceKind::OperationResult {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::ByteSequenceLiteral {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::TrivialAffineLocal {
-            structural_type, ..
-        } => Some(structural_type),
-        StructuralPlaceKind::ProviderAttachment { attachment, .. } => Some(attachment),
-        StructuralPlaceKind::Parameter { .. } => function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::BlockParameter { .. } => function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::Result => function
-            .result
-            .structural()
-            .and_then(|result| (result.place == declaration.id).then_some(result.structural_type)),
-    }
-}
 
 /// The scalar kind a resolved observation must carry: the Boolean or integer
 /// type of its `StructuralScalarFieldRead` result.

@@ -28,7 +28,7 @@ use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{
@@ -517,41 +517,6 @@ fn structural_child(
             }
             _ => None,
         })
-}
-
-/// The declared structural type of one rostered place, or `None` when the
-/// place kind carries no resolvable type in this function.
-fn declared_structural_type(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Option<StructuralTypeId> {
-    match declaration.kind {
-        StructuralPlaceKind::OperationResult {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::ByteSequenceLiteral {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::TrivialAffineLocal {
-            structural_type, ..
-        } => Some(structural_type),
-        StructuralPlaceKind::ProviderAttachment { attachment, .. } => Some(attachment),
-        StructuralPlaceKind::Parameter { .. } => function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::BlockParameter { .. } => function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::Result => function
-            .result
-            .structural()
-            .and_then(|result| (result.place == declaration.id).then_some(result.structural_type)),
-    }
 }
 
 /// The one case of the closed roster the `path` resolves to under the

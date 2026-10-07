@@ -12,6 +12,7 @@ use super::{
     PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use abstract_operations::StructuralCopyPath;
+use optimization_unit::declared_structural_type;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -794,41 +795,6 @@ fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) -> boo
                 argument.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ))
-}
-
-/// The declared structural type of one rostered place, or `None` when the
-/// place kind carries no resolvable type in this function.
-pub(crate) fn declared_structural_type(
-    function: &PsiOptimizationFunction,
-    declaration: &StructuralPlaceDeclaration,
-) -> Option<StructuralTypeId> {
-    match declaration.kind {
-        StructuralPlaceKind::OperationResult {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::ByteSequenceLiteral {
-            structural_type, ..
-        }
-        | StructuralPlaceKind::TrivialAffineLocal {
-            structural_type, ..
-        } => Some(structural_type),
-        StructuralPlaceKind::ProviderAttachment { attachment, .. } => Some(attachment),
-        StructuralPlaceKind::Parameter { .. } => function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::BlockParameter { .. } => function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
-            .find(|parameter| parameter.place == declaration.id)
-            .map(|parameter| parameter.structural_type),
-        StructuralPlaceKind::Result => function
-            .result
-            .structural()
-            .and_then(|result| (result.place == declaration.id).then_some(result.structural_type)),
-    }
 }
 
 /// The one case of the closed roster the `path` resolves to under the

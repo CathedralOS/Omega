@@ -93,7 +93,7 @@ use optimization_unit::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 
 use abstract_operations::AbstractOperation as O;
 

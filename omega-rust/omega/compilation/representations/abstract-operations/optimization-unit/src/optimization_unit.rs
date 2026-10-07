@@ -25,6 +25,7 @@ mod ownership;
 mod proof;
 mod range;
 mod rewrite;
+mod structural_places;
 
 pub use attachment::{
     AcceptedObligationFactIndexError, OwnershipFrontierFactIndexError, ProofQuestionIndexError,
@@ -199,3 +200,6 @@ impl PsiOptimizationUnit {
         )
     }
 }
+pub use structural_places::{
+    FieldEvidence, RootProducer, declared_structural_type, field_evidence, root_producer,
+};
