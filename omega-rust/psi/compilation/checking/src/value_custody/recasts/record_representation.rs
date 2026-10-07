@@ -885,10 +885,14 @@ fn checked_align_up(value: usize, alignment: usize) -> Option<usize> {
     }
 }
 
-pub(super) fn mutable_record_representations_equivalent(
+/// Layout equivalence shared by the record-representation comparisons:
+/// same size/alignment and positionally equal leaves, with the caller's
+/// facts predicate applied per leaf pair.
+fn record_layouts_match(
     program: &TypedTrees,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
+    leaf_facts: impl Fn(&TypedTrees, &MutableScalarRepresentationFacts, &MutableScalarRepresentationFacts) -> bool,
 ) -> bool {
     source.size == target.size
         && source.align == target.align
@@ -900,12 +904,16 @@ pub(super) fn mutable_record_representations_equivalent(
             .all(|(source, target)| {
                 source.offset == target.offset
                     && source.size == target.size
-                    && mutable_scalar_representation_facts_equivalent(
-                        program,
-                        &source.facts,
-                        &target.facts,
-                    )
+                    && leaf_facts(program, &source.facts, &target.facts)
             })
+}
+
+pub(super) fn mutable_record_representations_equivalent(
+    program: &TypedTrees,
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    record_layouts_match(program, source, target, mutable_scalar_representation_facts_equivalent)
 }
 
 pub(super) fn repeat_representation(
@@ -978,16 +986,5 @@ pub(super) fn record_representation_implies(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    source.size == target.size
-        && source.align == target.align
-        && source.leaves.len() == target.leaves.len()
-        && source
-            .leaves
-            .iter()
-            .zip(&target.leaves)
-            .all(|(source, target)| {
-                source.offset == target.offset
-                    && source.size == target.size
-                    && scalar_representation_facts_imply(program, &source.facts, &target.facts)
-            })
+    record_layouts_match(program, source, target, scalar_representation_facts_imply)
 }
