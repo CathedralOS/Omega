@@ -1,13 +1,18 @@
 //! Intrinsic enum equality observes both operands before comparing their tags.
 //!
 //! Payload-free sums need no new runtime equality opcode: their complete case
-//! roster is a Boolean encoding of the tag. Apply evaluates every left
-//! observation before every right observation, then compares the captured
-//! Booleans. Short-circuiting the final conjunction cannot skip an operand's
-//! bounds check. A payloadless constructor contributes known tag bits, not a
-//! temporary owner per observation; compared with a place, it reduces the
-//! equality to that place's membership in the one known case. Calls and
-//! effectful selectors cannot be replayed once for every declared case.
+//! roster is a Boolean encoding of the tag. The comparison is a chain, one
+//! Apply per declared case, each folding that case's two memberships into the
+//! running conjunction. A single Apply over every membership kept all of them
+//! live at once; a 50-case enum then forced hundreds of spill steps. Every
+//! observation is still evaluated, so no bounds check is skipped, and each
+//! operand's first membership comes before any later one, so an operand that
+//! traps does so at the same observation as an all-left-then-right order:
+//! memberships are pure reads whose only effect is that check. A payloadless
+//! constructor contributes known tag bits, not a temporary owner per
+//! observation; compared with a place, it reduces the equality to that place's
+//! membership in the one known case. Calls and effectful selectors cannot be
+//! replayed once for every declared case.
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
@@ -106,46 +111,76 @@ impl Builder<'_, '_> {
                 },
             ));
         }
-        let mut observations = Vec::with_capacity(cases.len().checked_mul(2)?);
-        for subject in [left, right] {
-            for case in &cases {
-                observations.push(match &subject {
-                    CheckedScalarComputationStructuralArgument::Case(constructor) => {
-                        self.boolean(constructor.case == *case)
-                    }
-                    _ => self.insert(
-                        PrimitiveType::Bool,
-                        CheckedScalarComputationKind::CaseMembership {
-                            source_expression: expression,
-                            subject: subject.clone(),
-                            case: *case,
-                        },
-                    ),
-                });
-            }
+        let mut chain = None;
+        for case in &cases {
+            let left_membership = self.membership_of(&left, *case, expression);
+            let right_membership = self.membership_of(&right, *case, expression);
+            // The running conjunction leads each link's operands, so the
+            // links evaluate in declared case order, left before right.
+            let same = |left, right| CheckedBooleanExpression::Equal {
+                left: Box::new(CheckedBooleanExpression::Parameter { position: left }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: right }),
+            };
+            let (template, operands) = match chain {
+                None => (same(0, 1), vec![left_membership, right_membership]),
+                Some(previous) => (
+                    CheckedBooleanExpression::And {
+                        left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+                        right: Box::new(same(1, 2)),
+                    },
+                    vec![previous, left_membership, right_membership],
+                ),
+            };
+            let operands = self.plans.operands.insert_many(operands);
+            chain = Some(self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::Apply {
+                    source_expression: expression,
+                    expression: CheckedScalarExpression::Boolean(Box::new(template)),
+                    operands,
+                },
+            ));
         }
-        let comparisons = (0..cases.len()).map(|position| CheckedBooleanExpression::Equal {
-            left: Box::new(CheckedBooleanExpression::Parameter { position }),
-            right: Box::new(CheckedBooleanExpression::Parameter {
-                position: cases.len() + position,
-            }),
-        });
-        let mut template = comparisons.reduce(|left, right| CheckedBooleanExpression::And {
-            left: Box::new(left),
-            right: Box::new(right),
-        })?;
-        if unequal {
-            template = CheckedBooleanExpression::Not(Box::new(template));
+        let equal = chain?;
+        if !unequal {
+            return Some(equal);
         }
-        let operands = self.plans.operands.insert_many(observations);
+        let operands = self.plans.operands.insert_many([equal]);
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::Apply {
                 source_expression: expression,
-                expression: CheckedScalarExpression::Boolean(Box::new(template)),
+                expression: CheckedScalarExpression::Boolean(Box::new(
+                    CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Parameter {
+                        position: 0,
+                    })),
+                )),
                 operands,
             },
         ))
+    }
+
+    /// One operand's membership in `case`: a constant for a payloadless
+    /// constructor, a tag observation for a place.
+    fn membership_of(
+        &mut self,
+        subject: &CheckedScalarComputationStructuralArgument,
+        case: symbols::SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> CheckedScalarComputationHandle {
+        match subject {
+            CheckedScalarComputationStructuralArgument::Case(constructor) => {
+                self.boolean(constructor.case == case)
+            }
+            _ => self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::CaseMembership {
+                    source_expression: expression,
+                    subject: subject.clone(),
+                    case,
+                },
+            ),
+        }
     }
 
     fn enum_operand(
