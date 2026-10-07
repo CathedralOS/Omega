@@ -509,14 +509,8 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
             let payload_domain = uniform_payload(&mut arena);
             lambda(&mut arena, payload_domain, selected)
         };
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let selected = case_two(&mut arena, motive, zero_branch, one_branch, tag);
-        let bound = variable(&mut arena, 0);
-        let payload = snd(&mut arena, bound);
-        let body = apply(&mut arena, selected, payload);
-        let domain = carrier(&mut arena);
-        lambda(&mut arena, domain, body)
+        let carrier = carrier(&mut arena);
+        tag_selected_children(&mut arena, carrier, motive, zero_branch, one_branch)
     };
     let flipped_children = {
         let motive = indexed_motive(&mut arena, &captured);

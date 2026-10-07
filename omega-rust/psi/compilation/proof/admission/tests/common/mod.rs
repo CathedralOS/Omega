@@ -274,3 +274,21 @@ pub(crate) fn strict_branching(
     let body = case_two(arena, motive, none, some, tag);
     lambda(arena, carrier, body)
 }
+
+/// `λ(a : A). caseTwo(M, <zero>, <one>, fst a) (snd a)` — the
+/// tag-selected child function applied to the node's own payload.
+pub(crate) fn tag_selected_children(
+    arena: &mut TermArena,
+    carrier: TermHandle,
+    motive: TermHandle,
+    zero_branch: TermHandle,
+    one_branch: TermHandle,
+) -> TermHandle {
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let selected = case_two(arena, motive, zero_branch, one_branch, tag);
+    let bound = variable(arena, 0);
+    let payload = snd(arena, bound);
+    let body = apply(arena, selected, payload);
+    lambda(arena, carrier, body)
+}

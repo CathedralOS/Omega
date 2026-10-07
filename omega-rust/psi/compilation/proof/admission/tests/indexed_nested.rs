@@ -608,14 +608,8 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
             let inner = lambda(&mut arena, position_domain, bound);
             lambda(&mut arena, payload_domain, inner)
         };
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let selected = case_two(&mut arena, motive, zero_branch, one_branch, tag);
-        let bound = variable(&mut arena, 0);
-        let payload_component = snd(&mut arena, bound);
-        let body = apply(&mut arena, selected, payload_component);
-        let domain = carrier(&mut arena, payload);
-        lambda(&mut arena, domain, body)
+        let carrier = carrier(&mut arena, payload);
+        tag_selected_children(&mut arena, carrier, motive, zero_branch, one_branch)
     };
     // Rebuild the g binding under the *broken* next: `g : Π(b : Nat).
     // Rose b` is what the broken description demands, but our context's

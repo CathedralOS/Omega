@@ -491,14 +491,8 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
             let inner = lambda(&mut arena, position_domain, body);
             lambda(&mut arena, payload_domain, inner)
         };
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let selected = case_two(&mut arena, motive, zero_branch, one_branch, tag);
-        let bound = variable(&mut arena, 0);
-        let payload_component = snd(&mut arena, bound);
-        let body = apply(&mut arena, selected, payload_component);
-        let domain = carrier(&mut arena, payload);
-        lambda(&mut arena, domain, body)
+        let carrier = carrier(&mut arena, payload);
+        tag_selected_children(&mut arena, carrier, motive, zero_branch, one_branch)
     };
     let length = variable(&mut arena, 1);
     let malformed = captured.indexed_w(&mut arena, length);
