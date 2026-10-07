@@ -28,6 +28,23 @@ fn data_place(
     }
 }
 
+/// `self.count`, `self.count - 2`, `self.count + 3` — the dependent bound as
+/// authored in diagnostics.
+fn dependent_bound_spelling(
+    proof_plan: &ProofPlan,
+    machine: &str,
+    state: &str,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> String {
+    let max_field_place = data_place(proof_plan, machine, state, max_field);
+    match max_offset {
+        0 => max_field_place,
+        offset if offset < 0 => format!("{max_field_place} - {}", -offset),
+        offset => format!("{max_field_place} + {offset}"),
+    }
+}
+
 pub(crate) fn cannot_prove_dependent_call_bound(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
@@ -35,17 +52,13 @@ pub(crate) fn cannot_prove_dependent_call_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
-    let max_field_place = data_place(
+    let bound_spelling = dependent_bound_spelling(
         proof_plan,
         &obligation.machine,
         &obligation.state,
         max_field,
+        max_offset,
     );
-    let bound_spelling = match max_offset {
-        0 => max_field_place,
-        offset if offset < 0 => format!("{max_field_place} - {}", -offset),
-        offset => format!("{max_field_place} + {offset}"),
-    };
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies dependent parameter `{}` for `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- a call has no co-located guard, so only an argument within the field's declared minimum discharges here; route the call through a guarded transition to relate them",
         expression_display_name(proof_plan, obligation.argument),
@@ -63,17 +76,13 @@ pub(crate) fn cannot_prove_dependent_transition_bound(
     max_field: &Identifier,
     max_offset: i64,
 ) -> Diagnostic {
-    let max_field_place = data_place(
+    let bound_spelling = dependent_bound_spelling(
         proof_plan,
         &obligation.machine,
         &obligation.state,
         max_field,
+        max_offset,
     );
-    let bound_spelling = match max_offset {
-        0 => max_field_place,
-        offset if offset < 0 => format!("{max_field_place} - {}", -offset),
-        offset => format!("{max_field_place} + {offset}"),
-    };
     Diagnostic::error(format!(
         "cannot prove transition argument `{}` satisfies dependent parameter `{}` in `{}.{}`; expected {minimum}..={bound_spelling} -- relate them on the arm (`{} <= {bound_spelling}` or a `<` guard), or tighten the argument below the field's declared minimum",
         expression_display_name(proof_plan, obligation.argument),
