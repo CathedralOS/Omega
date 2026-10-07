@@ -683,6 +683,8 @@ fail/contracts/ensures_wrapping_field_arithmetic_wrong rejected 197ms expected @
 	cannot prove ensures contract for exit from Countdown::arm at statement 1: countdown.remaining - 1 < 8
 fail/contracts/later_arm_call_requires_unproven rejected 653ms expected @53d5dde47ae5
 	cannot prove requires contract for call walk from walk: index + 1 <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/machine_requires_later_state_parameter_rejected rejected 295ms expected @ada91cf0bd16+wt
+	machine `first` state `entry` arrival contract value `later_bound` is not in the state's explicit parameter scope or prior local declarations
 fail/contracts/named_tail_return_contract rejected 202ms expected @43a77116e58+wt
 	cannot prove ensures contract for exit from forward at statement 0: result == 1
 fail/contracts/negated_edge_guard_unproven_bound rejected 1025ms expected @2d8ed253669f
@@ -1078,8 +1080,12 @@ fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669
 fail/float/total_order_wrong_carrier rejected 454ms expected @6d9868469d56+wt
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `T`, got `f32`
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `T`, got `f32`
+fail/generics/attached_machine_undeclared_data_extent_rejected rejected 300ms expected @ada91cf0bd16+wt
+	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `N`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/const_binder_carrier_range_names_sibling_rejected rejected 298ms expected @ada91cf0bd16+wt
+	machine `pick` parameter `N` declares a range that does not close over integers; an argument establishes its declared range from closed integer bounds
 fail/generics/const_container_mismatched_witness rejected 112ms expected @ca8c127c90c5
 	argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`, got `named value`
 fail/generics/const_container_zero_extent rejected 5ms expected @ca8c127c90c5
@@ -1282,6 +1288,8 @@ fail/proofs/addition_commutativity_false_twin rejected 144ms expected @2d8ed2536
 	machine `false_add_commutative` ensures contract proof fact `embed(a) + embed(b) == embed(b) + embed(a) + 1` is disproved by constant arithmetic
 fail/proofs/bag_view_false_twin rejected 747ms expected @2d8ed253669f
 	cannot prove ensures contract for exit from false_bag_distinct at statement 0: Bag(items) != Bag(before)
+fail/proofs/bounded_assignment_operand_skips_later_same_named_local rejected 314ms expected @ada91cf0bd16+wt
+	cannot prove assignment value `N + 1` satisfies bounded target `total` in `shadow.entry`; expected 0..=4
 fail/proofs/case_call_wrong_subject rejected 263ms expected @2d8ed253669f
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -1463,6 +1471,8 @@ fail/ranges/index_signed_guard_below_zero rejected 327ms expected @c08960bee2b1+
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 296ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 4 in Main::main::body
+fail/ranges/slice_bound_unbound_container_binder_rejected rejected 458ms expected @ada91cf0bd16+wt
+	cannot prove subslice range end bound `..N` is within const extent `N`
 fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782b89114+wt
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399bb74b+wt
