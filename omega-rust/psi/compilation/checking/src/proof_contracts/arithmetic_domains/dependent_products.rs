@@ -36,25 +36,15 @@ pub(super) fn refine_dependent_product(
     if product.operator != BinaryOperator::Multiply {
         return naive;
     }
-    let (a_expr, fb_expr) = {
-        let left_is_field =
-            typed_trees::dependent_ranges::symbolic_max_bound(program, product.left)
-                .is_some_and(|bound| bound.offset == 0);
-        if left_is_field {
-            (product.right, product.left)
-        } else {
-            (product.left, product.right)
-        }
-    };
-    let Some(fb) = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
-        .filter(|bound| bound.offset == 0)
-        .map(|bound| bound.field)
-    else {
-        return naive;
-    };
     // a's STRICT dependent atom names Fa; c's STRICT atom names Fb (the
     // multiplier field).
-    let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
+    let Some((_a_expr, fa, fb)) = dependent_product_atoms(
+        program,
+        machine,
+        state,
+        product.left,
+        product.right,
+    ) else {
         return naive;
     };
     let Some(c_field) = strict_dependent_atom_field(program, machine, state, right) else {
@@ -74,6 +64,36 @@ pub(super) fn refine_dependent_product(
         low: Some(naive.low.map_or(0, |low| low.max(0))),
         high: Some(naive.high.map_or(high, |naive_high| naive_high.min(high))),
     }
+}
+
+/// The `a * self.Fb` factor shape in either operand order: the non-field
+/// operand's expression, `a`'s STRICT dependent field, and the `self.Fb`
+/// field. `None` is each site's `naive` fallback.
+fn dependent_product_atoms(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<(
+    ExpressionHandle,
+    typed_trees::name::Identifier,
+    typed_trees::name::Identifier,
+)> {
+    let (a_expr, fb_expr) = {
+        let left_is_field = typed_trees::dependent_ranges::symbolic_max_bound(program, left)
+            .is_some_and(|bound| bound.offset == 0);
+        if left_is_field {
+            (right, left)
+        } else {
+            (left, right)
+        }
+    };
+    let fb = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
+        .filter(|bound| bound.offset == 0)
+        .map(|bound| bound.field)?;
+    let fa = strict_dependent_atom_field(program, machine, state, a_expr)?;
+    Some((a_expr, fa, fb))
 }
 
 /// The field a STRICTLY-bounded dependent place names: the expression is a
@@ -261,22 +281,8 @@ pub(super) fn refine_dependent_product_factor(
     let Some(state) = state else {
         return naive;
     };
-    let (a_expr, fb_expr) = {
-        let left_is_field = typed_trees::dependent_ranges::symbolic_max_bound(program, left)
-            .is_some_and(|bound| bound.offset == 0);
-        if left_is_field {
-            (right, left)
-        } else {
-            (left, right)
-        }
-    };
-    let Some(fb) = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
-        .filter(|bound| bound.offset == 0)
-        .map(|bound| bound.field)
+    let Some((_, fa, fb)) = dependent_product_atoms(program, machine, state, left, right)
     else {
-        return naive;
-    };
-    let Some(fa) = strict_dependent_atom_field(program, machine, state, a_expr) else {
         return naive;
     };
     let Some(k) = preserved_product_coupling(program, machine, &fa, &fb) else {
