@@ -14,8 +14,22 @@ use super::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
 };
-use terminal_psi::{BoundaryContentGuarantee, BoundaryMachineResult, OperationResult};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use terminal_psi::{
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult, OperationResult,
+    StructuralArgument, StructuralTypeDeclaration,
+};
 
+/// The value a completed boundary call hands back to its caller, by kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryCompletionResult {
+    Unit,
+    Scalar(ScalarType),
+    Structural(StructuralTypeId),
+}
+
+/// Terminal's spelling of one boundary call: resolve its unique declaration
+/// and argument roots in the module, then apply the shared judgment.
 pub fn boundary_call_preserves_descriptor_storage(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -37,31 +51,61 @@ pub fn boundary_call_preserves_descriptor_storage(
     let Some(declaration) = declarations.next() else {
         return false;
     };
-    if declarations.next().is_some()
-        || !completion_receipts.is_empty()
-        || declaration.structural_parameters.len() != structural_arguments.len()
+    if declarations.next().is_some() {
+        return false;
+    }
+    let result = match &operation.result {
+        OperationResult::Unit => BoundaryCompletionResult::Unit,
+        OperationResult::Scalar(result) => BoundaryCompletionResult::Scalar(result.scalar_type),
+        OperationResult::Structural(result) => {
+            BoundaryCompletionResult::Structural(result.structural_type)
+        }
+    };
+    boundary_completion_preserves_descriptor_storage(
+        module.structural_types.iter(),
+        declaration,
+        result,
+        !completion_receipts.is_empty(),
+        structural_arguments,
+        |place| super::place_type(machine, place),
+    )
+}
+
+/// Whether one boundary completion leaves every lent descriptor carrier in
+/// place. Terminal and the Omega replay of optimized bodies share this exact
+/// judgment, so both end the same call-scoped descriptor loans.
+pub fn boundary_completion_preserves_descriptor_storage<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    declaration: &BoundaryMachineDeclaration,
+    result: BoundaryCompletionResult,
+    has_completion_receipts: bool,
+    arguments: &[StructuralArgument],
+    place_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
+) -> bool {
+    if has_completion_receipts
+        || declaration.structural_parameters.len() != arguments.len()
         || declaration
             .content_guarantees
             .iter()
             .any(|guarantee| matches!(guarantee, BoundaryContentGuarantee::RetainedBorrow(_)))
-        || !match (&declaration.result, &operation.result) {
-            (BoundaryMachineResult::Unit, OperationResult::Unit) => true,
-            (BoundaryMachineResult::Scalar(expected), OperationResult::Scalar(result)) => {
-                *expected == result.scalar_type
+        || !match (&declaration.result, result) {
+            (BoundaryMachineResult::Unit, BoundaryCompletionResult::Unit) => true,
+            (BoundaryMachineResult::Scalar(expected), BoundaryCompletionResult::Scalar(actual)) => {
+                *expected == actual
             }
-            (BoundaryMachineResult::Structural(expected), OperationResult::Structural(result)) => {
-                expected.structural_type == result.structural_type
-                    && super::plain_owned_shape(
-                        module.structural_types.iter(),
-                        result.structural_type,
-                    )
+            (
+                BoundaryMachineResult::Structural(expected),
+                BoundaryCompletionResult::Structural(actual),
+            ) => {
+                expected.structural_type == actual
+                    && super::plain_owned_shape(types.clone(), actual)
             }
             _ => false,
         }
     {
         return false;
     }
-    structural_arguments
+    arguments
         .iter()
         .zip(&declaration.structural_parameters)
         .all(|(argument, parameter)| {
@@ -71,14 +115,12 @@ pub fn boundary_call_preserves_descriptor_storage(
             if argument.access == StructuralAccess::SharedBorrow {
                 return true;
             }
-            let Some(root) = super::place_type(machine, argument.place) else {
+            let Some(root) = place_type(argument.place) else {
                 return false;
             };
-            let Some(selected) = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
-                root,
-                &argument.path,
-            ) else {
+            let Some(selected) =
+                crate::runtime_structural_path_tip(types.clone(), root, &argument.path)
+            else {
                 return false;
             };
             // A root view lends its elements; it does not expose its descriptor as
@@ -90,11 +132,11 @@ pub fn boundary_call_preserves_descriptor_storage(
                         return true;
                     }
                     StructuralTypeShape::ElementView { element } => {
-                        return super::plain_owned_shape(module.structural_types.iter(), *element);
+                        return super::plain_owned_shape(types.clone(), *element);
                     }
                     _ => {}
                 }
             }
-            super::plain_owned_shape(module.structural_types.iter(), selected.id)
+            super::plain_owned_shape(types.clone(), selected.id)
         })
 }

@@ -23,6 +23,7 @@ pub(in crate::lowering) type BorrowedSources =
 
 pub(in crate::lowering) fn borrowed_source_catalog(
     functions: &BTreeMap<semantic_vocabulary::MachineId, &AbstractFunction>,
+    boundary_machines: &[terminal_psi::BoundaryMachineDeclaration],
     types: &StructuralTypeLookup<'_>,
 ) -> BTreeMap<semantic_vocabulary::MachineId, BorrowedSources> {
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
@@ -53,6 +54,7 @@ pub(in crate::lowering) fn borrowed_source_catalog(
     }
     if let Some(graph) = optimization_unit_semantics::descriptor_results::abstract_catalog_graph(
         functions.values().copied(),
+        boundary_machines,
         types.catalog(),
     ) {
         let mut analysis = DescriptorAnalysis::new(types.catalog(), &graph);

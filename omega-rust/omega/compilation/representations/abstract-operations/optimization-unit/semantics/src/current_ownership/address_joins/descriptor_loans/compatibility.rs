@@ -42,6 +42,7 @@ pub(crate) fn validate_compatibility(
     };
     let graph = crate::descriptor_results::optimized_catalog_graph(
         unit.functions.iter(),
+        &unit.boundary_machines,
         &unit.structural_types,
     )
     .ok_or_else(|| {

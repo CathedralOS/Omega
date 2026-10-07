@@ -119,6 +119,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     )?;
     let borrowed_reference_sources = super::control_flow::references::borrowed_source_catalog(
         &functions_by_machine,
+        &plan.boundary_machines,
         &structural_types,
     );
     let target_plan = TargetOperationPlan {

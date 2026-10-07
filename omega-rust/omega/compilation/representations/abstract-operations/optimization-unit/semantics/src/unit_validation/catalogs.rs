@@ -110,7 +110,11 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         }
     }
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
-    let call_accesses = crate::current_ownership::CallAccesses::new(&machines, &structural_types);
+    let call_accesses = crate::current_ownership::CallAccesses::new(
+        &machines,
+        boundary_machines.values().copied(),
+        &structural_types,
+    );
     let mut descriptor_requirements = BTreeMap::new();
     let mut ownership_frontiers = Vec::new();
     for function in &unit.functions {

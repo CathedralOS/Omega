@@ -58,7 +58,7 @@ impl BorrowedRegions {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
-        let mut result = Self::origins(function, functions, types);
+        let mut result = Self::origins(function, functions, call_accesses.boundaries(), types);
         let mut writes = BTreeMap::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
@@ -102,6 +102,7 @@ impl BorrowedRegions {
     pub(in crate::current_ownership) fn origins(
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+        boundaries: &[&terminal_psi::BoundaryMachineDeclaration],
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
         // Origin and cohort queries share one disposable current-body replay.
@@ -111,7 +112,11 @@ impl BorrowedRegions {
         if !functions.contains_key(&function.machine) {
             catalog.push(function);
         }
-        let graph = crate::descriptor_results::optimized_catalog_graph(catalog, &declarations);
+        let graph = crate::descriptor_results::optimized_catalog_graph(
+            catalog,
+            boundaries.iter().copied(),
+            &declarations,
+        );
         let mut reference_sources = BorrowedReferenceSources::new();
         for parameter in function
             .blocks

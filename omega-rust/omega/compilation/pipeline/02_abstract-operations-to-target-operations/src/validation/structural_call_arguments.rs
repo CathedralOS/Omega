@@ -461,6 +461,7 @@ pub(super) fn validate(
             source,
             source_functions,
             declarations,
+            boundary_machines,
             &boundary_call_rows,
         )
         .unwrap_or_default(),

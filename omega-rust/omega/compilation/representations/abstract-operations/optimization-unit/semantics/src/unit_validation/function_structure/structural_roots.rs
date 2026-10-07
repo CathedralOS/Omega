@@ -66,6 +66,7 @@ pub(crate) fn validate_structural_root_operations(
                 || crate::descriptor_results::owned_aggregate_descriptor_returns(
                     function,
                     unit.functions.iter(),
+                    &unit.boundary_machines,
                     &unit.structural_types,
                 )
         }

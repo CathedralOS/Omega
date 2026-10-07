@@ -6,7 +6,8 @@ use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    BoundaryMachineDeclaration, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
@@ -19,8 +20,9 @@ use terminal_semantics::descriptor_results::{
 /// Adapt current flat abstract bodies through the same block reconstruction
 /// and descriptor flow used by optimization-unit consumers. No retained source
 /// summary supplies origin authority after transformations.
-pub fn abstract_catalog_graph<'a>(
-    functions: impl IntoIterator<Item = &'a abstract_operations::AbstractFunction>,
+pub fn abstract_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions
@@ -28,19 +30,27 @@ pub fn abstract_catalog_graph<'a>(
         .map(optimization_unit::reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    optimized_catalog_graph(functions.iter(), types)
+    optimized_catalog_graph(functions.iter(), boundaries, types)
 }
 
 pub fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
-    optimized_catalog_graph(unit.functions.iter(), &unit.structural_types)
+    optimized_catalog_graph(
+        unit.functions.iter(),
+        &unit.boundary_machines,
+        &unit.structural_types,
+    )
 }
 
 /// Prepare current executable bodies once, without retained producer summaries.
-pub fn optimized_catalog_graph<'a>(
-    functions: impl IntoIterator<Item = &'a PsiOptimizationFunction>,
+/// Boundary declarations decide whether a completed host call can retain a
+/// lent descriptor; their bodies are not part of this catalog.
+pub fn optimized_catalog_graph<'function, 'boundary>(
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
+    let boundaries = boundaries.into_iter().collect::<Vec<_>>();
     let mut identities = BTreeSet::new();
     functions
         .iter()
@@ -48,7 +58,7 @@ pub fn optimized_catalog_graph<'a>(
             if !identities.insert(function.machine) {
                 return None;
             }
-            adapt(types, &functions, function)
+            adapt(types, &boundaries, &functions, function)
         })
         .collect()
 }
@@ -70,12 +80,13 @@ pub fn call_origins(
 /// independently replayed nonlocal backing. Rebuild from current functions:
 /// an optimizer's changed constructor, arrival or callee cannot reuse Terminal
 /// provenance. Root descriptors and reference returns keep their own contracts.
-pub(crate) fn owned_aggregate_descriptor_returns<'a>(
+pub(crate) fn owned_aggregate_descriptor_returns<'function, 'boundary>(
     function: &PsiOptimizationFunction,
-    functions: impl IntoIterator<Item = &'a PsiOptimizationFunction>,
+    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
+    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
 ) -> bool {
-    let Some(graph) = optimized_catalog_graph(functions, types) else {
+    let Some(graph) = optimized_catalog_graph(functions, boundaries, types) else {
         return false;
     };
     let Some(returns) = graph
@@ -105,6 +116,7 @@ pub(crate) fn owned_aggregate_descriptor_returns<'a>(
 
 fn adapt(
     types: &[StructuralTypeDeclaration],
+    boundaries: &[&BoundaryMachineDeclaration],
     functions: &[&PsiOptimizationFunction],
     function: &PsiOptimizationFunction,
 ) -> Option<DescriptorMachine> {
@@ -648,19 +660,55 @@ fn adapt(
                     }
                 }
                 O::BoundaryCall {
+                    boundary,
+                    result,
                     structural_arguments,
+                    completion_receipts,
                     ..
                 } => {
-                    step.may_escape = true;
-                    for actual in structural_arguments
+                    // The same completion judgment Terminal's descriptor flow
+                    // applies: a declared, receipt-free call returning no
+                    // descriptor custody cannot retain or replace a lent view.
+                    let mut declarations = boundaries
                         .iter()
-                        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                    {
-                        step.definitions.extend(writable_descriptor_slots(
-                            types,
-                            &graph.place_types,
-                            actual,
-                        )?);
+                        .filter(|declaration| declaration.id == *boundary);
+                    let preserved = match (declarations.next(), declarations.next()) {
+                        (Some(declaration), None) => {
+                            kernel::boundary_completion_preserves_descriptor_storage(
+                                types.iter(),
+                                declaration,
+                                match result {
+                                    abstract_operations::AbstractBoundaryResult::Unit => {
+                                        kernel::BoundaryCompletionResult::Unit
+                                    }
+                                    abstract_operations::AbstractBoundaryResult::Scalar(result) => {
+                                        kernel::BoundaryCompletionResult::Scalar(result.scalar_type)
+                                    }
+                                    abstract_operations::AbstractBoundaryResult::Structural(
+                                        result,
+                                    ) => kernel::BoundaryCompletionResult::Structural(
+                                        result.structural_type,
+                                    ),
+                                },
+                                !completion_receipts.is_empty(),
+                                structural_arguments,
+                                |place| graph.place_types.get(&place).copied(),
+                            )
+                        }
+                        _ => false,
+                    };
+                    if !preserved {
+                        step.may_escape = true;
+                        for actual in structural_arguments
+                            .iter()
+                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                        {
+                            step.definitions.extend(writable_descriptor_slots(
+                                types,
+                                &graph.place_types,
+                                actual,
+                            )?);
+                        }
                     }
                 }
                 O::CallDynamic { .. } | O::StoreDynamicDescriptor { .. } => {

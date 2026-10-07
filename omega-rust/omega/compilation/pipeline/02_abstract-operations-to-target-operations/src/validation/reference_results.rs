@@ -126,6 +126,7 @@ impl Custody {
 fn borrowed_sources(
     function: &AbstractFunction,
     functions: &[AbstractFunction],
+    boundary_machines: &[terminal_psi::BoundaryMachineDeclaration],
     declarations: &[StructuralTypeDeclaration],
 ) -> BTreeMap<PlaceId, Option<Vec<StructuralArgument>>> {
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
@@ -150,6 +151,7 @@ fn borrowed_sources(
     }
     let Some(graph) = optimization_unit_semantics::descriptor_results::abstract_catalog_graph(
         functions.iter(),
+        boundary_machines,
         declarations,
     ) else {
         return sources;
@@ -1713,6 +1715,7 @@ pub(super) fn expected(
     function: &AbstractFunction,
     source_functions: &[AbstractFunction],
     declarations: &[StructuralTypeDeclaration],
+    boundary_machines: &[terminal_psi::BoundaryMachineDeclaration],
     boundary_calls: &BTreeMap<OperationId, BoundaryCallRow>,
 ) -> Option<BTreeMap<OperationId, Vec<TargetReferenceResult>>> {
     let entries = &function.block_entries;
@@ -1771,8 +1774,12 @@ pub(super) fn expected(
         return None;
     }
     let mut initial = entry(function, declarations)?;
-    initial.borrowed_sources =
-        std::sync::Arc::new(borrowed_sources(function, source_functions, declarations));
+    initial.borrowed_sources = std::sync::Arc::new(borrowed_sources(
+        function,
+        source_functions,
+        boundary_machines,
+        declarations,
+    ));
     let mut exits: Vec<Option<Custody>> = vec![None; entries.len()];
     let mut expected = BTreeMap::new();
     for (position, dominator) in schedule(&incoming, &outgoing, entry_position)? {

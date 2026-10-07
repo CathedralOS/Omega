@@ -1929,6 +1929,7 @@ fn borrowed_sources(
     }
     if let Some(graph) = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
         unit.functions.iter(),
+        &unit.boundary_machines,
         types,
     ) {
         if let Some(current) = graph.iter().find(|current| current.id == function.machine) {

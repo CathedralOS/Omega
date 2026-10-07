@@ -254,7 +254,13 @@ pub(crate) fn operation_structural_call_contract_matches(
                         types.values().copied(),
                         result.structural_type,
                     )
-                    || descriptor_call_origins_match(caller, result.place, functions, types))
+                    || descriptor_call_origins_match(
+                        caller,
+                        result.place,
+                        functions,
+                        boundary_machines,
+                        types,
+                    ))
         }),
         O::BoundaryCall {
             boundary,
@@ -437,12 +443,15 @@ fn descriptor_call_origins_match(
     caller: &PsiOptimizationFunction,
     result: semantic_vocabulary::PlaceId,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let types = types.values().copied().cloned().collect::<Vec<_>>();
-    let Some(graph) =
-        crate::descriptor_results::optimized_catalog_graph(functions.values().copied(), &types)
-    else {
+    let Some(graph) = crate::descriptor_results::optimized_catalog_graph(
+        functions.values().copied(),
+        boundaries.values().copied(),
+        &types,
+    ) else {
         return false;
     };
     terminal_semantics::descriptor_results::reconstruct_call_origins(

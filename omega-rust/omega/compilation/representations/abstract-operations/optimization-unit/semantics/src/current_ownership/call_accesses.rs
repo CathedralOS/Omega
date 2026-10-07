@@ -16,7 +16,8 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{
-    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    BoundaryMachineDeclaration, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[derive(Clone)]
@@ -32,22 +33,32 @@ struct FunctionMutations {
 }
 
 /// Prepared once for the current unit; rewritten units reconstruct this table.
-#[derive(Default)]
-pub(crate) struct CallAccesses {
+pub(crate) struct CallAccesses<'unit> {
     functions: BTreeMap<MachineId, Option<FunctionMutations>>,
+    /// Host declarations a descriptor replay consults at each boundary
+    /// completion; boundary bodies are not part of the unit.
+    boundaries: Vec<&'unit BoundaryMachineDeclaration>,
 }
 
-impl CallAccesses {
+impl<'unit> CallAccesses<'unit> {
     pub(crate) fn new(
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+        boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
-        let mut result = Self::default();
+        let mut result = Self {
+            functions: BTreeMap::new(),
+            boundaries: boundaries.into_iter().collect(),
+        };
         let mut closed_storage = BTreeMap::new();
         for machine in functions.keys() {
             result.reconstruct(*machine, functions, types, &mut closed_storage);
         }
         result
+    }
+
+    pub(crate) fn boundaries(&self) -> &[&'unit BoundaryMachineDeclaration] {
+        &self.boundaries
     }
 
     fn reconstruct(
@@ -65,7 +76,7 @@ impl CallAccesses {
         let Some(function) = functions.get(&machine) else {
             return;
         };
-        let origins = BorrowedRegions::origins(function, functions, types);
+        let origins = BorrowedRegions::origins(function, functions, &self.boundaries, types);
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
             if let O::CallStructural { callee, .. } = &node.operation {

@@ -17,7 +17,10 @@ use terminal_psi::{
 use crate::borrowed_storage::Projection;
 use crate::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
 mod boundary_calls;
-pub use boundary_calls::boundary_call_preserves_descriptor_storage;
+pub use boundary_calls::{
+    BoundaryCompletionResult, boundary_call_preserves_descriptor_storage,
+    boundary_completion_preserves_descriptor_storage,
+};
 mod compatibility;
 mod owned_shape;
 mod replay;
