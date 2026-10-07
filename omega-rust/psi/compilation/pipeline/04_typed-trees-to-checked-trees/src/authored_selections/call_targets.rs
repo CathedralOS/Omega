@@ -209,47 +209,39 @@ pub(crate) fn checked_name_path_segment_target(
     }
 
     let mut contextual_root = None;
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                let mut expressions = Vec::new();
-                crate::monomorphization::collect_statement_expression_trees(
+    let mut conflicting = false;
+    super::member_targets::for_each_statement_containing(
+        program,
+        expression,
+        |machine, state, statement_index, _| {
+            let root = if direct.is_valid() {
+                direct
+            } else {
+                let Some(crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    ..
+                }) = crate::flow::canonical_place_from_expression_in_state(
                     program,
-                    statement,
-                    &mut expressions,
-                );
-                if !expressions.contains(&expression) {
-                    continue;
-                }
-                let root = if direct.is_valid() {
-                    direct
-                } else {
-                    let Some(crate::flow::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(root),
-                        ..
-                    }) = crate::flow::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        expression,
-                    )
-                    else {
-                        continue;
-                    };
-                    root
+                    state.symbol,
+                    statement_index,
+                    expression,
+                )
+                else {
+                    return Some(());
                 };
-                let root = authored_contextual_root(program, machine, state, statement_index, root);
-                if contextual_root.is_some_and(|candidate| candidate != root) {
-                    return SymbolHandle::invalid();
-                }
-                contextual_root = Some(root);
+                root
+            };
+            let root = authored_contextual_root(program, machine, state, statement_index, root);
+            if contextual_root.is_some_and(|candidate| candidate != root) {
+                conflicting = true;
+                return None;
             }
-        }
+            contextual_root = Some(root);
+            Some(())
+        },
+    );
+    if conflicting {
+        return SymbolHandle::invalid();
     }
 
     let Some(mut selected) = contextual_root else {

@@ -144,10 +144,11 @@ fn authored_member_target(
 
 /// Run `visit` on every `(state, statement_index, statement)` whose
 /// statement expression tree contains `needle`; `None` aborts the walk.
-fn for_each_statement_containing(
+pub(super) fn for_each_statement_containing(
     program: &TypedTrees,
     needle: typed_trees::expression::ExpressionHandle,
     mut visit: impl FnMut(
+        &typed_trees::machine::Machine,
         &typed_trees::state::State,
         usize,
         &typed_trees::statement::StatementNode,
@@ -170,7 +171,7 @@ fn for_each_statement_containing(
                 if !expressions.contains(&needle) {
                     continue;
                 }
-                visit(state, statement_index, statement)?;
+                visit(machine, state, statement_index, statement)?;
             }
         }
     }
@@ -183,7 +184,7 @@ fn contextual_statement_member_target(
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
     let mut resolved = None;
-    for_each_statement_containing(program, expression, |state, statement_index, _| {
+    for_each_statement_containing(program, expression, |_, state, statement_index, _| {
         let receiver_type = crate::flow::expression_type_reference_in_state(
             program,
             state.symbol,
@@ -304,7 +305,7 @@ pub(crate) fn expression_is_contextual_statement_primitive(
     for_each_statement_containing(
         program,
         containing_expression,
-        |state, statement_index, _| {
+        |_, state, statement_index, _| {
             let Some(type_reference) = crate::flow::expression_type_reference_in_state(
                 program,
                 state.symbol,
