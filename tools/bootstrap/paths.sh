@@ -123,3 +123,30 @@ export OMEGA_PATH_DERIVATION_ADMISSION_ENTRY OMEGA_PATH_DERIVATION_CHECKING_ENTR
 export OMEGA_PATH_DERIVATION_FORMATION_ENTRY
 export OMEGA_PATH_DERIVATION_GROUND_ENTRY OMEGA_PATH_DERIVATION_LAYOUT_ENTRY
 export OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES
+
+# Install a `python3` PATH shim that rewrites every path-shaped argument to
+# Windows form through cygpath, so a Windows Python on the MINGW/MSYS route
+# consumes the caller's MSYS paths. Callers gate on `command -v cygpath`;
+# POSIX hosts keep native paths untouched.
+install_mingw_python3_shim() {
+    _shim_dir=$1
+    REAL_PYTHON3=$(command -v python3)
+    mkdir -p "$_shim_dir"
+    {
+        printf '%s\n' '#!/usr/bin/env sh'
+        printf '%s\n' 'n=$#'
+        printf '%s\n' 'while [ "$n" -gt 0 ]; do'
+        printf '%s\n' '    arg=$1; shift; n=$((n - 1))'
+        printf '%s\n' '    case $arg in'
+        printf '%s\n' '        -* | "") ;;'
+        printf '%s\n' '        */* | *\\* | ?:*)'
+        printf '%s\n' '            arg=$(cygpath -w "$arg" 2>/dev/null || printf "%s" "$arg") ;;'
+        printf '%s\n' '    esac'
+        printf '%s\n' '    set -- "$@" "$arg"'
+        printf '%s\n' 'done'
+        printf 'exec %s "$@"\n' "'$REAL_PYTHON3'"
+    } > "$_shim_dir/python3"
+    chmod +x "$_shim_dir/python3"
+    PATH=$_shim_dir:$PATH
+    export PATH
+}

@@ -49,26 +49,7 @@ if command -v cygpath >/dev/null 2>&1; then
     GATE_PY=$(cygpath -w "$GATE_PY")
     OUTPUT_DIR_ARG=$(cygpath -w "$OUTPUT_DIR_ARG")
     DRIVER_ARG=$(cygpath -w "$DRIVER_ARG")
-    REAL_PYTHON3=$(command -v python3)
-    PY3_SHIM_DIR=$OUTPUT_DIR/python3-shim
-    mkdir -p "$PY3_SHIM_DIR"
-    {
-        printf '%s\n' '#!/usr/bin/env sh'
-        printf '%s\n' 'n=$#'
-        printf '%s\n' 'while [ "$n" -gt 0 ]; do'
-        printf '%s\n' '    arg=$1; shift; n=$((n - 1))'
-        printf '%s\n' '    case $arg in'
-        printf '%s\n' '        -* | "") ;;'
-        printf '%s\n' '        */* | *\\* | ?:*)'
-        printf '%s\n' '            arg=$(cygpath -w "$arg" 2>/dev/null || printf "%s" "$arg") ;;'
-        printf '%s\n' '    esac'
-        printf '%s\n' '    set -- "$@" "$arg"'
-        printf '%s\n' 'done'
-        printf 'exec %s "$@"\n' "'$REAL_PYTHON3'"
-    } > "$PY3_SHIM_DIR/python3"
-    chmod +x "$PY3_SHIM_DIR/python3"
-    PATH=$PY3_SHIM_DIR:$PATH
-    export PATH
+    install_mingw_python3_shim "$OUTPUT_DIR/python3-shim"
 fi
 # Bound materializers refuse before writing when the canonical entry,
 # manifest, members, packed closure, or composed record differ from the
