@@ -274,9 +274,7 @@ pub(crate) fn cloned_expression_roots(
             .flat_map(|state| program.state_contracts(state)),
     ) {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            crate::facts::contract_occurrences::append_fact_expression_roots(
-                program, fact, &mut roots,
-            );
+            validation::append_fact_expression_roots(program, fact, &mut roots);
         }
     }
     roots

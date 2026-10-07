@@ -377,8 +377,8 @@ pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guar
 // Exact typed-program queries are independently owned here so preparation
 // and immutable checking share declaration identity and occurrence order.
 pub use expression_traversal::{
-    collect_contract_facts, collect_expression_tree, collect_statement_expression_trees,
-    collect_transition_target_expression_trees,
+    append_fact_expression_roots, collect_contract_facts, collect_expression_tree,
+    collect_statement_expression_trees, collect_transition_target_expression_trees,
 };
 pub use machine_calls::calls::declared_receiver_target;
 pub use machine_calls::calls::{
@@ -396,12 +396,12 @@ pub use machine_calls::calls::{
 pub use value_custody::places::{
     CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_type_reference, collection_element_type_reference,
-    contextual_canonical_place_from_expression, declared_data_type, effective_member_symbol,
-    effective_member_symbol_from_type_symbol, expression_place_type_reference,
-    expression_root_symbol, expression_type_reference_in_state, expression_type_symbol,
-    first_valid_name_path_symbol, index_place_segment, loan_carrier_has_owned_storage,
-    machine_symbol_from_type_reference_handle, nearest_scoped_local,
-    project_type_reference_from_segments, projected_statement_receiver_place,
+    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    effective_member_symbol, effective_member_symbol_from_type_symbol,
+    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
+    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
+    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    nearest_scoped_local, project_type_reference_from_segments, projected_statement_receiver_place,
     push_field_place_segments, receiver_projections, resolve_member_symbol_from_type_symbol,
     state_scoped_name_symbol, structural_member_identity, symbol_type_symbol,
     unique_data_definition_by_symbol,

@@ -99,7 +99,7 @@ fn domain_predicate_meaning(
             let left = domain_predicate_meaning(program, domain, binary.left, subjects, depth + 1)?;
             let right =
                 domain_predicate_meaning(program, domain, binary.right, subjects, depth + 1)?;
-            let spelling = crate::operators::binary_operator_spelling(binary.operator);
+            let spelling = typed_trees::operator::binary_operator_spelling(binary.operator);
             if binary.operator == BinaryOperator::CaseMembership {
                 return None;
             }

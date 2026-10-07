@@ -945,7 +945,7 @@ pub(super) fn remap_contract_value_subjects(
     }
     let mut roots = Vec::new();
     for fact in program.proof_facts.span_or_empty(contract.facts) {
-        crate::facts::contract_occurrences::append_fact_expression_roots(program, fact, &mut roots);
+        validation::append_fact_expression_roots(program, fact, &mut roots);
     }
     for root in roots {
         program.expression_table.remap_symbols_in(root, realized);

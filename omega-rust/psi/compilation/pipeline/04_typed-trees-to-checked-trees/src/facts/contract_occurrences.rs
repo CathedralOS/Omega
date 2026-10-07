@@ -6,29 +6,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// expressions are additional occurrences because their evaluated values
 /// select which place the fact describes and must therefore participate in
 /// revision invalidation too.
-/// Return each root expression one contract fact carries: the value for a
-/// membership row, the proposition application arguments, or the expression
-/// itself. Callers recurse into the roots they actually need.
-pub(crate) fn append_fact_expression_roots(
-    program: &typed_trees::TypedTrees,
-    fact: &typed_trees::domain::ProofFact,
-    expressions: &mut Vec<ExpressionHandle>,
-) {
-    match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            expressions.push(membership.value)
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
-            program
-                .expression_table
-                .expression_handles(application.arguments)
-                .iter()
-                .copied(),
-        ),
-    }
-}
-
 pub(crate) fn fact_referenced_occurrences(
     program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,

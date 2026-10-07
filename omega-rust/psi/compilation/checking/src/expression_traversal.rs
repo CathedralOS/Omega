@@ -339,6 +339,28 @@ pub fn collect_transition_target_expression_trees(
     }
 }
 
+/// Append the roots a proof fact carries without traversing their children.
+/// Copying and occurrence checking choose their own structural/runtime walks.
+pub fn append_fact_expression_roots(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofFact,
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            expressions.push(membership.value)
+        }
+        typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
+            program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .copied(),
+        ),
+    }
+}
+
 /// Append structural expression trees from a contract's proof-fact span.
 pub fn collect_contract_facts(
     program: &dyn crate::CheckingInput,

@@ -138,8 +138,8 @@ pub fn structural_member_identity(
 }
 
 /// The field or variant member `member_name` declares on `data`, by symbol.
-pub(crate) fn data_member_symbol_by_name(
-    program: &typed_trees::TypedTrees,
+pub fn data_member_symbol_by_name(
+    program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     member_name: &str,
 ) -> Option<SymbolHandle> {

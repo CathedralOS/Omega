@@ -29,7 +29,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
 
     for (owner, fact) in owners {
         let mut expressions = Vec::new();
-        crate::facts::contract_occurrences::append_fact_expression_roots(
+        validation::append_fact_expression_roots(
             program,
             program.proof_facts.get(fact),
             &mut expressions,

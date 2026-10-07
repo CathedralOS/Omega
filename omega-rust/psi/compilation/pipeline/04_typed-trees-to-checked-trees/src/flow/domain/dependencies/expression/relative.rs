@@ -67,9 +67,7 @@ fn resolve_member_symbol_from_type(
         .iter()
         .find(|definition| definition.symbol == type_symbol)
     {
-        if let Some(symbol) =
-            crate::lookup::symbols::data_member_symbol_by_name(program, data, member_name)
-        {
+        if let Some(symbol) = validation::data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }
     }

@@ -718,9 +718,9 @@ pub fn zeroed_structural_parts(
 
 mod declared_symbols;
 pub use declared_symbols::{
-    declared_data_type, expression_root_symbol, first_valid_name_path_symbol,
-    machine_symbol_from_type_reference_handle, nearest_scoped_local, state_scoped_name_symbol,
-    structural_member_identity,
+    data_member_symbol_by_name, declared_data_type, expression_root_symbol,
+    first_valid_name_path_symbol, machine_symbol_from_type_reference_handle, nearest_scoped_local,
+    state_scoped_name_symbol, structural_member_identity,
 };
 mod canonical_projection;
 pub use canonical_projection::{
