@@ -257,6 +257,7 @@ fn edge_cleanup_calls_match<'a>(
             // Both disposals are no-code actions. Their positions still count
             // in the exact source ordinal of every following nominal call.
             TerminalAffineCleanupAction::DiscardRoot(_)
+            | TerminalAffineCleanupAction::RetireHome(_)
             | TerminalAffineCleanupAction::DiscardResidual(_) => continue,
             TerminalAffineCleanupAction::InvokeNominal(nominal) => nominal,
         };

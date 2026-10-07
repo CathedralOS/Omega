@@ -11,6 +11,67 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 
+/// The surrounding dying-owner selection, not a selected subtree path, owns
+/// home retirement. Resolve that original home independently of each disposed
+/// child's type, including a partially constructed owner with no whole value.
+pub(super) fn home_retirement(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    disposition: &checked_trees::ContextualCleanupDisposition,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+) -> Option<CheckedNormalCleanupAction> {
+    let machine = crate::lookup::machine_by_symbol(program, disposition.machine)?;
+    let statement_index = match disposition.source {
+        language_semantics::PermissionEventSource::Call {
+            statement_index, ..
+        }
+        | language_semantics::PermissionEventSource::Statement { statement_index } => {
+            statement_index
+        }
+        _ => disposition.exit.statement_index,
+    };
+    let reference = crate::flow::canonical_place_type_reference(
+        program,
+        disposition.state,
+        statement_index,
+        &crate::flow::CanonicalPlace {
+            root: disposition.root,
+            segments: Vec::new(),
+        },
+    )?;
+    let type_identity = shapes.add_type(reference, &machine_binders(program, machine), &[])?;
+    Some(CheckedNormalCleanupAction::RetireHome {
+        source,
+        type_identity,
+    })
+}
+
+/// Keep retirement after all of this home's region actions. A whole discard
+/// already consumes its binding; do not publish a second retirement for it.
+pub(super) fn finish_home(
+    actions: &mut Vec<CheckedNormalCleanupAction>,
+    retirement: CheckedNormalCleanupAction,
+) {
+    let source = retirement.source();
+    if actions.iter().any(|action| {
+        action.source() == source
+            && matches!(action, CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty())
+    }) {
+        return;
+    }
+    let mut selected = actions.iter().filter(|action| action.source() == source);
+    if matches!(selected.next(), Some(CheckedNormalCleanupAction::InvokeNominal(cleanup)) if cleanup.path.is_empty())
+        && selected.next().is_none()
+    {
+        return;
+    }
+    let position = actions
+        .iter()
+        .rposition(|action| action.source() == source)
+        .map_or(actions.len(), |position| position + 1);
+    actions.insert(position, retirement);
+}
+
 pub(super) fn disposition_actions(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

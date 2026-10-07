@@ -36,6 +36,10 @@ pub(crate) fn encode_affine_cleanup_action(
             writer.u8(1);
             writer.id(*place);
         }
+        TerminalAffineCleanupAction::RetireHome(place) => {
+            writer.u8(4);
+            writer.id(*place);
+        }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
             writer.u8(2);
             writer.id(discard.place);
@@ -171,6 +175,9 @@ pub(crate) fn decode_affine_cleanup_action(
 ) -> Result<TerminalAffineCleanupAction, CodecError> {
     match reader.u8()? {
         1 => Ok(TerminalAffineCleanupAction::DiscardRoot(
+            reader.id("PlaceId")?,
+        )),
+        4 => Ok(TerminalAffineCleanupAction::RetireHome(
             reader.id("PlaceId")?,
         )),
         2 => Ok(TerminalAffineCleanupAction::DiscardResidual(

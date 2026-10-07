@@ -171,6 +171,13 @@ pub struct CheckedStructuralReturnedClaimTransferPlan {
 pub enum CheckedNormalCleanupAction {
     Discard(CheckedUnitPartialAffineDiscardPlan),
     InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
+    /// End this exact home occurrence after its selected dying-owner partition
+    /// has completed. Region disposal alone does not retire a containing home:
+    /// a replacement ends the old field value while retaining its parent.
+    RetireHome {
+        source: CheckedUnitStructuralArgumentSourcePlan,
+        type_identity: String,
+    },
 }
 
 impl Default for CheckedNormalCleanupAction {
@@ -182,7 +189,7 @@ impl Default for CheckedNormalCleanupAction {
 impl CheckedNormalCleanupAction {
     pub fn nominal(&self) -> Option<&CheckedUnitNominalAffineCleanupPlan> {
         match self {
-            Self::Discard(_) => None,
+            Self::Discard(_) | Self::RetireHome { .. } => None,
             Self::InvokeNominal(cleanup) => Some(cleanup),
         }
     }
@@ -190,6 +197,7 @@ impl CheckedNormalCleanupAction {
         match self {
             Self::Discard(discard) => &discard.path,
             Self::InvokeNominal(cleanup) => &cleanup.path,
+            Self::RetireHome { .. } => &[],
         }
     }
 
@@ -197,12 +205,14 @@ impl CheckedNormalCleanupAction {
         match self {
             Self::Discard(discard) => &discard.type_identity,
             Self::InvokeNominal(cleanup) => &cleanup.type_identity,
+            Self::RetireHome { type_identity, .. } => type_identity,
         }
     }
     pub fn source(&self) -> &CheckedUnitStructuralArgumentSourcePlan {
         match self {
             Self::Discard(discard) => &discard.source,
             Self::InvokeNominal(cleanup) => &cleanup.source,
+            Self::RetireHome { source, .. } => source,
         }
     }
 }

@@ -282,7 +282,19 @@ fn discards_are_malformed(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != discards.len()
-        || discards.len() + residual_discards.len() + nominal_cleanups.len()
+        || discards.len()
+            + residual_discards.len()
+            + nominal_cleanups.len()
+            + cleanup
+                .actions
+                .iter()
+                .filter(|action| {
+                    matches!(
+                        action,
+                        terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
+                    )
+                })
+                .count()
             != cleanup.actions.len()
 }
 
@@ -349,6 +361,12 @@ fn residual_discards_are_malformed(
         ..
     } = *facts;
     let residual_root = residuals[0].place;
+    let partition = cleanup.actions.get(discards.len()..).and_then(|actions| {
+        crate::object_artifact::replay::unit::affine_cleanup::retired_home_partition(
+            actions,
+            residual_root,
+        )
+    });
     let parameter_type = function
         .unit_parameters
         .iter()
@@ -371,7 +389,8 @@ fn residual_discards_are_malformed(
                     if actual == place)
         })
     })
-        || cleanup.actions.get(discards.len()..).is_none_or(|suffix| {
+        || partition.is_none_or(|suffix| {
+            suffix.len() != residuals.len() ||
             suffix.iter().zip(residuals).any(|(action, residual)| {
                 !matches!(action,
                     terminal_psi::TerminalAffineCleanupAction::DiscardResidual(actual)

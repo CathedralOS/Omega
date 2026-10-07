@@ -364,6 +364,7 @@ fn close_existing(
         let group = scheduled
             .iter()
             .filter(|action| action.place() == root.place)
+            .filter(|action| !matches!(action, TerminalAffineCleanupAction::RetireHome(_)))
             .map(|action| match action {
                 TerminalAffineCleanupAction::DiscardResidual(discard) => Ok(CleanupSubject {
                     path: discard.path.clone(),
@@ -377,6 +378,9 @@ fn close_existing(
                 }),
                 TerminalAffineCleanupAction::DiscardRoot(_) => {
                     unsupported("whole cleanup consumes a partially transferred root")
+                }
+                TerminalAffineCleanupAction::RetireHome(_) => {
+                    unsupported("home retirement entered the region disposal partition")
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -437,6 +441,10 @@ fn complete_actions(
                         .into_iter()
                         .map(TerminalAffineCleanupAction::DiscardResidual),
                 );
+                // Expanding the already selected whole death into residuals
+                // must preserve its home retirement, including an empty
+                // complement. Region actions alone do not carry that lifetime.
+                actions.push(TerminalAffineCleanupAction::RetireHome(*place));
             }
             _ => actions.push(action.clone()),
         }

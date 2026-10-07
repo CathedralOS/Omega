@@ -49,6 +49,8 @@ pub(super) fn residual_discards_are_malformed(
         })
         .collect::<Vec<_>>();
     let residual_root = residuals.first().map(|residual| residual.place);
+    let partition =
+        residual_root.and_then(|place| super::retired_home_partition(residual_actions, place));
     let parameter_type = residual_root.and_then(|place| {
         parameter_homes
             .iter()
@@ -65,7 +67,7 @@ pub(super) fn residual_discards_are_malformed(
         .map(|argument| (argument.path.as_slice(), argument.structural_type))
         .collect::<Vec<_>>();
     cleanup.actions[..expected_local_actions.len()] != *expected_local_actions
-        || residuals.len() != residual_actions.len()
+        || partition.is_none_or(|partition| residuals.len() != partition.len())
         || residuals.is_empty()
         || residual_root.is_none_or(|root| expected_parameter_suffix.as_slice() != [root])
         || parameter_type.is_none()

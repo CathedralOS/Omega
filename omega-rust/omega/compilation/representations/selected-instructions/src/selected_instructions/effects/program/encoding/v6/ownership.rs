@@ -39,6 +39,7 @@ fn decode_cleanup(
     cursor: &mut Cursor<'_>,
 ) -> Result<terminal_psi::TerminalAffineCleanupAction, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        4 => terminal_psi::TerminalAffineCleanupAction::RetireHome(decode_place(cursor)?),
         1 => terminal_psi::TerminalAffineCleanupAction::DiscardRoot(decode_place(cursor)?),
         2 => terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
             terminal_psi::StructuralAffineDiscard {

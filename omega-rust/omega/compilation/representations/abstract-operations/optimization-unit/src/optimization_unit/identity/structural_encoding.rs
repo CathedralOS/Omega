@@ -650,6 +650,10 @@ pub(super) fn encode_residual_cleanup(
 
 pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffineCleanupAction) {
     match action {
+        TerminalAffineCleanupAction::RetireHome(place) => {
+            bytes.u8(4);
+            bytes.id(*place);
+        }
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.u8(1);
             bytes.id(*place);

@@ -700,6 +700,7 @@ fn nominal_cleanup_machines(terminator: &Terminator) -> impl Iterator<Item = Mac
                 Some(cleanup.cleanup_machine)
             }
             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            | terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
             | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
         })
 }

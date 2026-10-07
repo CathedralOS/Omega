@@ -229,6 +229,10 @@ pub(super) fn plan(
                                 checked_trees::CheckedNormalCleanupAction::InvokeNominal(
                                     action,
                                 ) => &mut action.source,
+                                checked_trees::CheckedNormalCleanupAction::RetireHome {
+                                    source,
+                                    ..
+                                } => source,
                             };
                             if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                 binding_ordinal,

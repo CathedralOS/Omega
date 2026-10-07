@@ -510,6 +510,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                     .flat_map(|row| &row.actions).map(|action| match action {
                         checked_trees::CheckedNormalCleanupAction::Discard(discard) => discard.type_identity.as_str(),
                         checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => cleanup.type_identity.as_str(),
+                        checked_trees::CheckedNormalCleanupAction::RetireHome { type_identity, .. } => type_identity.as_str(),
                     }))
                 .chain(plan.states.iter().flat_map(|state| {
                     state

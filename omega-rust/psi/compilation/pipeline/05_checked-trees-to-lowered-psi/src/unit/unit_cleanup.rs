@@ -158,7 +158,8 @@ pub(crate) fn selected_cleanups(
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         Some(cleanup)
                     }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
+                    checked_trees::CheckedNormalCleanupAction::Discard(_)
+                    | checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => None,
                 }),
         )
         .chain(
@@ -175,7 +176,8 @@ pub(crate) fn selected_cleanups(
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         Some(cleanup)
                     }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
+                    checked_trees::CheckedNormalCleanupAction::Discard(_)
+                    | checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => None,
                 }),
         )
 }

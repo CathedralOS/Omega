@@ -171,6 +171,24 @@ pub(super) fn projected_root_is_fully_consumed(
     let Some(moved) = frontier.partial_custody_paths.get(&place) else {
         return false;
     };
+    projected_paths_are_fully_consumed(function, structural_types, place, moved)
+}
+
+/// Authenticate zero disposal debt from the retained exact moved paths. Live
+/// claim and carrier absence is checked by the consuming frontier join.
+pub(crate) fn projected_paths_are_fully_consumed(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    place: PlaceId,
+    moved: &BTreeSet<Vec<StructuralPathSegment>>,
+) -> bool {
+    if function
+        .content_entry_claims
+        .iter()
+        .any(|claim| claim.input.root == place)
+    {
+        return false;
+    }
     if partial_affine_root_type(function, place).is_some() {
         return partial_affine_root_is_drained(function, structural_types, place, moved);
     }

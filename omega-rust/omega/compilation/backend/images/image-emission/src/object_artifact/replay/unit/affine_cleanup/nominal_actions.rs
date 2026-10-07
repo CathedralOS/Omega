@@ -132,7 +132,8 @@ pub(super) fn nominal_cleanups_are_malformed(inputs: &CleanupInputs<'_>, end: us
                         || attachments.get(&nominal.cleanup_machine)
                             != Some(&Some(nominal.structural_type))
                 }
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_)
+                | terminal_psi::TerminalAffineCleanupAction::RetireHome(_) => true,
             })
     {
         true

@@ -46,13 +46,19 @@ pub enum TerminalAffineCleanupAction {
     DiscardRoot(PlaceId),
     DiscardResidual(StructuralAffineDiscard),
     InvokeNominal(NominalAffineCleanup),
+    /// Retire the selected dying owner's frame home after its complete disposal
+    /// partition. This is not a subtree discard or a loan restoration receipt;
+    /// backing retained by captured outgoing values is independent of the home.
+    RetireHome(PlaceId),
 }
 
 impl TerminalAffineCleanupAction {
-    /// Exact selected region; a whole-root discard has the empty path.
+    /// Exact selected region. Whole discard and home retirement both return
+    /// the empty path, but retirement disposes no region; consumers deciding
+    /// disposal authority must retain the action's kind as well as this path.
     pub fn path(&self) -> &[StructuralPathSegment] {
         match self {
-            Self::DiscardRoot(_) => &[],
+            Self::DiscardRoot(_) | Self::RetireHome(_) => &[],
             Self::DiscardResidual(discard) => &discard.path,
             Self::InvokeNominal(cleanup) => &cleanup.path,
         }
@@ -61,7 +67,7 @@ impl TerminalAffineCleanupAction {
     /// The owned root affected by this ordered cleanup action.
     pub fn place(&self) -> PlaceId {
         match self {
-            Self::DiscardRoot(place) => *place,
+            Self::DiscardRoot(place) | Self::RetireHome(place) => *place,
             Self::DiscardResidual(discard) => discard.place,
             Self::InvokeNominal(cleanup) => cleanup.place,
         }

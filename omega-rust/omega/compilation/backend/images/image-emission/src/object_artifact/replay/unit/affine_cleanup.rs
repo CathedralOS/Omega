@@ -8,6 +8,28 @@ mod cleanup_roots;
 mod discard_actions;
 mod nominal_actions;
 
+/// Separate explicit frame retirement from its same-owner disposal partition.
+/// This authenticates the marker's position, not authority to dispose storage.
+pub(crate) fn retired_home_partition(
+    actions: &[terminal_psi::TerminalAffineCleanupAction],
+    place: semantic_vocabulary::PlaceId,
+) -> Option<&[terminal_psi::TerminalAffineCleanupAction]> {
+    let (terminal_psi::TerminalAffineCleanupAction::RetireHome(retired), partition) =
+        actions.split_last()?
+    else {
+        return None;
+    };
+    (*retired == place
+        && partition.iter().all(|action| {
+            action.place() == place
+                && !matches!(
+                    action,
+                    terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
+                )
+        }))
+    .then_some(partition)
+}
+
 use machine_code::{
     BoundarySettlementRecord, InternalUnitCallRecord, MachineCodeFunction, SemanticCodeAttribution,
     SemanticCodeSite, UnitAffineCleanupRecord, UnitParameterHomeRecord,

@@ -482,6 +482,10 @@ pub(in super::super) fn decode_cleanup(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalAffineCleanupAction, FixedViewCopyDecodeError> {
     match cursor.byte()? {
+        4 => Ok(TerminalAffineCleanupAction::RetireHome(decode_id(
+            cursor,
+            PlaceId::new,
+        )?)),
         1 => Ok(TerminalAffineCleanupAction::DiscardRoot(decode_id(
             cursor,
             PlaceId::new,

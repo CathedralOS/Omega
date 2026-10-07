@@ -572,6 +572,7 @@ fn scan_operation(
     for (_, actions) in operation.cleanup_rosters() {
         for action in actions {
             match action {
+                TerminalAffineCleanupAction::RetireHome(_) => {}
                 TerminalAffineCleanupAction::DiscardRoot(place) => {
                     pending.attribute(context, *place, Vec::new(), AccessKind::Write);
                 }

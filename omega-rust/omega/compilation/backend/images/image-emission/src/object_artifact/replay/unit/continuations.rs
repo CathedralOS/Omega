@@ -94,15 +94,6 @@ pub(crate) fn completed_roots(
             }
             blocks.push(continuation.target_block);
             edges.push(continuation.cleanup.psi_edge);
-            let residuals = continuation
-                .cleanup
-                .actions
-                .iter()
-                .map(|action| match action {
-                    TerminalAffineCleanupAction::DiscardResidual(residual) => Some(residual),
-                    _ => None,
-                })
-                .collect::<Option<Vec<_>>>()?;
             let mut partial = roots
                 .iter()
                 .enumerate()
@@ -112,6 +103,16 @@ pub(crate) fn completed_roots(
                 return None;
             }
             if let Some((root_position, root)) = selected {
+                let residuals = super::affine_cleanup::retired_home_partition(
+                    &continuation.cleanup.actions,
+                    root.place,
+                )?
+                .iter()
+                .map(|action| match action {
+                    TerminalAffineCleanupAction::DiscardResidual(residual) => Some(residual),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?;
                 if residuals
                     .iter()
                     .any(|residual| residual.place != root.place)
@@ -126,7 +127,7 @@ pub(crate) fn completed_roots(
                 }
                 disposed.push(root.place);
                 roots.remove(root_position);
-            } else if !residuals.is_empty() {
+            } else if !continuation.cleanup.actions.is_empty() {
                 return None;
             }
             previous_end = Some(continuation.cleanup.code_offset);

@@ -846,6 +846,11 @@ impl TerminalExecution {
             .live_affine_frontier
             .iter()
             .any(|entry| entry.place == value.place && entry.path.is_empty());
+        let mut frontier = self.live_affine_frontier.clone();
+        if affine && !remove_affine_root(&mut frontier, value.place) {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
         // An established scalar case carries its tag and payload as one value
         // rather than as runtime cells; it lands in the hole exactly as an
         // `EstablishRecord` member of the same case type would.
@@ -867,9 +872,7 @@ impl TerminalExecution {
                 );
             }
             self.scalar_case_values.remove(&value.place);
-            if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
-                return Err(malformed());
-            }
+            self.live_affine_frontier = frontier;
             return Ok(OperationFlow::Advance);
         }
         let child = self.structural_values.get(&value.place).cloned().ok_or(
@@ -880,9 +883,7 @@ impl TerminalExecution {
         }
         self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
         self.structural_values.remove(&value.place);
-        if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
-            return Err(malformed());
-        }
+        self.live_affine_frontier = frontier;
         Ok(OperationFlow::Advance)
     }
 

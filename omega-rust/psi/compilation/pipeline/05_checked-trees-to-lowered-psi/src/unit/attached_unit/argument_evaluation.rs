@@ -656,7 +656,8 @@ impl Evaluation {
     ) -> Result<semantic_vocabulary::EdgeId, LoweringError> {
         for action in &mut cleanup_actions {
             let place = match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => place,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => place,
                 terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                     &mut discard.place
                 }

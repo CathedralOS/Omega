@@ -226,6 +226,9 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 LoweringError::Unsupported("nominal scalar return cleanup terminal root is absent"),
             )?;
             match action {
+                CheckedNormalCleanupAction::RetireHome { .. } => {
+                    Ok(TerminalAffineCleanupAction::RetireHome(parameter.place))
+                }
                 CheckedNormalCleanupAction::Discard(discard) => {
                     if !discard.path.is_empty() {
                         return unsupported(

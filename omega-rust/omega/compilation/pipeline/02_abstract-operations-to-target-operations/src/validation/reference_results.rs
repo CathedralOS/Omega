@@ -1575,7 +1575,24 @@ fn apply_terminator(
 ) -> Option<()> {
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
+        let owned_transfer = match operation {
+            AbstractOperation::Jump {
+                target,
+                structural_bindings,
+                ..
+            } => Some((*target, structural_bindings.as_slice())),
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
+            _ => None,
+        };
         let target = match operation {
+            AbstractOperation::Jump { target, .. } => Some(*target),
             AbstractOperation::Conditional {
                 when_true,
                 when_false,
@@ -1592,6 +1609,39 @@ fn apply_terminator(
         };
         if let Some(target) = target {
             let mut exit = custody.clone();
+            if let Some((target, bindings)) = owned_transfer {
+                let destination = function
+                    .block_entries
+                    .iter()
+                    .find(|block| block.block == target)?;
+                let mut moved = Vec::new();
+                for (binding, parameter) in bindings.iter().zip(&destination.structural_parameters)
+                {
+                    if binding.argument.access != StructuralAccess::Owned
+                        || parameter.access != StructuralAccess::Owned
+                    {
+                        continue;
+                    }
+                    for ((carrier, path), leaf) in &exit.leaves {
+                        if *carrier == binding.argument.place
+                            && let Some(relative) =
+                                path.strip_prefix(binding.argument.path.as_slice())
+                        {
+                            moved.push((
+                                (*carrier, path.clone()),
+                                (parameter.place, relative.to_vec()),
+                                leaf.clone(),
+                            ));
+                        }
+                    }
+                }
+                for (source, _, _) in &moved {
+                    exit.leaves.remove(source);
+                }
+                for (_, destination, leaf) in moved {
+                    exit.leaves.insert(destination, leaf);
+                }
+            }
             apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, declarations)?;
             exits.push((target, exit.leaves));
         } else {
@@ -1612,6 +1662,12 @@ fn apply_cleanup_actions(
 ) -> Option<()> {
     for action in actions {
         match action {
+            TerminalAffineCleanupAction::RetireHome(place) => {
+                source_contract(function, custody, place)?;
+                if custody.leaves.keys().any(|(carrier, _)| *carrier == place) {
+                    return None;
+                }
+            }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 discard_owned(function, declarations, custody, place)?
             }

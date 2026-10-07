@@ -128,6 +128,18 @@ consumer may use the return edge; a continuing body uses an explicit continuatio
 edge. Even an empty complement retains source continuation correspondence.
 Partial moves do not retire the whole root early. Other live roots remain live.
 
+Region disposal and home retirement are distinct. A replacement disposes the old
+field value but retains the containing home for the establishing store. The
+checked dying-owner partition publishes `RetireHome` after its complete ordered
+region actions, including an empty complement; a last projected action alone
+does not identify a dying home. Whole-root discard and a single whole nominal
+leaf action consume their home intrinsically and need no second retirement.
+Retirement grants no claim discharge or loan restoration: linear claims must
+already be settled, and captured outgoing backing survives the frame binding.
+The reservation may include fields that never became values; only the checked
+partition identifies their absent obligations. A later store rejoins its exact
+region to an owned home's frontier, not to a borrowed referent's callee frame.
+
 Each jump or selected conditional successor has its own exact cleanup/transfer
 partition. The transaction validates the current frontier, charges the edge,
 materializes scalar successor arguments, disposes the named remainder, then

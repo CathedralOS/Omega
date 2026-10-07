@@ -880,6 +880,9 @@ impl OperationFrame<'_, '_> {
             let path = lower_structural_path(action.path())?;
             let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
             actions.push(match action {
+                checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
+                    terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
+                }
                 checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() => {
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
                 }

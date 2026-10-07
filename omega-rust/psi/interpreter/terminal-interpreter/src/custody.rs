@@ -1,11 +1,14 @@
 //! Runtime custody operates on the source-selected cleanup schedule. A nominal
 //! hook borrows its receiver; it does not dispose the receiver's descendants.
 //! Recursive actions are contiguous, so the following action determines when
-//! storage can retire without inventing runtime liveness or a second plan.
-//! Each dying root's final action releases its frame binding. Reserved home
+//! a hook must retain its descendants, not whether the containing home dies.
+//! The checked dying-owner partition publishes home retirement explicitly.
+//! A replacement disposes a selected region while retaining its parent. Reserved home
 //! geometry can include fields that never became values, so it cannot decide
 //! which children owe cleanup. Captured outgoing projections retain their
 //! backing independently of that obsolete root binding.
+
+mod field_stores;
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
@@ -110,13 +113,9 @@ pub(crate) fn commit_cleanup_action(
             element_views.retain(|carrier, _| {
                 carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
             });
-            retire_completed_cleanup_root(
-                structural_values,
-                frontier,
-                live_claims,
-                discard.place,
-                next,
-            )?;
+        }
+        TerminalAffineCleanupAction::RetireHome(place) => {
+            retire_cleanup_home(structural_values, frontier, live_claims, *place)?;
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             validate_nominal_cleanup_action(
@@ -293,29 +292,34 @@ pub(crate) fn complete_nominal_cleanup(
     } {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    retire_completed_cleanup_root(values, frontier, claims, cleanup.place, next)
+    // A whole nominal leaf action consumes the home intrinsically, as a whole
+    // discard does. Projected hooks only consume their selected region: the
+    // checked dying-owner partition supplies a separate RetireHome when needed.
+    if cleanup.path.is_empty() {
+        retire_cleanup_home(values, frontier, claims, cleanup.place)?;
+    }
+    Ok(())
 }
 
-/// The checked normal-edge schedule groups each dying root's actions together.
-/// Its last action releases the frame's home, after outgoing values were
-/// captured. A reservation may include fields that never became values;
-/// geometric frontier fragments cannot invent obligations for those fields.
-/// Retiring this binding does not prune the backing of transferred siblings.
-fn retire_completed_cleanup_root(
+/// Retire only the explicitly selected dying home. Its checked disposal partition
+/// has finished, so reserved geometry for never-established fields is not debt.
+/// This event is not a wildcard disposal, claim discharge, or loan restoration;
+/// backing retained by captured outgoing values survives the frame binding.
+fn retire_cleanup_home(
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
-    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
-    if next.is_some_and(|action| action.place() == place) {
-        return Ok(());
-    }
     if claims.values().any(|claim| claim.place == Some(place)) {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
+    if values.remove(&place).is_none() {
+        return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+            place,
+        ));
+    }
     frontier.retain(|entry| entry.place != place);
-    values.remove(&place);
     Ok(())
 }
 

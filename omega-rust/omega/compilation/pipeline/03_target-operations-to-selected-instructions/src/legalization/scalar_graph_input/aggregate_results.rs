@@ -187,6 +187,7 @@ pub(super) fn cleanup(
                 .map(|(_, declaration)| declaration.id)
         };
         match action {
+            terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => owner(*place).is_some(),
             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => discardable(*place),
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 // A residual is a strictly projected plain subtree of a still

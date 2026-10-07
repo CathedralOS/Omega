@@ -79,7 +79,8 @@ fn exact_affine_projected_calls(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if residuals.len() != cleanup.actions.len()
+    if super::super::unit::affine_cleanup::retired_home_partition(&cleanup.actions, home.place)
+        .is_none_or(|partition| residuals.len() != partition.len())
         || residuals
             .iter()
             .any(|residual| residual.place != home.place)
@@ -293,7 +294,11 @@ pub(crate) fn exact_projected_affine_result<'a>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if residuals.len() != cleanup.actions.len()
+    if super::super::unit::affine_cleanup::retired_home_partition(
+        &cleanup.actions,
+        result.operation_result.place,
+    )
+    .is_none_or(|partition| residuals.len() != partition.len())
         || residuals
             .iter()
             .any(|residual| residual.place != result.operation_result.place)

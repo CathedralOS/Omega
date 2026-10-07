@@ -173,6 +173,7 @@ pub(super) fn actions(
             let action_path = match &action {
                 CheckedNormalCleanupAction::Discard(action) => &action.path,
                 CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
+                CheckedNormalCleanupAction::RetireHome { .. } => return None,
             };
             if !action_path.starts_with(&destination.path) {
                 if !destination.path.starts_with(action_path) {
@@ -200,6 +201,7 @@ pub(super) fn actions(
                     CheckedNormalCleanupAction::InvokeNominal(action) => {
                         (&mut action.source, &mut action.path)
                     }
+                    CheckedNormalCleanupAction::RetireHome { .. } => return None,
                 };
                 *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
                 *source = marker.source().clone();
@@ -209,5 +211,20 @@ pub(super) fn actions(
     }
     // An occupied affine value cannot silently become a raw discard when its
     // source death is absent. The producer must supply that occurrence first.
-    (!actions.is_empty()).then_some(actions)
+    if actions.is_empty() {
+        return None;
+    }
+    // The authenticated replacement join distinguishes the displaced value's
+    // home from the retained containing record. A root rebind also ends its old
+    // occurrence; a field store only ends that selected field value.
+    if displaced || destination.path.is_empty() {
+        super::actions::finish_home(
+            &mut actions,
+            CheckedNormalCleanupAction::RetireHome {
+                source: marker.source().clone(),
+                type_identity: destination.type_identity.clone(),
+            },
+        );
+    }
+    Some(actions)
 }

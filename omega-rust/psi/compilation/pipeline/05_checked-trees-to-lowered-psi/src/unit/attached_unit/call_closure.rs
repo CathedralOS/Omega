@@ -90,7 +90,8 @@ pub(crate) fn checked_unit_call_closure_including(
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         Some(cleanup)
                     }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
+                    checked_trees::CheckedNormalCleanupAction::Discard(_)
+                    | checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => None,
                 })
             {
                 if !closure.contains(&cleanup.cleanup_machine) {

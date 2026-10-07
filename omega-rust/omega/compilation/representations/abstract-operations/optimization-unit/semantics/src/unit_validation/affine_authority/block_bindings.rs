@@ -31,7 +31,8 @@ pub(super) fn valid_transition(
     let Some(consumed) = consume_sources(function, types, entry, bindings) else {
         return false;
     };
-    let Some(mut expected) = retire_cleanup_roots(consumed.frontier, actions) else {
+    let Some(mut expected) = retire_cleanup_roots(function, types, consumed.frontier, actions)
+    else {
         return false;
     };
     let mut owned = expected
@@ -72,39 +73,83 @@ pub(super) fn valid_transition(
     expected == *exit
 }
 
-/// Each root's cleanup actions are one contiguous group that retires the
-/// root's owned row and partial custody after its last subject; nominal hooks
-/// also consume exactly the claims they name from that root.
+/// Each root's ordered disposal partition ends in explicit frame retirement,
+/// except intrinsic whole-owner disposal. Hooks consume only named claims.
 fn retire_cleanup_roots(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     mut frontier: OwnershipFrontierSnapshot,
     actions: &[TerminalAffineCleanupAction],
 ) -> Option<OwnershipFrontierSnapshot> {
     let mut retired = Vec::<PlaceId>::new();
-    for action in actions {
+    let mut remaining = actions;
+    while let Some(action) = remaining.first() {
         let place = action.place();
-        if retired.last() != Some(&place) {
-            if retired.contains(&place) {
+        if retired.contains(&place) {
+            return None;
+        }
+        let count = remaining
+            .iter()
+            .take_while(|action| action.place() == place)
+            .count();
+        let (group, rest) = remaining.split_at(count);
+        let partition = match group.split_last()? {
+            (TerminalAffineCleanupAction::RetireHome(retired), partition) if *retired == place => {
+                partition
+            }
+            _ if matches!(group, [TerminalAffineCleanupAction::DiscardRoot(_)])
+                || matches!(group, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.path.is_empty()) =>
+            {
+                group
+            }
+            _ => return None,
+        };
+        for action in partition {
+            if matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                 return None;
             }
-            let position = frontier
-                .owned_places
-                .iter()
-                .position(|owned| owned.place == place)?;
-            frontier.owned_places.remove(position);
-            frontier
-                .partial_custody
-                .retain(|custody| custody.place != place);
-            retired.push(place);
-        }
-        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-            for consumed in &cleanup.consumed_claims {
-                let position = frontier
-                    .claims
-                    .iter()
-                    .position(|claim| claim.claim == *consumed && claim.input == Some(place))?;
-                frontier.claims.remove(position);
+            if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                for consumed in &cleanup.consumed_claims {
+                    let position = frontier
+                        .claims
+                        .iter()
+                        .position(|claim| claim.claim == *consumed && claim.input == Some(place))?;
+                    frontier.claims.remove(position);
+                }
             }
         }
+        if frontier
+            .claims
+            .iter()
+            .any(|claim| claim.input == Some(place))
+        {
+            return None;
+        }
+        if let Some(position) = frontier
+            .owned_places
+            .iter()
+            .position(|owned| owned.place == place)
+        {
+            frontier.owned_places.remove(position);
+        } else {
+            let custody = frontier
+                .partial_custody
+                .iter()
+                .find(|custody| custody.place == place)?;
+            let moved = custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>();
+            if !matches!(group, [TerminalAffineCleanupAction::RetireHome(_)])
+                || !crate::current_ownership::projected_paths_are_fully_consumed(
+                    function, types, place, &moved,
+                )
+            {
+                return None;
+            }
+        }
+        frontier
+            .partial_custody
+            .retain(|custody| custody.place != place);
+        retired.push(place);
+        remaining = rest;
     }
     Some(frontier)
 }

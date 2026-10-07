@@ -636,14 +636,13 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Carry the ordinary normal-edge cleanup plans in
+  - Qualify the ordered normal-edge cleanup plans in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
-    for abandoned construction prefixes through executable consumers. Preserve establishment order in the
-    existing ordered action stream through Terminal, Abstract, interpreter and
-    native consumers;
-    do not regroup residuals behind whole roots. Keep machine parameter custody
-    distinct from edge cleanup. No runtime liveness flags, untouched-array leaf
-    expansion or deferral to final return. Keep
+    on Windows and Linux, including abandoned construction prefixes and
+    field replacement. Preserve establishment order in the ordinary action
+    stream; keep machine parameter custody distinct from edge cleanup. No
+    runtime liveness flags, untouched-array leaf expansion or deferral to final
+    return. Keep
     `pass/drops/runtime_projected_nominal_cleanup_exit` (`XDCBEA`) and
     `pass/drops/runtime_indexed_nominal_cleanup_exit` (`XGFDCBEA`) as
     value-transfer and recursive cleanup-order controls.
@@ -654,11 +653,10 @@ defines the complete product bar.
     `runtime_nested_empty_array_owner_cleanup_exit` as zero-cardinality
     initialization and containing-owner cleanup controls. Empty element storage
     does not owe a value initialization or element cleanup prerequisite.
-    Keep `runtime_record_construction_cleanup_order_exit` as the authored-output
-    corpus native control. Its public `omega run` still fails selected-provider
-    admission: `Console::write_byte` has no closed native catalog identity.
-    **PROVIDER-SELECTION-AFTER-TERMINAL** owns that boundary; Terminal entry provision belongs to
-    **TERMINAL-RUNTIME-DRIVERS**. Keep
+    Keep `runtime_record_construction_cleanup_order_exit` as the
+    authored-output control and `runtime_replaced_record_custody_transfer_exit`
+    as the owned/borrowed replacement followed by whole-record transfer control.
+    Keep
     `runtime_nested_cleanup_postcondition_exit` and
     `runtime_generic_reserved_construction_exit` as parent-first guarantee and
     construction controls. Keep `runtime_abandoned_record_construction_prefix_exit`

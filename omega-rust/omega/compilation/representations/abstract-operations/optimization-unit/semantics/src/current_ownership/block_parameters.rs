@@ -95,6 +95,27 @@ pub(super) fn consume_edge_sources(
             transferred.push((identity, claim));
         }
     }
+    // Capture outgoing carriers before cleanup. Their backing and lineage
+    // remain in the loan inventory guarding their referents, but they no
+    // longer occupy the dying source's frame home. Destination owned roots
+    // and claims are not installed until cleanup completes.
+    for reference in &mut frontier.live_references {
+        let Some((binding, parameter)) =
+            bindings
+                .iter()
+                .zip(&target.structural_parameters)
+                .find(|(binding, parameter)| {
+                    parameter.access == StructuralAccess::Owned
+                        && binding.argument.access == StructuralAccess::Owned
+                        && binding.argument.place == reference.carrier
+                        && reference.carrier_path.starts_with(&binding.argument.path)
+                })
+        else {
+            continue;
+        };
+        reference.carrier = parameter.place;
+        reference.carrier_path.drain(..binding.argument.path.len());
+    }
     Ok(EdgeTransfer {
         claims: transferred,
     })
@@ -178,15 +199,13 @@ fn consume_projected_source(
     Ok(())
 }
 
-/// Phase two: install the target roots after the edge's cleanup, then the
-/// transferred claims, then relocate carried loans. Reading each old carrier
-/// once preserves swaps; a projected move rebases the moved carriers onto the
-/// destination parameter.
+/// Phase two: install the target roots and transferred claims after cleanup.
+/// Outgoing loan carriers were captured simultaneously before cleanup; their
+/// backing guards remained live without establishing these owned roots early.
 pub(super) fn establish_edge_parameters(
     function: &PsiOptimizationFunction,
     block: BlockId,
     frontier: &mut CurrentOwnership,
-    bindings: &[AbstractStructuralBinding],
     target: &OptimizationBlock,
     transfer: EdgeTransfer,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -218,22 +237,6 @@ pub(super) fn establish_edge_parameters(
     for (identity, claim) in transfer.claims {
         if frontier.claims.insert(identity, claim).is_some() {
             return Err(invalid());
-        }
-    }
-    for reference in &mut frontier.live_references {
-        if let Some((binding, parameter)) =
-            bindings
-                .iter()
-                .zip(&target.structural_parameters)
-                .find(|(binding, parameter)| {
-                    parameter.access == StructuralAccess::Owned
-                        && binding.argument.access == StructuralAccess::Owned
-                        && binding.argument.place == reference.carrier
-                        && reference.carrier_path.starts_with(&binding.argument.path)
-                })
-        {
-            reference.carrier = parameter.place;
-            reference.carrier_path.drain(..binding.argument.path.len());
         }
     }
     Ok(())

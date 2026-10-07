@@ -239,6 +239,10 @@ pub(super) fn encode_cleanup_action(
     action: &terminal_psi::TerminalAffineCleanupAction,
 ) {
     match action {
+        terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
         terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.push(1);
             bytes.extend_from_slice(&place.get().to_le_bytes());

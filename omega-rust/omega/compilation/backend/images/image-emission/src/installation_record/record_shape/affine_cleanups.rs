@@ -55,7 +55,8 @@ pub(super) fn validate_scalar_affine_cleanup_shape(
                                 || !target.unit_body
                         })
                 }
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => true,
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_)
+                | terminal_psi::TerminalAffineCleanupAction::RetireHome(_) => true,
             })
     {
         return Err(invalid());

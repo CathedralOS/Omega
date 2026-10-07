@@ -521,7 +521,8 @@ impl AddressJoinPins {
                     edge.cleanup_actions
                         .iter()
                         .filter_map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                            | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
                                 self.read_after(place, edge.target).then_some(*place)
                             }
                             action => Some(action.place()),

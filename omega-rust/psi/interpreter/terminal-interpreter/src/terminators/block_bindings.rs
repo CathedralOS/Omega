@@ -116,10 +116,15 @@ impl BlockBindings {
             let place = action.place();
             let path = action.path();
             if self.owned_sources.contains(&place)
-                || (path.is_empty() && self.projected_sources.contains(&place))
+                || (path.is_empty()
+                    && self.projected_sources.contains(&place)
+                    && !matches!(action, TerminalAffineCleanupAction::RetireHome(_)))
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
+            // Projected operands were captured before this schedule. Ending
+            // their old frame home leaves that captured backing intact; a
+            // whole-region disposal would consume the outgoing value instead.
             discarded.insert(place);
             match action {
                 TerminalAffineCleanupAction::DiscardRoot(_) => {
@@ -164,7 +169,8 @@ impl BlockBindings {
                         actions.get(position + 1),
                     )?;
                 }
-                TerminalAffineCleanupAction::DiscardResidual(_) => {}
+                TerminalAffineCleanupAction::DiscardResidual(_)
+                | TerminalAffineCleanupAction::RetireHome(_) => {}
             }
         }
         // A swap may replace another transferred root. Replacing a different

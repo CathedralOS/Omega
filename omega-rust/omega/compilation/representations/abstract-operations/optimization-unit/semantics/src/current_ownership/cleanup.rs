@@ -40,7 +40,6 @@ pub(super) fn validate_scalar_cleanup_actions(
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
     let mut remaining = frontier.clone();
-    forget_drained_partial_roots(function, structural_types, &mut remaining);
     super::continuation::apply_edge_cleanup_actions(
         function,
         functions,
@@ -76,7 +75,9 @@ pub(super) fn cleanup_root_order(
     let mut results = Vec::new();
     let mut locals = Vec::new();
     for place in &function.structural_places {
-        if !frontier.owned_places.contains_key(&place.id) {
+        if !frontier.owned_places.contains_key(&place.id)
+            && !frontier.partial_custody_paths.contains_key(&place.id)
+        {
             continue;
         }
         match place.kind {
@@ -100,7 +101,12 @@ pub(super) fn cleanup_root_order(
             parameter_establishment_order(function)
                 .into_iter()
                 .rev()
-                .filter(|parameter| frontier.owned_places.contains_key(&parameter.place))
+                .filter(|parameter| {
+                    frontier.owned_places.contains_key(&parameter.place)
+                        || frontier
+                            .partial_custody_paths
+                            .contains_key(&parameter.place)
+                })
                 .map(|parameter| parameter.place),
         )
         .collect()
@@ -280,13 +286,42 @@ pub(super) fn consume_owner_cleanup(
         machine: function.machine,
         block,
     };
-    let multiplicity = *frontier.owned_places.get(&place).ok_or_else(mismatch)?;
+    let Some(&multiplicity) = frontier.owned_places.get(&place) else {
+        // Transferring the final child drains disposal debt, not the frame
+        // home. Exact absent-path history must survive until its marker.
+        if !matches!(actions, [TerminalAffineCleanupAction::RetireHome(retired)] if *retired == place)
+            || !super::structural::projected_root_is_fully_consumed(
+                function, types, frontier, place,
+            )
+            || frontier
+                .live_references
+                .iter()
+                .any(|reference| reference.carrier == place)
+        {
+            return Err(mismatch());
+        }
+        frontier.partial_custody_paths.remove(&place);
+        return Ok(());
+    };
     let root = place_structural_type(function, place).ok_or_else(mismatch)?;
     if function
         .content_entry_claims
         .iter()
         .any(|claim| claim.input.root == place)
     {
+        return Err(mismatch());
+    }
+    let (actions, explicit_retirement) = match actions.split_last() {
+        Some((TerminalAffineCleanupAction::RetireHome(retired), partition))
+            if *retired == place =>
+        {
+            (partition, true)
+        }
+        _ => (actions, false),
+    };
+    let intrinsic_retirement = matches!(actions, [TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+        || matches!(actions, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.place == place && cleanup.path.is_empty());
+    if !explicit_retirement && !intrinsic_retirement {
         return Err(mismatch());
     }
     let subjects = cleanup_subjects(
@@ -533,35 +568,4 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                 | StructuralFieldType::BoundedInteger(_) => false,
             }
     })
-}
-
-/// Scalar storage may outlive its last structural disposal obligation. Only
-/// the declaration-derived empty complement permits dropping that path history
-/// at frame exit; an unaccounted live child or partial debt still rejects.
-fn forget_drained_partial_roots(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    frontier: &mut CurrentOwnership,
-) {
-    let drained = frontier
-        .partial_custody_paths
-        .keys()
-        .copied()
-        .filter(|place| {
-            !frontier.owned_places.contains_key(place)
-                && !frontier
-                    .live_references
-                    .iter()
-                    .any(|reference| reference.carrier == *place)
-                && super::structural::projected_root_is_fully_consumed(
-                    function,
-                    structural_types,
-                    frontier,
-                    *place,
-                )
-        })
-        .collect::<Vec<_>>();
-    for place in drained {
-        frontier.partial_custody_paths.remove(&place);
-    }
 }

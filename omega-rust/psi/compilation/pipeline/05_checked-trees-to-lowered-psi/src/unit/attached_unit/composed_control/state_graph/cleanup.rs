@@ -328,6 +328,9 @@ pub(super) fn for_exit(
             Ok((result.place(), result.structural_type()))
         })?;
         match action {
+            CheckedNormalCleanupAction::RetireHome { .. } => {
+                Ok(TerminalAffineCleanupAction::RetireHome(place))
+            }
             CheckedNormalCleanupAction::Discard(discard) => {
                 let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &discard.type_identity)?;
                 if discard.path.is_empty() {

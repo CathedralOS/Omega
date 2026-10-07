@@ -2,7 +2,9 @@
 //!
 //! Only the complement is validated: a partially touched node must be a
 //! record or array whose contained fields are partial-affine leaves, and each
-//! untouched subtree must be a finite tree of them. A moved subtree transfers
+//! untouched subtree must be a finite tree of them. Closed inline alternatives
+//! remain whole when every alternative is custody-free; this does not select
+//! a case or authorize disposal of resource-bearing case payloads. A moved subtree transfers
 //! whole with its own custody, so its shape (references included) is the
 //! consumer's concern, not this discard roster's.
 use super::{
@@ -62,11 +64,50 @@ fn validate_type(
             access,
         } if *access != checked_trees::CheckedStructuralAccess::Owned
             && types.contains_key(referent_identity) => {}
+        CheckedUnitStructuralTypeShape::Sum { cases } => {
+            validate_inline_alternatives(&[], cases)?;
+        }
+        CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+            validate_inline_alternatives(fields, cases)?;
+        }
         _ => return None,
     }
     active.pop();
     complete.push(current_type.to_owned());
     Some(())
+}
+
+/// No selected-case authority is needed to discard a complete inline value.
+/// Apply the existing custody-free field rule to every closed alternative;
+/// structural payloads retain their separate case-dependent cleanup contract.
+fn validate_inline_alternatives(
+    common: &[checked_trees::CheckedUnitStructuralFieldPlan],
+    cases: &[checked_trees::CheckedUnitStructuralCasePlan],
+) -> Option<()> {
+    let fields_are_inline = |fields: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
+        fields.iter().enumerate().all(|(position, field)| {
+            !field.identity.is_empty()
+                && !field.relevance.is_erased()
+                && is_partial_affine_field_type(&field.field_type)
+                && !matches!(
+                    field.field_type,
+                    CheckedUnitStructuralFieldType::Structural { .. }
+                )
+                && !fields[..position]
+                    .iter()
+                    .any(|earlier| earlier.identity == field.identity)
+        })
+    };
+    (!cases.is_empty()
+        && fields_are_inline(common)
+        && cases.iter().enumerate().all(|(position, case)| {
+            !case.identity.is_empty()
+                && !cases[..position]
+                    .iter()
+                    .any(|earlier| earlier.identity == case.identity)
+                && fields_are_inline(&case.fields)
+        }))
+    .then_some(())
 }
 
 /// Count first, traversing only touched array children. Thus a huge dimension

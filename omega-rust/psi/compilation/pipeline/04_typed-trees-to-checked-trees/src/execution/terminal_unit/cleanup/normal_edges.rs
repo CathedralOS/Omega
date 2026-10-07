@@ -68,6 +68,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             });
         }
     }
+    let mut retirements = Vec::new();
     for (_, disposition) in facts
         .contextual_cleanup
         .dispositions
@@ -82,6 +83,16 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             return None;
         }
         let source = owner_source(program, state, state_plan, disposition.root)?;
+        if !retirements.iter().any(
+            |(exit, retirement): &(_, checked_trees::CheckedNormalCleanupAction)| {
+                *exit == disposition.exit && retirement.source() == &source
+            },
+        ) {
+            retirements.push((
+                disposition.exit,
+                super::actions::home_retirement(program, shapes, disposition, source.clone())?,
+            ));
+        }
         let actions = super::actions::disposition_actions(
             program,
             facts,
@@ -96,6 +107,10 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         } else {
             return None;
         }
+    }
+    for (exit, retirement) in retirements {
+        let row = rows.iter_mut().find(|row| row.exit == exit)?;
+        super::actions::finish_home(&mut row.actions, retirement);
     }
     Some(rows)
 }

@@ -1061,7 +1061,6 @@ pub(super) fn validate_current_ownership_cfg(
                 function,
                 block_id,
                 &mut outgoing,
-                &edge.structural_bindings,
                 blocks[&edge.target],
                 transfer,
             )?;

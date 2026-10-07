@@ -331,7 +331,8 @@ fn remap_cleanup_actions(
 ) {
     for action in actions {
         let place = match action {
-            TerminalAffineCleanupAction::DiscardRoot(place) => place,
+            TerminalAffineCleanupAction::DiscardRoot(place)
+            | TerminalAffineCleanupAction::RetireHome(place) => place,
             TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.place,
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.place,
         };

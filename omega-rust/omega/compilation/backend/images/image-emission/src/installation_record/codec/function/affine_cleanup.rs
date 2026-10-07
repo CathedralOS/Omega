@@ -43,6 +43,10 @@ pub(crate) fn encode_unit_affine_cleanup(
     );
     for action in &cleanup.actions {
         match action {
+            TerminalAffineCleanupAction::RetireHome(place) => {
+                bytes.extend_from_slice(&[4, 0, 0, 0]);
+                push_u64(bytes, place.get());
+            }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 bytes.extend_from_slice(&[1, 0, 0, 0]);
                 push_u64(bytes, place.get());
@@ -145,6 +149,9 @@ pub(crate) fn decode_unit_affine_cleanup(
             return Err(InstallationError::NonzeroReservedField);
         }
         actions.push(match tag {
+            4 => TerminalAffineCleanupAction::RetireHome(PlaceId::new(reader.u64()?).ok_or(
+                InstallationError::ZeroStructuralReturnIdentity("retired Unit cleanup home"),
+            )?),
             1 => TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(reader.u64()?).ok_or(
                 InstallationError::ZeroStructuralReturnIdentity("Unit cleanup place"),
             )?),

@@ -876,7 +876,9 @@ fn descriptor_inputs(
             cleanup_actions, ..
         } => {
             for cleanup in cleanup_actions {
-                if let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = cleanup {
+                if let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) = cleanup
+                {
                     dispose(*place);
                 }
             }

@@ -834,6 +834,11 @@ impl Expansion<'_> {
                         "temporary cleanup has no structural type",
                     ))?;
                 actions.push(match action {
+                    checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
+                        PreparedNormalCleanupAction::Resolved(
+                            terminal_psi::TerminalAffineCleanupAction::RetireHome(slot.place),
+                        )
+                    }
                     checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() => {
                         PreparedNormalCleanupAction::discard_root(slot.place)
                     }

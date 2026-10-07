@@ -176,6 +176,19 @@ pub(super) fn plain_home_cleanup(
     // a disjoint-region admission rule on this already checked sequence.
     for action in actions {
         match action {
+            TerminalAffineCleanupAction::RetireHome(place) => {
+                // The checked partition has already disposed the live regions.
+                // Dominating geometry remains available to sibling edges; this
+                // marker neither disposes reserved fields nor prunes backing
+                // captured by another carrier.
+                if (nominal_owner_type(live, function, *place).is_none()
+                    && !live.drained_loan_roots.contains(place)
+                    && !affine_view_carrier(live, function, structural_types, *place))
+                    || live.references.keys().any(|(carrier, _)| carrier == place)
+                {
+                    return Ok(false);
+                }
+            }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) {
                     if !affine_view_carrier(live, function, structural_types, *place) {
@@ -286,6 +299,16 @@ pub(super) fn lower_terminator(
     let successor = |live: &mut LiveDefinitions,
                      edge: &abstract_operations::AbstractSuccessor|
      -> Result<TargetControlSuccessor, LoweringError> {
+        let destination = function
+            .block_entries
+            .iter()
+            .find(|block| block.block == edge.target)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        super::transfers::re_home_bound_references(
+            &edge.structural_bindings,
+            &destination.structural_parameters,
+            live,
+        );
         Ok(TargetControlSuccessor {
             psi_edge: edge.psi_edge,
             target: edge.target,
@@ -649,6 +672,16 @@ pub(super) fn lower_terminator(
             }) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let destination = function
+                .block_entries
+                .iter()
+                .find(|block| block.block == *target)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            super::transfers::re_home_bound_references(
+                structural_bindings,
+                &destination.structural_parameters,
+                live,
+            );
             let cleanup_actions = cleanup(live, cleanup_actions)?;
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {

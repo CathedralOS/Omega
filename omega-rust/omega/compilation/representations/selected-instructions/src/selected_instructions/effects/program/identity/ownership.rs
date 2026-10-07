@@ -40,6 +40,10 @@ pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
 
 pub fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
     match action {
+        TerminalAffineCleanupAction::RetireHome(place) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.push(1);
             bytes.extend_from_slice(&place.get().to_le_bytes());

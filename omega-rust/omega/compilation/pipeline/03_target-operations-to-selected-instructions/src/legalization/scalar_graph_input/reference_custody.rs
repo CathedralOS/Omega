@@ -1811,7 +1811,24 @@ pub(in crate::legalization) fn apply_terminator(
     let types = &plan.structural_types[..];
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
+        let owned_transfer = match operation {
+            AbstractOperation::Jump {
+                target,
+                structural_bindings,
+                ..
+            } => Some((*target, structural_bindings.as_slice())),
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
+            _ => None,
+        };
         let target = match operation {
+            AbstractOperation::Jump { target, .. } => Some(*target),
             AbstractOperation::Conditional {
                 when_true,
                 when_false,
@@ -1828,6 +1845,14 @@ pub(in crate::legalization) fn apply_terminator(
         };
         if let Some(target) = target {
             let mut exit = custody.clone();
+            if let Some((target, bindings)) = owned_transfer {
+                let destination = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == target)
+                    .ok_or_else(invalid)?;
+                re_home_bound_leaves(&mut exit, bindings, &destination.structural_parameters);
+            }
             apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
             exits.push((target, exit.leaves));
         } else {
@@ -1849,6 +1874,14 @@ fn apply_cleanup_actions(
     use terminal_psi::TerminalAffineCleanupAction;
     for action in actions {
         let place = match action {
+            TerminalAffineCleanupAction::RetireHome(place) => {
+                if source_contract(function, custody, place).is_none()
+                    || custody.leaves.keys().any(|(carrier, _)| *carrier == place)
+                {
+                    return Err(invalid());
+                }
+                continue;
+            }
             TerminalAffineCleanupAction::DiscardRoot(place) => place,
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 discard_residual(function, custody, types, &discard)?;
@@ -2083,6 +2116,14 @@ pub(in crate::legalization) fn block_entry_states(
             // a merge point — no binding happens on its terminator and the
             // entry state stays its exit state unchanged.
             if let Some(edge) = blocks[dominator].nodes.last().and_then(|terminator| {
+                // Ordinary edge transfers were captured before cleanup.
+                // Case payload establishment keeps its separate transport.
+                if !matches!(
+                    terminator.operation,
+                    AbstractOperation::StructuralCase { .. }
+                ) {
+                    return None;
+                }
                 terminator
                     .successors
                     .iter()

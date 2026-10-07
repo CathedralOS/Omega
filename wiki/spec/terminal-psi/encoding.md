@@ -186,7 +186,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | trivial discard | place id; appears only inside a counted roster |
 | residual discard | place id + structural path + structural type id |
-| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural type id + machine id + optional identity + obligation id list |
+| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list; 4 + place id |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
 
 The closed `u8` spaces behind the scalar field forms:
@@ -568,7 +568,8 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 | --- | --- | --- |
 | 1 | DiscardRoot | place id |
 | 2 | DiscardResidual | residual discard |
-| 3 | InvokeNominal | place id + structural type id + machine id + optional identity + obligation id list |
+| 3 | InvokeNominal | place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list |
+| 4 | RetireHome | place id |
 
 ## Machine rows
 
