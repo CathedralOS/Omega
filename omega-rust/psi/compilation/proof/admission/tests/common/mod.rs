@@ -252,3 +252,25 @@ pub(crate) fn carrier(
     let domain = two(arena);
     sigma(arena, domain, codomain)
 }
+
+/// `λ(a : A). caseTwo(λ_.Strict 0, <none>, <some>, fst a)` — a branching
+/// family into `Strict`, the illegal strict elimination every malformed-W
+/// test expects `caseTwo`'s motive rule to reject. `some` receives the
+/// shared motive so nested selections reuse it.
+pub(crate) fn strict_branching(
+    arena: &mut TermArena,
+    carrier: TermHandle,
+    none: TermHandle,
+    some: impl FnOnce(&mut TermArena, TermHandle) -> TermHandle,
+) -> TermHandle {
+    let motive = {
+        let domain = two(arena);
+        let codomain = strict_sort(arena, 0);
+        lambda(arena, domain, codomain)
+    };
+    let bound = variable(arena, 0);
+    let tag = fst(arena, bound);
+    let some = some(arena, motive);
+    let body = case_two(arena, motive, none, some, tag);
+    lambda(arena, carrier, body)
+}

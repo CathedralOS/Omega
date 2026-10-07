@@ -1010,23 +1010,16 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
     // runs.
     let mut strict = family.clone();
     strict.children = {
-        let motive = {
-            let domain = two(&mut arena);
-            let codomain = strict_sort(&mut arena, 0);
-            lambda(&mut arena, domain, codomain)
-        };
+        let carrier = carrier(&mut arena);
         let empty = empty_positions(&mut arena);
         let unit = unit_position(&mut arena);
         let positions = two(&mut arena);
-        let bound = variable(&mut arena, 0);
-        let rest = snd(&mut arena, bound);
-        let sub_tag = fst(&mut arena, rest);
-        let inner = case_two(&mut arena, motive, unit, positions, sub_tag);
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let body = case_two(&mut arena, motive, empty, inner, tag);
-        let domain = carrier(&mut arena);
-        lambda(&mut arena, domain, body)
+        strict_branching(&mut arena, carrier, empty, |arena, motive| {
+            let bound = variable(arena, 0);
+            let rest = snd(arena, bound);
+            let sub_tag = fst(arena, rest);
+            case_two(arena, motive, unit, positions, sub_tag)
+        })
     };
     let index = {
         let gamma = variable(&mut arena, 4);

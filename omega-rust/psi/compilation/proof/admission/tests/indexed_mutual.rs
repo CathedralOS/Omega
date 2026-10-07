@@ -545,18 +545,10 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
     // runs.
     let mut strict = family.clone();
     strict.children = {
-        let motive = {
-            let domain = two(&mut arena);
-            let codomain = strict_sort(&mut arena, 0);
-            lambda(&mut arena, domain, codomain)
-        };
+        let carrier = carrier(&mut arena);
         let unit = unit_position(&mut arena);
         let positions = two(&mut arena);
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let body = case_two(&mut arena, motive, unit, positions, tag);
-        let domain = carrier(&mut arena);
-        lambda(&mut arena, domain, body)
+        strict_branching(&mut arena, carrier, unit, |_, _| positions)
     };
     let index = variable(&mut arena, 2);
     let member = strict.indexed_w(&mut arena, index);

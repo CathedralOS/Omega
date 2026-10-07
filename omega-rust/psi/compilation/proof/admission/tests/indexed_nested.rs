@@ -548,18 +548,10 @@ fn nested_applications_reject_wrong_indices_and_malformed_descriptions() {
     // formation ever runs.
     let mut strict = family.clone();
     strict.children = {
-        let motive = {
-            let domain = two(&mut arena);
-            let codomain = strict_sort(&mut arena, 0);
-            lambda(&mut arena, domain, codomain)
-        };
+        let carrier = carrier(&mut arena, payload);
         let empty = empty_positions(&mut arena);
         let positions = nat(&mut arena);
-        let bound = variable(&mut arena, 0);
-        let tag = fst(&mut arena, bound);
-        let body = case_two(&mut arena, motive, empty, positions, tag);
-        let domain = carrier(&mut arena, payload);
-        lambda(&mut arena, domain, body)
+        strict_branching(&mut arena, carrier, empty, |_, _| positions)
     };
     let level = variable(&mut arena, 3);
     let malformed = strict.indexed_w(&mut arena, level);
