@@ -8,7 +8,7 @@ use super::{
     TypeReferenceNode,
 };
 use numerics::bignum::BigInt;
-use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
+use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
 
 pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     program: &dyn ::validation::CheckingInput,
@@ -147,24 +147,7 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     let Some((minimum, maximum)) = declared_bounds else {
         return validation::scalar_field_restriction(primitive, None, predicate);
     };
-    let (sign, bits) = match primitive {
-        PrimitiveType::I8 => (IntegerSign::Signed, 8),
-        PrimitiveType::I16 => (IntegerSign::Signed, 16),
-        PrimitiveType::I32 => (IntegerSign::Signed, 32),
-        PrimitiveType::I64 => (IntegerSign::Signed, 64),
-        PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
-        PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
-        PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
-        PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
-        PrimitiveType::Selector
-        | PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::Addr => {
-            return None;
-        }
-    };
-    let integer_type = IntegerType::new(sign, bits).ok()?;
+    let integer_type = crate::values::integer_type(primitive)?;
     let (minimum, maximum) = match (integer_type.minimum_value(), integer_type.maximum_value()) {
         (IntegerValue::Signed(carrier_minimum), IntegerValue::Signed(carrier_maximum)) => (
             IntegerValue::Signed(i128::from(
