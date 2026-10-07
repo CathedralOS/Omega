@@ -32,14 +32,15 @@ pub(super) fn signature_matches(
                 .type_reference(source.return_type),
             checked_trees::types::TypeReferenceNode::Unit
         ),
-        // A primitive result carries no refinement beyond an arithmetic
-        // policy or one closed integer range, which the contract publishes
-        // as a normal-return guarantee (`callable::scalar_guarantees`).
+        // Value refinements use the same complete predicate judgment as the
+        // checked result signature. Normal-return guarantees publish them;
+        // semantic atoms still require their separate result custody.
         CheckedControlResultPlan::Scalar { primitive_type } => {
             checked.primitive_type_reference(source.return_type) == Some(*primitive_type)
-                && (validation::is_plain_scalar_storage(&checked.typed, source.return_type)
-                    || validation::closed_scalar_result_range(&checked.typed, source.return_type)
-                        .is_some())
+                && validation::scalar_result_contract_is_represented(
+                    &checked.typed,
+                    source.return_type,
+                )
         }
         CheckedControlResultPlan::Structural(result) => {
             // A borrowed `&[T]` view result names the peeled slice carrier in

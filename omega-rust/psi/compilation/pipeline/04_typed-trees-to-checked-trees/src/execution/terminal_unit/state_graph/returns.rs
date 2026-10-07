@@ -38,12 +38,11 @@ pub(in crate::execution::terminal_unit) fn signature(
     if let Some(primitive_type) = program.primitive_type_reference(reference) {
         // A primitive result is one returned scalar value. An arithmetic
         // policy changes later operation meaning, not the returned payload;
-        // a closed integer range is a normal-return guarantee the machine
-        // contract publishes and its exits prove. Any other refinement (a
-        // domain) owes a guarantee this route cannot state.
-        return (validation::is_plain_scalar_storage(program, reference)
-            || validation::closed_scalar_result_range(program, reference).is_some())
-        .then_some(CheckedControlResultPlan::Scalar { primitive_type });
+        // value refinements are normal-return guarantees the shared decoder
+        // publishes and each exit proves. Semantic atoms retain their separate
+        // result custody rather than disappearing behind a scalar carrier.
+        return validation::scalar_result_contract_is_represented(program, reference)
+            .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     // A `&mut T` result is the reference family's mutable custody kind: it

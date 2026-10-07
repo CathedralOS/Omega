@@ -30,7 +30,7 @@ impl Builder<'_, '_> {
     /// occurrence twice: once by the statement and once by the computation.
     /// A cast around the call belongs to the operand computation, including
     /// a same-carrier policy change: the statement's direct-call route does
-    /// not own that enclosing expression. See [`Self::policy_cast_value`].
+    /// not own that enclosing expression. See [`Self::same_carrier_cast_value`].
     pub(super) fn statement_owns_boundary_call(
         &self,
         role: CheckedScalarExpressionRole,
@@ -102,7 +102,7 @@ impl Builder<'_, '_> {
             }
             match self.program.expression_table.expression(expression) {
                 ExpressionNode::Atomic(atomic) => expression = atomic.value,
-                ExpressionNode::Cast(_) if self.policy_cast_operand(expression).is_some() => {
+                ExpressionNode::Cast(_) if self.same_carrier_cast_operand(expression).is_some() => {
                     return false;
                 }
                 ExpressionNode::Cast(cast) => expression = cast.value,

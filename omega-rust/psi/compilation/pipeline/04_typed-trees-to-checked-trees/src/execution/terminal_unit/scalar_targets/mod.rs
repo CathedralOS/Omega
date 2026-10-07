@@ -6,7 +6,7 @@
 use super::{
     CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode, PrimitiveType,
-    SignatureContractKind, SymbolHandle, TypeReferenceNode, TypedTrees, returns,
+    SignatureContractKind, SymbolHandle, TypedTrees, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
@@ -428,13 +428,7 @@ pub(super) fn available_target(
                             | SignatureContractKind::Ensures
                     ) || contract.binding.is_some()
                 })
-            || (matches!(
-                program
-                    .type_reference_table
-                    .type_reference(state.return_type),
-                TypeReferenceNode::Constrained { .. }
-            ) && !validation::is_arithmetic_policy_only_integer(program, state.return_type)
-                && validation::closed_scalar_result_range(program, state.return_type).is_none())
+            || !validation::scalar_result_contract_is_represented(program, state.return_type)
         {
             return None;
         }

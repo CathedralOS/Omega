@@ -252,8 +252,8 @@ pub use value_custody::recasts::{
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{
     closed_float_range_endpoint, closed_integer_range_bound, closed_integer_range_maximum,
-    closed_scalar_result_range, declared_integer_range, ieee_float_range_ordered,
-    is_arithmetic_policy_only_integer, is_plain_scalar_storage, unrestricted_builtin_primitive,
+    declared_integer_range, ieee_float_range_ordered, is_arithmetic_policy_only_integer,
+    is_plain_scalar_storage, scalar_result_contract_is_represented, unrestricted_builtin_primitive,
 };
 
 pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;

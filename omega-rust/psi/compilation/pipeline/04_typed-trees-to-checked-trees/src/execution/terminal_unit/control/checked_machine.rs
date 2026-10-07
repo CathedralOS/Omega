@@ -16,7 +16,7 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, StatementNode, TypeReferenceNode, TypedTrees,
+    CheckedUnitPartialAffineDiscardPlan, StatementNode, TypedTrees,
 };
 
 /// Build the ordinary explicit-parameter machine, retaining construction diagnostics.
@@ -117,13 +117,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                         | typed_trees::signature::SignatureContractKind::Ensures
                 ) || contract.binding.is_some()
             })
-            || (matches!(
-                program
-                    .type_reference_table
-                    .type_reference(state.return_type),
-                TypeReferenceNode::Constrained { .. }
-            ) && !validation::is_arithmetic_policy_only_integer(program, state.return_type)
-                && validation::closed_scalar_result_range(program, state.return_type).is_none()))
+            || !validation::scalar_result_contract_is_represented(program, state.return_type))
     {
         return None;
     }

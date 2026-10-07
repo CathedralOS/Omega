@@ -14,6 +14,42 @@ pub fn scalar_type_refinement_predicates(
     reference: TypeReferenceHandle,
     subject: CheckedScalarExpression,
 ) -> Option<Vec<CheckedBooleanExpression>> {
+    Some(scalar_type_refinements(program, reference, subject)?.predicates)
+}
+
+/// A scalar result can use the ordinary value-return route when every
+/// refinement has a complete predicate meaning and no semantic atom needs
+/// separate result custody. This describes the contract; returning paths
+/// still owe every predicate. In particular, finite floats and integer ranges
+/// share the same decoder that normal-return guarantee emission consumes.
+pub fn scalar_result_contract_is_represented(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let Some(primitive_type) = program.primitive_type_reference(reference) else {
+        return false;
+    };
+    scalar_type_refinements(
+        program,
+        reference,
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type,
+        },
+    )
+    .is_some_and(|refinements| !refinements.has_semantic_atoms)
+}
+
+struct ScalarTypeRefinements {
+    predicates: Vec<CheckedBooleanExpression>,
+    has_semantic_atoms: bool,
+}
+
+fn scalar_type_refinements(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    subject: CheckedScalarExpression,
+) -> Option<ScalarTypeRefinements> {
     let primitive = subject.primitive_type()?;
     if program.primitive_type_reference(reference) != Some(primitive) {
         return None;
@@ -21,6 +57,7 @@ pub fn scalar_type_refinement_predicates(
     let mut current = reference;
     let mut active = Vec::new();
     let mut predicates = Vec::new();
+    let mut has_semantic_atoms = false;
     loop {
         if !program
             .type_reference_table
@@ -33,7 +70,10 @@ pub fn scalar_type_refinement_predicates(
         let (base_type, constraints) = match program.type_reference_table.type_reference(current) {
             // A selector's trait application refines nothing about its word.
             TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                return Some(predicates);
+                return Some(ScalarTypeRefinements {
+                    predicates,
+                    has_semantic_atoms,
+                });
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -57,6 +97,7 @@ pub fn scalar_type_refinement_predicates(
                         } else if domain.predicate_body.is_present() {
                             return None;
                         } else {
+                            has_semantic_atoms = true;
                             continue;
                         }
                     }

@@ -106,13 +106,13 @@ impl Builder<'_, '_> {
         }
         // The saved operand keeps its bits while the authored cast
         // selects the policy for later arithmetic, including Exact erasure.
-        if self.policy_cast_operand(expression).is_some()
+        if self.same_carrier_cast_operand(expression).is_some()
             && let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
             && let Some(primitive_type) = self.program.primitive_type_reference(cast.target_type)
             && is_integer(primitive_type)
         {
             let domain = cast.domain;
-            let computation = self.policy_cast_value(expression, primitive_type)?;
+            let computation = self.same_carrier_cast_value(expression, primitive_type)?;
             return Some(IntegerOperand {
                 value: parameter(0, primitive_type),
                 value_source: ExpressionHandle::invalid(),

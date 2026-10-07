@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 22.04, "load1_start": 20.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 16.98, "load1_start": 14.93, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1094,6 +1094,8 @@ fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8e
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
 fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
 	data `Sample`'s default domain is still FALSE at a call: the invariant window opened on `sample` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/float/finite_result_requires_proof rejected 1069ms expected @4f590536f488+wt
+	cannot prove return value `value` satisfies `finite` for bounded return type in `invalid.entry`
 fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected @2d8ed253669f
@@ -1129,6 +1131,8 @@ fail/float/range_bound_names_value_rejected rejected 295ms expected @ada91cf0bd1
 fail/float/record_window_transition_unrepaired rejected 348ms expected @ca8c127c90c5
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+fail/float/same_carrier_cast_cannot_mint_finite rejected 1195ms expected @4f590536f488+wt
+	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669f
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/total_order_wrong_carrier rejected 454ms expected @6d9868469d56+wt
@@ -2763,6 +2767,7 @@ pass/float/named_provider_multiply_then_add_exit checked 4722ms check-target:mac
 pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
+pass/float/runtime_float_call_same_carrier_cast_exit checked 9730ms check-target:macos_arm64 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 4633ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_float_to_integer_policy_casts_exit checked 4840ms check-target:macos_arm64 @2d8ed253669f

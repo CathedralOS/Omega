@@ -3184,6 +3184,10 @@ deletions, which the commit lists.
   occurrence identity, operand snapshots, ordered effects and evaluation lifetime;
   `calls/numeric_operand_{call_requires,exclusive_arguments_overlap}` and
   `arithmetic/numeric_operand_abs_unrepresentable` must reject independently.
+  `float/runtime_float_call_same_carrier_cast_exit` (0) constrains ordinary
+  finite-result guarantees and payload-preserving casts in callers and returns;
+  `float/same_carrier_cast_cannot_mint_finite` and
+  `float/finite_result_requires_proof` must still reject independently.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.
