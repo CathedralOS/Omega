@@ -391,7 +391,7 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_u64(parser_harness, output.field_count as u64 in Trapping);
         transition output.field_count > 0 {
             true -> parse_field(parser_harness, output, 0)
-            _ -> parse_case_count(parser_harness, output)
+            _ -> parse_payload_field_count(parser_harness, output)
         }
     }
 
@@ -473,7 +473,7 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_u64(parser_harness, output.type_reference_count as u64 in Trapping);
         transition output.type_reference_count > 0 {
             true -> parse_type_reference(parser_harness, output, 0)
-            _ -> parse_done()
+            _ -> parse_generic_count(parser_harness, output)
         }
     }
 
@@ -501,7 +501,7 @@ machine ParserHarness::write_parse_observation(
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
             true -> parse_type_reference_bound(parser_harness, output, next)
-            _ -> parse_done()
+            _ -> parse_generic_count(parser_harness, output)
         }
     }
 
@@ -520,7 +520,7 @@ machine ParserHarness::write_parse_observation(
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
             true -> parse_type_reference_bound(parser_harness, output, next)
-            _ -> parse_done()
+            _ -> parse_generic_count(parser_harness, output)
         }
     }
 
