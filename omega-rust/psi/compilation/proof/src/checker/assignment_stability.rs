@@ -62,14 +62,7 @@ fn prepare_assignment_prefix<'query>(
     context: &'query AssignmentRangeContext<'_>,
 ) -> Option<arrival_stability::ArrivalPrefix<'query>> {
     let program = proof_plan.program;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)?;
+    let (machine, state) = super::machine_and_state(program, obligation.machine_symbol, obligation.state_symbol)?;
 
     // Every place the guard fact (and the value it refines) depends on. The
     // DE-HOISTED binary operands are included too: the obligation value may

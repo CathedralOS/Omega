@@ -237,14 +237,11 @@ fn state_return_certificate<'program>(
     let program = proof_plan.program;
     // A malformed obligation is the checker's diagnostic, not a certificate
     // question; the statement-identity gate mirrors `return_arrival`.
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)?;
+    let (machine, state) = super::machine_and_state(
+        program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+    )?;
     let statements = program.statement_table.statements(state.statement_nodes);
     if !std::ptr::eq(program, context.program)
         || !matches!(
@@ -888,14 +885,11 @@ fn guarded_refold_certificate(
     // The place's own carrier and declared interval come from the program's
     // scope at this state -- the same facts `expression_constraints` resolves
     // for the narrowing derivation.
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)?;
+    let (machine, state) = super::machine_and_state(
+        program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+    )?;
     let place_type =
         crate::typed_expressions::expression_type_reference(program, machine, state, place)?;
     let integer_type = fixed_integer_type(program.primitive_type_reference(place_type)?)?;

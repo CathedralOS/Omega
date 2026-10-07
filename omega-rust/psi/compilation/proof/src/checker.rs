@@ -38,6 +38,26 @@ pub use derivation_cache::{DerivationCacheReport, ProofDerivationCache};
 pub use integer_ranges::{AssignmentRangeContext, proved_assignment_integer_range_with_context};
 pub use measurement::ProofPlanMeasurements;
 
+/// The machine and state an obligation's `machine_symbol`/`state_symbol`
+/// name, or `None` — every bounded-obligation walker opens with this same
+/// lookup pair before it reads the obligation's own anchors.
+fn machine_and_state<'p>(
+    program: &'p typed_trees::TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+) -> Option<(&'p typed_trees::machine::Machine, &'p typed_trees::state::State)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    Some((machine, state))
+}
+
+
 use crate::checker::bounded_checks::{
     check_bounded_assignment, check_bounded_call_argument, check_bounded_initializer,
     check_bounded_state_return, check_bounded_transition_argument,

@@ -452,20 +452,11 @@ fn guard_narrowed_operand_range(
         return (narrowed != neutral_range()).then_some(narrowed);
     };
 
-    let Some((machine, state)) = proof_plan
-        .program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)
-        .and_then(|machine| {
-            proof_plan
-                .program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == obligation.state_symbol)
-                .map(|state| (machine, state))
-        })
-    else {
+    let Some((machine, state)) = super::machine_and_state(
+        proof_plan.program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+    ) else {
         return (narrowed != neutral_range()).then_some(narrowed);
     };
 

@@ -15,14 +15,7 @@ pub(super) fn integer_range(
     context: &AssignmentRangeContext<'_>,
 ) -> Option<IntegerRange> {
     let program = proof_plan.program;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)?;
+    let (_, state) = super::machine_and_state(program, obligation.machine_symbol, obligation.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     if !std::ptr::eq(program, context.program)
         || !matches!(statements.get(obligation.statement_index),
