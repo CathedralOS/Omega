@@ -10,7 +10,7 @@ use super::fields::{
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, TypedTrees,
-    unwrap_constraint_shells,
+    projections, unwrap_constraint_shells,
 };
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
@@ -914,61 +914,44 @@ impl<'program> SliceCoordinates<'program> {
         engine: &mut Engine<'_>,
         expressions: &[ExpressionHandle],
     ) -> Option<()> {
-        let mut pending = expressions
-            .iter()
-            .map(|expression| (*expression, 0usize))
-            .collect::<Vec<_>>();
-        while let Some((expression, depth)) = pending.pop() {
-            if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-                return None;
-            }
-            let mut visit = |child| pending.push((child, depth + 1));
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Member(member) => {
-                    let resolved = crate::value_custody::places::collection_length_receiver(
+        projections::for_each_projection_expression(
+            program,
+            expressions,
+            |member, expression, visit| {
+                let resolved = crate::value_custody::places::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .and_then(|receiver| SliceCoordinate::resolve(program, state, receiver))
+                .or_else(|| {
+                    let receiver = crate::value_custody::places::collection_length_receiver(
                         program,
                         machine,
-                        Some(state),
+                        Some(root),
                         expression,
+                    )?;
+                    let coordinate = SliceCoordinate::resolve(program, root, receiver)?;
+                    coordinate.at_arrival(
+                        program,
+                        RankingRangeState {
+                            state,
+                            entry_parameters: entry_parameters?,
+                        },
+                        coordinate.parameter.symbol,
                     )
-                    .and_then(|receiver| SliceCoordinate::resolve(program, state, receiver))
-                    .or_else(|| {
-                        let receiver = crate::value_custody::places::collection_length_receiver(
-                            program,
-                            machine,
-                            Some(root),
-                            expression,
-                        )?;
-                        let coordinate = SliceCoordinate::resolve(program, root, receiver)?;
-                        coordinate.at_arrival(
-                            program,
-                            RankingRangeState {
-                                state,
-                                entry_parameters: entry_parameters?,
-                            },
-                            coordinate.parameter.symbol,
-                        )
-                    });
-                    if let Some(coordinate) = resolved {
-                        if !engine.bind_strict_projection(expression, coordinate.value()) {
-                            return None;
-                        }
-                        self.include(coordinate);
+                });
+                if let Some(coordinate) = resolved {
+                    if !engine.bind_strict_projection(expression, coordinate.value()) {
+                        return None;
                     }
-                    visit(member.receiver);
+                    self.include(coordinate);
                 }
-                ExpressionNode::Borrow(borrow) => visit(borrow.target),
-                ExpressionNode::Binary(binary) => {
-                    visit(binary.left);
-                    visit(binary.right);
-                }
-                ExpressionNode::Unary(unary) => visit(unary.operand),
-                ExpressionNode::Atomic(atomic) => visit(atomic.value),
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        visit(field.value);
-                    }
-                }
+                visit(member.receiver);
+                Some(())
+            },
+            |node, visit| match node {
                 ExpressionNode::Indexed(indexed) => {
                     visit(indexed.collection);
                     visit(indexed.index);
@@ -981,9 +964,8 @@ impl<'program> SliceCoordinates<'program> {
                     }
                 }
                 _ => {}
-            }
-        }
-        Some(())
+            },
+        )
     }
 
     /// Every demanded projected slice of this formal receives the same

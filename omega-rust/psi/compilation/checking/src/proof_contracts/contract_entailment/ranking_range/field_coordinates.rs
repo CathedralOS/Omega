@@ -4,7 +4,7 @@
 //! copy equality.
 use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeState, State, TypedTrees, comparison_proven, fields,
+    RankingRangeState, State, TypedTrees, comparison_proven, fields, projections,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
@@ -67,59 +67,40 @@ impl<'program> FieldCoordinates<'program> {
         engine: &mut Engine<'_>,
         expressions: &[ExpressionHandle],
     ) -> Option<()> {
-        let mut pending = expressions
-            .iter()
-            .map(|expression| (*expression, 0))
-            .collect::<Vec<_>>();
-        while let Some((expression, depth)) = pending.pop() {
-            if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-                return None;
-            }
-            let mut visit = |child| pending.push((child, depth + 1));
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Member(member) => {
-                    if let Some(coordinate) = FieldCoordinate::resolve_projection(
-                        program, state, expression,
+        projections::for_each_projection_expression(
+            program,
+            expressions,
+            |member, expression, visit| {
+                if let Some(coordinate) = FieldCoordinate::resolve_projection(
+                    program, state, expression,
+                )
+                .or_else(|| {
+                    let coordinate =
+                        FieldCoordinate::resolve_projection(program, root, expression)?;
+                    coordinate.at_arrival(
+                        program,
+                        RankingRangeState {
+                            state,
+                            entry_parameters: entry_parameters?,
+                        },
+                        coordinate.parameter.symbol,
                     )
-                    .or_else(|| {
-                        let coordinate =
-                            FieldCoordinate::resolve_projection(program, root, expression)?;
-                        coordinate.at_arrival(
-                            program,
-                            RankingRangeState {
-                                state,
-                                entry_parameters: entry_parameters?,
-                            },
-                            coordinate.parameter.symbol,
-                        )
-                    }) {
-                        if !engine.bind_strict_projection(expression, coordinate.value()) {
-                            return None;
-                        }
-                        self.include(coordinate);
+                }) {
+                    if !engine.bind_strict_projection(expression, coordinate.value()) {
+                        return None;
                     }
-                    visit(member.receiver);
+                    self.include(coordinate);
                 }
-                ExpressionNode::Borrow(borrow) => visit(borrow.target),
-                ExpressionNode::Binary(binary) => {
-                    visit(binary.left);
-                    visit(binary.right);
-                }
-                ExpressionNode::Unary(unary) => visit(unary.operand),
-                ExpressionNode::Atomic(atomic) => visit(atomic.value),
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        visit(field.value);
-                    }
-                }
-                ExpressionNode::Range(range) => {
+                visit(member.receiver);
+                Some(())
+            },
+            |node, visit| {
+                if let ExpressionNode::Range(range) = node {
                     visit(range.start);
                     visit(range.end);
                 }
-                _ => {}
-            }
-        }
-        Some(())
+            },
+        )
     }
 
     /// Every demanded field of this formal receives the same evaluated actual.
