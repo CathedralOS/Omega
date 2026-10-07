@@ -3,9 +3,10 @@ use psi::source::source;
 use psi::syntax::syntax;
 
 // Name resolution over the parsed roots of one source unit. The pass runs in
-// four fail-closed steps, each completing before the next begins: imports,
-// top-level data names, member namespaces, then type references. The first
-// rejection is the diagnostic. Lookup mirrors the reference resolver: an
+// fail-closed steps, each completing before the next begins: imports,
+// top-level data names, member namespaces, data type references, machine
+// signature type references, then machine namespaces. The first rejection is
+// the diagnostic. Lookup mirrors the reference resolver: an
 // enclosing generic parameter, then a builtin type, then a data declaration
 // of this unit. Builtin and duplicate declarations reject before any lookup,
 // so the builtin and data tiers never compete for one spelling.
@@ -56,6 +57,22 @@ crashes Trap
 
     state references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
         Resolver::bind_references(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> machine_references(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state machine_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::bind_machine_references(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> machines(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state machines(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::check_machines(resolver, source_unit, syntax);
         transition resolver.output.accepted {
             true -> publish(resolver, syntax)
             _ -> done()
@@ -275,7 +292,8 @@ crashes Trap
     }
 
     state bind_generic(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, reference: u64 in Trapping) {
-        Resolver::bind_type_reference(resolver, source_unit, syntax, item, reference);
+        let scope: TypeScope = Resolver::data_scope(item);
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, reference);
         transition resolver.output.accepted {
             true -> generic(resolver, source_unit, syntax, data_index, item, offset + 1)
             _ -> done()
@@ -299,7 +317,8 @@ crashes Trap
 
     state field_reference(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
         let field: DataField = SyntaxTrees::field(syntax, handle);
-        Resolver::bind_type_reference(resolver, source_unit, syntax, item, field.type_reference);
+        let scope: TypeScope = Resolver::data_scope(item);
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, field.type_reference);
         transition resolver.output.accepted {
             true -> member(resolver, source_unit, syntax, data_index, item, offset + 1)
             _ -> done()
@@ -320,7 +339,8 @@ crashes Trap
 
     state payload_reference(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         let field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + field_offset);
-        Resolver::bind_type_reference(resolver, source_unit, syntax, item, field.type_reference);
+        let scope: TypeScope = Resolver::data_scope(item);
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, field.type_reference);
         transition resolver.output.accepted {
             true -> payload(resolver, source_unit, syntax, data_index, item, offset, data_case, field_offset + 1)
             _ -> done()
@@ -330,19 +350,87 @@ crashes Trap
     state done() {}
 }
 
-// Bind one type reference in the scope of its owning declaration: the name,
-// then the `in Domain` qualifier when one is present.
+// A data declaration's type scope: its own generic parameters.
+machine Resolver::data_scope(item: DataItem) -> TypeScope {
+    TypeScope {
+        first_generic_parameter: item.first_generic_parameter,
+        generic_parameter_count: item.generic_parameter_count
+    }
+}
+
+// Bind one type reference in its owner's scope. A reference row binds its
+// referee; the grammar admits one reference level, so a referee is always a
+// named or qualified row.
 machine Resolver::bind_type_reference(
     resolver: &mut Resolver,
     source_unit: &SourceUnit,
     syntax: &SyntaxTrees,
-    item: DataItem,
+    scope: TypeScope,
     reference: u64 in Trapping
 )
 crashes Trap
 {
     transition reference < syntax.type_reference_count {
-        true -> lookup(resolver, source_unit, syntax, item, reference)
+        true -> classify(resolver, source_unit, syntax, scope, reference)
+        _ -> invalid()
+    }
+
+    state classify(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        reference: u64 in Trapping
+    ) {
+        let type_reference: TypeReference = syntax.type_references[reference];
+        transition type_reference.kind {
+            TypeReferenceKind::Reference -> reference_row(resolver, source_unit, syntax, scope, reference,
+                type_reference.referee
+            )
+            _ -> named(resolver, source_unit, syntax, scope, reference)
+        }
+    }
+
+    state reference_row(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        reference: u64 in Trapping,
+        referee: u64 in Trapping
+    ) {
+        resolver.output.type_bindings[reference] = TypeBinding::Reference;
+        resolver.output.domain_bindings[reference] = DomainBinding::Unqualified;
+        Resolver::bind_named_type(resolver, source_unit, syntax, scope, referee);
+    }
+
+    state named(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        reference: u64 in Trapping
+    ) {
+        Resolver::bind_named_type(resolver, source_unit, syntax, scope, reference);
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+// Bind a named or qualified row: the name, then its `in Domain` qualifier.
+machine Resolver::bind_named_type(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    scope: TypeScope,
+    reference: u64 in Trapping
+)
+crashes Trap
+{
+    transition reference < syntax.type_reference_count {
+        true -> lookup(resolver, source_unit, syntax, scope, reference)
         _ -> invalid()
     }
 
@@ -350,11 +438,11 @@ crashes Trap
         resolver: &mut Resolver,
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
-        item: DataItem,
+        scope: TypeScope,
         reference: u64 in Trapping
     ) {
         let type_reference: TypeReference = syntax.type_references[reference];
-        let binding: TypeBinding = Resolver::type_binding(source_unit, syntax, item,
+        let binding: TypeBinding = Resolver::type_binding(source_unit, syntax, scope,
             type_reference.name.source_span.span
         );
         transition binding {
@@ -378,6 +466,7 @@ crashes Trap
         transition type_reference.kind {
             TypeReferenceKind::Named -> unqualified(resolver, reference)
             TypeReferenceKind::Qualified -> qualified(resolver, source_unit, reference, type_reference.domain)
+            TypeReferenceKind::Reference -> invalid()
         }
     }
 
@@ -401,22 +490,22 @@ crashes Trap
     }
 }
 
-// The declaration a type name denotes in `item`'s scope: an enclosing
-// generic parameter by spelling (lifetimes are not type names), then a
-// builtin type, then a data declaration of this unit.
+// The declaration a type name denotes in `scope`: an enclosing generic
+// parameter by spelling (lifetimes are not type names), then a builtin type,
+// then a data declaration of this unit.
 machine Resolver::type_binding(
     source_unit: &SourceUnit,
     syntax: &SyntaxTrees,
-    item: DataItem,
+    scope: TypeScope,
     name: Span
 ) -> TypeBinding
 crashes Trap
 {
-    transition { _ -> generic(source_unit, syntax, item, name, 0) }
+    transition { _ -> generic(source_unit, syntax, scope, name, 0) }
 
-    state generic(source_unit: &SourceUnit, syntax: &SyntaxTrees, item: DataItem, name: Span, offset: u64 in Trapping) {
-        transition offset < item.generic_parameter_count {
-            true -> generic_kind(source_unit, syntax, item, name, offset)
+    state generic(source_unit: &SourceUnit, syntax: &SyntaxTrees, scope: TypeScope, name: Span, offset: u64 in Trapping) {
+        transition offset < scope.generic_parameter_count {
+            true -> generic_kind(source_unit, syntax, scope, name, offset)
             _ -> builtin(source_unit, syntax, name)
         }
     }
@@ -424,22 +513,22 @@ crashes Trap
     state generic_kind(
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
-        item: DataItem,
+        scope: TypeScope,
         name: Span,
         offset: u64 in Trapping
     ) {
-        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+        let handle: u64 in Trapping = scope.first_generic_parameter + offset;
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
         transition parameter.kind {
-            GenericParameterKind::Lifetime -> generic(source_unit, syntax, item, name, offset + 1)
-            _ -> generic_compare(source_unit, syntax, item, name, offset, handle, parameter.name)
+            GenericParameterKind::Lifetime -> generic(source_unit, syntax, scope, name, offset + 1)
+            _ -> generic_compare(source_unit, syntax, scope, name, offset, handle, parameter.name)
         }
     }
 
     state generic_compare(
         source_unit: &SourceUnit,
         syntax: &SyntaxTrees,
-        item: DataItem,
+        scope: TypeScope,
         name: Span,
         offset: u64 in Trapping,
         handle: u64 in Trapping,
@@ -448,7 +537,7 @@ crashes Trap
         let equal: bool = SourceUnit::spans_equal(source_unit, name, parameter_name.source_span.span);
         transition equal {
             true -> generic_found(handle)
-            _ -> generic(source_unit, syntax, item, name, offset + 1)
+            _ -> generic(source_unit, syntax, scope, name, offset + 1)
         }
     }
 
@@ -664,5 +753,515 @@ machine Resolver::builtin_type(source_unit: &SourceUnit, name: Span) -> TypeBind
 
     state absent() {
         TypeBinding::Unresolved
+    }
+}
+
+// Machine signatures: each machine's parameter and return types, then each
+// state's. Machines declare no generics in this grammar slice, so every name
+// resolves in the empty scope.
+machine Resolver::bind_machine_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_machine(resolver, source_unit, syntax, 0) }
+
+    state next_machine(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count {
+            true -> machine_signature(resolver, source_unit, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state machine_signature(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        Resolver::bind_signature(resolver, source_unit, syntax, item.first_parameter, item.parameter_count,
+            item.has_return_type, item.return_type
+        );
+        transition resolver.output.accepted {
+            true -> state_signature(resolver, source_unit, syntax, index, item, 0)
+            _ -> done()
+        }
+    }
+
+    state state_signature(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping
+    ) {
+        transition offset < item.state_count {
+            true -> bind_state(resolver, source_unit, syntax, index, item, offset)
+            _ -> next_machine(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state bind_state(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping
+    ) {
+        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
+        Resolver::bind_signature(resolver, source_unit, syntax, state_item.first_parameter,
+            state_item.parameter_count, state_item.has_return_type, state_item.return_type
+        );
+        transition resolver.output.accepted {
+            true -> state_signature(resolver, source_unit, syntax, index, item, offset + 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}
+
+// One signature's parameter types, then its return type when present.
+machine Resolver::bind_signature(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    first_parameter: u64 in Trapping,
+    parameter_count: u64 in Trapping,
+    has_return_type: bool,
+    return_type: u64 in Trapping
+)
+crashes Trap
+{
+    transition { _ -> parameter(resolver, source_unit, syntax, first_parameter, parameter_count, has_return_type, return_type, 0) }
+
+    state parameter(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        has_return_type: bool,
+        return_type: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < parameter_count {
+            true -> bind_parameter(resolver, source_unit, syntax, first_parameter, parameter_count, has_return_type, return_type, offset)
+            _ -> result(resolver, source_unit, syntax, has_return_type, return_type)
+        }
+    }
+
+    state bind_parameter(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        has_return_type: bool,
+        return_type: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        let scope: TypeScope = Resolver::empty_scope();
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, parameter.type_reference);
+        transition resolver.output.accepted {
+            true -> parameter(resolver, source_unit, syntax, first_parameter, parameter_count, has_return_type, return_type, offset + 1)
+            _ -> done()
+        }
+    }
+
+    state result(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        has_return_type: bool,
+        return_type: u64 in Trapping
+    ) {
+        transition has_return_type {
+            true -> bind_result(resolver, source_unit, syntax, return_type)
+            _ -> done()
+        }
+    }
+
+    state bind_result(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, return_type: u64 in Trapping) {
+        let scope: TypeScope = Resolver::empty_scope();
+        Resolver::bind_type_reference(resolver, source_unit, syntax, scope, return_type);
+    }
+
+    state done() {}
+}
+
+machine Resolver::empty_scope() -> TypeScope {
+    TypeScope { first_generic_parameter: 0, generic_parameter_count: 0 }
+}
+
+// Machine namespaces. Each signature's parameter names are distinct, and
+// a machine's state names are distinct; a state may repeat the machine's own
+// name and its parameters' names. Two machines may share an owner and name
+// only as overloads: identical parameter types make the later one a
+// duplicate.
+machine Resolver::check_machines(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_machine(resolver, source_unit, syntax, 0) }
+
+    state next_machine(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count {
+            true -> machine_parameters(resolver, source_unit, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state machine_parameters(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        Resolver::check_parameter_names(resolver, source_unit, syntax, item.first_parameter, item.parameter_count);
+        transition resolver.output.accepted {
+            true -> state_names(resolver, source_unit, syntax, index, item, 0)
+            _ -> done()
+        }
+    }
+
+    state state_names(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping
+    ) {
+        transition offset < item.state_count {
+            true -> state_name(resolver, source_unit, syntax, index, item, offset)
+            _ -> overloads(resolver, source_unit, syntax, index, item, 0)
+        }
+    }
+
+    state state_name(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping
+    ) {
+        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
+        Resolver::check_parameter_names(resolver, source_unit, syntax, state_item.first_parameter,
+            state_item.parameter_count
+        );
+        transition resolver.output.accepted {
+            true -> state_prior(resolver, source_unit, syntax, index, item, offset, state_item.name, 0)
+            _ -> done()
+        }
+    }
+
+    state state_prior(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        name: IdentifierSpan,
+        prior: u64 in Trapping
+    ) {
+        transition prior < offset {
+            true -> state_compare(resolver, source_unit, syntax, index, item, offset, name, prior)
+            _ -> state_names(resolver, source_unit, syntax, index, item, offset + 1)
+        }
+    }
+
+    state state_compare(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        name: IdentifierSpan,
+        prior: u64 in Trapping
+    ) {
+        let prior_state: StateItem = SyntaxTrees::state_item(syntax, item.first_state + prior);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            prior_state.name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateState, name)
+            _ -> state_prior(resolver, source_unit, syntax, index, item, offset, name, prior + 1)
+        }
+    }
+
+    state overloads(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        prior: u64 in Trapping
+    ) {
+        transition prior < index {
+            true -> overload_compare(resolver, source_unit, syntax, index, item, prior)
+            _ -> next_machine(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state overload_compare(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        prior: u64 in Trapping
+    ) {
+        let prior_item: MachineItem = SyntaxTrees::machine_item(syntax, prior);
+        let same: bool = Resolver::same_machine_signature(resolver, source_unit, syntax, item, prior_item);
+        transition same {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateMachine, item.name)
+            _ -> overloads(resolver, source_unit, syntax, index, item, prior + 1)
+        }
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, code, name.source_span);
+    }
+
+    state done() {}
+}
+
+// Each parameter name of one signature differs from every earlier one.
+machine Resolver::check_parameter_names(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    first_parameter: u64 in Trapping,
+    parameter_count: u64 in Trapping
+)
+crashes Trap
+{
+    transition { _ -> next(resolver, source_unit, syntax, first_parameter, parameter_count, 0) }
+
+    state next(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < parameter_count {
+            true -> named(resolver, source_unit, syntax, first_parameter, parameter_count, offset)
+            _ -> done()
+        }
+    }
+
+    state named(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        transition { _ -> prior(resolver, source_unit, syntax, first_parameter, parameter_count, offset, parameter.name, 0) }
+    }
+
+    state prior(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        offset: u64 in Trapping,
+        name: IdentifierSpan,
+        earlier: u64 in Trapping
+    ) {
+        transition earlier < offset {
+            true -> compare(resolver, source_unit, syntax, first_parameter, parameter_count, offset, name, earlier)
+            _ -> next(resolver, source_unit, syntax, first_parameter, parameter_count, offset + 1)
+        }
+    }
+
+    state compare(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        offset: u64 in Trapping,
+        name: IdentifierSpan,
+        earlier: u64 in Trapping
+    ) {
+        let earlier_parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + earlier);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            earlier_parameter.name.source_span.span
+        );
+        transition equal {
+            true -> duplicate(resolver, name)
+            _ -> prior(resolver, source_unit, syntax, first_parameter, parameter_count, offset, name, earlier + 1)
+        }
+    }
+
+    state duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
+    }
+
+    state done() {}
+}
+
+// Whether two machines declare the same overload: the same owner (or none),
+// the same name and the same parameter types, position by position.
+machine Resolver::same_machine_signature(
+    resolver: &Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    left: MachineItem,
+    right: MachineItem
+) -> bool
+crashes Trap
+{
+    let same_name: bool = SourceUnit::spans_equal(source_unit, left.name.source_span.span,
+        right.name.source_span.span
+    );
+    transition same_name && left.has_owner == right.has_owner && left.parameter_count == right.parameter_count {
+        true -> owner(resolver, source_unit, syntax, left, right)
+        _ -> different()
+    }
+
+    state owner(resolver: &Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, left: MachineItem, right: MachineItem) {
+        let same_owner: bool = SourceUnit::spans_equal(source_unit, left.owner.source_span.span,
+            right.owner.source_span.span
+        );
+        transition same_owner {
+            true -> parameter(resolver, syntax, left, right, 0)
+            _ -> different()
+        }
+    }
+
+    state parameter(resolver: &Resolver, syntax: &SyntaxTrees, left: MachineItem, right: MachineItem, offset: u64 in Trapping) {
+        transition offset < left.parameter_count {
+            true -> compare(resolver, syntax, left, right, offset)
+            _ -> same()
+        }
+    }
+
+    state compare(resolver: &Resolver, syntax: &SyntaxTrees, left: MachineItem, right: MachineItem, offset: u64 in Trapping) {
+        let left_parameter: Parameter = SyntaxTrees::parameter(syntax, left.first_parameter + offset);
+        let right_parameter: Parameter = SyntaxTrees::parameter(syntax, right.first_parameter + offset);
+        let equal: bool = Resolver::same_type(resolver, syntax, left_parameter.type_reference,
+            right_parameter.type_reference
+        );
+        transition equal {
+            true -> parameter(resolver, syntax, left, right, offset + 1)
+            _ -> different()
+        }
+    }
+
+    state same() {
+        true
+    }
+
+    state different() {
+        false
+    }
+}
+
+// Whether two bound type-reference rows denote the same type: the same
+// binding and domain, and for references the same access over the same
+// referee.
+machine Resolver::same_type(resolver: &Resolver, syntax: &SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
+crashes Trap
+{
+    let left_row: TypeReference = SyntaxTrees::type_reference(syntax, left);
+    let right_row: TypeReference = SyntaxTrees::type_reference(syntax, right);
+    transition left_row.kind {
+        TypeReferenceKind::Reference -> left_reference(resolver, left_row, right_row)
+        _ -> left_named(resolver, left, right_row, right)
+    }
+
+    state left_reference(resolver: &Resolver, left_row: TypeReference, right_row: TypeReference) {
+        transition right_row.kind {
+            TypeReferenceKind::Reference -> references(resolver, left_row, right_row)
+            _ -> different()
+        }
+    }
+
+    state references(resolver: &Resolver, left_row: TypeReference, right_row: TypeReference) {
+        transition left_row.access == right_row.access {
+            true -> bindings(resolver, left_row.referee, right_row.referee)
+            _ -> different()
+        }
+    }
+
+    state left_named(resolver: &Resolver, left: u64 in Trapping, right_row: TypeReference, right: u64 in Trapping) {
+        transition right_row.kind {
+            TypeReferenceKind::Reference -> different()
+            _ -> bindings(resolver, left, right)
+        }
+    }
+
+    state bindings(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left < 1024 && right < 1024 {
+            true -> compare(resolver, left, right)
+            _ -> different()
+        }
+    }
+
+    state compare(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_domain: DomainBinding = resolver.output.domain_bindings[left];
+        let right_domain: DomainBinding = resolver.output.domain_bindings[right];
+        transition left_domain == right_domain {
+            true -> same_binding(resolver.output.type_bindings[left], resolver.output.type_bindings[right])
+            _ -> different()
+        }
+    }
+
+    // TypeBinding carries payloads, so its cases are matched pairwise.
+    state same_binding(left: TypeBinding, right: TypeBinding) {
+        transition left {
+            TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right)
+            TypeBinding::Data { item } -> data_binding(item, right)
+            TypeBinding::GenericParameter { parameter } -> generic_binding(parameter, right)
+            TypeBinding::Reference -> reference_binding(right)
+            TypeBinding::Unresolved -> different()
+        }
+    }
+
+    state builtin_binding(left_builtin: BuiltinType, right: TypeBinding) {
+        transition right {
+            TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin)
+            _ -> different()
+        }
+    }
+
+    state same_builtin(left: BuiltinType, right: BuiltinType) {
+        left == right
+    }
+
+    state data_binding(left_item: u64 in Trapping, right: TypeBinding) {
+        transition right {
+            TypeBinding::Data { item } -> same_handle(left_item, item)
+            _ -> different()
+        }
+    }
+
+    state generic_binding(left_parameter: u64 in Trapping, right: TypeBinding) {
+        transition right {
+            TypeBinding::GenericParameter { parameter } -> same_handle(left_parameter, parameter)
+            _ -> different()
+        }
+    }
+
+    state reference_binding(right: TypeBinding) {
+        transition right {
+            TypeBinding::Reference -> equal()
+            _ -> different()
+        }
+    }
+
+    state same_handle(left: u64 in Trapping, right: u64 in Trapping) {
+        left == right
+    }
+
+    state equal() {
+        true
+    }
+
+    state different() {
+        false
     }
 }

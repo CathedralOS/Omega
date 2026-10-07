@@ -26,11 +26,14 @@ class Observation:
     payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...]
     cases: tuple[tuple[int, int, int, int, int, int, int, int], ...]
     type_references: tuple[
-        tuple[int, int, int, int, int, int, int, int, int, int, int], ...
+        tuple[int, int, int, int, int, int, int, int, int, int, int, int, int], ...
     ]
     generic_parameters: tuple[
         tuple[int, int, int, int, int, int, int, int, int, int], ...
     ]
+    machines: tuple[tuple[int, ...], ...] = ()
+    parameters: tuple[tuple[int, ...], ...] = ()
+    states: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -55,8 +58,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR8\0"
-    assert reader.u64() == 8
+    assert reader.bytes(8) == b"OMGPAR9\0"
+    assert reader.u64() == 9
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -147,6 +150,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte(),
+            reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -159,6 +164,55 @@ def decode(payload: bytes) -> Observation:
             reader.byte(),
             reader.u64(),
             reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    machines = tuple(
+        (
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    parameters = tuple(
+        (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    states = tuple(
+        (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -180,6 +234,9 @@ def decode(payload: bytes) -> Observation:
         cases,
         type_references,
         generic_parameters,
+        machines,
+        parameters,
+        states,
     )
 
 
@@ -193,6 +250,12 @@ def run(program: str, source: bytes) -> tuple[int, bytes]:
     completed = subprocess.run([program], input=source, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
     return completed.returncode, completed.stdout
+
+
+def with_reference_tail(row: tuple[int, ...]) -> tuple[int, ...]:
+    """A named or qualified row spelled without the reference tail has none:
+    zero access and a zero referee handle."""
+    return row if len(row) == 13 else row + (0, 0)
 
 
 def accepted(
@@ -216,6 +279,9 @@ def accepted(
     generic_parameters: tuple[
         tuple[int, int, int, int, int, int, int, int, int, int], ...
     ] = (),
+    machines: tuple[tuple[int, ...], ...] = (),
+    parameters: tuple[tuple[int, ...], ...] = (),
+    states: tuple[tuple[int, ...], ...] = (),
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
@@ -232,8 +298,11 @@ def accepted(
         fields,
         payload_fields,
         cases,
-        type_references,
+        tuple(with_reference_tail(row) for row in type_references),
         generic_parameters,
+        machines,
+        parameters,
+        states,
     )
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
@@ -253,6 +322,9 @@ def rejected(
     case_count: int = 0,
     type_reference_count: int = 0,
     generic_parameter_count: int = 0,
+    machine_count: int = 0,
+    parameter_count: int = 0,
+    state_count: int = 0,
 ) -> None:
     status, payload = run(program, source)
     assert status == 250, f"{name}: status {status}"
@@ -269,6 +341,9 @@ def rejected(
     assert len(actual.cases) == case_count, (name, actual)
     assert len(actual.type_references) == type_reference_count, (name, actual)
     assert len(actual.generic_parameters) == generic_parameter_count, (name, actual)
+    assert len(actual.machines) == machine_count, (name, actual)
+    assert len(actual.parameters) == parameter_count, (name, actual)
+    assert len(actual.states) == state_count, (name, actual)
 
 
 def main() -> None:
@@ -718,12 +793,12 @@ def main() -> None:
     )
 
     data_rejections = (
-        ("missing-data-after-pub", b"pub machine X {}", 9, (4, 11)),
+        ("missing-item-after-pub", b"pub use a;", 9, (4, 7)),
         ("missing-data-name", b"data {}", 10, (5, 6)),
         ("missing-data-body", b"data X;", 11, (6, 7)),
         ("missing-field-colon", b"data X { field Type; }", 12, (15, 19)),
         ("missing-field-type", b"data X { field: ; }", 13, (16, 17)),
-        ("missing-field-semicolon", b"data X { field: T }", 14, (18, 19)),
+        ("missing-field-semicolon", b"data X { field: T }", 14, (18, 19), 1),
         ("unknown-data-property", b"data X [unknown] {}", 18, (8, 15)),
         ("duplicate-copy-property", b"data X [copy, copy] {}", 29, (14, 18)),
         ("duplicate-linear-property", b"data X [linear, linear] {}", 29, (16, 22)),
@@ -744,19 +819,21 @@ def main() -> None:
             b"data X { case A(left: L right: R); }",
             27,
             (24, 29),
+            1,
         ),
         (
             "unterminated-case-payload",
             b"data X { case A(value: T",
             27,
             (24, 24),
+            1,
         ),
         ("legacy-bare-case-is-rejected", b"data X { A; }", 12, (10, 11)),
         ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
         ("missing-qualified-domain", b"data X { field: T in ; }", 31, (21, 22)),
         ("missing-qualified-domain-end", b"data X { field: T in", 31, (20, 20)),
-        ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25)),
-        ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24)),
+        ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25), 1),
+        ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24), 1),
         ("missing-payload-qualified-domain", b"data X { case A(v: T in ); }", 31, (24, 25)),
         ("empty-generic-list", b"data X<> {}", 32, (7, 8)),
         ("unterminated-generic-list", b"data X<T", 36, (8, 8)),
@@ -769,8 +846,17 @@ def main() -> None:
         ("generic-bounds-without-parameter", b"data X<[copy] T> {}", 32, (7, 8)),
         ("value-binder-missing-type", b"data X<u:> {}", 35, (9, 10)),
     )
-    for name, source, diagnostic, span in data_rejections:
-        rejected(program, name, source, diagnostic, span)
+    # A trailing count is the type references completed before the rejected
+    # token: the type grammar retains each type as soon as it is whole.
+    for name, source, diagnostic, span, *completed_types in data_rejections:
+        rejected(
+            program,
+            name,
+            source,
+            diagnostic,
+            span,
+            type_reference_count=completed_types[0] if completed_types else 0,
+        )
 
     # A rejection after a completed generic parameter keeps that parameter,
     # exactly as the capacity cases below keep every completed one.
@@ -786,9 +872,9 @@ def main() -> None:
     rejected(
         program,
         "unsupported-root-after-data",
-        b"data X {} machine run() {}",
+        b"data X {} trait Run {}",
         2,
-        (10, 17),
+        (10, 15),
         root_count=1,
         data_count=1,
     )
@@ -926,6 +1012,228 @@ def main() -> None:
         field_count=512,
         case_count=512,
         type_reference_count=512,
+    )
+
+    # Machine declarations. Spans are derived from the authored source: `at`
+    # names the `occurrence`-th spelling of a fragment.
+    def at(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int, int]:
+        start = -1
+        for _ in range(occurrence):
+            start = source.index(fragment, start + 1)
+        return (1, start, start + len(fragment))
+
+    def named(source: bytes, name: bytes, occurrence: int = 1) -> tuple[int, ...]:
+        span = at(source, name, occurrence)
+        return (1, *span, *span, 0, 0, 0, 0)
+
+    def qualified(source: bytes, name: bytes, domain: bytes) -> tuple[int, ...]:
+        name_span = at(source, name)
+        domain_span = at(source, domain)
+        return (2, *name_span, 1, name_span[1], domain_span[2], 1, *domain_span)
+
+    def reference(source: bytes, start: bytes, end_fragment: bytes, access: int, referee: int) -> tuple[int, ...]:
+        start_span = at(source, start)
+        end_span = at(source, end_fragment)
+        return (3, 1, 0, 0, 1, start_span[1], end_span[2], 0, 1, 0, 0, access, referee)
+
+    def machine_row(
+        source: bytes,
+        name: bytes,
+        first_parameter: int,
+        parameter_count: int,
+        first_state: int,
+        state_count: int,
+        span: tuple[int, int],
+        owner: bytes = b"",
+        return_type: int = -1,
+        public: bool = False,
+    ) -> tuple[int, ...]:
+        owner_span = at(source, owner) if owner else (1, 0, 0)
+        return (
+            1 if owner else 0,
+            *owner_span,
+            *at(source, name),
+            first_parameter,
+            parameter_count,
+            0 if return_type < 0 else 1,
+            max(return_type, 0),
+            first_state,
+            state_count,
+            1 if public else 0,
+            1,
+            *span,
+        )
+
+    def parameter_row(source: bytes, name: bytes, type_reference: int, end_fragment: bytes) -> tuple[int, ...]:
+        name_span = at(source, name)
+        return (*name_span, type_reference, 1, name_span[1], at(source, end_fragment)[2])
+
+    def state_row(
+        source: bytes,
+        name: bytes,
+        first_parameter: int,
+        parameter_count: int,
+        span: tuple[int, int],
+        return_type: int = -1,
+    ) -> tuple[int, ...]:
+        return (
+            *at(source, name),
+            first_parameter,
+            parameter_count,
+            0 if return_type < 0 else 1,
+            max(return_type, 0),
+            1,
+            *span,
+        )
+
+    source = b"machine main() {}"
+    accepted(
+        program, "machine-empty", source,
+        ((3, 0, 1, 0, 17),), (), (),
+        machines=(machine_row(source, b"main", 0, 0, 0, 0, (0, 17)),),
+    )
+    source = b"pub machine Counter::clear(counter: &mut Counter) {}"
+    accepted(
+        program, "machine-owned-public-mutable-reference", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        type_references=(
+            named(source, b"Counter", 2),
+            reference(source, b"&mut", b"&mut Counter", 2, 0),
+        ),
+        machines=(machine_row(source, b"clear", 0, 1, 0, 0, (0, len(source)), owner=b"Counter", public=True),),
+        parameters=(parameter_row(source, b"counter", 1, b"&mut Counter"),),
+    )
+    source = b"machine add(left: u64, right: &u64) -> u64 {}"
+    accepted(
+        program, "machine-signature", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        type_references=(
+            named(source, b"u64", 1),
+            named(source, b"u64", 2),
+            reference(source, b"&u64", b"&u64", 1, 1),
+            named(source, b"u64", 3),
+        ),
+        machines=(machine_row(source, b"add", 0, 2, 0, 0, (0, len(source)), return_type=3),),
+        parameters=(
+            parameter_row(source, b"left", 0, b"left: u64"),
+            parameter_row(source, b"right", 2, b"&u64"),
+        ),
+    )
+    source = b"machine tick {}"
+    accepted(
+        program, "machine-without-parameter-list", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        machines=(machine_row(source, b"tick", 0, 0, 0, 0, (0, len(source))),),
+    )
+    source = b"machine run(n: u64) { state step(a: u8) -> u8 {} state halt {} }"
+    accepted(
+        program, "machine-states", source,
+        ((3, 0, 1, 0, 64),), (), (),
+        type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
+        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 2, 0, 1, 0, 64),),
+        parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
+        states=(
+            (1, 28, 32, 1, 1, 1, 2, 1, 22, 48),
+            (1, 55, 59, 2, 0, 0, 0, 1, 49, 62),
+        ),
+    )
+    source = b"machine wrap(x: u64 in Wrapping) {}"
+    accepted(
+        program, "machine-qualified-parameter", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        type_references=(qualified(source, b"u64", b"Wrapping"),),
+        machines=(machine_row(source, b"wrap", 0, 1, 0, 0, (0, len(source))),),
+        parameters=(parameter_row(source, b"x", 0, b"Wrapping"),),
+    )
+    source = b"use a; data D { x: u8; } machine m() {}"
+    accepted(
+        program, "machine-after-use-and-data", source,
+        ((1, 0, 1, 0, 6), (2, 0, 1, 7, 24), (3, 0, 1, 25, len(source))),
+        ((0, 1, 1, 0, 6),),
+        ((1, 4, 5),),
+        ((1, 12, 13, 0, 1, 0, 1, 0, 0, 0, False, 1, 7, 24, 0, 0),),
+        ((1, 0, 1, 16, 22),),
+        ((1, 16, 17, 0, 1, 16, 22),),
+        type_references=(named(source, b"u8"),),
+        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
+    )
+    source = b"data View { target: &Record; }"
+    accepted(
+        program, "data-field-reference-type", source,
+        ((2, 0, 1, 0, len(source)),), (), (),
+        ((1, 5, 9, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, len(source), 0, 0),),
+        ((1, 0, 1, 12, 28),),
+        ((1, 12, 18, 1, 1, 12, 28),),
+        type_references=(named(source, b"Record"), reference(source, b"&Record", b"&Record", 1, 0)),
+    )
+
+    rejected(program, "machine-name-at-end", b"machine", 40, (7, 7))
+    rejected(program, "machine-name", b"machine () {}", 40, (8, 9))
+    rejected(program, "machine-owned-name", b"machine A::() {}", 40, (11, 12))
+    rejected(program, "machine-generics", b"machine f<T>() {}", 47, (9, 10))
+    rejected(program, "machine-parameter-or-end-at-end", b"machine f(", 41, (10, 10))
+    rejected(program, "machine-parameter-or-end", b"machine f(1) {}", 41, (10, 11))
+    rejected(program, "machine-parameter-colon", b"machine f(a) {}", 43, (11, 12))
+    rejected(program, "machine-parameter-type", b"machine f(a:) {}", 44, (12, 13))
+    rejected(program, "machine-reference-referee", b"machine f(a: &) {}", 44, (14, 15))
+    rejected(program, "machine-parameter-trailing-comma", b"machine f(a: u8,) {}", 42, (16, 17),
+        parameter_count=1, type_reference_count=1)
+    rejected(program, "machine-parameter-end", b"machine f(a: u8 b: u8) {}", 45, (16, 17),
+        parameter_count=1, type_reference_count=1)
+    rejected(program, "machine-parameter-domain", b"machine f(a: u8 in) {}", 31, (18, 19))
+    rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
+    rejected(program, "machine-bodyless", b"machine f();", 47, (11, 12))
+    rejected(program, "machine-clause", b"machine f() reaches Console {}", 47, (12, 19))
+    rejected(program, "machine-statement", b"machine f() { let x: u8; }", 48, (14, 17))
+    rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
+    rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
+    rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
+    rejected(program, "state-body-end", b"machine f() { state s() { x } }", 51, (26, 27))
+
+    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(256))
+    exact_machine_status, exact_machine_payload = run(program, exact_machines)
+    assert exact_machine_status == 0
+    assert len(decode(exact_machine_payload).machines) == 256
+    rejected(
+        program,
+        "machine-capacity-plus-one",
+        exact_machines + b"machine overflow() {}",
+        52,
+        (len(exact_machines), len(exact_machines) + 7),
+        root_count=256,
+        machine_count=256,
+    )
+    exact_parameters = b"machine f(" + b", ".join(
+        f"p{index}: T".encode() for index in range(1024)
+    ) + b") {}"
+    exact_parameter_status, exact_parameter_payload = run(program, exact_parameters)
+    assert exact_parameter_status == 0
+    assert len(decode(exact_parameter_payload).parameters) == 1024
+    overflow_parameter = exact_parameters[:-4] + b", overflow: T) {}"
+    overflow_parameter_start = len(exact_parameters) - 4 + 2
+    rejected(
+        program,
+        "parameter-capacity-plus-one",
+        overflow_parameter,
+        53,
+        (overflow_parameter_start, overflow_parameter_start + 8),
+        parameter_count=1024,
+        type_reference_count=1024,
+    )
+    exact_states = b"machine f() { " + b"".join(
+        f"state s{index} {{}} ".encode() for index in range(1024)
+    ) + b"}"
+    exact_state_status, exact_state_payload = run(program, exact_states)
+    assert exact_state_status == 0
+    assert len(decode(exact_state_payload).states) == 1024
+    overflow_state_start = len(exact_states) - 1
+    rejected(
+        program,
+        "state-capacity-plus-one",
+        exact_states[:-1] + b"state overflow {} }",
+        54,
+        (overflow_state_start, overflow_state_start + 5),
+        state_count=1024,
     )
 
     repeat_source = (

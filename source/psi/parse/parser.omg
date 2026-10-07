@@ -1,5 +1,7 @@
 use psi::parse::data;
 use psi::parse::input;
+use psi::parse::machine;
+use psi::parse::types;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
@@ -36,16 +38,41 @@ pub data Parser {
     generic_pending_kind: GenericParameterKind;
     generic_bounds: DataMultiplicity;
     generic_type_index: u64 in Trapping;
-    type_qualifier_generic: bool;
     field_start: u64 in Trapping;
     field_name_start: u64 in Trapping;
     field_name_end: u64 in Trapping;
     type_name_start: u64 in Trapping;
     type_name_end: u64 in Trapping;
-    type_qualified: bool;
-    type_qualifier_payload: bool;
-    type_domain_start: u64 in Trapping;
-    type_domain_end: u64 in Trapping;
+    // Grammar-step results: the last taken token, the last expected name,
+    // and the last completed type reference's handle, start and end.
+    token_start: u64 in Trapping;
+    token_end: u64 in Trapping;
+    name_start: u64 in Trapping;
+    name_end: u64 in Trapping;
+    type_result: u64 in Trapping;
+    type_reference_start: u64 in Trapping;
+    type_end: u64 in Trapping;
+    machine_start: u64 in Trapping;
+    machine_is_public: bool;
+    machine_has_owner: bool;
+    machine_owner_start: u64 in Trapping;
+    machine_owner_end: u64 in Trapping;
+    machine_name_start: u64 in Trapping;
+    machine_name_end: u64 in Trapping;
+    machine_first_parameter: u64 in Trapping;
+    machine_parameter_count: u64 in Trapping;
+    machine_has_return_type: bool;
+    machine_return_type: u64 in Trapping;
+    machine_first_state: u64 in Trapping;
+    state_start: u64 in Trapping;
+    state_name_start: u64 in Trapping;
+    state_name_end: u64 in Trapping;
+    signature_first_parameter: u64 in Trapping;
+    signature_parameter_count: u64 in Trapping;
+    signature_has_return_type: bool;
+    signature_return_type: u64 in Trapping;
+    parameter_name_start: u64 in Trapping;
+    parameter_name_end: u64 in Trapping;
     case_start: u64 in Trapping;
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;
@@ -54,8 +81,6 @@ pub data Parser {
     payload_field_start: u64 in Trapping;
     payload_field_name_start: u64 in Trapping;
     payload_field_name_end: u64 in Trapping;
-    payload_type_name_start: u64 in Trapping;
-    payload_type_name_end: u64 in Trapping;
 }
 
 pub machine Parser::initialize(
@@ -91,8 +116,9 @@ machine Parser::identifier_span(
     }
 }
 
-// Whole-file sequencing and use-item grammar. Data declarations are delegated
-// to data.omg; input.omg remains the only token/cursor behavior owner.
+// Whole-file sequencing and use-item grammar. Data and machine declarations
+// are delegated to data.omg and machine.omg, the shared type grammar lives in
+// types.omg, and input.omg remains the only token/cursor behavior owner.
 // Bounded array reads carry their collection's Trapping policy, so parsing
 // publishes the same crash route its callees do.
 pub machine Parser::parse(parser: &mut Parser, input: &TokenStream)
@@ -135,25 +161,27 @@ crashes Trap
         transition keyword {
             KeywordKind::Use -> prepare_use(parser, input)
             KeywordKind::Data -> dispatch_data(parser, input, false)
-            KeywordKind::Pub -> public_data_root(parser, input)
+            KeywordKind::Machine -> dispatch_machine(parser, input, false)
+            KeywordKind::Pub -> public_item_root(parser, input)
             _ -> unsupported_root(parser, start, end)
         }
     }
 
-    state public_data_root(parser: &mut Parser, input: &TokenStream) {
+    state public_item_root(parser: &mut Parser, input: &TokenStream) {
                 Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
-            true -> public_data_keyword(parser, input)
-            _ -> expected_data_after_public_at_end(parser)
+            true -> public_item_keyword(parser, input)
+            _ -> expected_item_after_public_at_end(parser)
         }
     }
 
-    state public_data_keyword(parser: &mut Parser, input: &TokenStream) {
+    state public_item_keyword(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         transition token {
             Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(parser, input, true)
-            _ -> expected_data_after_public(parser, token.start,
+            Token::Keyword { keyword: KeywordKind::Machine } -> dispatch_machine(parser, input, true)
+            _ -> expected_item_after_public(parser, token.start,
                 token.end
             )
         }
@@ -163,6 +191,15 @@ crashes Trap
     state dispatch_data(parser: &mut Parser, input: &TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         Parser::parse_data(parser, input, item_start, is_public);
+        transition parser.output.accepted {
+            true -> next_root(parser, input)
+            _ -> done()
+        }
+    }
+
+    state dispatch_machine(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_machine(parser, input, item_start, is_public);
         transition parser.output.accepted {
             true -> next_root(parser, input)
             _ -> done()
@@ -361,12 +398,12 @@ crashes Trap
         transition { _ -> next_root(parser, input) }
     }
 
-    state expected_data_after_public_at_end(parser: &mut Parser) {
-        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ExpectedDataAfterPub, parser.source, parser.source_length, parser.source_length);
+    state expected_item_after_public_at_end(parser: &mut Parser) {
+        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, parser.source_length, parser.source_length);
     }
 
-    state expected_data_after_public(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ExpectedDataAfterPub, parser.source, start, end);
+    state expected_item_after_public(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
+        SyntaxTrees::reject(&mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, start, end);
     }
 
     state retained_capacity_lost(parser: &mut Parser) {

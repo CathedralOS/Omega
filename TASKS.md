@@ -5711,24 +5711,27 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `source/omega/main.omg`). Psi owns parsing, resolution, typing, checking,
   proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
   realization, ABI and emission. The product reads source, lexes, parses
-  and name-resolves supported `use`/`data` roots and exits without an
-  artifact. Extend that one
+  and name-resolves supported `use`/`data`/`machine` roots and exits without
+  an artifact. Extend that one
   pipeline through the full language in compositional slices; no private
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  97 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 41
-  resolver cases. Each gate builds its harness natively. Resolution binds data
-  type references and `in` domains for one source unit and rejects every
-  `use`, because the unit is the whole source set. Next: parse `machine`
-  declarations with their states and transitions, and resolve their names
-  through the same pipeline. Then accept multi-source compiler requests so
-  `use` roots bind declarations of supplied sources. Run both gates on Linux
-  and Windows hosts. Keep the acceptance/rejection, lexical handoff,
-  structural identity, capacity and determinism controls and range-proven
-  narrowing casts.
+  130 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 57
+  resolver cases. Each gate builds its harness natively in about 40 to 75 s.
+  Machines parse with signatures and empty `state` members; every type
+  position shares one `[& [mut]] Name [in Domain]` grammar. Resolution binds
+  data and signature types and `in` domains for one source unit, rejects
+  duplicate parameters, states and overloads, and rejects every `use`, because
+  the unit is the whole source set. Next: parse machine bodies (statements,
+  expressions and transitions) and clauses (`reaches`, `crashes`, `blocks`,
+  `requires`), and resolve their names through the same pipeline. Then accept
+  multi-source compiler requests so `use` roots bind declarations of supplied
+  sources. Run both gates on Linux and Windows hosts. Keep the
+  acceptance/rejection, lexical handoff, structural identity, capacity and
+  determinism controls and range-proven narrowing casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the

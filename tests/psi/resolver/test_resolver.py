@@ -17,10 +17,14 @@ DUPLICATE_CASE_PAYLOAD_FIELD = 5
 PAYLOAD_FIELD_COLLIDES_WITH_COMMON_FIELD = 6
 UNKNOWN_DATA_TYPE = 7
 UNKNOWN_DOMAIN = 8
+DUPLICATE_PARAMETER = 9
+DUPLICATE_STATE = 10
+DUPLICATE_MACHINE = 11
 
 BUILTIN = 1
 DATA = 2
 GENERIC = 3
+REFERENCE = 4
 
 UNQUALIFIED = 0
 WRAPPING = 1
@@ -45,6 +49,9 @@ def data(handle: int, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
 
 def generic(handle: int, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
     return (GENERIC, handle, domain)
+
+
+REFERENCE_ROW = (REFERENCE, 0, UNQUALIFIED)
 
 
 @dataclass(frozen=True)
@@ -122,15 +129,18 @@ def rejected(
     diagnostic: int,
     spelling: bytes,
     occurrence: int = 1,
+    length: int | None = None,
 ) -> None:
-    """The diagnostic span is the `occurrence`-th authored `spelling`."""
+    """The diagnostic span starts at the `occurrence`-th authored `spelling`
+    and covers it, or its first `length` bytes."""
     start = -1
     for _ in range(occurrence):
         start = source.index(spelling, start + 1)
+    end = start + (len(spelling) if length is None else length)
     status, payload = run(program, source)
     assert status == 249, f"{name}: status {status}"
     actual = decode(payload)
-    expected = Observation(False, diagnostic, (1, start, start + len(spelling)), ())
+    expected = Observation(False, diagnostic, (1, start, end), ())
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -355,6 +365,100 @@ def main() -> None:
         program,
         "first-reference-diagnostic-type",
         b"data A { y: Q; x: u8 in Foo; }",
+        UNKNOWN_DATA_TYPE,
+        b"Q",
+    )
+
+    # Machine signatures resolve in the empty scope; references bind their
+    # referee row. Rows appear in parse order.
+    accepted(
+        program,
+        "machine-signature-types",
+        b"machine f(a: u8, b: &mut D) -> u64 { state s(x: D) {} }\ndata D { y: u8; }",
+        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
+    )
+    accepted(
+        program,
+        "data-field-reference",
+        b"data View { target: &Record; }\ndata Record { x: u8; }",
+        (data(1), REFERENCE_ROW, builtin("u8")),
+    )
+    accepted(
+        program,
+        "overloads-by-parameter-type",
+        b"machine f(a: u8) {} machine f(a: u16) {}",
+        (builtin("u8"), builtin("u16")),
+    )
+    accepted(
+        program,
+        "overloads-by-access-and-domain",
+        b"machine f(a: &u8) {} machine f(a: &mut u8) {} machine g(a: u8 in Wrapping) {} machine g(a: u8) {}",
+        (builtin("u8"), REFERENCE_ROW, builtin("u8"), REFERENCE_ROW, builtin("u8", WRAPPING), builtin("u8")),
+    )
+    accepted(
+        program,
+        "machine-owners-separate-names",
+        b"machine A::f() {} machine B::f() {} machine f() {}",
+        (),
+    )
+    accepted(
+        program,
+        "state-repeats-machine-and-parameter-names",
+        b"machine f(a: u8) { state f(a: u8) {} }",
+        (builtin("u8"), builtin("u8")),
+    )
+    rejected(program, "unknown-parameter-type", b"machine f(a: Q) {}", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-return-type", b"machine f() -> Q {}", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-state-parameter-type", b"machine f() { state s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-referee", b"machine f(a: &Q) {}", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(
+        program,
+        "duplicate-parameter",
+        b"machine f(a: u8, a: u16) {}",
+        DUPLICATE_PARAMETER,
+        b"a:",
+        2,
+        length=1,
+    )
+    rejected(
+        program,
+        "duplicate-state-parameter",
+        b"machine f() { state s(x: u8, x: u8) {} }",
+        DUPLICATE_PARAMETER,
+        b"x",
+        2,
+    )
+    rejected(
+        program,
+        "duplicate-state",
+        b"machine f() { state s {} state s {} }",
+        DUPLICATE_STATE,
+        b"s {}",
+        2,
+        length=1,
+    )
+    rejected(
+        program,
+        "duplicate-overload",
+        b"machine f(a: u8) {} machine f(b: u8) {}",
+        DUPLICATE_MACHINE,
+        b"f(",
+        2,
+        length=1,
+    )
+    rejected(
+        program,
+        "duplicate-owned-machine",
+        b"machine A::f() {} machine A::f() {}",
+        DUPLICATE_MACHINE,
+        b"f(",
+        2,
+        length=1,
+    )
+    rejected(
+        program,
+        "types-before-machine-names",
+        b"machine f(a: Q, a: u8) {}",
         UNKNOWN_DATA_TYPE,
         b"Q",
     )

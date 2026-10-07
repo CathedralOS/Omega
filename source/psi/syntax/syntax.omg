@@ -17,15 +17,25 @@ pub data UseItem [copy] {
 pub data TypeReferenceKind [copy] {
     case Named;
     case Qualified;
+    case Reference;
+}
+
+pub data ReferenceAccess [copy] {
+    case Shared;
+    case Mutable;
 }
 
 // A qualified reference (`T in Domain`) records the domain span; a bare named
 // reference carries an empty domain span and leaves `name` covering the whole
-// source range.
+// source range. A reference (`&T`, `&mut T`) names its referee, an earlier
+// row of the same table, and its access; its name and domain spans are empty.
+// `access` and `referee` mean nothing for the other kinds.
 pub data TypeReference [copy] {
     kind: TypeReferenceKind;
     name: IdentifierSpan;
     domain: IdentifierSpan;
+    access: ReferenceAccess;
+    referee: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -97,9 +107,46 @@ pub data DataItem [copy] {
     source_span: SourceSpan;
 }
 
+// One typed parameter of a machine or state: `name: Type`.
+pub data Parameter [copy] {
+    name: IdentifierSpan;
+    type_reference: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+// A named state member of a machine body. Its parameters are a contiguous
+// range of `SyntaxTrees::parameters`.
+pub data StateItem [copy] {
+    name: IdentifierSpan;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    has_return_type: bool;
+    return_type: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+// A `machine` declaration. `Owner::name` records the owner path member;
+// a free-standing machine has no owner and an empty owner span. The
+// parameters and return type are the entry's signature; `first_state` and
+// `state_count` cover the authored `state` members.
+pub data MachineItem [copy] {
+    has_owner: bool;
+    owner: IdentifierSpan;
+    name: IdentifierSpan;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    has_return_type: bool;
+    return_type: u64 in Trapping;
+    first_state: u64 in Trapping;
+    state_count: u64 in Trapping;
+    is_public: bool;
+    source_span: SourceSpan;
+}
+
 pub data RootItemKind [copy] {
     case Use;
     case Data;
+    case Machine;
 }
 
 pub data RootItem [copy] {
@@ -118,7 +165,7 @@ pub data ParseDiagnosticCode [copy] {
     case UseCapacityExceeded;
     case PathMemberCapacityExceeded;
     case TokenInputCapacityExceeded;
-    case ExpectedDataAfterPub;
+    case ExpectedItemAfterPub;
     case ExpectedDataName;
     case ExpectedDataBody;
     case ExpectedDataFieldColon;
@@ -149,6 +196,21 @@ pub data ParseDiagnosticCode [copy] {
     case DataGenericParameterCapacityExceeded;
     case DataGenericLifetimeOrdering;
     case DuplicateDataGenericParameter;
+    case ExpectedMachineName;
+    case ExpectedMachineParameterOrEnd;
+    case ExpectedMachineParameter;
+    case ExpectedMachineParameterColon;
+    case ExpectedMachineParameterType;
+    case ExpectedMachineParameterEnd;
+    case ExpectedMachineReturnType;
+    case ExpectedMachineBody;
+    case ExpectedMachineBodyEnd;
+    case ExpectedStateName;
+    case ExpectedStateBody;
+    case ExpectedStateBodyEnd;
+    case MachineCapacityExceeded;
+    case ParameterCapacityExceeded;
+    case StateCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -177,6 +239,12 @@ pub data SyntaxTrees {
     payload_field_count: u64 [0..=1024];
     type_references: [TypeReference; 1024] in Trapping;
     type_reference_count: u64 [0..=1024];
+    machines: [MachineItem; 256] in Trapping;
+    machine_count: u64 [0..=256];
+    parameters: [Parameter; 1024] in Trapping;
+    parameter_count: u64 [0..=1024];
+    states: [StateItem; 1024] in Trapping;
+    state_count: u64 [0..=1024];
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -192,6 +260,9 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.case_count = 0;
     syntax_trees.payload_field_count = 0;
     syntax_trees.type_reference_count = 0;
+    syntax_trees.machine_count = 0;
+    syntax_trees.parameter_count = 0;
+    syntax_trees.state_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -331,6 +402,57 @@ crashes Trap
     }
 
     state invalid() -> TypeReference {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::machine_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem
+crashes Trap
+{
+    transition handle < syntax_trees.machine_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.machines[handle]
+    }
+
+    state invalid() -> MachineItem {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter
+crashes Trap
+{
+    transition handle < syntax_trees.parameter_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.parameters[handle]
+    }
+
+    state invalid() -> Parameter {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::state_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem
+crashes Trap
+{
+    transition handle < syntax_trees.state_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.states[handle]
+    }
+
+    state invalid() -> StateItem {
         crash Trap;
     }
 }

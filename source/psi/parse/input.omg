@@ -1,4 +1,5 @@
 use psi::parse::parser;
+use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 machine Parser::initialize_cursor(parser: &mut Parser) {
@@ -75,4 +76,223 @@ machine Parser::skip_trivia(parser: &mut Parser, input: &TokenStream) {
     }
 
     state done() { }
+}
+
+// Grammar-step helpers. Each consumes at most the current token: on a match
+// it records the token's span in `token_start`/`token_end` and advances past
+// trailing trivia; otherwise it rejects with `code` at the token, or at the
+// source end when input is exhausted. Callers continue only while
+// `output.accepted` holds.
+machine Parser::expect_punctuation(
+    parser: &mut Parser,
+    input: &TokenStream,
+    expected: PunctuationKind,
+    code: ParseDiagnosticCode
+)
+crashes Trap
+{
+    let present: bool = Parser::at_punctuation(parser, input, expected);
+    transition present {
+        true -> take(parser, input)
+        _ -> reject(parser, input, code)
+    }
+
+    state take(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
+    }
+}
+
+// A name: an identifier or any keyword except `self`, matching the data
+// grammar's name rule. The name's span lands in `name_start`/`name_end`.
+machine Parser::expect_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
+crashes Trap
+{
+    let present: bool = Parser::at_name(parser, input);
+    transition present {
+        true -> take(parser, input)
+        _ -> reject(parser, input, code)
+    }
+
+    state take(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.name_start = parser.token_start;
+        parser.name_end = parser.token_end;
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
+    }
+}
+
+machine Parser::at_punctuation(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> loaded(parser, input, expected)
+        _ -> absent()
+    }
+
+    state loaded(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Punctuation { punctuation } -> compare(punctuation, expected)
+            _ -> absent()
+        }
+    }
+
+    state compare(punctuation: PunctuationKind, expected: PunctuationKind) {
+        punctuation == expected
+    }
+
+    state absent() {
+        false
+    }
+}
+
+machine Parser::at_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> loaded(parser, input, expected)
+        _ -> absent()
+    }
+
+    state loaded(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Keyword { keyword } -> compare(keyword, expected)
+            _ -> absent()
+        }
+    }
+
+    state compare(keyword: KeywordKind, expected: KeywordKind) {
+        keyword == expected
+    }
+
+    state absent() {
+        false
+    }
+}
+
+machine Parser::at_name(parser: &mut Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> loaded(parser, input)
+        _ -> absent()
+    }
+
+    state loaded(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Identifier -> present()
+            Token::Keyword { keyword: KeywordKind::SelfValue } -> absent()
+            Token::Keyword { keyword } -> present()
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
+        false
+    }
+}
+
+// Record the current token's span and advance past it and trailing trivia.
+// Callers have already established that a token is present.
+machine Parser::take_current(parser: &mut Parser, input: &TokenStream)
+crashes Trap
+{
+    let token: Token = input.tokens[parser.current_index];
+    parser.token_start = token.start;
+    parser.token_end = token.end;
+    Parser::advance(parser, input);
+}
+
+machine Parser::reject_current(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> at_token(parser, input, code)
+        _ -> at_end(parser, code)
+    }
+
+    state at_token(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        let token: Token = input.tokens[parser.current_index];
+        SyntaxTrees::reject(&mut parser.output, code, parser.source, token.start, token.end);
+    }
+
+    state at_end(parser: &mut Parser, code: ParseDiagnosticCode) {
+        SyntaxTrees::reject(&mut parser.output, code, parser.source, parser.source_length, parser.source_length);
+    }
+}
+
+// Whether the current token is an identifier spelling exactly `spelling`:
+// the test for contextual words such as `in` and `mut`, compared against the
+// decoded bytes the lexer copies for every identifier.
+machine Parser::at_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
+crashes Trap
+{
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> loaded(parser, input, spelling)
+        _ -> absent()
+    }
+
+    state loaded(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) {
+        let token: Token = input.tokens[parser.current_index];
+        transition token {
+            Token::Identifier -> length(input, token.decoded_start, token.decoded_length, spelling)
+            _ -> absent()
+        }
+    }
+
+    state length(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) {
+        transition length == spelling.len {
+            true -> compare(input, start, spelling, 0)
+            _ -> absent()
+        }
+    }
+
+    state compare(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        transition index < spelling.len {
+            true -> byte(input, cursor, spelling, index)
+            _ -> present()
+        }
+    }
+
+    state byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        transition cursor < 65536 {
+            true -> compare_byte(input, cursor, spelling, index)
+            _ -> absent()
+        }
+    }
+
+    state compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        let decoded: u8 = input.decoded[cursor] as u8;
+        let expected: u8 = spelling[index];
+        transition decoded == expected {
+            true -> compare(input, cursor + 1, spelling, index + 1)
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
+        false
+    }
 }

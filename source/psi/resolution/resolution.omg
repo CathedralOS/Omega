@@ -35,11 +35,21 @@ pub data BuiltinType [copy] {
 // declaration of this unit (its `SyntaxTrees::data_items` handle), or a
 // generic parameter of the enclosing declaration (its
 // `SyntaxTrees::generic_parameters` handle).
+// A reference row (`&T`) names no declaration: it binds as `Reference`, and
+// its referee row carries the name's binding.
 pub data TypeBinding [copy] {
     case Unresolved;
     case Builtin(builtin: BuiltinType);
     case Data(item: u64 in Trapping);
     case GenericParameter(parameter: u64 in Trapping);
+    case Reference;
+}
+
+// The generic parameters a type name may bind: the enclosing declaration's
+// contiguous range of `SyntaxTrees::generic_parameters`.
+pub data TypeScope [copy] {
+    first_generic_parameter: u64 in Trapping;
+    generic_parameter_count: u64 in Trapping;
 }
 
 // What the `in Domain` qualifier of a type reference denotes. A bare
@@ -64,6 +74,9 @@ pub data ResolveDiagnosticCode [copy] {
     case PayloadFieldCollidesWithCommonField;
     case UnknownDataType;
     case UnknownDomain;
+    case DuplicateParameter;
+    case DuplicateState;
+    case DuplicateMachine;
 }
 
 pub data ResolveDiagnostic [copy] {

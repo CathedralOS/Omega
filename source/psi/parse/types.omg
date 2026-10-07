@@ -1,0 +1,162 @@
+use psi::parse::input;
+use psi::parse::parser;
+use psi::syntax::syntax;
+use psi::tokens::tokens;
+
+// The one type-reference grammar every type position shares:
+// `[& [mut]] Name [in Domain]`. Each completed reference is appended to
+// `SyntaxTrees::type_references` (a reference's referee first), its handle
+// lands in `type_result` and its source end in `type_end`. The caller then
+// checks the token its own grammar expects after the type; `missing` is the
+// caller's diagnostic for an absent type name.
+pub machine Parser::parse_type_reference(
+    parser: &mut Parser,
+    input: &TokenStream,
+    missing: ParseDiagnosticCode
+)
+crashes Trap
+{
+    let reference: bool = Parser::at_punctuation(parser, input, PunctuationKind::Ampersand);
+    transition reference {
+        true -> reference_prefix(parser, input, missing)
+        _ -> base(parser, input, missing)
+    }
+
+    state base(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+        Parser::parse_named_type(parser, input, missing);
+    }
+
+    state reference_prefix(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        parser.type_reference_start = parser.token_start;
+        let mutable: bool = Parser::at_word(parser, input, "mut");
+        transition mutable {
+            true -> mutable_access(parser, input, missing)
+            _ -> referee(parser, input, missing, ReferenceAccess::Shared)
+        }
+    }
+
+    state mutable_access(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        transition { _ -> referee(parser, input, missing, ReferenceAccess::Mutable) }
+    }
+
+    state referee(
+        parser: &mut Parser,
+        input: &TokenStream,
+        missing: ParseDiagnosticCode,
+        access: ReferenceAccess
+    ) {
+        Parser::parse_named_type(parser, input, missing);
+        transition parser.output.accepted {
+            true -> reference_capacity(parser, input, access)
+            _ -> done()
+        }
+    }
+
+    state reference_capacity(parser: &mut Parser, input: &TokenStream, access: ReferenceAccess) {
+        transition parser.output.type_reference_count < 1024 {
+            true -> retain_reference(parser, access)
+            _ -> full(parser, input)
+        }
+    }
+
+    state retain_reference(parser: &mut Parser, access: ReferenceAccess) {
+        let handle: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
+        parser.output.type_references[parser.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Reference,
+            name: Parser::identifier_span(parser, 0, 0),
+            domain: Parser::identifier_span(parser, 0, 0),
+            access: access,
+            referee: parser.type_result,
+            source_span: Parser::source_span(parser, parser.type_reference_start, parser.type_end)
+        };
+        parser.output.type_reference_count = parser.output.type_reference_count + 1;
+        parser.type_result = handle;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded);
+    }
+
+    state done() {}
+}
+
+// Every type-reference store builds the same name/domain/span triple; the
+// constructor keeps the record literal out of six retain states.
+machine Parser::type_reference(
+    parser: &Parser,
+    kind: TypeReferenceKind,
+    name_start: u64 in Trapping,
+    name_end: u64 in Trapping,
+    domain_start: u64 in Trapping,
+    domain_end: u64 in Trapping,
+    span_end: u64 in Trapping
+) -> TypeReference {
+    TypeReference {
+        kind: kind,
+        name: Parser::identifier_span(parser, name_start, name_end),
+        domain: Parser::identifier_span(parser, domain_start, domain_end),
+        access: ReferenceAccess::Shared,
+        referee: 0,
+        source_span: Parser::source_span(parser, name_start, span_end)
+    }
+}
+
+// `Name [in Domain]`. `in` is a contextual word: only its spelling separates
+// the qualifier from whatever token the caller expects after the type.
+machine Parser::parse_named_type(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
+crashes Trap
+{
+    transition parser.output.type_reference_count < 1024 {
+        true -> name(parser, input, missing)
+        _ -> full(parser, input)
+    }
+
+    state name(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode) {
+        Parser::expect_name(parser, input, missing);
+        transition parser.output.accepted {
+            true -> named(parser, input)
+            _ -> done()
+        }
+    }
+
+    state named(parser: &mut Parser, input: &TokenStream) {
+        parser.type_name_start = parser.name_start;
+        parser.type_name_end = parser.name_end;
+        let qualified: bool = Parser::at_word(parser, input, "in");
+        transition qualified {
+            true -> qualifier(parser, input)
+            _ -> retain(parser, TypeReferenceKind::Named, 0, 0, parser.type_name_end)
+        }
+    }
+
+    state qualifier(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
+        transition parser.output.accepted {
+            true -> retain(parser, TypeReferenceKind::Qualified, parser.name_start, parser.name_end, parser.name_end)
+            _ -> done()
+        }
+    }
+
+    state retain(
+        parser: &mut Parser,
+        kind: TypeReferenceKind,
+        domain_start: u64 in Trapping,
+        domain_end: u64 in Trapping,
+        type_end: u64 in Trapping
+    ) {
+        parser.type_result = parser.output.type_reference_count as u64 in Trapping;
+        parser.type_end = type_end;
+        parser.output.type_references[parser.output.type_reference_count] = Parser::type_reference(parser, kind,
+            parser.type_name_start, parser.type_name_end, domain_start, domain_end, type_end);
+        parser.output.type_reference_count = parser.output.type_reference_count + 1;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded);
+    }
+
+    state done() {}
+}
