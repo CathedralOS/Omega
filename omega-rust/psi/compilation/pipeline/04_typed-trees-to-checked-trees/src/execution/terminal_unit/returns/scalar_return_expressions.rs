@@ -115,25 +115,6 @@ pub(crate) fn is_structural_boolean_return_expression(
                     available_locals,
                 )
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
-        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
-            left, right, ..
-        } => {
-            is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
-                && is_branch_free_structural_integer_expression(
-                    right,
-                    scalar_parameters,
-                    available_locals,
-                )
-        }
-        checked_trees::CheckedBooleanExpression::Parameter { position } => {
-            *position < scalar_parameters
-        }
-        checked_trees::CheckedBooleanExpression::ErasedParameter { .. } => false,
-        checked_trees::CheckedBooleanExpression::Local { position } => {
-            *position >= scalar_parameters
-                && *position < scalar_parameters.saturating_add(available_locals)
-        }
         checked_trees::CheckedBooleanExpression::StructuralParameterField { path, .. } => {
             path.len() == 1
         }
@@ -143,6 +124,7 @@ pub(crate) fn is_structural_boolean_return_expression(
         | checked_trees::CheckedBooleanExpression::ByteSequencePredicate { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
+        expression => structural_boolean_leaf(expression, scalar_parameters, available_locals),
     }
 }
 
@@ -237,6 +219,27 @@ pub(crate) fn is_branch_free_structural_boolean_expression(
                     available_locals,
                 )
         }
+        checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => false,
+        checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
+        | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | checked_trees::CheckedBooleanExpression::ByteSequencePredicate { .. }
+        | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
+        checked_trees::CheckedBooleanExpression::And { .. }
+        | checked_trees::CheckedBooleanExpression::Or { .. } => false,
+        expression => structural_boolean_leaf(expression, scalar_parameters, available_locals),
+    }
+}
+
+/// The leaf classifications both structural boolean walks share: the integer
+/// comparison recursion, and the parameter/local position tests.
+fn structural_boolean_leaf(
+    expression: &checked_trees::CheckedBooleanExpression,
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    match expression {
         checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
             left, right, ..
@@ -256,14 +259,6 @@ pub(crate) fn is_branch_free_structural_boolean_expression(
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
-        checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => false,
-        checked_trees::CheckedBooleanExpression::IntegerMathComparison { .. }
-        | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | checked_trees::CheckedBooleanExpression::ByteSequencePredicate { .. }
-        | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
-        checked_trees::CheckedBooleanExpression::And { .. }
-        | checked_trees::CheckedBooleanExpression::Or { .. } => false,
+        _ => false,
     }
 }
