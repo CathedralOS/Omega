@@ -18,6 +18,9 @@ use traversal::{CallSiteTraversal, find_call_site_in_statement};
 /// type, storage, loan validity and any temporary-owner cleanup. In particular,
 /// a reference formal must never turn a value constructor into a reference
 /// carrier, and this rule grants no implicit mutable or write-only lending.
+/// A slice view lends a descriptor, not an owned slice referent: preserve its
+/// complete expression and type so preparation and consumption name the same
+/// evaluated descriptor even when an explicit borrow encloses a range.
 pub(crate) fn shared_argument_referent(
     program: &typed_trees::TypedTrees,
     argument: ExpressionHandle,
@@ -31,6 +34,9 @@ pub(crate) fn shared_argument_referent(
     else {
         return None;
     };
+    if validation::slice_view_shell(program, formal, &[]).is_some() {
+        return Some((argument, formal));
+    }
     let value = match program.expression_table.expression(argument) {
         typed_trees::expression::ExpressionNode::Borrow(borrow)
             if borrow.access == language_semantics::ReferenceAccess::Shared =>

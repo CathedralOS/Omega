@@ -3234,6 +3234,10 @@ deletions, which the commit lists.
   live view bounds, ordered descendant selectors and nonzero window offsets;
   `collections/element_view_descendant_uses_selected_extent` and
   `collections/element_view_read_requires_live_extent` must reject independently.
+  `slices/runtime_boolean_alias_guard_transport_exit` (0) constrains selected
+  comparison bounds across Boolean aliases, inline descriptor arguments and
+  state transfers; `collections/authored_index_guard_bound` must not acquire
+  bounds from a user-defined comparison.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

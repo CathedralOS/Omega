@@ -59,6 +59,13 @@ fn evaluated_value_root<'a>(
         .type_reference_table
         .type_reference(parameter.type_reference)
     {
+        // The descriptor is the view value; peeling its shell would look for
+        // a nonexistent owned slice instead of the already checked loan.
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+            if validation::slice_view_shell(program, parameter.type_reference, &[]).is_some() =>
+        {
+            (argument, parameter.type_reference)
+        }
         typed_trees::types::TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             ..

@@ -871,6 +871,36 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedStructuralValueHandle> {
         let (expression, expected) =
             match self.program.type_reference_table.type_reference(expected) {
+                // A view carries a descriptor value, not an owned slice
+                // referent. Preserve its checked reference shell and loan.
+                TypeReferenceNode::Reference { .. }
+                    if validation::slice_view_shell(self.program, expected, &[]).is_some() =>
+                {
+                    // Lending an existing descriptor uses its live storage,
+                    // not an owned-value copy of the descriptor. Only a new
+                    // formation needs an operand result. Use the place's
+                    // declared carrier, not its source spelling: projections
+                    // of stored views obey the same rule as whole bindings.
+                    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        expression,
+                    ) && matches!(place.root, facts::PlaceRoot::Symbol(_))
+                        && let Some(declared) = crate::flow::canonical_place_type_reference(
+                            self.program,
+                            self.state,
+                            self.statement_index,
+                            &place,
+                        )
+                        && validation::slice_view_shell(self.program, declared, &[]).is_some()
+                        && self.program.normalized_type_identity(declared)
+                            == self.program.normalized_type_identity(expected)
+                    {
+                        return None;
+                    }
+                    (expression, expected)
+                }
                 TypeReferenceNode::Reference {
                     access: language_semantics::ReferenceAccess::Shared,
                     ..

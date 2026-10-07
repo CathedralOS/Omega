@@ -352,11 +352,10 @@ pub(super) fn argument(
         };
         return Some(argument);
     }
-    // A `&[u8]`/`&'a V` borrowed-view result forwarded whole as the actual:
-    // the producer already loaned its own storage, so the argument names the
-    // anonymous binding at this statement — no `&expr` spelling and no owned
-    // custody event. Same producer uniqueness and ordering the general
-    // anonymous-result lane below enforces.
+    // A borrowed-view value forwards its established descriptor, not an owned
+    // referent. The caller's operation sequence supplies this exact earlier
+    // binding whether a call or a checked descriptor formation produced it;
+    // requiring a flow-call row would erase non-call producers and their loans.
     if !projected
         && access == CheckedStructuralAccess::SharedBorrow
         && (crate::execution::terminal_unit::types::borrowed_slice_view(
@@ -371,21 +370,6 @@ pub(super) fn argument(
         && source == expression
     {
         if usize::try_from(result.statement_index).ok()? != call.statement_index {
-            return None;
-        }
-        let flow = state_flow(facts, machine, state)?;
-        let mut producers = facts
-            .flow
-            .control
-            .calls
-            .span(flow.calls)?
-            .iter()
-            .filter(|producer| {
-                producer.statement_index == call.statement_index
-                    && producer.authored_expression == source
-            });
-        let producer = producers.next()?;
-        if producers.next().is_some() || producer.call_ordinal <= call.call_ordinal {
             return None;
         }
         return Some(CheckedUnitStructuralArgumentPlan {

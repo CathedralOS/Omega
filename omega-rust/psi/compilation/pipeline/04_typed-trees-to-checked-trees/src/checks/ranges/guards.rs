@@ -13,15 +13,13 @@ use bounds::{
     seed_less_than_len_fact, seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
-/// A selected comparison transfers a proven endpoint onto its lower operand:
-/// `i < k` with `k <= 8` proves `i < 8`; `<=` shifts by one and `>`/`>=`
-/// mirror. Read live bounds, legacy store-enforced ranges, or an immutable
-/// parameter's own declaration facts; mutable default-domain text is not a
-
 /// The decomposed-meaning check plus boolean-alias peel both guard seeders
 /// share: a guard with no builtin decomposed meaning is the caller's to
 /// skip, and a name-headed guard stands for its comparison, so re-seed from
-/// the alias guard. Returns whether the caller should also return.
+/// the alias guard. Returns true when the guard is handled and the caller
+/// must stop. False leaves an ordinary builtin expression for the caller to
+/// seed; reversing that dispatch both loses valid bounds and admits facts
+/// from operators without builtin meaning.
 fn peel_boolean_alias_guard(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -59,6 +57,10 @@ fn peel_boolean_alias_guard(
     false
 }
 
+/// A selected comparison transfers a proven endpoint onto its lower operand:
+/// `i < k` with `k <= 8` proves `i < 8`; `<=` shifts by one and `>`/`>=`
+/// mirror. Read live bounds, legacy store-enforced ranges, or an immutable
+/// parameter's own declaration facts; mutable default-domain text is not a
 /// premise during an open invariant window. Literal RHS comparisons stay
 /// with the literal seeders. This needs machine/state context, so it runs
 /// beside `seed_guard_facts` at the co-located transition arm.
@@ -69,7 +71,7 @@ pub(super) fn seed_value_vs_value_endpoints(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !peel_boolean_alias_guard(
+    if peel_boolean_alias_guard(
         program,
         machine,
         state,
@@ -177,7 +179,7 @@ pub(super) fn seed_guard_facts(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !peel_boolean_alias_guard(program, machine, state, facts, guard, seed_guard_facts) {
+    if peel_boolean_alias_guard(program, machine, state, facts, guard, seed_guard_facts) {
         return;
     }
 

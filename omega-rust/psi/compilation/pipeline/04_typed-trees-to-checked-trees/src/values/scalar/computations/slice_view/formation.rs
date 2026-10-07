@@ -1,5 +1,5 @@
 //! Exact lexical owner of a view formation. Locals hold a retained loan;
-//! inline state operands borrow at one authenticated transition occurrence.
+//! inline operands borrow at one authenticated call or transition occurrence.
 //! Both feed the same collection/region lowering in the parent module.
 use super::{Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceHandle};
 use checked_trees::CheckedStructuralAccess;
@@ -11,6 +11,12 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
     ) -> Option<(crate::flow::CanonicalPlace, CheckedStructuralAccess)> {
+        // Argument custody belongs to its exact invocation, even when that
+        // invocation initializes a local. The statement's syntax cannot
+        // substitute its local's loan for a nested operand's loan.
+        if let Some(formation) = self.call_view_formation(expression, expected, expected_access) {
+            return Some(formation);
+        }
         let state = crate::semantic::calls::find_state(self.program, self.state)?;
         match self
             .program
@@ -20,9 +26,6 @@ impl Builder<'_, '_> {
         {
             StatementNode::LocalData(local) => {
                 self.local_view_formation(local, expression, expected, expected_access)
-            }
-            StatementNode::Transition(_) => {
-                self.transition_view_formation(expression, expected, expected_access)
             }
             _ => None,
         }
@@ -122,13 +125,13 @@ impl Builder<'_, '_> {
         Some((place, access))
     }
 
-    fn transition_view_formation(
+    fn call_view_formation(
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
         expected_access: language_semantics::ReferenceAccess,
     ) -> Option<(crate::flow::CanonicalPlace, CheckedStructuralAccess)> {
-        use crate::semantic::calls::{CallSite, call_site_argument_expressions, find_call_site};
+        use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
         let mut flow_states = self
             .flow
             .control
@@ -158,15 +161,12 @@ impl Builder<'_, '_> {
                 self.statement_index,
                 call.call_ordinal,
             )?;
-            let CallSite::TransitionNamed { path, .. } = &site else {
-                continue;
-            };
             let arguments = call_site_argument_expressions(self.program, &site);
             if !arguments.contains(&expression) {
                 continue;
             }
             let parameters =
-                crate::semantic::calls::call_target_parameters(self.program, path.symbol)?;
+                crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?;
             let parameters = parameters.iter().collect::<Vec<_>>();
             if arguments.len() != parameters.len() {
                 return None;
@@ -195,12 +195,12 @@ impl Builder<'_, '_> {
             selected = Some(call);
         }
         let call = selected?;
-        let captured = crate::borrow::accesses::borrow_access_place(
+        let captured = crate::borrow::argument_borrow_loan_place(
             self.program,
             self.state,
             self.statement_index,
-            expression,
             self.machine,
+            expression,
         )?;
         let place = crate::flow::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(captured.root_symbol),
