@@ -100,27 +100,7 @@ fn domain_predicate_meaning(
             let left = domain_predicate_meaning(program, domain, binary.left, subjects, depth + 1)?;
             let right =
                 domain_predicate_meaning(program, domain, binary.right, subjects, depth + 1)?;
-            let spelling = match binary.operator {
-                BinaryOperator::Equal => Some(OperatorSpelling::Equal),
-                BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
-                BinaryOperator::Less => Some(OperatorSpelling::Less),
-                BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
-                BinaryOperator::Greater => Some(OperatorSpelling::Greater),
-                BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
-                BinaryOperator::Add => Some(OperatorSpelling::Add),
-                BinaryOperator::Subtract => Some(OperatorSpelling::Subtract),
-                BinaryOperator::Multiply => Some(OperatorSpelling::Multiply),
-                BinaryOperator::Divide => Some(OperatorSpelling::Divide),
-                BinaryOperator::Modulo => Some(OperatorSpelling::Modulo),
-                BinaryOperator::And
-                | BinaryOperator::Or
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight => None,
-                BinaryOperator::CaseMembership => return None,
-            };
+            let spelling = crate::operators::binary_operator_spelling(binary.operator)?;
             if spelling.is_some_and(|spelling| {
                 !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
