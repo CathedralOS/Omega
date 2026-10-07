@@ -1,0 +1,668 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Name resolution over the parsed roots of one source unit. The pass runs in
+// four fail-closed steps, each completing before the next begins: imports,
+// top-level data names, member namespaces, then type references. The first
+// rejection is the diagnostic. Lookup mirrors the reference resolver: an
+// enclosing generic parameter, then a builtin type, then a data declaration
+// of this unit. Builtin and duplicate declarations reject before any lookup,
+// so the builtin and data tiers never compete for one spelling.
+//
+// The unit is the whole compilation's source set. A `use` therefore names a
+// source outside that set and rejects; supplying more sources is the
+// compiler request's job, not resolution's.
+pub data Resolver {
+    output: NameResolution;
+    source: SourceId;
+}
+
+pub machine Resolver::initialize(resolver: &mut Resolver, source: SourceId) {
+    NameResolution::clear(&mut resolver.output, source);
+    resolver.source = source;
+}
+
+pub machine Resolver::resolve(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    NameResolution::clear(&mut resolver.output, resolver.source);
+    transition syntax.use_count > 0 {
+        true -> unresolved_import(resolver, syntax)
+        _ -> declarations(resolver, source_unit, syntax)
+    }
+
+    state unresolved_import(resolver: &mut Resolver, syntax: &SyntaxTrees) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnresolvedImport,
+            syntax.uses[0].source_span
+        );
+    }
+
+    state declarations(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::declare_data(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> members(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state members(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::check_members(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> references(resolver, source_unit, syntax)
+            _ -> done()
+        }
+    }
+
+    state references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees) {
+        Resolver::bind_references(resolver, source_unit, syntax);
+        transition resolver.output.accepted {
+            true -> publish(resolver, syntax)
+            _ -> done()
+        }
+    }
+
+    state publish(resolver: &mut Resolver, syntax: &SyntaxTrees) {
+        resolver.output.binding_count = syntax.type_reference_count;
+    }
+
+    state done() {}
+}
+
+// Top-level data names. A name that spells a builtin type rejects: references
+// would bind the builtin and the declaration could never be named. A name an
+// earlier declaration already took rejects at the later declaration.
+machine Resolver::declare_data(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next(resolver, source_unit, syntax, 0) }
+
+    state next(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.data_count {
+            true -> builtin_shadow(resolver, source_unit, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state builtin_shadow(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        let builtin: TypeBinding = Resolver::builtin_type(source_unit, item.name.source_span.span);
+        transition builtin {
+            TypeBinding::Unresolved -> earlier(resolver, source_unit, syntax, index, item.name, 0)
+            _ -> reject(resolver, ResolveDiagnosticCode::DataShadowsBuiltinType, item.name)
+        }
+    }
+
+    state earlier(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        transition prior < index {
+            true -> compare(resolver, source_unit, syntax, index, name, prior)
+            _ -> next(resolver, source_unit, syntax, index + 1)
+        }
+    }
+
+    state compare(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, index: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        let prior_item: DataItem = SyntaxTrees::data_item(syntax, prior);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            prior_item.name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateData, name)
+            _ -> earlier(resolver, source_unit, syntax, index, name, prior + 1)
+        }
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, code, name.source_span);
+    }
+
+    state done() {}
+}
+
+// Member namespaces of each data declaration. Direct fields and cases share
+// one namespace in authored order. Each case's payload fields have their own
+// namespace, which the declaration's direct (common) fields also occupy.
+machine Resolver::check_members(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_data(resolver, source_unit, syntax, 0) }
+
+    state next_data(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+        transition data_index < syntax.data_count {
+            true -> data_members(resolver, source_unit, syntax, data_index)
+            _ -> done()
+        }
+    }
+
+    state data_members(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, data_index);
+        transition { _ -> member(resolver, source_unit, syntax, data_index, item, 0) }
+    }
+
+    state member(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.member_count {
+            true -> member_named(resolver, source_unit, syntax, data_index, item, offset)
+            _ -> cases(resolver, source_unit, syntax, data_index, item, 0)
+        }
+    }
+
+    state member_named(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let data_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + offset);
+        let name: IdentifierSpan = SyntaxTrees::member_name(syntax, data_member);
+        transition { _ -> member_prior(resolver, source_unit, syntax, data_index, item, offset, name, 0) }
+    }
+
+    state member_prior(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        transition prior < offset {
+            true -> member_compare(resolver, source_unit, syntax, data_index, item, offset, name, prior)
+            _ -> member(resolver, source_unit, syntax, data_index, item, offset + 1)
+        }
+    }
+
+    state member_compare(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        let prior_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + prior);
+        let prior_name: IdentifierSpan = SyntaxTrees::member_name(syntax, prior_member);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            prior_name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDataMember, name)
+            _ -> member_prior(resolver, source_unit, syntax, data_index, item, offset, name, prior + 1)
+        }
+    }
+
+    state cases(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
+        transition case_offset < item.case_count {
+            true -> case_payload(resolver, source_unit, syntax, data_index, item, case_offset)
+            _ -> next_data(resolver, source_unit, syntax, data_index + 1)
+        }
+    }
+
+    state case_payload(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
+        let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + case_offset);
+        transition { _ -> payload(resolver, source_unit, syntax, data_index, item, case_offset, data_case, 0) }
+    }
+
+    state payload(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+        transition field_offset < data_case.payload_field_count {
+            true -> payload_named(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset)
+            _ -> cases(resolver, source_unit, syntax, data_index, item, case_offset + 1)
+        }
+    }
+
+    state payload_named(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+        let field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + field_offset);
+        transition { _ -> payload_prior(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, field.name, 0) }
+    }
+
+    state payload_prior(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        transition prior < field_offset {
+            true -> payload_compare(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, name, prior)
+            _ -> common(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, name, 0)
+        }
+    }
+
+    state payload_compare(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
+        let prior_field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + prior);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            prior_field.name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateCasePayloadField, name)
+            _ -> payload_prior(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, name, prior + 1)
+        }
+    }
+
+    state common(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
+        transition common_offset < item.field_count {
+            true -> common_compare(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset)
+            _ -> payload(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset + 1)
+        }
+    }
+
+    state common_compare(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
+        let common_field: DataField = SyntaxTrees::field(syntax, item.first_field + common_offset);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name.source_span.span,
+            common_field.name.source_span.span
+        );
+        transition equal {
+            true -> reject(resolver, ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField, name)
+            _ -> common(resolver, source_unit, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset + 1)
+        }
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, code, name.source_span);
+    }
+
+    state done() {}
+}
+
+// Type references of each data declaration: its generic-parameter
+// annotations, then its members' references in authored order. Every type
+// reference has exactly one owner, so this walk binds the whole table.
+machine Resolver::bind_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_data(resolver, source_unit, syntax, 0) }
+
+    state next_data(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+        transition data_index < syntax.data_count {
+            true -> data_references(resolver, source_unit, syntax, data_index)
+            _ -> done()
+        }
+    }
+
+    state data_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, data_index);
+        transition { _ -> generic(resolver, source_unit, syntax, data_index, item, 0) }
+    }
+
+    state generic(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.generic_parameter_count {
+            true -> generic_annotation(resolver, source_unit, syntax, data_index, item, offset)
+            _ -> member(resolver, source_unit, syntax, data_index, item, 0)
+        }
+    }
+
+    state generic_annotation(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax,
+            item.first_generic_parameter + offset
+        );
+        transition parameter.has_type_reference {
+            true -> bind_generic(resolver, source_unit, syntax, data_index, item, offset, parameter.type_reference)
+            _ -> generic(resolver, source_unit, syntax, data_index, item, offset + 1)
+        }
+    }
+
+    state bind_generic(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, reference: u64 in Trapping) {
+        Resolver::bind_type_reference(resolver, source_unit, syntax, item, reference);
+        transition resolver.output.accepted {
+            true -> generic(resolver, source_unit, syntax, data_index, item, offset + 1)
+            _ -> done()
+        }
+    }
+
+    state member(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.member_count {
+            true -> member_kind(resolver, source_unit, syntax, data_index, item, offset)
+            _ -> next_data(resolver, source_unit, syntax, data_index + 1)
+        }
+    }
+
+    state member_kind(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let data_member: DataMember = SyntaxTrees::data_member(syntax, item.first_member + offset);
+        transition data_member.kind {
+            DataMemberKind::Field -> field_reference(resolver, source_unit, syntax, data_index, item, offset, data_member.item_index)
+            DataMemberKind::Case -> case_references(resolver, source_unit, syntax, data_index, item, offset, data_member.item_index)
+        }
+    }
+
+    state field_reference(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+        let field: DataField = SyntaxTrees::field(syntax, handle);
+        Resolver::bind_type_reference(resolver, source_unit, syntax, item, field.type_reference);
+        transition resolver.output.accepted {
+            true -> member(resolver, source_unit, syntax, data_index, item, offset + 1)
+            _ -> done()
+        }
+    }
+
+    state case_references(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, handle: u64 in Trapping) {
+        let data_case: DataCase = SyntaxTrees::data_case(syntax, handle);
+        transition { _ -> payload(resolver, source_unit, syntax, data_index, item, offset, data_case, 0) }
+    }
+
+    state payload(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+        transition field_offset < data_case.payload_field_count {
+            true -> payload_reference(resolver, source_unit, syntax, data_index, item, offset, data_case, field_offset)
+            _ -> member(resolver, source_unit, syntax, data_index, item, offset + 1)
+        }
+    }
+
+    state payload_reference(resolver: &mut Resolver, source_unit: &SourceUnit, syntax: &SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
+        let field: DataField = SyntaxTrees::payload_field(syntax, data_case.first_payload_field + field_offset);
+        Resolver::bind_type_reference(resolver, source_unit, syntax, item, field.type_reference);
+        transition resolver.output.accepted {
+            true -> payload(resolver, source_unit, syntax, data_index, item, offset, data_case, field_offset + 1)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}
+
+// Bind one type reference in the scope of its owning declaration: the name,
+// then the `in Domain` qualifier when one is present.
+machine Resolver::bind_type_reference(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    item: DataItem,
+    reference: u64 in Trapping
+)
+crashes Trap
+{
+    transition reference < syntax.type_reference_count {
+        true -> lookup(resolver, source_unit, syntax, item, reference)
+        _ -> invalid()
+    }
+
+    state lookup(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        item: DataItem,
+        reference: u64 in Trapping
+    ) {
+        let type_reference: TypeReference = syntax.type_references[reference];
+        let binding: TypeBinding = Resolver::type_binding(source_unit, syntax, item,
+            type_reference.name.source_span.span
+        );
+        transition binding {
+            TypeBinding::Unresolved -> unknown_type(resolver, type_reference.name)
+            _ -> bound(resolver, source_unit, reference, type_reference, binding)
+        }
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+
+    state bound(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        reference: u64 in Trapping,
+        type_reference: TypeReference,
+        binding: TypeBinding
+    ) {
+        resolver.output.type_bindings[reference] = binding;
+        transition type_reference.kind {
+            TypeReferenceKind::Named -> unqualified(resolver, reference)
+            TypeReferenceKind::Qualified -> qualified(resolver, source_unit, reference, type_reference.domain)
+        }
+    }
+
+    state unqualified(resolver: &mut Resolver, reference: u64 in Trapping) {
+        resolver.output.domain_bindings[reference] = DomainBinding::Unqualified;
+    }
+
+    state qualified(
+        resolver: &mut Resolver,
+        source_unit: &SourceUnit,
+        reference: u64 in Trapping,
+        domain: IdentifierSpan
+    ) {
+        Resolver::bind_domain(resolver, source_unit, reference, domain);
+    }
+
+    state unknown_type(resolver: &mut Resolver, name: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownDataType,
+            name.source_span
+        );
+    }
+}
+
+// The declaration a type name denotes in `item`'s scope: an enclosing
+// generic parameter by spelling (lifetimes are not type names), then a
+// builtin type, then a data declaration of this unit.
+machine Resolver::type_binding(
+    source_unit: &SourceUnit,
+    syntax: &SyntaxTrees,
+    item: DataItem,
+    name: Span
+) -> TypeBinding
+crashes Trap
+{
+    transition { _ -> generic(source_unit, syntax, item, name, 0) }
+
+    state generic(source_unit: &SourceUnit, syntax: &SyntaxTrees, item: DataItem, name: Span, offset: u64 in Trapping) {
+        transition offset < item.generic_parameter_count {
+            true -> generic_kind(source_unit, syntax, item, name, offset)
+            _ -> builtin(source_unit, syntax, name)
+        }
+    }
+
+    state generic_kind(
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        item: DataItem,
+        name: Span,
+        offset: u64 in Trapping
+    ) {
+        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        transition parameter.kind {
+            GenericParameterKind::Lifetime -> generic(source_unit, syntax, item, name, offset + 1)
+            _ -> generic_compare(source_unit, syntax, item, name, offset, handle, parameter.name)
+        }
+    }
+
+    state generic_compare(
+        source_unit: &SourceUnit,
+        syntax: &SyntaxTrees,
+        item: DataItem,
+        name: Span,
+        offset: u64 in Trapping,
+        handle: u64 in Trapping,
+        parameter_name: IdentifierSpan
+    ) {
+        let equal: bool = SourceUnit::spans_equal(source_unit, name, parameter_name.source_span.span);
+        transition equal {
+            true -> generic_found(handle)
+            _ -> generic(source_unit, syntax, item, name, offset + 1)
+        }
+    }
+
+    state generic_found(parameter: u64 in Trapping) {
+        TypeBinding::GenericParameter { parameter: parameter }
+    }
+
+    state builtin(source_unit: &SourceUnit, syntax: &SyntaxTrees, name: Span) {
+        let binding: TypeBinding = Resolver::builtin_type(source_unit, name);
+        transition binding {
+            TypeBinding::Unresolved -> data(source_unit, syntax, name, 0)
+            _ -> found(binding)
+        }
+    }
+
+    state found(binding: TypeBinding) {
+        binding
+    }
+
+    state data(source_unit: &SourceUnit, syntax: &SyntaxTrees, name: Span, index: u64 in Trapping) {
+        transition index < syntax.data_count {
+            true -> data_compare(source_unit, syntax, name, index)
+            _ -> unresolved()
+        }
+    }
+
+    state data_compare(source_unit: &SourceUnit, syntax: &SyntaxTrees, name: Span, index: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        let equal: bool = SourceUnit::spans_equal(source_unit, name, item.name.source_span.span);
+        transition equal {
+            true -> data_found(index)
+            _ -> data(source_unit, syntax, name, index + 1)
+        }
+    }
+
+    state data_found(index: u64 in Trapping) {
+        TypeBinding::Data { item: index }
+    }
+
+    state unresolved() {
+        TypeBinding::Unresolved
+    }
+}
+
+// The compiler-known domain an `in` qualifier names. Generic parameters do
+// not bind domains, and no other domain can be declared in the current
+// grammar, so any other spelling rejects.
+machine Resolver::bind_domain(
+    resolver: &mut Resolver,
+    source_unit: &SourceUnit,
+    reference: u64 in Trapping,
+    domain: IdentifierSpan
+)
+// The caller binds only references it has bounded by the syntax table.
+requires reference < 1024
+crashes Trap
+{
+    let matched: bool = SourceUnit::span_spells(source_unit, domain.source_span.span, "Wrapping");
+    transition matched {
+        true -> bind(resolver, reference, DomainBinding::Wrapping)
+        _ -> saturating(resolver, source_unit, reference, domain)
+    }
+
+    state saturating(resolver: &mut Resolver, source_unit: &SourceUnit, reference: u64 in Trapping, domain: IdentifierSpan) {
+        let matched: bool = SourceUnit::span_spells(source_unit, domain.source_span.span, "Saturating");
+        transition matched {
+            true -> bind(resolver, reference, DomainBinding::Saturating)
+            _ -> trapping(resolver, source_unit, reference, domain)
+        }
+    }
+
+    state trapping(resolver: &mut Resolver, source_unit: &SourceUnit, reference: u64 in Trapping, domain: IdentifierSpan) {
+        let matched: bool = SourceUnit::span_spells(source_unit, domain.source_span.span, "Trapping");
+        transition matched {
+            true -> bind(resolver, reference, DomainBinding::Trapping)
+            _ -> finite(resolver, source_unit, reference, domain)
+        }
+    }
+
+    state finite(resolver: &mut Resolver, source_unit: &SourceUnit, reference: u64 in Trapping, domain: IdentifierSpan) {
+        let matched: bool = SourceUnit::span_spells(source_unit, domain.source_span.span, "Finite");
+        transition matched {
+            true -> bind(resolver, reference, DomainBinding::Finite)
+            _ -> unknown(resolver, domain)
+        }
+    }
+
+    state bind(resolver: &mut Resolver, reference: u64 in Trapping, binding: DomainBinding) {
+        resolver.output.domain_bindings[reference] = binding;
+    }
+
+    state unknown(resolver: &mut Resolver, domain: IdentifierSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownDomain,
+            domain.source_span
+        );
+    }
+}
+
+// The compiler-installed type a name spells, or `Unresolved`. Builtin names
+// are not source declarations, so they match by spelling, not by span.
+machine Resolver::builtin_type(source_unit: &SourceUnit, name: Span) -> TypeBinding {
+    let matched: bool = SourceUnit::span_spells(source_unit, name, "bool");
+    transition matched { true -> found(BuiltinType::Bool) _ -> spells_i8(source_unit, name) }
+
+    state spells_i8(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "i8");
+        transition matched { true -> found(BuiltinType::I8) _ -> spells_i16(source_unit, name) }
+    }
+
+    state spells_i16(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "i16");
+        transition matched { true -> found(BuiltinType::I16) _ -> spells_i32(source_unit, name) }
+    }
+
+    state spells_i32(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "i32");
+        transition matched { true -> found(BuiltinType::I32) _ -> spells_i64(source_unit, name) }
+    }
+
+    state spells_i64(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "i64");
+        transition matched { true -> found(BuiltinType::I64) _ -> spells_u8(source_unit, name) }
+    }
+
+    state spells_u8(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "u8");
+        transition matched { true -> found(BuiltinType::U8) _ -> spells_u16(source_unit, name) }
+    }
+
+    state spells_u16(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "u16");
+        transition matched { true -> found(BuiltinType::U16) _ -> spells_u32(source_unit, name) }
+    }
+
+    state spells_u32(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "u32");
+        transition matched { true -> found(BuiltinType::U32) _ -> spells_u64(source_unit, name) }
+    }
+
+    state spells_u64(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "u64");
+        transition matched { true -> found(BuiltinType::U64) _ -> spells_addr(source_unit, name) }
+    }
+
+    state spells_addr(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "addr");
+        transition matched { true -> found(BuiltinType::Address) _ -> spells_f32(source_unit, name) }
+    }
+
+    state spells_f32(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "f32");
+        transition matched { true -> found(BuiltinType::F32) _ -> spells_f64(source_unit, name) }
+    }
+
+    state spells_f64(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "f64");
+        transition matched { true -> found(BuiltinType::F64) _ -> spells_slice(source_unit, name) }
+    }
+
+    state spells_slice(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "Slice");
+        transition matched { true -> found(BuiltinType::Slice) _ -> spells_result(source_unit, name) }
+    }
+
+    state spells_result(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "Result");
+        transition matched { true -> found(BuiltinType::Result) _ -> spells_syscallresult(source_unit, name) }
+    }
+
+    state spells_syscallresult(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "SyscallResult");
+        transition matched { true -> found(BuiltinType::SyscallResult) _ -> spells_terminal(source_unit, name) }
+    }
+
+    state spells_terminal(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "Terminal");
+        transition matched { true -> found(BuiltinType::Terminal) _ -> spells_never(source_unit, name) }
+    }
+
+    state spells_never(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "Never");
+        transition matched { true -> found(BuiltinType::Never) _ -> spells_uint(source_unit, name) }
+    }
+
+    state spells_uint(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "UInt");
+        transition matched { true -> found(BuiltinType::UInt) _ -> spells_int(source_unit, name) }
+    }
+
+    state spells_int(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "Int");
+        transition matched { true -> found(BuiltinType::Int) _ -> spells_atomicbool(source_unit, name) }
+    }
+
+    state spells_atomicbool(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "AtomicBool");
+        transition matched { true -> found(BuiltinType::AtomicBool) _ -> spells_atomicu32(source_unit, name) }
+    }
+
+    state spells_atomicu32(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "AtomicU32");
+        transition matched { true -> found(BuiltinType::AtomicU32) _ -> spells_atomicu64(source_unit, name) }
+    }
+
+    state spells_atomicu64(source_unit: &SourceUnit, name: Span) {
+        let matched: bool = SourceUnit::span_spells(source_unit, name, "AtomicU64");
+        transition matched { true -> found(BuiltinType::AtomicU64) _ -> absent() }
+    }
+
+    state found(builtin: BuiltinType) {
+        TypeBinding::Builtin { builtin: builtin }
+    }
+
+    state absent() {
+        TypeBinding::Unresolved
+    }
+}

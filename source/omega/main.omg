@@ -5,6 +5,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 use psi::lex::lexer;
 use psi::parse::parser;
+use psi::resolve::resolver;
 
 data Main {
     console: Binding<Console>;
@@ -54,13 +55,27 @@ blocks;
         );
         Parser::parse(&mut parser, &lexer.output);
         transition parser.output.accepted {
-            true -> accepted(context)
+            true -> resolve(context, lexer, &parser)
             _ -> parse_rejected(context)
+        }
+    }
+
+    state resolve(context: &mut Main, lexer: &Lexer, parser: &Parser) {
+        let mut resolver: Resolver;
+        Resolver::initialize(&mut resolver, lexer.source.id);
+        Resolver::resolve(&mut resolver, &lexer.source, &parser.output);
+        transition resolver.output.accepted {
+            true -> accepted(context)
+            _ -> resolve_rejected(context)
         }
     }
 
     state accepted(context: &mut Main) {
         context.console.exit_process(0);
+    }
+
+    state resolve_rejected(context: &mut Main) {
+        context.console.exit_process(249);
     }
 
     state parse_rejected(context: &mut Main) {

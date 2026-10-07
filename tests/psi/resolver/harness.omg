@@ -1,0 +1,268 @@
+// Gate-owned black-box name-resolution harness. The gate package's build root
+// binds `ResolverHarness::main` as its own product entry; the product compiler
+// closure never includes it. Lexing and parsing run exactly as in the product;
+// their rejections exit without an observation, since the parser gate owns
+// those phases' observations.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+use psi::lex::lexer;
+use psi::parse::parser;
+use psi::resolution::resolution;
+use psi::resolve::resolver;
+use psi::source::source;
+
+pub data ResolverHarness {
+    console: Binding<Console>;
+}
+
+pub machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut lexer: Lexer;
+    Lexer::initialize(&mut lexer, 1);
+    transition { _ -> read(resolver_harness, &mut lexer) }
+
+    state read(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer) {
+        let input: ByteRead = block resolver_harness.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> retain(resolver_harness, lexer, value)
+            _ -> tokenize(resolver_harness, lexer)
+        }
+    }
+
+    state retain(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer, value: i32) {
+        Lexer::append_source_byte(lexer, value as u8);
+        transition lexer.source.last_retained {
+            true -> read(resolver_harness, lexer)
+            _ -> source_full(resolver_harness)
+        }
+    }
+
+    state source_full(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(252);
+    }
+
+    state tokenize(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer) {
+        Lexer::tokenize(lexer);
+        transition lexer.output.accepted {
+            true -> prepare_parse(resolver_harness, lexer)
+            _ -> lex_rejected(resolver_harness)
+        }
+    }
+
+    state prepare_parse(resolver_harness: &mut ResolverHarness, lexer: &Lexer) {
+        let mut parser: Parser;
+        Parser::initialize(&mut parser, lexer.source.id,
+            lexer.source.length as u64 in Trapping
+        );
+        transition { _ -> parse(resolver_harness, lexer, &mut parser) }
+    }
+
+    state parse(resolver_harness: &mut ResolverHarness, lexer: &Lexer, parser: &mut Parser) {
+        Parser::parse(parser, &lexer.output);
+        transition parser.output.accepted {
+            true -> prepare_resolve(resolver_harness, lexer, parser)
+            _ -> parse_rejected(resolver_harness)
+        }
+    }
+
+    state prepare_resolve(resolver_harness: &mut ResolverHarness, lexer: &Lexer, parser: &Parser) {
+        let mut resolver: Resolver;
+        Resolver::initialize(&mut resolver, lexer.source.id);
+        transition { _ -> resolve(resolver_harness, lexer, parser, &mut resolver) }
+    }
+
+    state resolve(
+        resolver_harness: &mut ResolverHarness,
+        lexer: &Lexer,
+        parser: &Parser,
+        resolver: &mut Resolver
+    ) {
+        Resolver::resolve(resolver, &lexer.source, &parser.output);
+        ResolverHarness::write_resolution_observation(resolver_harness, &resolver.output);
+        transition resolver.output.accepted {
+            true -> accepted(resolver_harness)
+            _ -> resolve_rejected(resolver_harness)
+        }
+    }
+
+    state accepted(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(0);
+    }
+
+    state resolve_rejected(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(249);
+    }
+
+    state parse_rejected(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(250);
+    }
+
+    state lex_rejected(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(251);
+    }
+}
+
+// Versioned canonical resolution observation. Every scalar coordinate and
+// count is little-endian u64. The stream begins with `OMGRES1\0`, version 1,
+// the acceptance byte, the diagnostic tag and its source span, then one row
+// per type reference in syntax-table order: the binding tag, the bound
+// handle (builtin ordinal, data-item handle or generic-parameter handle; zero
+// when unresolved) and the domain tag. This is hosted development tooling,
+// not an Omega ABI.
+machine ResolverHarness::write_resolution_observation(
+    resolver_harness: &mut ResolverHarness,
+    output: &NameResolution
+) reaches Console
+crashes Trap
+{
+    ResolverHarness::write_byte(resolver_harness, 79);
+    ResolverHarness::write_byte(resolver_harness, 77);
+    ResolverHarness::write_byte(resolver_harness, 71);
+    ResolverHarness::write_byte(resolver_harness, 82);
+    ResolverHarness::write_byte(resolver_harness, 69);
+    ResolverHarness::write_byte(resolver_harness, 83);
+    ResolverHarness::write_byte(resolver_harness, 49);
+    ResolverHarness::write_byte(resolver_harness, 0);
+    ResolverHarness::write_u64(resolver_harness, 1);
+    transition output.accepted {
+        true -> accepted_header(resolver_harness, output)
+        _ -> rejected_header(resolver_harness, output)
+    }
+
+    state accepted_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+        ResolverHarness::write_byte(resolver_harness, 1);
+        transition { _ -> diagnostic(resolver_harness, output) }
+    }
+
+    state rejected_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+        ResolverHarness::write_byte(resolver_harness, 0);
+        transition { _ -> diagnostic(resolver_harness, output) }
+    }
+
+    state diagnostic(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+        transition output.diagnostic.code {
+            ResolveDiagnosticCode::None -> diagnostic_tag(resolver_harness, output, 0)
+            ResolveDiagnosticCode::UnresolvedImport -> diagnostic_tag(resolver_harness, output, 1)
+            ResolveDiagnosticCode::DataShadowsBuiltinType -> diagnostic_tag(resolver_harness, output, 2)
+            ResolveDiagnosticCode::DuplicateData -> diagnostic_tag(resolver_harness, output, 3)
+            ResolveDiagnosticCode::DuplicateDataMember -> diagnostic_tag(resolver_harness, output, 4)
+            ResolveDiagnosticCode::DuplicateCasePayloadField -> diagnostic_tag(resolver_harness, output, 5)
+            ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField -> diagnostic_tag(resolver_harness, output, 6)
+            ResolveDiagnosticCode::UnknownDataType -> diagnostic_tag(resolver_harness, output, 7)
+            ResolveDiagnosticCode::UnknownDomain -> diagnostic_tag(resolver_harness, output, 8)
+        }
+    }
+
+    state diagnostic_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, tag: u8) {
+        ResolverHarness::write_byte(resolver_harness, tag);
+        ResolverHarness::write_source_span(resolver_harness, output.diagnostic.source_span);
+        ResolverHarness::write_u64(resolver_harness, output.binding_count as u64 in Trapping);
+        transition { _ -> binding(resolver_harness, output, 0) }
+    }
+
+    state binding(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+        transition index < output.binding_count {
+            true -> binding_row(resolver_harness, output, index)
+            _ -> done()
+        }
+    }
+
+    state binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+        let type_binding: TypeBinding = output.type_bindings[index];
+        transition type_binding {
+            TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0)
+            TypeBinding::Builtin { builtin } -> builtin_row(resolver_harness, output, index, builtin)
+            TypeBinding::Data { item } -> type_row(resolver_harness, output, index, 2, item)
+            TypeBinding::GenericParameter { parameter } -> type_row(resolver_harness, output, index, 3, parameter)
+        }
+    }
+
+    state builtin_row(
+        resolver_harness: &mut ResolverHarness,
+        output: &NameResolution,
+        index: u64 in Trapping,
+        builtin: BuiltinType
+    ) {
+        transition builtin {
+            BuiltinType::Bool -> type_row(resolver_harness, output, index, 1, 0)
+            BuiltinType::I8 -> type_row(resolver_harness, output, index, 1, 1)
+            BuiltinType::I16 -> type_row(resolver_harness, output, index, 1, 2)
+            BuiltinType::I32 -> type_row(resolver_harness, output, index, 1, 3)
+            BuiltinType::I64 -> type_row(resolver_harness, output, index, 1, 4)
+            BuiltinType::U8 -> type_row(resolver_harness, output, index, 1, 5)
+            BuiltinType::U16 -> type_row(resolver_harness, output, index, 1, 6)
+            BuiltinType::U32 -> type_row(resolver_harness, output, index, 1, 7)
+            BuiltinType::U64 -> type_row(resolver_harness, output, index, 1, 8)
+            BuiltinType::Address -> type_row(resolver_harness, output, index, 1, 9)
+            BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10)
+            BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11)
+            BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12)
+            BuiltinType::Result -> type_row(resolver_harness, output, index, 1, 13)
+            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 14)
+            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 15)
+            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 16)
+            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 17)
+            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 18)
+            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 19)
+            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 20)
+            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 21)
+        }
+    }
+
+    state type_row(
+        resolver_harness: &mut ResolverHarness,
+        output: &NameResolution,
+        index: u64 in Trapping,
+        tag: u8,
+        handle: u64 in Trapping
+    ) {
+        ResolverHarness::write_byte(resolver_harness, tag);
+        ResolverHarness::write_u64(resolver_harness, handle);
+        transition output.domain_bindings[index] {
+            DomainBinding::Unqualified -> domain_row(resolver_harness, output, index, 0)
+            DomainBinding::Wrapping -> domain_row(resolver_harness, output, index, 1)
+            DomainBinding::Saturating -> domain_row(resolver_harness, output, index, 2)
+            DomainBinding::Trapping -> domain_row(resolver_harness, output, index, 3)
+            DomainBinding::Finite -> domain_row(resolver_harness, output, index, 4)
+        }
+    }
+
+    state domain_row(
+        resolver_harness: &mut ResolverHarness,
+        output: &NameResolution,
+        index: u64 in Trapping,
+        tag: u8
+    ) {
+        ResolverHarness::write_byte(resolver_harness, tag);
+        transition { _ -> binding(resolver_harness, output, index + 1) }
+    }
+
+    state done() {}
+}
+
+machine ResolverHarness::write_source_span(resolver_harness: &mut ResolverHarness, source_span: SourceSpan) reaches Console {
+    ResolverHarness::write_u64(resolver_harness, source_span.source.value as u64 in Trapping);
+    ResolverHarness::write_u64(resolver_harness, source_span.span.start);
+    ResolverHarness::write_u64(resolver_harness, source_span.span.end);
+}
+
+machine ResolverHarness::write_u64(resolver_harness: &mut ResolverHarness, value: u64 in Trapping) reaches Console {
+    ResolverHarness::write_byte(resolver_harness, (value % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 256 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 65536 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 16777216 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 4294967296 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 1099511627776 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 281474976710656 % 256) as u8);
+    ResolverHarness::write_byte(resolver_harness, (value / 72057594037927936 % 256) as u8);
+}
+
+machine ResolverHarness::write_byte(resolver_harness: &mut ResolverHarness, value: u8) reaches Console {
+    let mut output: u8 = value;
+    resolver_harness.console.write_byte(output as i32);
+}

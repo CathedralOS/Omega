@@ -5752,22 +5752,24 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `source/omega/main.omg`). Psi owns parsing, resolution, typing, checking,
   proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
   realization, ABI and emission. The product reads source, lexes, parses
-  supported `use`/`data` roots and exits without an artifact. Extend that one
+  and name-resolves supported `use`/`data` roots and exits without an
+  artifact. Extend that one
   pipeline through the full language in compositional slices; no private
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
-  OMEGA_TARGET=macos_arm64 tests/psi/parser/test-parser.sh` reviews and
-  checks the gate's three packages, builds the harness natively and passes
-  all 97 cases (78 to 115 s end to end), and `omega --check
-  source/omega/main.omg` checks its 31 files. Next: carry the product past
-  parsing, starting with symbol resolution of the parsed `use`/`data` roots
-  in `source/psi/`, through the same pipeline and with gate cases for each
-  accepted and rejected form; run the parser gate on Linux and Windows
-  hosts. Keep the acceptance/rejection, lexical handoff, structural
-  identity, capacity and determinism controls and range-proven narrowing
-  casts.
+  OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
+  97 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 41
+  resolver cases. Each gate builds its harness natively. Resolution binds data
+  type references and `in` domains for one source unit and rejects every
+  `use`, because the unit is the whole source set. Next: parse `machine`
+  declarations with their states and transitions, and resolve their names
+  through the same pipeline. Then accept multi-source compiler requests so
+  `use` roots bind declarations of supplied sources. Run both gates on Linux
+  and Windows hosts. Keep the acceptance/rejection, lexical handoff,
+  structural identity, capacity and determinism controls and range-proven
+  narrowing casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the

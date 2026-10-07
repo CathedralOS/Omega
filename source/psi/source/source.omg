@@ -77,3 +77,79 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
         0
     }
 }
+
+// Whether two spans of this unit spell the same bytes. Identifier spellings
+// are their source bytes under LEXICAL-PROFILE-V1 (no escapes), so name
+// comparison reads the unit rather than a decoded copy.
+machine SourceUnit::spans_equal(source_unit: &SourceUnit, left: Span, right: Span) -> bool {
+    transition left.end - left.start == right.end - right.start {
+        true -> scan(source_unit, left.start, right.start, left.end)
+        _ -> different()
+    }
+
+    state scan(
+        source_unit: &SourceUnit,
+        left_cursor: u64 in Trapping,
+        right_cursor: u64 in Trapping,
+        left_end: u64 in Trapping
+    ) {
+        transition left_cursor < left_end {
+            true -> compare(source_unit, left_cursor, right_cursor, left_end)
+            _ -> same()
+        }
+    }
+
+    state compare(
+        source_unit: &SourceUnit,
+        left_cursor: u64 in Trapping,
+        right_cursor: u64 in Trapping,
+        left_end: u64 in Trapping
+    ) {
+        let left_byte: u8 = SourceUnit::byte_or_nul(source_unit, left_cursor);
+        let right_byte: u8 = SourceUnit::byte_or_nul(source_unit, right_cursor);
+        transition left_byte == right_byte {
+            true -> scan(source_unit, left_cursor + 1, right_cursor + 1, left_end)
+            _ -> different()
+        }
+    }
+
+    state same() {
+        true
+    }
+
+    state different() {
+        false
+    }
+}
+
+// Whether a span of this unit spells exactly `spelling`.
+machine SourceUnit::span_spells(source_unit: &SourceUnit, span: Span, spelling: &[u8]) -> bool {
+    transition span.end - span.start == spelling.len {
+        true -> scan(source_unit, span.start, spelling, 0)
+        _ -> different()
+    }
+
+    state scan(source_unit: &SourceUnit, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        transition index < spelling.len {
+            true -> compare(source_unit, cursor, spelling, index)
+            _ -> same()
+        }
+    }
+
+    state compare(source_unit: &SourceUnit, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        let source_byte: u8 = SourceUnit::byte_or_nul(source_unit, cursor);
+        let spelling_byte: u8 = spelling[index];
+        transition source_byte == spelling_byte {
+            true -> scan(source_unit, cursor + 1, spelling, index + 1)
+            _ -> different()
+        }
+    }
+
+    state same() {
+        true
+    }
+
+    state different() {
+        false
+    }
+}

@@ -1,0 +1,99 @@
+use psi::source::source;
+
+// Name bindings for the parsed `use`/`data` roots of one source unit. The
+// binding tables are indexed like `SyntaxTrees::type_references`, so each
+// syntax handle keeps its identity; no table repeats a spelling. The zero
+// binding is the unresolved state, and an accepted resolution leaves none.
+
+// Compiler-installed type names, in the reference compiler's builtin order.
+pub data BuiltinType [copy] {
+    case Bool;
+    case I8;
+    case I16;
+    case I32;
+    case I64;
+    case U8;
+    case U16;
+    case U32;
+    case U64;
+    case Address;
+    case F32;
+    case F64;
+    case Slice;
+    case Result;
+    case SyscallResult;
+    case Terminal;
+    case Never;
+    case UInt;
+    case Int;
+    case AtomicBool;
+    case AtomicU32;
+    case AtomicU64;
+}
+
+// What a type reference's name denotes: a compiler-installed type, a data
+// declaration of this unit (its `SyntaxTrees::data_items` handle), or a
+// generic parameter of the enclosing declaration (its
+// `SyntaxTrees::generic_parameters` handle).
+pub data TypeBinding [copy] {
+    case Unresolved;
+    case Builtin(builtin: BuiltinType);
+    case Data(item: u64 in Trapping);
+    case GenericParameter(parameter: u64 in Trapping);
+}
+
+// What the `in Domain` qualifier of a type reference denotes. A bare
+// reference stays `Unqualified`. The arithmetic policies and `Finite` are
+// compiler-known; every other domain needs a `domain` declaration, which the
+// current grammar cannot supply.
+pub data DomainBinding [copy] {
+    case Unqualified;
+    case Wrapping;
+    case Saturating;
+    case Trapping;
+    case Finite;
+}
+
+pub data ResolveDiagnosticCode [copy] {
+    case None;
+    case UnresolvedImport;
+    case DataShadowsBuiltinType;
+    case DuplicateData;
+    case DuplicateDataMember;
+    case DuplicateCasePayloadField;
+    case PayloadFieldCollidesWithCommonField;
+    case UnknownDataType;
+    case UnknownDomain;
+}
+
+pub data ResolveDiagnostic [copy] {
+    code: ResolveDiagnosticCode;
+    source_span: SourceSpan;
+}
+
+pub data NameResolution {
+    type_bindings: [TypeBinding; 1024];
+    domain_bindings: [DomainBinding; 1024];
+    binding_count: u64 [0..=1024];
+    diagnostic: ResolveDiagnostic;
+    accepted: bool;
+}
+
+pub machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
+    resolution.binding_count = 0;
+    resolution.accepted = true;
+    resolution.diagnostic.code = ResolveDiagnosticCode::None;
+    resolution.diagnostic.source_span.source = source;
+    resolution.diagnostic.source_span.span.start = 0;
+    resolution.diagnostic.source_span.span.end = 0;
+}
+
+pub machine NameResolution::reject(
+    resolution: &mut NameResolution,
+    code: ResolveDiagnosticCode,
+    source_span: SourceSpan
+) {
+    resolution.accepted = false;
+    resolution.diagnostic.code = code;
+    resolution.diagnostic.source_span = source_span;
+}

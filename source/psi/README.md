@@ -15,7 +15,20 @@ mixed declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
 accepted. Unsupported roots, retired inline discriminants, and richer
 property/type forms (arrays, multi-domain unions, ranged suffixes) reject
-instead of becoming a private bridge tree. Its
+instead of becoming a private bridge tree.
+
+Name resolution follows parsing over the same unit. It rejects any `use`
+root, since the unit is the whole source set and supplying more sources is the
+compiler request's job. It then rejects builtin-shadowing and duplicate data
+names, and duplicate members: fields and cases share one namespace; each
+case's payload fields share another with the common fields. Last, it binds
+every type reference: an enclosing generic parameter by spelling (never a
+lifetime), then a builtin type, then a data declaration of the unit. It also
+binds every `in` qualifier to a compiler-known domain (`Wrapping`,
+`Saturating`, `Trapping`, `Finite`). The binding tables are indexed by the
+syntax table's type-reference handles. Carrier compatibility (`Finite` on
+floats only, unbounded `UInt`/`Int` storage) belongs to typing, which does not
+exist yet. Its
 source closure is being authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
 published.
@@ -29,6 +42,8 @@ The maintained Rust implementation lives at `omega-rust/psi/`. It
 remains a differential comparator and may continue in parallel; no Rust
 implementation belongs in this product subtree.
 
+Each phase has a gate package under `tests/psi/`, driven by
+[`tests/psi/gate.sh`](../../tests/psi/gate.sh).
 [`tests/psi/parser/test-parser.sh`](../../tests/psi/parser/test-parser.sh)
 compiles the gate-owned Omega harness once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
@@ -46,10 +61,15 @@ the gate only when an equal or stronger product-source gate subsumes every
 retained failure class, and the harness only when an equal or stronger
 semantic-free gate preserves all of its cases.
 
-On macOS ARM64 the gate builds the harness natively from a fresh CLI and all
-97 cases pass; the gate counts each distinct source it runs as one case. No
-cached executable may stand in for that run. Linux and Windows hosts have
-not run it.
+[`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
+does the same for name resolution. Its harness lexes, parses and resolves, and
+observes the diagnostic and every type and domain binding. Lexical or parse
+rejection exits without an observation.
+
+On macOS ARM64 both gates build their harnesses natively from a fresh CLI:
+all 97 parser cases and all 41 resolver cases pass. Each gate counts each
+distinct source it runs as one case. No cached executable may stand in for
+that run. Linux and Windows hosts have run neither gate.
 
 The lexer keeps its one canonical mixed `Token` stream; the parser observes it
 through a shared borrow forwarded along its state edges.
@@ -82,6 +102,8 @@ owns bounded token selection and trivia traversal;
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving comment/literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
 | `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows. | Absorb the parser only into its canonical successor. |
+| `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
+| `resolve/` | Owns name resolution from syntax and source bytes to the bindings. | Absorb only into the canonical multi-source resolver. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be
