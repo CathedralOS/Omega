@@ -18,48 +18,13 @@ pub(crate) fn independent_compatible_policy_scalar_leader(
     ScalarType,
     Option<semantic_vocabulary::ObligationId>,
 )> {
-    let row = match operation {
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            policy: IntegerShiftPolicy::Wrapping,
-            direction,
-            value,
-            count,
-        } => (
-            shift_key(*direction, *value_type, *count_type, *value, *count),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::IntegerArithmetic {
-            psi_operation,
-            result,
-            scalar_type,
-            arithmetic,
-            left,
-            right,
-        } if matches!(
-            arithmetic.policy(),
-            IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating
-        ) =>
-        {
-            (
-                arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        _ => return None,
-    };
-    Some((
-        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
-        row.1,
-        row.2,
-        row.3,
+    let (key, psi_operation, result, scalar_type, obligation) =
+        compatible_policy_scalar_row(operation)?;
+    obligation.is_none().then_some((
+        IndependentScalarExpressionKey::CompatiblePolicy(key),
+        psi_operation,
+        result,
+        scalar_type,
         None,
     ))
 }
@@ -73,23 +38,54 @@ pub(crate) fn independent_compatible_policy_scalar_redundant(
     ScalarType,
     Option<semantic_vocabulary::ObligationId>,
 )> {
-    let row = match operation {
+    let (key, psi_operation, result, scalar_type, obligation) =
+        compatible_policy_scalar_row(operation)?;
+    obligation.map(|obligation| {
+        (
+            IndependentScalarExpressionKey::CompatiblePolicy(key),
+            psi_operation,
+            result,
+            scalar_type,
+            Some(obligation),
+        )
+    })
+}
+
+/// The compatible-policy row one operation offers: wrapping and saturating
+/// policies carry no obligation (leader shape), exact policies carry theirs
+/// (redundant shape); any other policy has no compatible-policy row.
+fn compatible_policy_scalar_row(
+    operation: &O,
+) -> Option<(
+    IndependentCompatiblePolicyScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<semantic_vocabulary::ObligationId>,
+)> {
+    match operation {
         O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
-            policy: IntegerShiftPolicy::Exact { obligation },
+            policy,
             direction,
             value,
             count,
-        } => (
-            shift_key(*direction, *value_type, *count_type, *value, *count),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-            *obligation,
-        ),
+        } => {
+            let obligation = match policy {
+                IntegerShiftPolicy::Wrapping => None,
+                IntegerShiftPolicy::Exact { obligation } => Some(*obligation),
+            };
+            Some((
+                shift_key(*direction, *value_type, *count_type, *value, *count),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*value_type),
+                obligation,
+            ))
+        }
         O::IntegerArithmetic {
             psi_operation,
             result,
@@ -97,22 +93,21 @@ pub(crate) fn independent_compatible_policy_scalar_redundant(
             arithmetic,
             left,
             right,
-        } if arithmetic.policy() == IntegerOverflowPolicy::Exact => (
-            arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            arithmetic.obligation()?,
-        ),
-        _ => return None,
-    };
-    Some((
-        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
-        row.1,
-        row.2,
-        row.3,
-        Some(row.4),
-    ))
+        } => {
+            let obligation = match arithmetic.policy() {
+                IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating => None,
+                IntegerOverflowPolicy::Exact => Some(arithmetic.obligation()?),
+            };
+            Some((
+                arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                obligation,
+            ))
+        }
+        _ => None,
+    }
 }
 
 fn shift_key(
