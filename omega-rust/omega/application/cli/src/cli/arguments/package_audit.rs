@@ -1,4 +1,4 @@
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use package_compilation::BuildSourceCaptureRequest;
 use package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -21,16 +21,7 @@ pub(super) fn parse(
             Some("--details") if !details => details = true,
             Some("--offline") if !offline => offline = true,
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
-                let path = super::option_value(&mut arguments)
-                    .ok_or_else(|| format!("{flag} requires a canonical relative path"))?
-                    .into_string()
-                    .map_err(|_| format!("{flag} requires a UTF-8 canonical relative path"))?;
-                let obligation = if flag == "--build-input" {
-                    BuildSourceCaptureObligation::Required
-                } else {
-                    BuildSourceCaptureObligation::Optional
-                };
-                build_inputs.push((path.into_bytes(), obligation));
+                build_inputs.push(super::parse_build_input(&mut arguments, flag)?);
             }
             Some("--project") if project_root.is_none() => {
                 project_root = Some(PathBuf::from(value(&mut arguments, "--project")?));

@@ -1,6 +1,6 @@
-use super::option_value;
+use super::{option_value, parse_build_input};
 use compiler::OptimizationRollback;
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use package_compilation::BuildSourceCaptureRequest;
 use std::path::PathBuf;
 
 pub(crate) struct CompileArguments {
@@ -91,17 +91,10 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--build-input" || argument == "--optional-build-input" {
-            let option = argument.to_string_lossy();
-            let path = option_value(&mut arguments)
-                .ok_or_else(|| format!("{option} requires a canonical relative path"))?
-                .into_string()
-                .map_err(|_| format!("{option} requires a UTF-8 canonical relative path"))?;
-            let obligation = if argument == "--build-input" {
-                BuildSourceCaptureObligation::Required
-            } else {
-                BuildSourceCaptureObligation::Optional
-            };
-            build_inputs.push((path.into_bytes(), obligation));
+            build_inputs.push(parse_build_input(
+                &mut arguments,
+                &argument.to_string_lossy(),
+            )?);
             continue;
         }
 

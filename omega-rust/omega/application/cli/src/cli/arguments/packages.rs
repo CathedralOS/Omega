@@ -1,4 +1,5 @@
-use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use super::parse_build_input;
+use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -42,16 +43,7 @@ pub(super) fn parse_arguments(
             "--discard-review" => super::set_flag(&mut discard_review, &argument)?,
             "--dangerously-accept-all" => super::set_flag(&mut accept_all, &argument)?,
             "--build-input" | "--optional-build-input" => {
-                let path = super::option_value(&mut arguments)
-                    .ok_or_else(|| format!("{argument} requires a canonical relative path"))?
-                    .into_string()
-                    .map_err(|_| format!("{argument} requires a UTF-8 canonical relative path"))?;
-                let obligation = if argument == "--build-input" {
-                    BuildSourceCaptureObligation::Required
-                } else {
-                    BuildSourceCaptureObligation::Optional
-                };
-                build_inputs.push((path.into_bytes(), obligation));
+                build_inputs.push(parse_build_input(&mut arguments, &argument)?);
             }
             "--project" => {
                 if project_root.is_some() {

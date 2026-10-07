@@ -12,6 +12,7 @@ pub(crate) use execution::RunArguments;
 pub(crate) use inspection::InspectTerminalArguments;
 pub(crate) use source_audit::SourceArguments;
 
+use package_compilation::BuildSourceCaptureObligation;
 use package_manager::operations::PackageInspectionOptions;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::ffi::OsString;
@@ -129,4 +130,20 @@ fn option_value(arguments: &mut impl Iterator<Item = OsString>) -> Option<OsStri
     arguments
         .next()
         .filter(|value| !value.is_empty() && !value.as_encoded_bytes().starts_with(b"--"))
+}
+
+fn parse_build_input(
+    arguments: &mut impl Iterator<Item = OsString>,
+    flag: &str,
+) -> Result<(Vec<u8>, BuildSourceCaptureObligation), String> {
+    let path = option_value(arguments)
+        .ok_or_else(|| format!("{flag} requires a canonical relative path"))?
+        .into_string()
+        .map_err(|_| format!("{flag} requires a UTF-8 canonical relative path"))?;
+    let obligation = if flag == "--build-input" {
+        BuildSourceCaptureObligation::Required
+    } else {
+        BuildSourceCaptureObligation::Optional
+    };
+    Ok((path.into_bytes(), obligation))
 }
