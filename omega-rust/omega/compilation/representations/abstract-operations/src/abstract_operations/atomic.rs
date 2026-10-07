@@ -200,27 +200,43 @@ pub struct AbstractAtomicLocation {
 }
 
 /// Distinct simultaneous exclusive arrivals have disjoint live storage after
-/// ownership validation. Shared roots, unknown roots, and roots from different
-/// arrival groups supply no such evidence; the latter can rename the same home.
+/// ownership validation, and quoted bytes are immutable image storage that
+/// holds and reaches no atomic cell — lending them, as a console write of a
+/// string literal does, writes nothing. Shared roots, unknown roots, and roots
+/// from different arrival groups supply no such evidence; the latter can
+/// rename the same home. The producer that names each event's reaching write
+/// and every validator replaying that claim share this one judgment.
 pub fn atomic_roots_may_alias<'parameters>(
+    places: &[terminal_psi::StructuralPlaceDeclaration],
     arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
     left: PlaceId,
     right: PlaceId,
 ) -> bool {
-    left == right
-        || !arrivals.into_iter().any(|parameters| {
-            let exclusive = |root| {
-                parameters.iter().any(|parameter| {
-                    parameter.place == root
-                        && matches!(
-                            parameter.access,
-                            terminal_psi::StructuralAccess::Owned
-                                | terminal_psi::StructuralAccess::MutableBorrow
-                        )
-                })
-            };
-            exclusive(left) && exclusive(right)
+    let immutable_image = |root| {
+        places.iter().any(|place| {
+            place.id == root
+                && matches!(
+                    place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                )
         })
+    };
+    left == right
+        || (!immutable_image(left)
+            && !immutable_image(right)
+            && !arrivals.into_iter().any(|parameters| {
+                let exclusive = |root| {
+                    parameters.iter().any(|parameter| {
+                        parameter.place == root
+                            && matches!(
+                                parameter.access,
+                                terminal_psi::StructuralAccess::Owned
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            )
+                    })
+                };
+                exclusive(left) && exclusive(right)
+            }))
 }
 
 /// One normalized atomic memory event.

@@ -80,6 +80,7 @@ pub(crate) fn validate_function_atomic_coherence(
         },
         |left, right| {
             abstract_operations::atomic::atomic_roots_may_alias(
+                &function.structural_places,
                 std::iter::once(function.structural_parameters.as_slice()).chain(
                     function
                         .blocks
