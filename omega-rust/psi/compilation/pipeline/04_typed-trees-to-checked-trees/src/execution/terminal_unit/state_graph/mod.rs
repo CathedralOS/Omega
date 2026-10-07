@@ -48,6 +48,9 @@ use fused::fused_states;
 pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
 use guards::{forwards_qualified_parameter, retire_guarded_reference_completion};
 pub(super) use guards::{guard_is_boolean, retained_guard};
+pub(super) use result_custody::{
+    call_owns_result, operand_owned_construction, retained_structural_result,
+};
 
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
 pub(super) fn build_traced(
@@ -831,77 +834,6 @@ fn prefix_initializers(
         initializers.push(initializer.clone());
     }
     Some(initializers)
-}
-
-/// A call retained inside a value-returning terminator (`Guarded` arm
-/// payloads, `ConditionalReturn`'s value arm) consumes its producers through
-/// owned whole arguments the same way an in-sequence call does: the argument
-/// names the exact result binding it moves into the call's custody.
-fn terminator_call_consumes_result(
-    operation: &CheckedUnitEffectOperationPlan,
-    binding_ordinal: u32,
-) -> bool {
-    operation
-        .call_structural_arguments()
-        .iter()
-        .any(|argument| {
-            argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                && argument.access == CheckedStructuralAccess::Owned
-                && argument.path.is_empty()
-        })
-}
-
-/// Whole owned call arguments consume affine and linear results. Accounting
-/// requires one disposition, and lowering rejoins a moved local's exact
-/// establishment and call-transfer receipts instead of state-exit cleanup.
-/// An inline argument construction also belongs to its consuming call when
-/// copyable; other unrestricted locals retain their reusable statement owner.
-fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
-    // Custody belongs to the produced value, not its source idiom. An
-    // extracted old referent owns the same affine obligation as a call or
-    // constructor result. Unrestricted inline operands alone retain their
-    // consuming-call establishment rather than a reusable local binding.
-    producer
-        .structural_result_binding()
-        .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
-        || matches!(
-            producer,
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                operand_source: Some(
-                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
-                ),
-                ..
-            }
-        )
-}
-
-/// An available structural binding, independently of whether its producer
-/// carries disposal debt. An actual automatic return discard retires it.
-fn retained_structural_result(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
-    if operation
-        .discardable_structural_result()
-        .is_some_and(|(_, discard)| discard)
-    {
-        return None;
-    }
-    operation.structural_result_binding()
-}
-
-/// An operand-owned construction retained beside the call that consumes it:
-/// `operand_source` names the consuming call's coordinate and formal
-/// position, so its statement is the call's — any local declared on that
-/// statement is a sibling, never this construction's binding. Such rows must
-/// not stand in for a local's unique producer.
-fn operand_owned_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
-    matches!(
-        operation,
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            operand_source: Some(_),
-            ..
-        }
-    )
 }
 
 /// The call sequencer already joined each operand to its loan or consumption.

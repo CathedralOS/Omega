@@ -10,7 +10,6 @@ use super::{
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
     PermissionEventSource, StatementNode, TypedTrees, control, local_results,
-    terminator_call_consumes_result,
 };
 use checked_trees::CheckedUnitStructuralParameterPlan;
 
@@ -664,4 +663,79 @@ fn construction_local_uses<'a, 'operation>(
         }
     }
     Some(uses)
+}
+
+/// A call retained inside a value-returning terminator (`Guarded` arm
+/// payloads, `ConditionalReturn`'s value arm) consumes its producers through
+/// owned whole arguments the same way an in-sequence call does: the argument
+/// names the exact result binding it moves into the call's custody.
+pub(in crate::execution::terminal_unit) fn terminator_call_consumes_result(
+    operation: &CheckedUnitEffectOperationPlan,
+    binding_ordinal: u32,
+) -> bool {
+    operation
+        .call_structural_arguments()
+        .iter()
+        .any(|argument| {
+            argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+                && argument.access == CheckedStructuralAccess::Owned
+                && argument.path.is_empty()
+        })
+}
+
+/// Whole owned call arguments consume affine and linear results. Accounting
+/// requires one disposition, and lowering rejoins a moved local's exact
+/// establishment and call-transfer receipts instead of state-exit cleanup.
+/// An inline argument construction also belongs to its consuming call when
+/// copyable; other unrestricted locals retain their reusable statement owner.
+pub(in crate::execution::terminal_unit) fn call_owns_result(
+    producer: &CheckedUnitEffectOperationPlan,
+) -> bool {
+    // Custody belongs to the produced value, not its source idiom. An
+    // extracted old referent owns the same affine obligation as a call or
+    // constructor result. Unrestricted inline operands alone retain their
+    // consuming-call establishment rather than a reusable local binding.
+    producer
+        .structural_result_binding()
+        .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
+        || matches!(
+            producer,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source: Some(
+                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                ),
+                ..
+            }
+        )
+}
+
+/// An available structural binding, independently of whether its producer
+/// carries disposal debt. An actual automatic return discard retires it.
+pub(in crate::execution::terminal_unit) fn retained_structural_result(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
+    if operation
+        .discardable_structural_result()
+        .is_some_and(|(_, discard)| discard)
+    {
+        return None;
+    }
+    operation.structural_result_binding()
+}
+
+/// An operand-owned construction retained beside the call that consumes it:
+/// `operand_source` names the consuming call's coordinate and formal
+/// position, so its statement is the call's — any local declared on that
+/// statement is a sibling, never this construction's binding. Such rows must
+/// not stand in for a local's unique producer.
+pub(in crate::execution::terminal_unit) fn operand_owned_construction(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> bool {
+    matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            operand_source: Some(_),
+            ..
+        }
+    )
 }
