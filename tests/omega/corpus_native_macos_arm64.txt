@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "1", "load1_end": 2.57, "load1_start": 2.62, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 1.98, "load1_start": 1.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -910,6 +910,7 @@ pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5
 pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+wt
 pass/float/nearest_even_binary_arithmetic_exit built 7862ms exit:70 @48008365d839
 pass/float/nested_float_operator_applications_exit built 15621ms exit:70 @48008365d839
+pass/float/runtime_exact_format_narrowing_exit built 4533ms exit:0 @4ea513cebecf+wt
 pass/float/runtime_finite_record_invariant_window_exit built 6015ms exit:0 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit built 9271ms exit:0 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit built 11752ms exit:0 @9beb2be72f2d+wt

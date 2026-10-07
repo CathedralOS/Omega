@@ -28,6 +28,9 @@ pub(crate) fn validate_cast_types(
     if cast.form.is_recast() {
         return;
     }
+    if let Some(state) = state {
+        super::validate_exact_float_format_cast(program, machine, state, cast, diagnostics);
+    }
     crate::value_custody::type_references::validate_indexed_qualification_arguments(
         program,
         machine,

@@ -1,0 +1,12 @@
+use omega::language::core::float_operations;
+
+machine lossy(value: f64[0.1..=0.1]) -> f32 { value as f32 }
+machine lossy_literal() -> f32 { 0.1f64 as f32 }
+machine unknown(value: f64) -> f32 { value as f32 }
+machine finite_is_not_exact(value: f64 in Finite) -> f32 { value as f32 }
+machine exact_ends_are_not_enough(value: f64[1.0..=2.0]) -> f32 { value as f32 }
+machine large() -> f64 in Finite { 1.0e100 }
+machine overflow() -> f32 { large() as f32 }
+machine receiving_type_is_not_proof(value: f64) -> f32[3.75..=3.75] {
+    value as f32[3.75..=3.75]
+}

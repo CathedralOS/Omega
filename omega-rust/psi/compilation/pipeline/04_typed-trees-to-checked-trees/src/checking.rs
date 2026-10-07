@@ -341,10 +341,11 @@ fn check_program(
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
     validation::resolve_named_result_overloads(&mut program)?;
-    // A float-to-integer policy cast selects its destination-owned conversion
-    // overload by the cast's own result qualification. Bind it after the
-    // named rebinding above, which would otherwise reselect the unqualified
-    // overload for a call whose context expects no result domain.
+    // Float casts select their destination-owned conversion by the cast's
+    // result qualification. Format-changing Exact casts discharge unchanged
+    // denotation here, before rewriting could erase that stronger obligation.
+    // Bind after named rebinding above, which would otherwise reselect the
+    // unqualified overload for a call whose context expects no result domain.
     validation::bind_float_conversion_casts(&mut program)?;
     // A spelled use that selects a token-bearing machine is supplied by that
     // declaration's own body: bind it to an ordinary call now, after every

@@ -3139,10 +3139,7 @@ deletions, which the commit lists.
   - Carry decisions through generated selectors and remaining
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
     casts still need exact source-decision transport. Join the exact checked
-    occurrence rather than performing another syntax walk. Exact float narrowing
-    still needs unchanged-denotation proof at source checking: a helper returning
-    finite `1.0e100` currently permits `sample() as f32` into a `Finite` receiver.
-    Named rounded conversions do not authorize that Exact coercion.
+    occurrence rather than performing another syntax walk.
   - Cover representation geometry, capacities
     and remaining bounded stores outside bounded-integer field replacements
     and interval/finite-refined element-view writes, including generated indexed
@@ -3213,6 +3210,10 @@ deletions, which the commit lists.
   adapter for `F32::from_f64` (native/checked execution already works).
   `float/format_conversion_{requires_result_proof,exclusive_upper,lookalike}`
   must reject overflow, unknown NaN, rounded excluded ends and spelling lookalikes.
+  `float/runtime_exact_format_narrowing_exit` (native/checked 0) constrains
+  declaration-backed unchanged-denotation proofs and retained IEEE endpoints;
+  `float/exact_format_conversion_requires_denotation` must reject lossy literals,
+  unknown or finite-only operands, non-singleton windows and receiving-type premises.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

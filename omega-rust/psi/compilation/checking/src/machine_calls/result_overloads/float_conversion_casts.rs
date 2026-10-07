@@ -1,7 +1,8 @@
 //! Bind numeric casts involving floats to their selected conversion requirements.
 //!
-//! Exact widening casts use a destination conversion only when every source
-//! value is exactly representable. Named conversions may round, but `as`
+//! Exact format casts discharge unchanged denotation before this pass replaces
+//! the authored cast by a destination conversion. Integer-to-float widening
+//! uses whole-carrier representability. Named conversions may round, but `as`
 //! cannot silently do so. Same-format qualification remains a cast; it is
 //! not an invitation to call a similarly named operator. All three conversion
 //! directions share selection and source custody with explicit named calls.
@@ -66,12 +67,18 @@ struct ConversionCastBinding {
     requirement_member: Identifier,
 }
 
-/// Rewrite exact float widenings and float-to-integer casts whose
+/// Rewrite proven exact format casts and float-to-integer casts whose
 /// destination-owned conversion overload is visible into a call of that
 /// overload. Returns the number of casts bound.
 pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
-    let bindings = collect_conversion_cast_bindings(program);
     let mut diagnostics = Vec::new();
+    let bindings = collect_conversion_cast_bindings(program, &mut diagnostics);
+    // Never erase an unproved Exact cast and then validate only the weaker
+    // rounding conversion's call conditions. No expression is mutated before
+    // every reached authored format coercion has discharged its obligation.
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     for binding in &bindings {
         let source_span = program.expression_table.source_span(binding.cast);
         let occurrence = match program.record_resolved_authored_declaration_selection_once(
@@ -125,7 +132,10 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
     }
 }
 
-fn collect_conversion_cast_bindings(program: &TypedTrees) -> Vec<ConversionCastBinding> {
+fn collect_conversion_cast_bindings(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<ConversionCastBinding> {
     let mut bindings = Vec::new();
     let mut visited = Vec::new();
     for machine in program.machines() {
@@ -141,6 +151,7 @@ fn collect_conversion_cast_bindings(program: &TypedTrees) -> Vec<ConversionCastB
                         root,
                         &mut visited,
                         &mut bindings,
+                        diagnostics,
                     );
                 }
             }
@@ -156,6 +167,7 @@ fn collect_expression_bindings(
     expression: ExpressionHandle,
     visited: &mut Vec<bool>,
     bindings: &mut Vec<ConversionCastBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
         return;
@@ -171,6 +183,13 @@ fn collect_expression_bindings(
     }
     let node = program.expression_table.expression(expression);
     if let ExpressionNode::Cast(cast) = node
+        && crate::value_custody::expression_types::validate_exact_float_format_cast(
+            program,
+            machine,
+            state,
+            cast,
+            diagnostics,
+        )
         && let Some((requirement, requirement_member)) =
             selected_conversion(program, machine, state, expression, cast)
     {
@@ -182,7 +201,15 @@ fn collect_expression_bindings(
         });
     }
     crate::expression_traversal::children(program, node, |child| {
-        collect_expression_bindings(program, machine, state, child, visited, bindings)
+        collect_expression_bindings(
+            program,
+            machine,
+            state,
+            child,
+            visited,
+            bindings,
+            diagnostics,
+        )
     });
 }
 
@@ -218,7 +245,9 @@ fn selected_conversion(
     let source_is_float = matches!(source, PrimitiveType::F32 | PrimitiveType::F64);
     let destination_is_float = matches!(destination, PrimitiveType::F32 | PrimitiveType::F64);
     let supported = if destination_is_float {
-        cast.domain == ArithmeticDomain::Exact && exact_float_widening(source, destination)
+        cast.domain == ArithmeticDomain::Exact
+            && ((source_is_float && source != destination)
+                || integer_to_float_widening(source, destination))
     } else {
         source_is_float
             && matches!(
@@ -269,22 +298,28 @@ fn selected_conversion(
     if selected.next().is_some() {
         return None;
     }
+    // The destination/source names select a family, not its semantics. A
+    // format coercion can use only the selected requirement whose sealed
+    // guarantee actually states the IEEE format conversion just proved exact.
+    if source_is_float
+        && destination_is_float
+        && crate::float_format_conversion_contract(program, operator) != Some((source, destination))
+    {
+        return None;
+    }
     Some((operator.symbol, Identifier::generated(requirement_member)))
 }
 
 /// Whole-carrier representability is enough for these coercions. Other
 /// conversions need a value-specific proof or an explicitly named rounding
 /// operation; a total library conversion alone does not authorize an `as`.
-fn exact_float_widening(source: PrimitiveType, destination: PrimitiveType) -> bool {
+fn integer_to_float_widening(source: PrimitiveType, destination: PrimitiveType) -> bool {
     matches!(
         (source, destination),
         (
             PrimitiveType::I8 | PrimitiveType::I16 | PrimitiveType::U8 | PrimitiveType::U16,
             PrimitiveType::F32 | PrimitiveType::F64
-        ) | (
-            PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32,
-            PrimitiveType::F64
-        )
+        ) | (PrimitiveType::I32 | PrimitiveType::U32, PrimitiveType::F64)
     )
 }
 
