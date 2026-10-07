@@ -19,11 +19,13 @@ pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
 mod crash_calls;
 mod crash_entry_values;
+mod expression_children;
 pub(crate) use crash_entry_values::{
     entry_boolean_predicate, entry_parameter_place_before_statement,
 };
 mod crash_plan_facts;
 mod dynamic_conformance;
+pub(crate) use expression_children::push_expression_children;
 pub(crate) mod field_domain;
 pub(crate) mod index_compatibility;
 mod integer_writes;

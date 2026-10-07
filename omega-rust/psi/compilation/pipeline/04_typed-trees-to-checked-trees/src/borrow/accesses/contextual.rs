@@ -3,7 +3,6 @@ use crate::flow::{
 };
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 pub(super) fn contextual_effective_member_symbol(
@@ -113,23 +112,5 @@ pub(super) fn contextual_name_root_symbol(
 
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let name = program.expression_table.display_name(expression);
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == name)
-    {
-        return Some(parameter.symbol);
-    }
-
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local_data) if local_data.name.as_str() == name => {
-                Some(local_data.symbol)
-            }
-            _ => None,
-        })
+    crate::lookup::state_scoped_name_symbol(program, state, &name, statement_index)
 }

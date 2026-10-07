@@ -225,3 +225,35 @@ pub(crate) fn declared_data_type<'a>(
         _ => None,
     }
 }
+
+/// Parameter or earlier local a single name resolves to inside a state's
+/// scope — the scope-roster half of name-path root resolution after direct
+/// path symbols are exhausted.
+pub(crate) fn state_scoped_name_symbol(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    name: &str,
+    statement_index: usize,
+) -> Option<SymbolHandle> {
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name)
+    {
+        return Some(parameter.symbol);
+    }
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local_data)
+                if local_data.name.as_str() == name =>
+            {
+                Some(local_data.symbol)
+            }
+            _ => None,
+        })
+}

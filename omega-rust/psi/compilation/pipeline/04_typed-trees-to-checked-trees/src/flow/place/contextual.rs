@@ -5,7 +5,6 @@ use crate::flow::index_place_segment;
 use crate::flow::push_field_place_segments;
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 pub(crate) fn contextual_canonical_place_from_expression(
@@ -131,25 +130,7 @@ fn resolve_contextual_name_path_root(
         return Some(symbol);
     }
 
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == name)
-    {
-        return Some(parameter.symbol);
-    }
-
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local_data) if local_data.name.as_str() == name => {
-                Some(local_data.symbol)
-            }
-            _ => None,
-        })
+    crate::lookup::state_scoped_name_symbol(program, state, &name, statement_index)
 }
 
 /// Resolve the demanded member on the place walk's leaf. `case_variant`
