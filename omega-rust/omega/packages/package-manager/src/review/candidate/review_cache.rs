@@ -49,8 +49,9 @@ pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
-    AcceptedSemanticBinding, ConsumedSourceUnit, IndependentComponentDescription,
-    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+    AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
+    IndependentComponentDescription, PackageGeneratedSourceBundle,
+    PackageSourceConsumptionCommitment,
 };
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
@@ -68,25 +69,6 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
-
-/// Capacity contract for one cache directory. A record beyond the byte
-/// ceiling declines the store, and a directory holding `max_records` records
-/// evicts its oldest before storing — the compile still returns its fresh
-/// review either way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CompiledReviewCacheLimits {
-    pub max_records: usize,
-    pub max_record_bytes: u64,
-}
-
-impl Default for CompiledReviewCacheLimits {
-    fn default() -> Self {
-        Self {
-            max_records: DEFAULT_MAX_RECORDS,
-            max_record_bytes: DEFAULT_MAX_RECORD_BYTES,
-        }
-    }
-}
 
 /// The substitution payload replacing a persisted occurrence's
 /// `CheckedCompilation`: the facts needed by carried dependency occurrences.
@@ -180,7 +162,7 @@ impl CachedCompiledReview {
 /// accumulated. Losing a record costs one fresh compile, never a verdict.
 pub(crate) struct CompiledReviewCache {
     directory: PathBuf,
-    limits: CompiledReviewCacheLimits,
+    limits: CheckedSourceCacheLimits,
 }
 
 impl CompiledReviewCache {
@@ -190,7 +172,10 @@ impl CompiledReviewCache {
         let metadata = std::fs::metadata(directory).ok()?;
         metadata.is_dir().then_some(Self {
             directory: directory.to_path_buf(),
-            limits: CompiledReviewCacheLimits::default(),
+            limits: CheckedSourceCacheLimits {
+                max_records: DEFAULT_MAX_RECORDS,
+                max_record_bytes: DEFAULT_MAX_RECORD_BYTES,
+            },
         })
     }
 
@@ -343,7 +328,7 @@ pub(crate) fn record_compiled_review(
 
 #[cfg(test)]
 mod tests {
-    use super::{CompiledReviewCache, CompiledReviewCacheLimits};
+    use super::{CheckedSourceCacheLimits, CompiledReviewCache};
     use std::time::{Duration, SystemTime};
 
     #[test]
@@ -370,7 +355,7 @@ mod tests {
         written("staging.tmp", 50);
         let cache = CompiledReviewCache {
             directory: directory.clone(),
-            limits: CompiledReviewCacheLimits {
+            limits: CheckedSourceCacheLimits {
                 max_records: 2,
                 max_record_bytes: 1024,
             },
