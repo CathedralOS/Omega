@@ -85,16 +85,23 @@ impl SelectedOperand {
 /// selected plan/`selected_call` routes that own it. The operand's own
 /// carrier starts the conversion fold, mirroring the callee return type in
 /// `selected_call`.
-pub(super) fn selected_operand(
-    program: &typed_trees::TypedTrees,
-    exact_casts: &[validation::ExactIntegerCastFact],
-    state: symbols::SymbolHandle,
-    statement_index: usize,
+
+/// Peel the transparent-cast prefix of `source`: non-recast, non-domain casts
+/// accumulate until the first non-cast expression, which is returned with the
+/// accumulated chain.
+fn peel_transparent_casts<'a>(
+    program: &'a typed_trees::TypedTrees,
     source: ExpressionHandle,
-) -> Option<SelectedOperand> {
+) -> Option<(
+    ExpressionHandle,
+    Vec<(
+        ExpressionHandle,
+        &'a typed_trees::expression::TableCastExpression,
+    )>,
+)> {
     let mut casts = Vec::new();
     let mut expression = source;
-    let operand = loop {
+    loop {
         if !program.expression_table.expression_is_valid(expression) {
             return None;
         }
@@ -105,14 +112,56 @@ pub(super) fn selected_operand(
                 casts.push((expression, cast));
                 expression = cast.value;
             }
-            ExpressionNode::Call(_) => return None,
-            _ => break expression,
+            _ => return Some((expression, casts)),
         }
-    };
-    if casts.is_empty() {
+    }
+}
+
+/// Classify every cast in a peeled chain, advancing the running carrier
+/// through each conversion's target.
+fn classify_cast_chain(
+    program: &typed_trees::TypedTrees,
+    casts: &[(
+        ExpressionHandle,
+        &typed_trees::expression::TableCastExpression,
+    )],
+    mut source_type: PrimitiveType,
+    exact_casts: &[validation::ExactIntegerCastFact],
+) -> Option<Vec<SelectedConversion>> {
+    crate::values::bounds::primitive_range(source_type)?;
+    let mut conversions = Vec::with_capacity(casts.len());
+    for (cast_expression, cast) in casts.iter().rev() {
+        let target_type = program.primitive_type_reference(cast.target_type)?;
+        let conversion = classify(
+            *cast_expression,
+            cast,
+            source_type,
+            target_type,
+            exact_casts,
+        )?;
+        source_type = conversion.target;
+        conversions.push(conversion);
+    }
+    Some(conversions)
+}
+
+pub(super) fn selected_operand(
+    program: &typed_trees::TypedTrees,
+    exact_casts: &[validation::ExactIntegerCastFact],
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    source: ExpressionHandle,
+) -> Option<SelectedOperand> {
+    let (operand, casts) = peel_transparent_casts(program, source)?;
+    if casts.is_empty()
+        || matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Call(_)
+        )
+    {
         return None;
     }
-    let mut source_type = match program.expression_table.expression(operand) {
+    let source_type = match program.expression_table.expression(operand) {
         ExpressionNode::Integer(literal) => match literal.landing()?.landed_type {
             numerics::literals::LandedIntegerType::I8 => PrimitiveType::I8,
             numerics::literals::LandedIntegerType::I16 => PrimitiveType::I16,
@@ -131,20 +180,7 @@ pub(super) fn selected_operand(
             operand,
         )?)?,
     };
-    crate::values::bounds::primitive_range(source_type)?;
-    let mut conversions = Vec::with_capacity(casts.len());
-    for (cast_expression, cast) in casts.iter().rev() {
-        let target_type = program.primitive_type_reference(cast.target_type)?;
-        let conversion = classify(
-            *cast_expression,
-            cast,
-            source_type,
-            target_type,
-            exact_casts,
-        )?;
-        source_type = conversion.target;
-        conversions.push(conversion);
-    }
+    let conversions = classify_cast_chain(program, &casts, source_type, exact_casts)?;
     Some(SelectedOperand {
         operand,
         conversions,
@@ -162,24 +198,11 @@ pub(super) fn selected_call<'a>(
     exact_casts: &[validation::ExactIntegerCastFact],
     source: ExpressionHandle,
 ) -> Option<SelectedCall<'a>> {
-    let mut casts = Vec::new();
-    let mut expression = source;
-    let call = loop {
-        if !program.expression_table.expression_is_valid(expression) {
-            return None;
-        }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Cast(cast)
-                if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
-            {
-                casts.push((expression, cast));
-                expression = cast.value;
-            }
-            ExpressionNode::Call(call) => break (expression, call),
-            _ => return None,
-        }
+    let (expression, casts) = peel_transparent_casts(program, source)?;
+    let call = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => call,
+        _ => return None,
     };
-    let (expression, call) = call;
     if casts.is_empty() {
         return Some(SelectedCall {
             call,
@@ -188,21 +211,8 @@ pub(super) fn selected_call<'a>(
         });
     }
     let callee = crate::semantic::calls::find_state(program, call.target_symbol)?;
-    let mut source_type = program.primitive_type_reference(callee.return_type)?;
-    crate::values::bounds::primitive_range(source_type)?;
-    let mut conversions = Vec::with_capacity(casts.len());
-    for (cast_expression, cast) in casts.iter().rev() {
-        let target_type = program.primitive_type_reference(cast.target_type)?;
-        let conversion = classify(
-            *cast_expression,
-            cast,
-            source_type,
-            target_type,
-            exact_casts,
-        )?;
-        source_type = conversion.target;
-        conversions.push(conversion);
-    }
+    let source_type = program.primitive_type_reference(callee.return_type)?;
+    let conversions = classify_cast_chain(program, &casts, source_type, exact_casts)?;
     Some(SelectedCall {
         call,
         expression,
