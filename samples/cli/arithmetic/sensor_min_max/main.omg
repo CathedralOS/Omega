@@ -94,7 +94,9 @@ machine Main::main(main: &mut Main) reaches Console {
         main.banded = clamp(main.hi, 0.0, 25.0);
         // Sum both so the exit reflects the min/max fold AND the float clamp.
         main.total = main.range + main.banded;
-        main.result = (main.total as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
+        // A named saturating conversion truncates the float, then the policy erases.
+        let converted: i32 in Saturating = I32::from_f64(main.total);
+        main.result = converted as i32;
 
         main.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
         main.console.write_line("[press Enter to close]");

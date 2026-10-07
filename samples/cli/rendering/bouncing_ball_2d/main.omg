@@ -150,10 +150,12 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> recompute(main) }
     }
     state recompute(main: &mut Main) {
-        // Float->int casts truncate; Wrapping declares the (physically clamped,
-        // but not float-provable) conversion honestly.
-        main.ball_x = (main.bx as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
-        main.ball_y = (main.by as i32 in Saturating) as i32;
+        // Named saturating conversions truncate the float positions; the policy
+        // then erases.
+        let column: i32 in Saturating = I32::from_f64(main.bx);
+        let row: i32 in Saturating = I32::from_f64(main.by);
+        main.ball_x = column as i32;
+        main.ball_y = row as i32;
         main.clock.sleep(40);
         transition main.frame < 70 { true -> frame_bump(main) _ -> frame_loop(main) }
     }

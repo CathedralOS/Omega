@@ -849,6 +849,12 @@ defines the complete product bar.
     (`legalization/scalar_graph_input/structural_call.rs`) on the
     `advance_generation(&mut main.grid)` path. Removing that one call builds
     and exits 0. **STATIC-MACHINE-MIGRATION** records the glider shape.
+  - `arithmetic/vector_distance`: its named `I32::from_f64` saturating
+    conversion (the explicit form `as` no longer provides) stops in stage 05
+    at "scalar graph integer guard parameter type does not match": the
+    converted local's guard operand is `Local { position: 0 }` (i32) while
+    the scalar graph's slot 0 is an f64 and the local's slot is 4.
+    `pass/float/float_to_int_trapping_nan_traps` stops at the same check.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
