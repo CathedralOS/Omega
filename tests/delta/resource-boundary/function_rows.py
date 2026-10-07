@@ -1,7 +1,6 @@
 """Full authored function-row boundaries; no parser or injected compiler state."""
 
-import struct
-
+from outcome_row import outcome
 
 def fixtures():
     declarations = b"(data Flag (Off) (On))\n"
@@ -12,12 +11,6 @@ def fixtures():
     )
     assert len(declarations) + len(b"(def f00000 () ") == 38
     assert len(exact) + len(b"(def ") == 720928
-
-    def outcome(tag, code, coordinate, limit=0, requested=0):
-        return tag, struct.pack(
-            "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", tag, 1, 0, code,
-            coordinate, limit, requested,
-        )
 
     return (
         ("32768 distinct functions reach declaration resolution", exact,

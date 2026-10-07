@@ -1,7 +1,6 @@
 """Full authored active-environment boundaries and immutable scope restoration."""
 
-import struct
-
+from outcome_row import outcome
 
 def accepted_fixtures():
     # The three generated arithmetic bindings follow 65,534 authored parameters.
@@ -18,14 +17,6 @@ def accepted_fixtures():
          855253, "38b0bace9f2a6254be281611c11e641cd7263cc82adedcd40d1ae4fd1dd4f64c",
          payload, payload),
     )
-
-
-def outcome(tag, code, coordinate, limit=0, requested=0):
-    return tag, struct.pack(
-        "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", tag, 1, 0, code,
-        coordinate, limit, requested,
-    )
-
 
 def fixtures():
     parameters = tuple(

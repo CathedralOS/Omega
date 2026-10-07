@@ -1,14 +1,6 @@
 """Full authored type-row boundaries, including the two built-in type rows."""
 
-import struct
-
-
-def outcome(tag, code, coordinate, limit=0, requested=0):
-    return tag, struct.pack(
-        "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", tag, 1, 0, code,
-        coordinate, limit, requested,
-    )
-
+from outcome_row import outcome
 
 def fixtures():
     # Int and Bytes occupy two rows; these 65,534 nominal types fill the rest.

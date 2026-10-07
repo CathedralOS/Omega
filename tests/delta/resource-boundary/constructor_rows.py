@@ -1,14 +1,6 @@
 """Full authored constructor-row boundaries across one or several data owners."""
 
-import struct
-
-
-def outcome(tag, code, coordinate, limit=0, requested=0):
-    return tag, struct.pack(
-        "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", tag, 1, 0, code,
-        coordinate, limit, requested,
-    )
-
+from outcome_row import outcome
 
 def fixtures():
     # Fixed authored spellings, not a parser or an injected compiler table.
