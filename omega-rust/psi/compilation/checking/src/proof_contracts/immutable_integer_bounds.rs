@@ -4,7 +4,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementHandle, StatementNode, TableLocalData};
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// One whole-program resolution index behind the bound-leaf lookups in this
 /// module. Bound evidence re-resolves the same immutable locals and state
@@ -312,6 +312,33 @@ struct BoundSumTerms {
     offset: i64,
 }
 
+/// The type reference's primitive when it is an exact-domain integer
+/// primitive, else `None`.
+fn exact_integer_type_primitive(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let primitive = program
+        .type_reference_table
+        .primitive_type(type_reference)?;
+    if !matches!(
+        primitive,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) || program.arithmetic_domain_for_type_reference(type_reference)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some(primitive)
+}
+
 fn collect_bound_terms(
     program: &TypedTrees,
     lookup: &ImmutableBoundLookup<'_>,
@@ -434,24 +461,7 @@ fn bound_leaf_symbol(
             LocalLookup::Missing | LocalLookup::Invalid => return None,
         }
     };
-    let primitive = program
-        .type_reference_table
-        .primitive_type(type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
-        return None;
-    }
+    exact_integer_type_primitive(program, type_reference)?;
 
     match normalize_bound(program, lookup, base, &mut Vec::new())? {
         NormalizedBound::LocalValue(symbol) => Some(symbol),
@@ -500,24 +510,7 @@ pub fn mutable_integer_bound_storage_symbol(
     if !is_mutable || !symbol.is_valid() {
         return None;
     }
-    let primitive = program
-        .type_reference_table
-        .primitive_type(type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
-        return None;
-    }
+    exact_integer_type_primitive(program, type_reference)?;
     Some(symbol)
 }
 

@@ -13,6 +13,34 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+/// The `[low..=high]` premise pair `identity`'s declared integer bounds
+/// carry, when the type reference enforces a closed integer range.
+fn push_enforced_type_bound_premises(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    identity: &str,
+    premises: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+) {
+    if let Some((minimum, maximum)) =
+        crate::proof_contracts::arithmetic_domains::enforced_integer_type_bounds(
+            program,
+            type_reference,
+        )
+    {
+        let atom = Polynomial::atom(identity.to_owned());
+        premises.push((
+            BinaryOperator::LessOrEqual,
+            Polynomial::constant(BigInt::from_i64(minimum)),
+            atom.clone(),
+        ));
+        premises.push((
+            BinaryOperator::LessOrEqual,
+            atom,
+            Polynomial::constant(BigInt::from_i64(maximum)),
+        ));
+    }
+}
+
 fn binder<'program>(
     program: &TypedTrees,
     parameters: &'program [TypeParameter],
@@ -238,24 +266,7 @@ fn scope_engine<'program>(
             return;
         }
         let identity = format!("value:{symbol:?}");
-        if let Some((minimum, maximum)) =
-            crate::proof_contracts::arithmetic_domains::enforced_integer_type_bounds(
-                program,
-                type_reference,
-            )
-        {
-            let atom = Polynomial::atom(identity.clone());
-            premises.push((
-                BinaryOperator::LessOrEqual,
-                Polynomial::constant(BigInt::from_i64(minimum)),
-                atom.clone(),
-            ));
-            premises.push((
-                BinaryOperator::LessOrEqual,
-                atom,
-                Polynomial::constant(BigInt::from_i64(maximum)),
-            ));
-        }
+        push_enforced_type_bound_premises(program, type_reference, &identity, &mut premises);
         bindings.push(StrictArithmeticSymbolBinding {
             symbol,
             value: StrictArithmeticBindingValue::Atom {
@@ -288,24 +299,7 @@ fn scope_engine<'program>(
             && primitive.accepts_integer_literal()
         {
             let identity = format!("const:{:?}", parameter.symbol);
-            if let Some((minimum, maximum)) =
-                crate::proof_contracts::arithmetic_domains::enforced_integer_type_bounds(
-                    program,
-                    type_reference,
-                )
-            {
-                let atom = Polynomial::atom(identity.clone());
-                premises.push((
-                    BinaryOperator::LessOrEqual,
-                    Polynomial::constant(BigInt::from_i64(minimum)),
-                    atom.clone(),
-                ));
-                premises.push((
-                    BinaryOperator::LessOrEqual,
-                    atom,
-                    Polynomial::constant(BigInt::from_i64(maximum)),
-                ));
-            }
+            push_enforced_type_bound_premises(program, type_reference, &identity, &mut premises);
             bindings.push(StrictArithmeticSymbolBinding {
                 symbol: parameter.symbol,
                 value: StrictArithmeticBindingValue::Atom {
