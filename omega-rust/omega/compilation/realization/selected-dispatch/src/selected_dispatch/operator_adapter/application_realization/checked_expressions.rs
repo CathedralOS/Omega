@@ -10,13 +10,16 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub(super) fn derive(
+pub(super) fn derive<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
+    applications: impl IntoIterator<
+        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    >,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     let mut diagnostics = Vec::new();
-    for application in &checked.facts.operators.boundary_applications {
+    for application in applications {
         if !application.arguments.is_empty() {
             continue;
         }

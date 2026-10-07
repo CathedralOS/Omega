@@ -27,9 +27,18 @@ pub(crate) fn project_boundary_application_realizations(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<CheckedPackageBoundaryApplicationRealizationReview>, Vec<Diagnostic>> {
+    // Select the executable population before deriving physical relationships:
+    // an inactive generic demand must not require an active specialization plan.
+    let mut applications = Vec::new();
+    for application in &compilation.facts.operators.boundary_applications {
+        if application_is_selected(compilation, application.site)? {
+            applications.push(application);
+        }
+    }
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
         &compilation.custody.execution().selected_provider_plan_facts,
+        applications.iter().copied(),
     )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
 
@@ -97,9 +106,14 @@ pub(crate) fn project_boundary_application_realizations(
         stage_realization(&mut staged, row)?;
     }
 
-    project_specialized_checked_body_applications(compilation, package, &mut staged)?;
+    project_specialized_checked_body_applications(
+        compilation,
+        package,
+        &applications,
+        &mut staged,
+    )?;
 
-    compiler_intrinsics::project(compilation, package, &mut staged)?;
+    compiler_intrinsics::project(compilation, package, &applications, &mut staged)?;
 
     staged.sort_by(|left, right| application_key(&left.row).cmp(&application_key(&right.row)));
     Ok(staged
@@ -111,11 +125,13 @@ pub(crate) fn project_boundary_application_realizations(
 fn project_specialized_checked_body_applications(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
+    applications: &[&checked_trees::CheckedBoundaryOperatorApplicationDemand],
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
         compilation,
         &compilation.custody.execution().selected_provider_plan_facts,
+        applications.iter().copied(),
     )?;
     for realization in derived {
         let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
@@ -207,6 +223,52 @@ fn project_specialized_checked_body_applications(
         stage_realization(staged, row)?;
     }
     Ok(())
+}
+
+/// Closed realization rows describe the selected activation, not all checked
+/// bodies. Inactive members retain callable contracts and external-supply
+/// disclosure; they must neither demand nor borrow this activation's plan.
+fn application_is_selected(
+    compilation: &PackageReviewInput<'_>,
+    site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+) -> Result<bool, Vec<Diagnostic>> {
+    let origin = match site {
+        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { origin, .. }
+        | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
+            origin, ..
+        } => origin,
+        // No known machine origin means no proof of inactive scope: keep the
+        // ordinary exact application/plan checks, rather than omit the use.
+        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Statement(_) => return Ok(true),
+    };
+    let Some(machine) = origin.machine_symbol() else {
+        return Ok(true);
+    };
+    let selected = compilation
+        .authored_machine_target(machine)?
+        .is_none_or(|authored| {
+            compilation
+                .custody
+                .execution()
+                .selected_target_profile
+                .is_some_and(|selected| selected.target_name() == authored)
+        });
+    if !selected
+        && !compilation
+            .custody
+            .facts
+            .operators
+            .boundary_applications
+            .iter()
+            .any(|original| original.site == site)
+    {
+        // A supplied fact cannot invent an inactive caller origin to hide an
+        // active use. The exact expression/arm and origin were checked together.
+        return Err(vec![Diagnostic::error(
+            "inactive boundary application differs from checked occurrence custody",
+        )]);
+    }
+    Ok(selected)
 }
 
 fn project_exact_application(

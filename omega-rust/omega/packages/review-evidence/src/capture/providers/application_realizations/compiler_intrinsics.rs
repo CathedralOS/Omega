@@ -16,6 +16,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
+    applications: &[&checked_trees::CheckedBoundaryOperatorApplicationDemand],
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
@@ -27,7 +28,7 @@ pub(super) fn project(
         )]);
     }
 
-    for application in &compilation.facts.operators.boundary_applications {
+    for application in applications {
         if !application.arguments.is_empty() {
             continue;
         }

@@ -32,3 +32,9 @@ macos_arm64 machine macos_wait_binding() -> ForeignBinding<17, 5, 0> {
 pub reserved_target machine retained_marker() -> i32 {
     9
 }
+
+// The body is checked and retained, but a catalogued activation cannot make
+// a selected-plan claim about a boundary call in this inactive deployment.
+reserved_target machine retained_wait() {
+    Wait::poll(0, 0, 0);
+}

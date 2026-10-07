@@ -1756,11 +1756,6 @@ then independent claimed restoration slices -> final closure.
   Selected-reference backing retains its separate capability attribution.
   CLI comparison consumes the exact native report before publication; missing
   imports decline without reinterpreting trees or rerunning source/Build.
-  Package-backed acceptance also depends on **PSI-TARGET-FAMILIES**' exact
-  target-member external-policy projection: retained foreign external leaves
-  such as `LinuxClockPoll::poll` have no active realization edges under macOS
-  review. Preserve their authored conformance and binding disclosure rather
-  than suppressing the review failure or discarding retained members.
   Host crash-presentation comparison remains unavailable in the CLI, which
   compares numeric exit presentation only. A same-target native failure returns
   no retained intermediate

@@ -52,15 +52,24 @@ fn project_terminal_boundary_application_realizations(
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
+    // The artifact-bound occurrence roster, not every retained source demand,
+    // defines this settlement's physical work. Other target bodies remain in
+    // the canonical product without acquiring this deployment's selected plan.
+    let applications = checked_scope
+        .occurrences()
+        .iter()
+        .map(|occurrence| &checked_scope.applications()[occurrence.application_index()]);
     let nongeneric =
         selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
             settlement.checked,
             settlement.selected_provider_plans,
+            applications.clone(),
         )?;
     let specialized =
         selected_dispatch::derive_checked_specialized_operator_application_realizations(
             settlement.checked,
             settlement.selected_provider_plans,
+            applications,
         )?;
     let mut rows = Vec::with_capacity(demands.rows().len());
     for (demand, occurrence) in demands.rows().iter().zip(checked_scope.occurrences()) {

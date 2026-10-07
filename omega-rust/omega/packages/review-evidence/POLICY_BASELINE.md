@@ -126,6 +126,12 @@ D29 symbolic demands retain exact producer callable coordinates and direct
 type-binder mappings. Closed applications retain their exact operator and
 application, canonical selected-plan index, and authored realization or closed
 intrinsic meaning, not generated specialization state or execution commitments.
+Closed realization rows cover the selected activation only. An inactive
+target-member body's boundary calls remain checked semantic input, not claims
+about this activation's selected plans; its callable and external-supply
+disclosure remain complete. The use's exact machine origin determines this
+scope and must agree with immutable source custody. Unknown origin does not
+justify omission.
 One bounded envelope owns the complete baseline's resource accounting and
 checks package/target and structural associations without an old checkout.
 This inert baseline does not include source graph pins or historical decisions;

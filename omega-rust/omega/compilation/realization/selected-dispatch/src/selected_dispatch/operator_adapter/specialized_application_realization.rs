@@ -35,15 +35,19 @@ pub struct CheckedSpecializedOperatorApplicationRealization {
     pub realization_contract_commitment: checked_trees::MachineContractCommitment,
 }
 
-/// Independently rejoin every retained nonempty D29 demand to one exact
-/// selected specialized checked body.
-pub fn derive_checked_specialized_operator_application_realizations(
+/// Rejoin nonempty demands in the caller's executable population to one exact
+/// selected specialized checked body. All other checked demands remain in the
+/// program; retention alone does not request a physical realization.
+pub fn derive_checked_specialized_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    applications: impl IntoIterator<
+        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    >,
 ) -> Result<Vec<CheckedSpecializedOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     let mut diagnostics = Vec::new();
-    for application in &checked.facts.operators.boundary_applications {
+    for application in applications {
         if application.arguments.is_empty() {
             continue;
         }

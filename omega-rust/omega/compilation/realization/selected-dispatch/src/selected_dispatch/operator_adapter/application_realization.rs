@@ -52,12 +52,16 @@ pub struct CheckedNongenericOperatorApplicationRealization {
 /// contract. Generic applications remain in their specialization derivation.
 /// Once a selected call names a nongeneric checked adapter, absence,
 /// ambiguity, or substitution rejects the derivation.
-pub fn derive_checked_nongeneric_operator_application_realizations(
+pub fn derive_checked_nongeneric_operator_application_realizations<'application>(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    applications: impl IntoIterator<
+        Item = &'application checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    >,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
     let mut rows: Vec<CheckedNongenericOperatorApplicationRealization> = Vec::new();
-    for row in checked_expressions::derive(checked, selected_provider_plans.plans())? {
+    for row in checked_expressions::derive(checked, selected_provider_plans.plans(), applications)?
+    {
         match rows
             .iter()
             .find(|retained| retained.application_site == row.application_site)
