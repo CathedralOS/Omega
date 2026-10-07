@@ -14,7 +14,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use terminal_psi::{CrashCause, OperationKind, TrappingIntegerOperation};
 
 impl TerminalExecution {
@@ -38,9 +38,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_trapping_integer")
         };
-        let ScalarType::Integer(result_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let result_type = crate::scalar_operations::integer_scalar_type(operation)?;
         let binary = |execution: &Self, left: ValueId, right: ValueId| {
             let (left_type, left) = execution.trapping_integer_operand(left)?;
             let (right_type, right) = execution.trapping_integer_operand(right)?;

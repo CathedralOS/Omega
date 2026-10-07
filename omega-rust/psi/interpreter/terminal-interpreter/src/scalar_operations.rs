@@ -13,6 +13,8 @@ pub(crate) mod float_result_policy;
 pub(crate) mod integer;
 pub(crate) mod trapping;
 
+pub(crate) use integer::integer_scalar_type;
+
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};

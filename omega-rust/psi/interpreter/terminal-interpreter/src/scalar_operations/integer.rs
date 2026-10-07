@@ -10,7 +10,7 @@ use terminal_psi::{Operation, OperationKind};
 
 /// The integer scalar type the verified result declares, or malformed when it
 /// is not an integer.
-fn integer_scalar_type(
+pub(crate) fn integer_scalar_type(
     operation: &Operation,
 ) -> Result<semantic_vocabulary::IntegerType, TerminalInterpretError> {
     let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
@@ -143,9 +143,7 @@ impl TerminalExecution {
         let OperationKind::IntegerWiden { operand } = operation.kind else {
             unreachable!("dispatched execute_integer_widen")
         };
-        let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let target_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
             value,
@@ -173,9 +171,7 @@ impl TerminalExecution {
         let OperationKind::IntegerExactCast { operand, .. } = operation.kind else {
             unreachable!("dispatched execute_integer_exact_cast")
         };
-        let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let target_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
             value,
@@ -255,9 +251,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_wrapping_integer_shift_left")
         };
-        let ScalarType::Integer(value_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(malformed());
-        };
+        let value_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: actual_value_type,
             value,
