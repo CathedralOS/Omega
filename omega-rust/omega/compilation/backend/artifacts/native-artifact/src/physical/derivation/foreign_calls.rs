@@ -1136,20 +1136,6 @@ fn fixed_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::Va
     }
 }
 
-/// The byte span one selected instruction occupies in the placed fragment,
-/// rebased to absolute object `.text`, or none.
-fn fragment_instruction_span(
-    fragment: &machine_code::PlacedFunctionFragment,
-    instruction: selected_instructions::SelectedInstructionId,
-) -> Option<(u64, u64)> {
-    fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find(|span| span.instruction == instruction)
-        .map(|span| (span.section_offset, span.byte_count))
-}
-
 fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
     let ScalarType::Integer(integer) = scalar_type else {
         return None;

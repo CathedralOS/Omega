@@ -33,6 +33,6 @@ pub use errors::ObjectError;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
     derive_normalized_foreign_call_custody, foreign_result_operand_count,
-    scalar_observation_producer,
+    fragment_instruction_span, scalar_observation_producer, structural_result_capture,
 };
 pub(crate) use private_functions::validate_private_functions;

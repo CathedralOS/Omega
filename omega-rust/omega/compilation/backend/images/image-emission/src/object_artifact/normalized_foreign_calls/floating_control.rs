@@ -84,15 +84,17 @@ pub(super) fn derive(
             .checked_sub(frame.red_zone_resident_bytes)?,
     )
     .ok()?;
-    let (save_offset, save_byte_count) = super::instruction_span(fragment, save.id)?;
-    let (restore_offset, restore_byte_count) = super::instruction_span(fragment, restore.id)?;
-    let (call_offset, call_byte_count) = super::instruction_span(fragment, record.instruction)?;
+    let (save_offset, save_byte_count) = super::fragment_instruction_span(fragment, save.id)?;
+    let (restore_offset, restore_byte_count) =
+        super::fragment_instruction_span(fragment, restore.id)?;
+    let (call_offset, call_byte_count) =
+        super::fragment_instruction_span(fragment, record.instruction)?;
     // Every intervening instruction is an authenticated result transport copy.
     // Its placed bytes must cover the whole gap, without hiding other effects.
     let transported_end = block.instructions[call_position + 1..restore_position]
         .iter()
         .try_fold(call_offset.checked_add(call_byte_count)?, |end, copy| {
-            let (offset, count) = super::instruction_span(fragment, copy.id)?;
+            let (offset, count) = super::fragment_instruction_span(fragment, copy.id)?;
             (offset == end).then_some(())?;
             offset.checked_add(count)
         })?;

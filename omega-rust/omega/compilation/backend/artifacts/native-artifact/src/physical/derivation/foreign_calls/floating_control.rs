@@ -107,15 +107,18 @@ fn check(
         return None;
     }
     let matches_span = |instruction, offset, count| {
-        super::fragment_instruction_span(fragment, instruction).is_some_and(|(start, size)| {
-            usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
-        })
+        image_emission::fragment_instruction_span(fragment, instruction).is_some_and(
+            |(start, size)| {
+                usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
+            },
+        )
     };
-    let (call_start, call_size) = super::fragment_instruction_span(fragment, record.instruction)?;
+    let (call_start, call_size) =
+        image_emission::fragment_instruction_span(fragment, record.instruction)?;
     let transported_end = block.instructions[call_position + 1..restore_position]
         .iter()
         .try_fold(call_start.checked_add(call_size)?, |end, copy| {
-            let (offset, count) = super::fragment_instruction_span(fragment, copy.id)?;
+            let (offset, count) = image_emission::fragment_instruction_span(fragment, copy.id)?;
             (offset == end).then_some(())?;
             offset.checked_add(count)
         })?;

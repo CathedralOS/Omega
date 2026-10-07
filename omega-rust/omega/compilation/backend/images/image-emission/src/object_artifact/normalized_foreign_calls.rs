@@ -120,7 +120,7 @@ pub fn derive_normalized_foreign_call_custody(
                 usize::try_from(field.field_section_offset).map_err(|_| invalid())?
             } else {
                 usize::try_from(
-                    instruction_span(fragment, record.instruction)
+                    fragment_instruction_span(fragment, record.instruction)
                         .ok_or_else(invalid)?
                         .0,
                 )
@@ -313,7 +313,7 @@ fn caller_fragment(
 /// The byte span one selected instruction occupies in the placed fragment,
 /// rebased to absolute object `.text` like the call site's `text_offset`, or
 /// none.
-fn instruction_span(
+pub fn fragment_instruction_span(
     fragment: &machine_code::PlacedFunctionFragment,
     instruction: selected_instructions::SelectedInstructionId,
 ) -> Option<(u64, u64)> {
@@ -656,7 +656,7 @@ where
                     scalar_type: source.scalar_type(),
                     instruction: record.instruction,
                 },
-                instruction_span(fragment, record.instruction).ok_or_else(invalid)?,
+                fragment_instruction_span(fragment, record.instruction).ok_or_else(invalid)?,
             ),
             target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation,
@@ -739,7 +739,7 @@ where
 /// memory effects. Plain aggregates use their real place/slot, never a scalar
 /// home or a fabricated sum layout. Physical instruction replay has already
 /// checked these selected instructions against their placed bytes.
-fn structural_result_capture(
+pub fn structural_result_capture(
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     fragment: &machine_code::PlacedFunctionFragment,
@@ -880,8 +880,8 @@ fn structural_result_capture(
     {
         return None;
     }
-    let (call_offset, call_bytes) = instruction_span(fragment, instruction.id)?;
-    let (address_offset, address_bytes) = instruction_span(fragment, address.id)?;
+    let (call_offset, call_bytes) = fragment_instruction_span(fragment, instruction.id)?;
+    let (address_offset, address_bytes) = fragment_instruction_span(fragment, address.id)?;
     if address_bytes == 0 || address_offset < call_offset.checked_add(call_bytes)? {
         return None;
     }
@@ -907,7 +907,7 @@ fn structural_result_capture(
         let [output] = preparation.operands.as_slice() else {
             return None;
         };
-        let (prepared_offset, prepared_bytes) = instruction_span(fragment, prepared)?;
+        let (prepared_offset, prepared_bytes) = fragment_instruction_span(fragment, prepared)?;
         return (place == result.place
             && output.virtual_register == argument.virtual_register
             && preparation.kind == address.kind
@@ -954,7 +954,7 @@ fn structural_result_capture(
             {
                 return None;
             }
-            let (offset, width) = instruction_span(fragment, store.id)?;
+            let (offset, width) = fragment_instruction_span(fragment, store.id)?;
             if width == 0 || offset < previous_end {
                 return None;
             }
@@ -983,7 +983,7 @@ fn structural_result_capture(
         {
             return None;
         }
-        let (offset, width) = instruction_span(fragment, store.id)?;
+        let (offset, width) = fragment_instruction_span(fragment, store.id)?;
         if width == 0 || offset < previous_end {
             return None;
         }
@@ -1116,14 +1116,14 @@ fn foreign_scalar_result_custody(
     {
         return Err(invalid());
     }
-    let Some((offset, byte_count)) = instruction_span(fragment, normalization.id) else {
+    let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id) else {
         return Err(invalid());
     };
     let transported_end = block.instructions
         [transport.call_position..transport.normalization_position]
         .iter()
         .try_fold(None, |previous, step| {
-            let (start, count) = instruction_span(fragment, step.id)?;
+            let (start, count) = fragment_instruction_span(fragment, step.id)?;
             if previous.is_some_and(|end| end != start) {
                 return None;
             }
@@ -1255,7 +1255,7 @@ where
             if source_value != argument.source.source_value() {
                 return None;
             }
-            instruction_span(fragment, materialization)
+            fragment_instruction_span(fragment, materialization)
         }
         [
             ValueLocation::Stack {
@@ -1322,8 +1322,8 @@ where
             {
                 return None;
             }
-            let (address_offset, address_bytes) = instruction_span(fragment, address.id)?;
-            let (store_offset, store_bytes) = instruction_span(fragment, store.id)?;
+            let (address_offset, address_bytes) = fragment_instruction_span(fragment, address.id)?;
+            let (store_offset, store_bytes) = fragment_instruction_span(fragment, store.id)?;
             if store_offset != address_offset + address_bytes {
                 return None;
             }
