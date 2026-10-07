@@ -11,7 +11,7 @@ use crate::types::TypeConstraintNode;
 use arena::HandleSpan;
 use std::fmt;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NormalizedTypeIdentity(pub(crate) String);
 
 impl NormalizedTypeIdentity {

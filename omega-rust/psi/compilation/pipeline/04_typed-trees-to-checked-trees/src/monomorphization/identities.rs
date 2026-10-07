@@ -1,4 +1,6 @@
-//! Canonical template and application commitments.
+//! Canonical template and application commitments. Contract clauses use the
+//! shared declared-contract projection; type leaves are normalized by symbol
+//! before length framing. Diagnostic spelling never supplies binder identity.
 use super::{Diagnostic, Sha256, SymbolHandle, TypeParameterKind, TypedTrees};
 use crate::monomorphization::conformance_symbol_identity;
 use crate::monomorphization::normalized_machine_identity;
@@ -16,37 +18,8 @@ pub(super) fn canonical_template_contract_bytes(
 ) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
-    let binders: Vec<(String, String)> = parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let prefix = match parameter.kind {
-                TypeParameterKind::Type => "T",
-                TypeParameterKind::Const { .. } => "C",
-                TypeParameterKind::Value { .. } => "V",
-                TypeParameterKind::Machine { .. } => "M",
-                TypeParameterKind::Proposition { .. } => "P",
-            };
-            (
-                parameter.name.as_str().to_owned(),
-                format!("${prefix}{index}"),
-            )
-        })
-        .collect();
-    let type_binders: Vec<(SymbolHandle, String)> = parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            let prefix = match parameter.kind {
-                TypeParameterKind::Type => "T",
-                TypeParameterKind::Const { .. } => "C",
-                TypeParameterKind::Value { .. } => "V",
-                TypeParameterKind::Machine { .. } => "M",
-                TypeParameterKind::Proposition { .. } => "P",
-            };
-            (parameter.symbol, format!("${prefix}{index}"))
-        })
-        .collect();
+    let binders = type_parameter_binders(parameters, &[]);
+    let content_conservation = validation::content_conservation_plans(program);
     let mut bytes = Vec::new();
     bytes.push(u8::from(machine.structural_type_equations_pending));
     bytes.extend(machine.name.as_str().as_bytes());
@@ -71,14 +44,13 @@ pub(super) fn canonical_template_contract_bytes(
         encode_data_properties(parameter.bounds, &mut bytes);
         match &parameter.kind {
             TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference } => encode_normalized_text(
+            | TypeParameterKind::Value { type_reference } => encode_identity_text(
                 program
                     .type_identity(TypeIdentityRequest {
-                        binders: &type_binders,
+                        binders: &binders,
                         ..TypeIdentityRequest::ordinary(*type_reference)
                     })
                     .as_str(),
-                &binders,
                 &mut bytes,
             ),
             TypeParameterKind::Machine { contract } => match program
@@ -87,7 +59,13 @@ pub(super) fn canonical_template_contract_bytes(
             {
                 typed_trees::data::MachineParameterContractView::Structural(signature) => {
                     bytes.push(1);
-                    encode_state_signature(program, signature, &binders, &type_binders, &mut bytes);
+                    encode_state_signature(
+                        program,
+                        signature,
+                        &binders,
+                        &content_conservation,
+                        &mut bytes,
+                    );
                 }
                 typed_trees::data::MachineParameterContractView::Nominal {
                     trait_definition,
@@ -96,29 +74,35 @@ pub(super) fn canonical_template_contract_bytes(
                     bytes.push(2);
                     let identity = program
                         .trait_requirement_callable_identity_text(trait_definition, requirement);
-                    bytes.extend((identity.len() as u64).to_le_bytes());
-                    bytes.extend(identity.as_bytes());
+                    encode_identity_text(&identity, &mut bytes);
+                    let requirement_binders = type_parameter_binders(
+                        program.trait_type_parameters(trait_definition),
+                        &binders,
+                    );
                     encode_state_signature(
                         program,
                         requirement,
-                        &binders,
-                        &type_binders,
+                        &requirement_binders,
+                        &content_conservation,
                         &mut bytes,
                     );
                 }
             },
             TypeParameterKind::Proposition { contract } => {
                 bytes.extend((contract.parameters.len() as u32).to_le_bytes());
-                for parameter in program.state_parameters.span_or_empty(contract.parameters) {
+                let proposition_parameters =
+                    program.state_parameters.span_or_empty(contract.parameters);
+                let proposition_binders =
+                    formal_parameter_binders(proposition_parameters, &binders);
+                for parameter in proposition_parameters {
                     bytes.push(u8::from(parameter.is_mutable));
-                    encode_normalized_text(
+                    encode_identity_text(
                         program
                             .type_identity(TypeIdentityRequest {
-                                binders: &type_binders,
+                                binders: &proposition_binders,
                                 ..TypeIdentityRequest::ordinary(parameter.type_reference)
                             })
                             .as_str(),
-                        &binders,
                         &mut bytes,
                     );
                 }
@@ -133,14 +117,13 @@ pub(super) fn canonical_template_contract_bytes(
         encoded.extend(bound.trait_name.as_str().as_bytes());
         encoded.push(0);
         for argument in &bound.arguments {
-            encode_normalized_text(
+            encode_identity_text(
                 program
                     .type_identity(TypeIdentityRequest {
-                        binders: &type_binders,
+                        binders: &binders,
                         ..TypeIdentityRequest::ordinary(*argument)
                     })
                     .as_str(),
-                &binders,
                 &mut encoded,
             );
             encoded.push(0);
@@ -155,7 +138,7 @@ pub(super) fn canonical_template_contract_bytes(
     let mut state_shapes = Vec::new();
     for state in program.machine_states(machine) {
         let mut shape = Vec::new();
-        encode_state_shape(program, state, &binders, &type_binders, &mut shape);
+        encode_state_shape(program, state, &binders, &content_conservation, &mut shape);
         state_shapes.push(shape);
     }
     state_shapes.sort();
@@ -196,50 +179,25 @@ pub(super) fn canonical_template_contract_bytes(
     bytes.push(u8::from(machine.service_reach_is_installation_bound));
     bytes.push(u8::from(machine.suspends));
     bytes.push(u8::from(machine.blocks));
-    let mut contract_binders = binders.clone();
-    if let Some(state) = program.machine_states(machine).first() {
-        contract_binders.extend(
-            program
-                .state_parameters(state)
-                .iter()
-                .enumerate()
-                .map(|(index, parameter)| {
-                    (parameter.name.as_str().to_owned(), format!("$P{index}"))
-                }),
-        );
-    }
-    let contracts = encode_contract_set(
+    let contract_binders = program
+        .machine_states(machine)
+        .first()
+        .map(|state| formal_parameter_binders(program.state_parameters(state), &binders))
+        .unwrap_or_else(|| binders.clone());
+    let contracts = crate::facts::contract_structure::declared_contracts(
         program,
         program.machine_contracts(machine),
         &contract_binders,
+        &content_conservation,
+        true,
     );
-    for contract in contracts {
-        bytes.extend(contract);
-        bytes.push(0xfc);
-    }
-    match &machine.termination_plan.interface {
-        language_semantics::TerminationInterface::InternalDerived => bytes.push(0),
-        language_semantics::TerminationInterface::Published(
-            language_semantics::TerminationGuarantee::NoGuarantee,
-        ) => bytes.push(1),
-        language_semantics::TerminationInterface::Published(
-            language_semantics::TerminationGuarantee::Terminates { premises },
-        ) => {
-            bytes.push(2);
-            let parameter_symbols = program
-                .machine_states(machine)
-                .first()
-                .map(|state| {
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .map(|parameter| parameter.symbol)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            encode_progress_premises(premises, &parameter_symbols, &mut bytes);
-        }
-    }
+    bytes.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
+    let termination = crate::facts::contract_structure::declared_termination(
+        program,
+        &machine.termination_plan.interface,
+        &contract_binders,
+    );
+    bytes.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());
     bytes.extend(validation::static_machine_template_reach_contract_bytes(
         program,
         reach_inference,
@@ -260,7 +218,7 @@ pub(super) fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
 ) -> typed_trees::typed_trees::MachineTemplateCommitment {
     let mut strong = Sha256::new();
-    strong.update(b"omega.machine-template.v1\0");
+    strong.update(b"omega.machine-template.v2\0");
     strong.update(canonical_template_contract_bytes);
     typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finalize().into())
 }
@@ -493,24 +451,73 @@ pub(super) fn encode_data_properties(
     output.push(0);
 }
 
+/// Generic slots retain their kind and position across nested signatures.
+/// A retained outer symbol keeps its original slot rather than consuming a
+/// second position when a nested telescope carries that declaration again.
+fn type_parameter_binders(
+    parameters: &[typed_trees::data::TypeParameter],
+    enclosing_binders: &[(SymbolHandle, String)],
+) -> Vec<(SymbolHandle, String)> {
+    let mut binders = enclosing_binders.to_vec();
+    for parameter in parameters {
+        if binders
+            .iter()
+            .any(|(symbol, _)| *symbol == parameter.symbol)
+        {
+            continue;
+        }
+        let prefix = match parameter.kind {
+            TypeParameterKind::Type => "T",
+            TypeParameterKind::Const { .. } => "C",
+            TypeParameterKind::Value { .. } => "V",
+            TypeParameterKind::Machine { .. } => "M",
+            TypeParameterKind::Proposition { .. } => "P",
+        };
+        let binder_position = binders.len();
+        binders.push((parameter.symbol, format!("${prefix}{binder_position}")));
+    }
+    binders
+}
+
+/// Formal subjects occupy a distinct namespace from generic proposition slots.
+fn formal_parameter_binders(
+    parameters: &[typed_trees::signature::StateParameter],
+    enclosing_binders: &[(SymbolHandle, String)],
+) -> Vec<(SymbolHandle, String)> {
+    let mut binders = enclosing_binders.to_vec();
+    binders.extend(
+        parameters
+            .iter()
+            .enumerate()
+            .map(|(parameter_position, parameter)| {
+                (parameter.symbol, format!("$argument{parameter_position}"))
+            }),
+    );
+    binders
+}
+
 pub(super) fn encode_state_signature(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-    binders: &[(String, String)],
-    type_binders: &[(SymbolHandle, String)],
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[validation::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
 ) {
-    for parameter in program.state_signature_parameters(signature) {
-        encode_parameter(program, parameter, binders, type_binders, output);
+    let generic_binders =
+        type_parameter_binders(program.state_signature_type_parameters(signature), binders);
+    let parameters = program.state_signature_parameters(signature);
+    let contract_binders = formal_parameter_binders(parameters, &generic_binders);
+    output.extend((parameters.len() as u64).to_le_bytes());
+    for parameter in parameters {
+        encode_parameter(program, parameter, &contract_binders, output);
     }
-    encode_normalized_text(
+    encode_identity_text(
         program
             .type_identity(TypeIdentityRequest {
-                binders: type_binders,
+                binders: &contract_binders,
                 ..TypeIdentityRequest::ordinary(signature.return_type)
             })
             .as_str(),
-        binders,
         output,
     );
     for service in program
@@ -527,310 +534,104 @@ pub(super) fn encode_state_signature(
     output.push(u8::from(signature.service_reach_is_installation_bound));
     output.push(u8::from(signature.suspends));
     output.push(u8::from(signature.blocks));
-    let mut contract_binders = binders.to_vec();
-    contract_binders.extend(
-        program
-            .state_signature_parameters(signature)
-            .iter()
-            .enumerate()
-            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
-    );
-    let contracts = encode_contract_set(
+    let contracts = crate::facts::contract_structure::declared_contracts(
         program,
         program.state_signature_contracts(signature),
         &contract_binders,
+        content_conservation,
+        true,
     );
-    for contract in contracts {
-        output.extend(contract);
-        output.push(0xfc);
-    }
-    match &signature.termination_guarantee {
-        language_semantics::TerminationGuarantee::NoGuarantee => output.push(0),
-        language_semantics::TerminationGuarantee::Terminates { premises } => {
-            output.push(1);
-            let parameter_symbols = program
-                .state_signature_parameters(signature)
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .collect::<Vec<_>>();
-            encode_progress_premises(premises, &parameter_symbols, output);
-        }
-    }
-}
-
-pub(super) fn encode_progress_premises(
-    premises: &[language_semantics::ProgressPremise],
-    parameter_symbols: &[symbols::SymbolHandle],
-    output: &mut Vec<u8>,
-) {
-    let mut encoded = premises
-        .iter()
-        .map(|premise| {
-            let mut bytes = Vec::new();
-            bytes.extend(premise.profile.0.to_le_bytes());
-            if let Some(index) = parameter_symbols
-                .iter()
-                .position(|symbol| *symbol == premise.subject.root)
-            {
-                bytes.push(0);
-                bytes.extend(index.to_le_bytes());
-            } else {
-                bytes.push(1);
-                bytes.extend(premise.subject.root.arena_index().to_le_bytes());
-            }
-            for projection in &premise.subject.projections {
-                bytes.extend(projection.arena_index().to_le_bytes());
-            }
-            bytes
-        })
-        .collect::<Vec<_>>();
-    encoded.sort();
-    for premise in encoded {
-        output.extend(premise);
-        output.push(0xfa);
-    }
+    output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
+    let termination = crate::facts::contract_structure::declared_termination(
+        program,
+        &language_semantics::TerminationInterface::Published(
+            signature.termination_guarantee.clone(),
+        ),
+        &contract_binders,
+    );
+    output.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());
 }
 
 pub(crate) fn canonical_state_signature_bytes(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<u8> {
+    let binders = program
+        .traits()
+        .iter()
+        .find(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|requirement| requirement.symbol == signature.symbol)
+        })
+        .map(|definition| type_parameter_binders(program.trait_type_parameters(definition), &[]))
+        .unwrap_or_default();
+    let content_conservation = validation::content_conservation_plans(program);
     let mut bytes = Vec::new();
-    encode_state_signature(program, signature, &[], &[], &mut bytes);
+    encode_state_signature(
+        program,
+        signature,
+        &binders,
+        &content_conservation,
+        &mut bytes,
+    );
     bytes
 }
 
 pub(super) fn encode_state_shape(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    binders: &[(String, String)],
-    type_binders: &[(SymbolHandle, String)],
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[validation::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
 ) {
-    for parameter in program.state_parameters(state) {
-        encode_parameter(program, parameter, binders, type_binders, output);
+    let parameters = program.state_parameters(state);
+    let contract_binders = formal_parameter_binders(parameters, binders);
+    output.extend((parameters.len() as u64).to_le_bytes());
+    for parameter in parameters {
+        encode_parameter(program, parameter, &contract_binders, output);
     }
-    encode_normalized_text(
+    encode_identity_text(
         program
             .type_identity(TypeIdentityRequest {
-                binders: type_binders,
+                binders: &contract_binders,
                 ..TypeIdentityRequest::ordinary(state.return_type)
             })
             .as_str(),
-        binders,
         output,
     );
-    let mut contract_binders = binders.to_vec();
-    contract_binders.extend(
-        program
-            .state_parameters(state)
-            .iter()
-            .enumerate()
-            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$P{index}"))),
+    let contracts = crate::facts::contract_structure::declared_contracts(
+        program,
+        program.state_contracts(state),
+        &contract_binders,
+        content_conservation,
+        true,
     );
-    let contracts = encode_contract_set(program, program.state_contracts(state), &contract_binders);
-    for contract in contracts {
-        output.extend(contract);
-        output.push(0xfc);
-    }
+    output.extend(checked_trees::contract_declarations_commitment(&contracts).as_bytes());
 }
 
 pub(super) fn encode_parameter(
     program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
-    binders: &[(String, String)],
-    type_binders: &[(SymbolHandle, String)],
+    binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
 ) {
     output.push(u8::from(parameter.is_mutable));
     output.push(u8::from(parameter.is_const));
-    encode_normalized_text(
+    output.push(match parameter.relevance {
+        language_core::BindingRelevance::Relevant => 0,
+        language_core::BindingRelevance::Erased => 1,
+    });
+    encode_identity_text(
         program
             .type_identity(TypeIdentityRequest {
-                binders: type_binders,
+                binders,
                 ..TypeIdentityRequest::ordinary(parameter.type_reference)
             })
             .as_str(),
-        binders,
         output,
     );
-}
-
-pub(super) fn encode_contract(
-    program: &dyn ::validation::CheckingInput,
-    contract: &typed_trees::signature::SignatureContract,
-    binders: &[(String, String)],
-    output: &mut Vec<u8>,
-) {
-    encode_contract_kind(&contract.kind, binders, output);
-    let mut facts: Vec<String> = program
-        .proof_facts
-        .span_or_empty(contract.facts)
-        .iter()
-        .map(|fact| contract_fact_text(program, fact))
-        .collect();
-    facts.sort();
-    for fact in facts {
-        encode_normalized_text(&fact, binders, output);
-    }
-}
-
-pub(super) fn encode_contract_kind(
-    kind: &typed_trees::signature::SignatureContractKind,
-    _binders: &[(String, String)],
-    output: &mut Vec<u8>,
-) {
-    output.push(match kind {
-        typed_trees::signature::SignatureContractKind::Requires => 1,
-        typed_trees::signature::SignatureContractKind::Ensures => 2,
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => 3,
-        typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
-    });
-    if let typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
-        result_data,
-        result_case,
-    } = kind
-    {
-        output.extend_from_slice(&result_data.arena_index().to_le_bytes());
-        output.extend_from_slice(&result_case.arena_index().to_le_bytes());
-    }
-    if let typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {
-        output.push(match cause {
-            typed_trees::signature::CrashCause::Trap => 1,
-            typed_trees::signature::CrashCause::Abort => 2,
-        });
-    }
-}
-
-pub(super) fn contract_fact_text(
-    program: &dyn ::validation::CheckingInput,
-    fact: &typed_trees::domain::ProofFact,
-) -> String {
-    match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => {
-            program.expression_table.display_name(*expression)
-        }
-        typed_trees::domain::ProofFact::Membership(membership) => format!(
-            "{} in {}{}",
-            program.expression_table.display_name(membership.value),
-            program
-                .domain_path_members(membership.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
-            if membership.domain_arguments.is_empty() {
-                String::new()
-            } else {
-                // Contract identity follows normalized argument contents, not
-                // source spellings or the program-local semantic interner ID.
-                format!(
-                    "<{}>",
-                    program
-                        .type_reference_table
-                        .type_reference_handles(membership.domain_arguments)
-                        .iter()
-                        .map(|argument| program.normalized_type_identity(*argument).to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )
-            }
-        ),
-        typed_trees::domain::ProofFact::Proposition(application) => format!(
-            "{}({})",
-            application.name.as_str(),
-            program
-                .expression_table
-                .expression_handles(application.arguments)
-                .iter()
-                .map(|argument| program.expression_table.display_name(*argument))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }
-}
-
-/// Template and specialization identities use the same crash-bucket algebra
-/// as public contract plans: route clauses merge by cause, routes form a set,
-/// and an unconditional route subsumes guarded alternatives.
-pub(super) fn encode_contract_set(
-    program: &dyn ::validation::CheckingInput,
-    contracts: &[typed_trees::signature::SignatureContract],
-    binders: &[(String, String)],
-) -> Vec<Vec<u8>> {
-    use std::collections::BTreeMap;
-
-    #[derive(Default)]
-    struct CrashBucket {
-        unconditional: bool,
-        routes: Vec<Vec<u8>>,
-    }
-
-    let mut encoded = Vec::new();
-    let mut crash_buckets = BTreeMap::<Vec<u8>, CrashBucket>::new();
-    for contract in contracts {
-        if matches!(
-            contract.kind,
-            typed_trees::signature::SignatureContractKind::Crashes { .. }
-        ) {
-            let mut header = Vec::new();
-            encode_contract_kind(&contract.kind, binders, &mut header);
-            let bucket = crash_buckets.entry(header).or_default();
-            let facts = program.proof_facts.span_or_empty(contract.facts);
-            if facts.is_empty()
-                || facts.iter().any(|fact| {
-                    matches!(
-                        fact,
-                        typed_trees::domain::ProofFact::Expression(expression)
-                            if matches!(
-                                program.expression_table.expression(*expression),
-                                typed_trees::expression::ExpressionNode::Boolean(true)
-                            )
-                    )
-                })
-            {
-                bucket.unconditional = true;
-            } else {
-                for fact in facts {
-                    let mut route = Vec::new();
-                    encode_normalized_text(&contract_fact_text(program, fact), binders, &mut route);
-                    bucket.routes.push(route);
-                }
-            }
-            continue;
-        }
-
-        let mut contract_bytes = Vec::new();
-        encode_contract(program, contract, binders, &mut contract_bytes);
-        encoded.push(contract_bytes);
-    }
-
-    for (header, mut bucket) in crash_buckets {
-        if bucket.unconditional {
-            let mut contract = header;
-            contract.push(0);
-            encoded.push(contract);
-            continue;
-        }
-        bucket.routes.sort();
-        bucket.routes.dedup();
-        for route in bucket.routes {
-            let mut contract = header.clone();
-            contract.push(1);
-            contract.extend(route);
-            encoded.push(contract);
-        }
-    }
-    encoded.sort();
-    encoded
-}
-
-pub(super) fn encode_normalized_text(
-    text: &str,
-    binders: &[(String, String)],
-    output: &mut Vec<u8>,
-) {
-    crate::facts::encode_type_spelling(text, binders, output)
 }
 
 pub(super) fn specialization_selection_report_fingerprint(

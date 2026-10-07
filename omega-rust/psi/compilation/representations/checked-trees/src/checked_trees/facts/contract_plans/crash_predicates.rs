@@ -453,9 +453,26 @@ struct CrashPredicateIdentityParts {
 }
 
 impl CrashPredicateIdentity {
-    pub fn from_canonical_bytes(bytes: Vec<u8>) -> Self {
+    pub fn from_declared_fact(fact: super::DeclaredContractFact) -> Self {
+        let mut identity =
+            super::contract_identity::ContractHasher::new(b"omega.declared-crash-fact.v1\0");
+        fact.hash(&mut identity);
+        let mut bytes = vec![2]; // non-expression declared fact namespace
+        bytes.extend(identity.complete().commitment.as_bytes());
         Self(Arc::new(CrashPredicateIdentityParts {
             canonical_bytes: bytes,
+            expression: None,
+            scalar_expression: None,
+        }))
+    }
+
+    /// Internal operand joins are distinct from complete published predicates.
+    /// Reuse the retained expression's codec; callers do not rebuild its bytes.
+    pub fn from_operand(expression: CrashPredicateExpression) -> Self {
+        let mut canonical_bytes = vec![0x6f];
+        expression.write_canonical(&mut canonical_bytes);
+        Self(Arc::new(CrashPredicateIdentityParts {
+            canonical_bytes,
             expression: None,
             scalar_expression: None,
         }))

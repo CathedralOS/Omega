@@ -4,19 +4,18 @@
 //! blocking, suspension and invocation facts, `dynamic_conformance.rs`
 //! dynamic conformance facts, `contract_plan_facts.rs` contract plans and
 //! mutation facts, `crash_plan_facts.rs` crash capsules, buckets and sites,
-//! `canonical_encoding.rs` canonical contract and expression encodings,
+//! `contract_structure.rs` normalized public declaration structure,
 //! `requirement_call_specializations.rs` the specializations generic calls
 //! derived at their static machine arguments, and `qualification_facts.rs`
 //! qualification and service reach facts.
 
 pub(crate) mod boolean_predicates;
-mod canonical_encoding;
-pub(crate) use canonical_encoding::encode_type_spelling;
 pub(crate) mod capabilities;
 mod carry;
 pub(crate) mod contextual_cleanup;
 pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
+pub(crate) mod contract_structure;
 mod crash_calls;
 mod crash_entry_values;
 mod expression_children;
@@ -38,7 +37,6 @@ mod qualification_facts;
 mod requirement_call_specializations;
 pub(crate) mod review_sources;
 
-pub(crate) use canonical_encoding::domain_is_vacuous;
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};
 pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_operand_identity,
@@ -46,6 +44,7 @@ pub(crate) use crash_plan_facts::{
     derive_authored_operator_crash_buckets, derive_authored_signature_crash_buckets,
 };
 pub(crate) use dynamic_conformance::normalized_dynamic_row_identities;
+pub(crate) use qualification_facts::domain_is_vacuous;
 
 /// Checker-side read of the shared crash entry-provenance law. Guard
 /// admission and call-actual substitution must agree on when a source read

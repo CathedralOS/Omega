@@ -2903,18 +2903,6 @@ of a check the same flow already performed, not the check itself.
   owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
   is unchanged.
 
-- **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
-  Checked contract identities are still built from hand-rolled byte strings:
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`
-  (`encode_contract_set_canonical`, `encode_type_spelling`) and the
-  `callable_shape` byte vectors in `facts/contract_plan_facts.rs` and
-  `facts/crash_plan_facts.rs` feed `checked_trees::contract_identity`, whose
-  commitments reach package policy rows as `realization_contract_commitment`.
-  Derive the identity from the checked contract structure and delete the byte
-  encoders. Acceptance: `canonical_encoding.rs` and every `callable_shape`
-  vector are gone; corpus `--filter packages` and `--filter contracts` are
-  unchanged.
-
 - **RED-WINDOWS-HOST.** (new-scope)
   Reproduce two `package-source` failures on Windows:
   `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`

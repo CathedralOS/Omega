@@ -69,7 +69,9 @@ pub use facts::{
     ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentProjectionFacts,
     CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface, CrashPlan,
     CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId,
-    CrashRouteGuard, CrashSiteLocation, DataCarryFact, DomainDependencyFact,
+    CrashRouteGuard, CrashSiteLocation, DataCarryFact, DeclaredCallableContract,
+    DeclaredContractClause, DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
+    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, DynamicConformanceFacts, DynamicConformanceRowFact,
     DynamicConformanceRowSource, DynamicSelectionFact, IndexCompatibilityDischarge,
     IndexCompatibilityFact, IndexCompatibilityFacts, MachineActivationCarryFact,
@@ -84,8 +86,8 @@ pub use facts::{
     StateReferenceCustodyRow, StateServiceReachRows, StateWriteFramePlan,
     SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
     SuspensionCrossingValueOrigin, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
-    VacuousQualificationUse, canonical_suspension_crossing_id, contract_identity,
-    contract_report_fingerprint,
+    VacuousQualificationUse, canonical_suspension_crossing_id, contract_declarations_commitment,
+    contract_identity, declared_termination_commitment,
 };
 pub use flow::{
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,

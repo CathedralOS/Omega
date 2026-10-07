@@ -1,8 +1,8 @@
 //! Crash contract capsules, published crash plans, buckets and sites.
 
-use crate::facts::canonical_encoding::{
-    encode_contract_expression_canonical, encode_contract_fact_canonical,
-    encode_contract_set_canonical, encode_type_spelling,
+use crate::facts::contract_structure::{
+    callable_binders, declared_callable, declared_fact, declared_termination, generic_binders,
+    signature_generic_binders,
 };
 use crate::facts::crash_calls;
 
@@ -65,7 +65,7 @@ pub(crate) fn build_crash_contract_capsules(
                 contracts,
                 &parameter_names,
                 content_conservation,
-                Some(CrashContractOwner::Signature(signature)),
+                CrashContractOwner::Signature(signature),
                 Some(operators),
                 &[],
             );
@@ -94,45 +94,26 @@ pub(crate) fn build_crash_contract_capsules(
                     })
                     .collect::<Vec<_>>();
 
-            let generic_binders = program
-                .state_signature_type_parameters(signature)
-                .iter()
-                .enumerate()
-                .map(|(index, parameter)| {
-                    (parameter.name.as_str().to_owned(), format!("$G{index}"))
-                })
-                .collect::<Vec<_>>();
-            let mut callable_shape = vec![0xa0];
-            for parameter in parameters {
-                callable_shape.push(u8::from(parameter.is_mutable));
-                callable_shape.push(u8::from(parameter.is_const));
-                encode_type_spelling(
-                    &program.display_type_reference(parameter.type_reference),
-                    &generic_binders,
-                    &mut callable_shape,
-                );
-            }
-            callable_shape.push(0xaf);
-            encode_type_spelling(
-                &program.display_type_reference(signature.return_type),
-                &generic_binders,
-                &mut callable_shape,
-            );
-            for contract in encode_contract_set_canonical(
-                program,
-                contracts,
-                &parameter_names,
-                content_conservation,
-                &[0xae],
-                true,
-                false,
-            ) {
-                callable_shape.extend(contract);
-                callable_shape.push(0xad);
-            }
-            let canonical_facts = vec![callable_shape];
+            let generics = signature_generic_binders(program, signature);
+            let declaration = checked_trees::DeclaredContractStructure {
+                callables: vec![declared_callable(
+                    program,
+                    parameters,
+                    signature.return_type,
+                    contracts,
+                    &generics,
+                    content_conservation,
+                    true,
+                )],
+                clauses: Vec::new(),
+            };
             let termination = language_semantics::TerminationInterface::Published(
                 signature.termination_guarantee.clone(),
+            );
+            let termination = declared_termination(
+                program,
+                &termination,
+                &callable_binders(&generics, parameters),
             );
             let identity = checked_trees::contract_identity(
                 language_semantics::MachineSupplyMode::Requirement,
@@ -141,9 +122,9 @@ pub(crate) fn build_crash_contract_capsules(
                 &published_invocations,
                 language_semantics::SuspensionInterface::PublishedMaySuspend(signature.suspends),
                 language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
-                &crash,
+                crash.interface(),
                 &termination,
-                &canonical_facts,
+                &declaration,
             );
             checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
@@ -203,44 +184,19 @@ fn build_operator_crash_contract_capsule(
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> checked_trees::CrashContractCapsule {
     let parameters = program.operator_parameters(operator);
-    let parameter_names = parameters
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
-    let generic_binders = program
-        .operator_type_parameters(operator)
-        .iter()
-        .enumerate()
-        .map(|(position, parameter)| (parameter.name.as_str().to_owned(), format!("$G{position}")))
-        .collect::<Vec<_>>();
-    let mut callable_shape = vec![0xa0];
-    for parameter in parameters {
-        callable_shape.push(u8::from(parameter.is_mutable));
-        callable_shape.push(u8::from(parameter.is_const));
-        encode_type_spelling(
-            &program.display_type_reference(parameter.type_reference),
-            &generic_binders,
-            &mut callable_shape,
-        );
-    }
-    callable_shape.push(0xaf);
-    encode_type_spelling(
-        &program.display_type_reference(operator.return_type),
-        &generic_binders,
-        &mut callable_shape,
-    );
-    for contract in encode_contract_set_canonical(
-        program,
-        program.operator_contracts(operator),
-        &parameter_names,
-        content_conservation,
-        &[0xae],
-        true,
-        false,
-    ) {
-        callable_shape.extend(contract);
-        callable_shape.push(0xad);
-    }
+    let generics = generic_binders(program.operator_type_parameters(operator));
+    let declaration = checked_trees::DeclaredContractStructure {
+        callables: vec![declared_callable(
+            program,
+            parameters,
+            operator.return_type,
+            program.operator_contracts(operator),
+            &generics,
+            content_conservation,
+            true,
+        )],
+        clauses: Vec::new(),
+    };
     let published =
         derive_authored_operator_crash_buckets(program, operator, operators, content_conservation);
     let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
@@ -259,9 +215,9 @@ fn build_operator_crash_contract_capsule(
         &[],
         language_semantics::SuspensionInterface::PublishedMaySuspend(false),
         language_semantics::BlockingInterface::PublishedMayBlock(false),
-        &crash,
-        &language_semantics::TerminationInterface::Published(termination.clone()),
-        &[callable_shape],
+        crash.interface(),
+        &checked_trees::DeclaredTermination::NoGuarantee,
+        &declaration,
     );
     checked_trees::CrashContractCapsule::new_with_commitment(
         operator.symbol,
@@ -271,31 +227,6 @@ fn build_operator_crash_contract_capsule(
         published,
     )
     .with_operational_envelope(Vec::new(), Vec::new(), false, false, termination)
-}
-
-pub(crate) fn encode_signature_contract_kind(
-    kind: &typed_trees::signature::SignatureContractKind,
-    output: &mut Vec<u8>,
-) {
-    match kind {
-        typed_trees::signature::SignatureContractKind::Requires => output.push(1),
-        typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
-            result_data,
-            result_case,
-        } => {
-            output.push(3);
-            output.extend_from_slice(&result_data.arena_index().to_le_bytes());
-            output.extend_from_slice(&result_case.arena_index().to_le_bytes());
-        }
-        typed_trees::signature::SignatureContractKind::Crashes { cause } => {
-            output.push(4);
-            output.push(match cause {
-                typed_trees::signature::CrashCause::Trap => 1,
-                typed_trees::signature::CrashCause::Abort => 2,
-            });
-        }
-    }
 }
 
 pub(crate) fn build_published_crash_plan(
@@ -321,7 +252,7 @@ pub(crate) fn build_published_crash_plan(
         program.machine_contracts(machine),
         parameter_names,
         content_conservation,
-        Some(CrashContractOwner::Machine(machine)),
+        CrashContractOwner::Machine(machine),
         Some(operators),
         exact_integer_casts,
     );
@@ -471,7 +402,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
         program.machine_contracts(machine),
         &parameter_names,
         &conservation,
-        Some(CrashContractOwner::Machine(machine)),
+        CrashContractOwner::Machine(machine),
         None,
         &[],
     )
@@ -492,7 +423,7 @@ pub(crate) fn derive_authored_signature_crash_buckets(
         program.state_signature_contracts(signature),
         &parameter_names,
         &conservation,
-        None,
+        CrashContractOwner::Signature(signature),
         None,
         &[],
     )
@@ -521,7 +452,7 @@ pub(crate) fn derive_authored_operator_crash_buckets(
             .span_or_empty(operator.contracts),
         &parameter_names,
         content_conservation,
-        Some(CrashContractOwner::Operator(operator)),
+        CrashContractOwner::Operator(operator),
         Some(operators),
         &[],
     )
@@ -538,7 +469,7 @@ fn build_published_crash_buckets(
     contracts: &[typed_trees::signature::SignatureContract],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
-    owner: Option<CrashContractOwner<'_>>,
+    owner: CrashContractOwner<'_>,
     operators: Option<&checked_trees::CheckedOperatorFacts>,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Vec<checked_trees::CrashRouteBucket> {
@@ -551,6 +482,24 @@ fn build_published_crash_buckets(
     }
 
     let mut buckets = BTreeMap::<checked_trees::CrashCause, Bucket>::new();
+    let binders = match &owner {
+        CrashContractOwner::Machine(machine) => {
+            let generics = generic_binders(program.machine_type_parameters(machine));
+            program
+                .machine_states(machine)
+                .first()
+                .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
+                .unwrap_or(generics)
+        }
+        CrashContractOwner::Signature(signature) => callable_binders(
+            &signature_generic_binders(program, signature),
+            program.state_signature_parameters(signature),
+        ),
+        CrashContractOwner::Operator(operator) => callable_binders(
+            &generic_binders(program.operator_type_parameters(operator)),
+            program.operator_parameters(operator),
+        ),
+    };
     for contract in contracts {
         let typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind
         else {
@@ -567,15 +516,6 @@ fn build_published_crash_buckets(
             continue;
         }
         for fact in facts {
-            let mut route = Vec::new();
-            encode_contract_fact_canonical(
-                program,
-                fact,
-                parameter_names,
-                content_conservation,
-                false,
-                &mut route,
-            );
             let identity = match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => {
                     let structured = crash_calls::crash_predicate_from_expression(
@@ -584,47 +524,47 @@ fn build_published_crash_buckets(
                         parameter_names,
                         Some(content_conservation),
                     );
-                    let scalar = owner
-                        .as_ref()
-                        .zip(operators)
-                        .and_then(|(owner, operators)| match owner {
-                            CrashContractOwner::Machine(machine) => {
-                                crate::values::lower_machine_entry_boolean_expression(
-                                    program,
-                                    operators,
-                                    machine,
-                                    *expression,
-                                    exact_integer_casts,
-                                )
-                            }
-                            CrashContractOwner::Signature(signature) => {
-                                crate::values::lower_signature_crash_contract_expression(
-                                    program,
-                                    operators,
-                                    signature,
-                                    *expression,
-                                )
-                            }
-                            CrashContractOwner::Operator(operator) => {
-                                crate::values::lower_operator_crash_contract_expression(
-                                    program,
-                                    operators,
-                                    operator,
-                                    *expression,
-                                )
-                            }
-                        });
-                    let identity = if let Some(scalar) = scalar {
+                    let scalar = operators.and_then(|operators| match &owner {
+                        CrashContractOwner::Machine(machine) => {
+                            crate::values::lower_machine_entry_boolean_expression(
+                                program,
+                                operators,
+                                machine,
+                                *expression,
+                                exact_integer_casts,
+                            )
+                        }
+                        CrashContractOwner::Signature(signature) => {
+                            crate::values::lower_signature_crash_contract_expression(
+                                program,
+                                operators,
+                                signature,
+                                *expression,
+                            )
+                        }
+                        CrashContractOwner::Operator(operator) => {
+                            crate::values::lower_operator_crash_contract_expression(
+                                program,
+                                operators,
+                                operator,
+                                *expression,
+                            )
+                        }
+                    });
+                    if let Some(scalar) = scalar {
                         checked_trees::CrashPredicateIdentity::from_expression_and_scalar(
                             structured, scalar,
                         )
                     } else {
                         checked_trees::CrashPredicateIdentity::from_expression(structured)
-                    };
-                    debug_assert_eq!(identity.canonical_bytes(), route);
-                    identity
+                    }
                 }
-                _ => checked_trees::CrashPredicateIdentity::from_canonical_bytes(route),
+                _ => checked_trees::CrashPredicateIdentity::from_declared_fact(declared_fact(
+                    program,
+                    fact,
+                    &binders,
+                    content_conservation,
+                )),
             };
             bucket.routes.push(identity);
         }
@@ -781,13 +721,12 @@ pub(crate) fn canonical_crash_operand_identity(
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> checked_trees::CrashPredicateIdentity {
-    let mut bytes = vec![0x6f]; // checker-private operand namespace
-    encode_contract_expression_canonical(
-        program,
-        expression,
-        parameter_names,
-        content_conservation,
-        &mut bytes,
-    );
-    checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+    checked_trees::CrashPredicateIdentity::from_operand(
+        crash_calls::crash_predicate_from_expression(
+            program,
+            expression,
+            parameter_names,
+            Some(content_conservation),
+        ),
+    )
 }

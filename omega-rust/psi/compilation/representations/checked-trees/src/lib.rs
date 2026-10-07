@@ -158,7 +158,9 @@ pub use checked_trees::{
     ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef, CrashCallSiteLocation,
     CrashCause, CrashContractCapsule, CrashInterface, CrashPlan, CrashPredicateExpression,
     CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId, CrashRouteGuard,
-    CrashSiteLocation, DataCarryFact, DecidedCallRequires, DomainDependencyFact,
+    CrashSiteLocation, DataCarryFact, DecidedCallRequires, DeclaredCallableContract,
+    DeclaredContractClause, DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
+    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination, DomainDependencyFact,
     DomainDependencyPathFact, DomainFacts, DynamicConformanceFacts, DynamicConformanceRowFact,
     DynamicConformanceRowSource, DynamicSelectionFact, EvidenceAssignmentSource,
     EvidenceForwardingFact, ExitAcceptance, FlowBorrowActivationFact, FlowBorrowLifetimeFacts,
@@ -193,10 +195,10 @@ pub use checked_trees::{
     SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
     SuspensionCrossingValueOrigin, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
     VacuousQualificationUse, admissibility, borrow, byte_predicates,
-    canonical_suspension_crossing_id, contract_identity, contract_report_fingerprint, data, domain,
-    expression, facts, finite_family, flow, identity, is_borrowed_view, machine, name, operators,
-    proof, proof_only, proposition, ranking, service_parameter, signature, state, statement,
-    trait_definition, types, values, wire,
+    canonical_suspension_crossing_id, contract_declarations_commitment, contract_identity, data,
+    declared_termination_commitment, domain, expression, facts, finite_family, flow, identity,
+    is_borrowed_view, machine, name, operators, proof, proof_only, proposition, ranking,
+    service_parameter, signature, state, statement, trait_definition, types, values, wire,
 };
 /// The identity request a consumer builds when it asks the typed program
 /// behind a checked carrier for a binder-aware type identity.

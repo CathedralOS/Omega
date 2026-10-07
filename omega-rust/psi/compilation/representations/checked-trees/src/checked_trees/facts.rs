@@ -78,9 +78,12 @@ pub use contract_plans::{
     ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
     CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
-    CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, MachineContractCommitment,
-    MachineContractIdentity, MachineContractPlan, MachineContractPlans,
-    RealizedMachineContractEnvelope, contract_identity, contract_report_fingerprint,
+    CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, DeclaredCallableContract,
+    DeclaredContractClause, DeclaredContractFact, DeclaredContractKind, DeclaredContractParameter,
+    DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination,
+    MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,
+    RealizedMachineContractEnvelope, contract_declarations_commitment, contract_identity,
+    declared_termination_commitment,
 };
 pub use domains::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
 pub use dynamic_conformances::{

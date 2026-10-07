@@ -10,19 +10,26 @@
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
 //! halves enter either projection, never inferred rows or witnesses.
 //!
-//! This file owns the machine contract plans, commitments and identities.
+//! This file owns the machine contract plans and commitment carriers.
+//! `contract_identity.rs` projects normalized declarations into public identity.
 //! `crash_predicates.rs` carries crash causes, predicates and route guards,
 //! `crash_sites.rs` crash sites and contract capsules, `crash_plans.rs`
 //! crash route buckets and plans, `resource_envelopes.rs` resource axes and
-//! envelopes, `scalar_contracts.rs` closed scalar value contracts and
-//! `tests.rs` the plan tests.
+//! envelopes and `scalar_contracts.rs` closed scalar value contracts.
 
+mod contract_identity;
 mod crash_plans;
 mod crash_predicates;
 mod crash_sites;
 mod resource_envelopes;
 mod scalar_contracts;
 
+pub use contract_identity::{
+    DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact, DeclaredContractKind,
+    DeclaredContractParameter, DeclaredContractStructure, DeclaredProgressPremise,
+    DeclaredTermination, contract_declarations_commitment, contract_identity,
+    declared_termination_commitment,
+};
 pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
@@ -41,11 +48,6 @@ pub use scalar_contracts::{
     ClosedScalarValueContractPlan,
 };
 
-use language_semantics::{
-    BlockingInterface, MachineSupplyMode, SuspensionInterface, SynchronousInvocationInterface,
-    TerminationGuarantee, TerminationInterface,
-};
-use sha2::{Digest, Sha256};
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
@@ -203,181 +205,4 @@ impl MachineContractCommitment {
 pub struct MachineContractIdentity {
     pub report_fingerprint: u64,
     pub commitment: MachineContractCommitment,
-}
-
-/// Canonical public contract identity. The historical FNV-1a coordinate is
-/// retained for reports and caches; authority uses the domain-separated
-/// SHA-256 commitment over the same complete normalized byte stream.
-pub fn contract_identity(
-    supply_mode: MachineSupplyMode,
-    published_service_names: &[String],
-    invocation_interface: SynchronousInvocationInterface,
-    published_invocations: &[String],
-    suspension_interface: SuspensionInterface,
-    blocking_interface: BlockingInterface,
-    crash: &CrashPlan,
-    termination: &TerminationInterface,
-    canonical_facts: &[Vec<u8>],
-) -> MachineContractIdentity {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    let mut hash = OFFSET;
-    let mut strong = Sha256::new();
-    strong.update(b"omega.checked-machine-public-contract.v1\0");
-    let mut fold = |byte: u8| {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-        strong.update([byte]);
-    };
-    fold(match supply_mode {
-        MachineSupplyMode::CheckedBody => 1,
-        MachineSupplyMode::Requirement => 2,
-        MachineSupplyMode::Boundary => 3,
-        MachineSupplyMode::AdmissionClaim => 4,
-        // PRV4: the leaf's supply tag; the binding identity folds separately
-        // below so two leaves with different bindings differ.
-        MachineSupplyMode::ExternalRealization { .. } => 5,
-        MachineSupplyMode::TopLevelRequirement => 6,
-    });
-    if let MachineSupplyMode::ExternalRealization { binding, mechanism } = supply_mode {
-        match mechanism {
-            Some(mechanism) => {
-                fold(1);
-                fold(mechanism.identity_tag());
-            }
-            None => fold(0),
-        }
-        match binding {
-            Some(binding) => {
-                fold(1);
-                for byte in binding.0.to_le_bytes() {
-                    fold(byte);
-                }
-            }
-            None => fold(0),
-        }
-    }
-    // Boundary-service declaration identity, rendered canonically rather than
-    // folding per-program row or service-table indices.
-    fold(0xfb);
-    let mut canonical_service_names = published_service_names.iter().collect::<Vec<_>>();
-    canonical_service_names.sort_unstable();
-    canonical_service_names.dedup();
-    for name in canonical_service_names {
-        for byte in name.as_bytes() {
-            fold(*byte);
-        }
-        fold(0xfa);
-    }
-    fold(match invocation_interface {
-        SynchronousInvocationInterface::InternalInferred => 1,
-        SynchronousInvocationInterface::PublishedCeiling => 2,
-    });
-    let mut canonical_invocations = published_invocations.iter().collect::<Vec<_>>();
-    canonical_invocations.sort_unstable();
-    canonical_invocations.dedup();
-    for invocation in canonical_invocations {
-        for byte in invocation.as_bytes() {
-            fold(*byte);
-        }
-        fold(0xf9);
-    }
-    fold(match suspension_interface {
-        SuspensionInterface::InternalInferred => 1,
-        SuspensionInterface::PublishedMaySuspend(false) => 2,
-        SuspensionInterface::PublishedMaySuspend(true) => 3,
-    });
-    fold(match blocking_interface {
-        BlockingInterface::InternalInferred => 1,
-        BlockingInterface::PublishedMayBlock(false) => 2,
-        BlockingInterface::PublishedMayBlock(true) => 3,
-    });
-    fold(0xf8);
-    fold(match crash.interface {
-        CrashInterface::InternalInferred => 1,
-        CrashInterface::PublishedCeiling => 2,
-    });
-    let mut crash_buckets = crash.published.clone();
-    crash_buckets.sort();
-    crash_buckets.dedup();
-    for bucket in crash_buckets {
-        fold(match bucket.cause {
-            CrashCause::Trap => 1,
-            CrashCause::Abort => 2,
-        });
-        for guard in bucket.alternative_guards {
-            match guard {
-                CrashRouteGuard::Truth => fold(0),
-                CrashRouteGuard::Predicate(predicate) => {
-                    fold(1);
-                    for byte in predicate.canonical_bytes() {
-                        fold(*byte);
-                    }
-                }
-            }
-            fold(0xf7);
-        }
-        fold(0xf6);
-    }
-    fold(0xff);
-    match termination {
-        TerminationInterface::InternalDerived => fold(0),
-        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => fold(1),
-        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
-            fold(2);
-            for premise in premises {
-                for byte in premise.profile.0.to_le_bytes() {
-                    fold(byte);
-                }
-                for byte in premise.subject.root.arena_index().to_le_bytes() {
-                    fold(byte);
-                }
-                fold(0xfb);
-                for projection in &premise.subject.projections {
-                    for byte in projection.arena_index().to_le_bytes() {
-                        fold(byte);
-                    }
-                }
-                fold(0xfa);
-            }
-        }
-    }
-    // Slice 2: the declared requires/ensures facts, pre-sorted by the
-    // caller (clause order never enters the identity).
-    fold(0xfd);
-    for fact in canonical_facts {
-        for byte in fact {
-            fold(*byte);
-        }
-        fold(0xfc);
-    }
-    MachineContractIdentity {
-        report_fingerprint: hash,
-        commitment: MachineContractCommitment::from_digest(strong.finalize().into()),
-    }
-}
-
-pub fn contract_report_fingerprint(
-    supply_mode: MachineSupplyMode,
-    published_service_names: &[String],
-    invocation_interface: SynchronousInvocationInterface,
-    published_invocations: &[String],
-    suspension_interface: SuspensionInterface,
-    blocking_interface: BlockingInterface,
-    crash: &CrashPlan,
-    termination: &TerminationInterface,
-    canonical_facts: &[Vec<u8>],
-) -> u64 {
-    contract_identity(
-        supply_mode,
-        published_service_names,
-        invocation_interface,
-        published_invocations,
-        suspension_interface,
-        blocking_interface,
-        crash,
-        termination,
-        canonical_facts,
-    )
-    .report_fingerprint
 }

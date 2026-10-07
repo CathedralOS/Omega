@@ -1,7 +1,5 @@
 //! Qualification facts and service reach facts.
 
-use crate::facts::canonical_encoding::domain_is_vacuous;
-
 pub(crate) fn build_qualification_facts(
     program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::QualificationFacts {
@@ -510,4 +508,35 @@ fn remap_service_reach_span<From, To>(span: arena::HandleSpan<From>) -> arena::H
         arena::Handle::from_parts(start.arena_index(), start.generation()),
         span.count(),
     )
+}
+/// Alias atoms must all be predicate- and route-free. This declaration rule
+/// governs both retained qualification uses and scalar computation eligibility.
+pub(crate) fn domain_is_vacuous(
+    program: &dyn ::validation::CheckingInput,
+    domain_symbol: symbols::SymbolHandle,
+    stack: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|candidate| candidate.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    if let Some(alias) = domain.alias.as_ref() {
+        if alias.constituents.is_empty() {
+            return false;
+        }
+        stack.push(domain_symbol);
+        let vacuous = alias
+            .constituents
+            .iter()
+            .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
+        stack.pop();
+        return vacuous;
+    }
+    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
 }

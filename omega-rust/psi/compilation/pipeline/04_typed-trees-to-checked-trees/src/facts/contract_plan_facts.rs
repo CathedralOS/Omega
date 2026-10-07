@@ -1,7 +1,9 @@
 //! Contract plans, resource envelope coverage, mutation facts and closed
 //! scalar value contract plans.
 
-use crate::facts::canonical_encoding::{encode_contract_set_canonical, encode_type_spelling};
+use crate::facts::contract_structure::{
+    callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
+};
 use crate::facts::crash_plan_facts::{build_crash_contract_capsules, build_published_crash_plan};
 use crate::facts::{crash_calls, operator_crashes};
 
@@ -54,59 +56,23 @@ pub(crate) fn build_contract_plans(
         let termination = termination
             .for_machine(machine.symbol)
             .expect("every checked machine must publish termination facts");
-        // Slice 2: the declared requires/ensures facts in a CANONICAL,
-        // clause-order-independent encoding (each fact serializes to a
-        // stable byte form; the set sorts before folding). Parameter
-        // RENAMES change the identity in v1 -- positional normalization is
-        // the recorded follow-up.
-        let mut canonical_facts: Vec<Vec<u8>> = Vec::new();
-        // The callable shape is contract identity too. A selected static
-        // machine changing parameter mode/type, result type, or state surface
-        // must invalidate every specialization that recorded its contract ID.
-        // Encode generic binders positionally so a rename remains invisible.
-        let generic_binders: Vec<(String, String)> = program
-            .machine_type_parameters(machine)
+        let generics = generic_binders(program.machine_type_parameters(machine));
+        let mut callables = program
+            .machine_states(machine)
             .iter()
-            .enumerate()
-            .map(|(index, parameter)| (parameter.name.as_str().to_owned(), format!("$G{index}")))
-            .collect();
-        for state in program.machine_states(machine) {
-            let mut encoded = vec![0xa0];
-            let state_parameters = program.state_parameters(state);
-            for parameter in state_parameters {
-                encoded.push(u8::from(parameter.is_mutable));
-                encoded.push(u8::from(parameter.is_const));
-                encode_type_spelling(
-                    &program.display_type_reference(parameter.type_reference),
-                    &generic_binders,
-                    &mut encoded,
-                );
-            }
-            encoded.push(0xaf);
-            encode_type_spelling(
-                &program.display_type_reference(state.return_type),
-                &generic_binders,
-                &mut encoded,
-            );
-            let parameter_names = state_parameters
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect::<Vec<_>>();
-            let state_contracts = encode_contract_set_canonical(
-                program,
-                program.state_contracts(state),
-                &parameter_names,
-                &content_conservation,
-                &[0xae],
-                true,
-                true,
-            );
-            for contract in state_contracts {
-                encoded.extend(contract);
-                encoded.push(0xad);
-            }
-            canonical_facts.push(encoded);
-        }
+            .map(|state| {
+                declared_callable(
+                    program,
+                    program.state_parameters(state),
+                    state.return_type,
+                    program.state_contracts(state),
+                    &generics,
+                    &content_conservation,
+                    true,
+                )
+            })
+            .collect::<Vec<_>>();
+        callables.sort();
         // Positional parameter normalization: a contract fact naming the
         // machine's Nth parameter encodes as P<N>, so RENAMES never change
         // the identity (the substitutable contract is positional).
@@ -136,16 +102,22 @@ pub(crate) fn build_contract_plans(
             scalar_expressions,
             scalar_computations,
         )?);
-        canonical_facts.extend(encode_contract_set_canonical(
-            program,
-            program.machine_contracts(machine),
-            &parameter_names,
-            &content_conservation,
-            &[],
-            false,
-            false,
-        ));
-        canonical_facts.sort();
+        let binders = program
+            .machine_states(machine)
+            .first()
+            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
+            .unwrap_or_else(|| generics.clone());
+        let declaration = checked_trees::DeclaredContractStructure {
+            callables,
+            clauses: declared_contracts(
+                program,
+                program.machine_contracts(machine),
+                &binders,
+                &content_conservation,
+                true,
+            ),
+        };
+        let published_termination = declared_termination(program, &termination.interface, &binders);
         let closed_scalar_values =
             build_closed_scalar_value_contract_plan(program, machine, operators);
         let identity = checked_trees::contract_identity(
@@ -155,9 +127,9 @@ pub(crate) fn build_contract_plans(
             &synchronous_invocation.published,
             suspension.interface,
             blocking.interface,
-            &crash,
-            &termination.interface,
-            &canonical_facts,
+            crash.interface(),
+            &published_termination,
+            &declaration,
         );
         machines.push(checked_trees::MachineContractPlan {
             machine: machine.symbol,
