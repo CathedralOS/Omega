@@ -679,7 +679,10 @@ pub fn fixed_installation_boundary_service_reach(
         .machines()
         .iter()
         .filter(|machine| {
-            machine.supply_mode.is_boundary_declaration()
+            // Opaque external supply retains a callable contract even before
+            // a target installs its physical binding. The fixed basis belongs
+            // to that declaration, not to provider selection.
+            !machine.supplies_checked_body()
                 && program
                     .machine_states(machine)
                     .iter()

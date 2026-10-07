@@ -17,7 +17,7 @@ use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract,
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalPsiIdentity, Terminator, VocabularyMarker,
+    TerminalPsiIdentity, Terminator,
 };
 
 use crate::{
@@ -33,33 +33,6 @@ fn machine_id(raw: u64) -> MachineId {
 /// it describes a component that exports no realization.
 pub fn bare_module() -> TerminalModule {
     TerminalModule {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry: machine_id(1),
-        scalar_qualifications: Default::default(),
-        structural_types: Vec::new(),
-        structural_domains: Vec::new(),
-        services: Vec::new(),
-        root_service_reach: Default::default(),
-        placed_view_inputs: Vec::new(),
-        reborrow_root_handoffs: Vec::new(),
-        reborrow_restored_call_uses: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        dynamic_dispatch: Default::default(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        proof_output_calls: Vec::new(),
-        proof_recursive_components: Vec::new(),
-        scalar_block_invariants: Vec::new(),
-        operation_crash_contracts: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        suspension_call_plan_count: 0,
-        suspension_call_sites: Vec::new(),
-        suspension_call_plans: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -99,6 +72,7 @@ pub fn bare_module() -> TerminalModule {
                 outcome_specific_ensures: Vec::new(),
             },
         }],
+        ..TerminalModule::for_entry(machine_id(1))
     }
 }
 

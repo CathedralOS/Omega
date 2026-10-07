@@ -1,0 +1,173 @@
+//! Source-free target-family wire coverage; membership does not authorize selection.
+
+use crate::sections::semantic_module::module_wire::encode_raw;
+use crate::{CodecError, decode_module, encode_module};
+use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
+use terminal_psi::{
+    Block, BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
+    BoundaryRequirementKind, MachineContract, TargetMachineCallable, TargetMachineFamily,
+    TargetMachineFamilyMember, TargetMachineSupply, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
+};
+
+#[test]
+fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
+    let machine = MachineId::new(1).unwrap();
+    let block = BlockId::new(1).unwrap();
+    let mut module = TerminalModule::for_entry(machine);
+    module.machines.push(TerminalMachine {
+        id: machine,
+        attachment: None,
+        nominal_cleanup_subject: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        declared_service_reach: Vec::new(),
+        closed_reach_application: None,
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block,
+        blocks: vec![Block {
+            id: block,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(1).unwrap(),
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    });
+    let mut members = vec![TargetMachineFamilyMember {
+        target: "freestanding_custom".into(),
+        callable: TargetMachineCallable::Machine(machine),
+        supply: TargetMachineSupply::CheckedBody,
+    }];
+    for (boundary_position, (target, supply)) in [
+        ("linux_x86_64", TargetMachineSupply::Requirement),
+        ("macos_arm64", TargetMachineSupply::TopLevelRequirement),
+        ("opaque:custom", TargetMachineSupply::Boundary),
+        ("target.with.dots", TargetMachineSupply::AdmissionClaim),
+        ("windows_x86_64", TargetMachineSupply::ExternalRealization),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let boundary = BoundaryMachineId::new(boundary_position as u64 + 1).unwrap();
+        module.boundary_machines.push(BoundaryMachineDeclaration {
+            id: boundary,
+            kind: BoundaryRequirementKind::Machine,
+            completion: BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: format!("boundary_{}", boundary.get()),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+        members.push(TargetMachineFamilyMember {
+            target: target.into(),
+            callable: TargetMachineCallable::Boundary(boundary),
+            supply,
+        });
+    }
+    module.target_machine_families.push(TargetMachineFamily {
+        canonical: members[0].callable,
+        members,
+    });
+    for canonical in [
+        TargetMachineCallable::Machine(machine),
+        TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap()),
+    ] {
+        module.target_machine_families[0].canonical = canonical;
+        let encoded_bytes = encode_module(&module).unwrap();
+        let decoded_module = decode_module(&encoded_bytes).unwrap();
+        assert_eq!(decoded_module, module);
+        assert_eq!(encode_module(&decoded_module).unwrap(), encoded_bytes);
+    }
+}
+
+#[test]
+fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
+    let machine = TargetMachineCallable::Machine(MachineId::new(1).unwrap());
+    let boundary = TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap());
+    for (case, members, expected_error) in [
+        (
+            "duplicate deployment tag",
+            vec![
+                TargetMachineFamilyMember {
+                    target: "custom_target".into(),
+                    callable: machine,
+                    supply: TargetMachineSupply::CheckedBody,
+                },
+                TargetMachineFamilyMember {
+                    target: "custom_target".into(),
+                    callable: boundary,
+                    supply: TargetMachineSupply::Requirement,
+                },
+            ],
+            CodecError::NonCanonicalOrder("target-family members by deployment tag"),
+        ),
+        (
+            "missing machine",
+            vec![TargetMachineFamilyMember {
+                target: "custom_target".into(),
+                callable: machine,
+                supply: TargetMachineSupply::CheckedBody,
+            }],
+            CodecError::MalformedStructuralFoundation(
+                "target-family checked member has no matching body supply",
+            ),
+        ),
+        (
+            "missing boundary",
+            vec![TargetMachineFamilyMember {
+                target: "custom_target".into(),
+                callable: boundary,
+                supply: TargetMachineSupply::Requirement,
+            }],
+            CodecError::MalformedStructuralFoundation(
+                "target-family opaque member has no matching declaration supply",
+            ),
+        ),
+    ] {
+        let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        module.target_machine_families.push(TargetMachineFamily {
+            canonical: members[0].callable,
+            members,
+        });
+        assert_eq!(
+            encode_module(&module),
+            Err(expected_error.clone()),
+            "{case}"
+        );
+        // Raw encoding exercises decoder rejection without admitting malformed input.
+        let encoded_bytes = encode_raw(&module).unwrap();
+        assert_eq!(decode_module(&encoded_bytes), Err(expected_error), "{case}");
+    }
+}

@@ -1,5 +1,5 @@
 //! One traversal over a machine's call sites (statement calls, expression
-//! calls, transition arguments, signature/contract facts, and `via` expressions)
+//! calls, transition callees and arguments, signature/contract facts, and `via` expressions)
 //! shared by every pass that re-points call targets after symbol assignment: closed-conformance
 //! routing and target-sibling binding. Each pass supplies only its decision;
 //! the reach over the body is defined once here.
@@ -159,15 +159,19 @@ fn retarget_statement_span(
                 {
                     expressions.push(guard);
                 }
-                append_transition_target_expressions(
-                    &program.tables.bodies.statements,
+                retarget_transition_target(
+                    program,
                     transition.target,
+                    subject_states,
+                    decide,
                     &mut expressions,
                 );
                 if transition.continuation.is_valid() {
-                    append_transition_target_expressions(
-                        &program.tables.bodies.statements,
+                    retarget_transition_target(
+                        program,
                         transition.continuation,
+                        subject_states,
+                        decide,
                         &mut expressions,
                     );
                 }
@@ -180,17 +184,70 @@ fn retarget_statement_span(
     }
 }
 
-fn append_transition_target_expressions(
-    statements: &symbol_resolved_trees::statement::StatementTable,
+fn retarget_transition_target(
+    program: &mut SymbolResolvedTrees,
     target: symbol_resolved_trees::statement::TransitionTargetHandle,
+    subject_states: &[SymbolHandle],
+    decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
     expressions: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
-    match statements.transition_target(target) {
-        symbol_resolved_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-            expressions.extend_from_slice(statements.expression_handles(*arguments));
+    let node = program
+        .tables
+        .bodies
+        .statements
+        .transition_target(target)
+        .clone();
+    match node {
+        symbol_resolved_trees::statement::TransitionTargetNode::Named {
+            path,
+            arguments,
+            source_span,
+            ..
+        } => {
+            let members = program
+                .tables
+                .bodies
+                .statements
+                .name_path_members(path.members);
+            let spelling = DiagnosticName::new(
+                members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+                source_span,
+            );
+            let site = CallSite {
+                target_symbol: path.symbol,
+                target: &spelling,
+                receiver_symbol: path.head_symbol,
+                local_receiver: members.len() == 1 || subject_states.contains(&path.symbol),
+            };
+            if let Some(replacement) = decide(&site)
+                && let symbol_resolved_trees::statement::TransitionTargetNode::Named {
+                    path: retained,
+                    ..
+                } = program
+                    .tables
+                    .bodies
+                    .statements
+                    .transition_target_mut(target)
+            {
+                if retained.head_symbol == retained.symbol {
+                    retained.head_symbol = replacement;
+                }
+                retained.symbol = replacement;
+            }
+            expressions.extend_from_slice(
+                program
+                    .tables
+                    .bodies
+                    .statements
+                    .expression_handles(arguments),
+            );
         }
         symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
-            expressions.push(*value);
+            expressions.push(value);
         }
         symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
     }

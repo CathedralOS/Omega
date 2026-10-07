@@ -18,6 +18,15 @@ pub enum MachineBodyStatus {
     Complete,
 }
 
+/// The consumer of this checked program. Declaration programs produce Build
+/// selections; their calls are not executable operations in the product.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MachinePurpose {
+    #[default]
+    Runtime,
+    ProviderDefaults,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
@@ -41,8 +50,11 @@ pub struct Machine {
     /// Copied from symbol-resolved trees; semantic consumers must not
     /// reconstruct supply from source spelling or body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
+    /// Normalized by typing together with declaration-call custody. Later
+    /// stages consume this purpose rather than recognize a source name.
+    pub purpose: MachinePurpose,
     /// Copied from symbol-resolved trees: the target of a sibling body that
-    /// is checked here and pruned before lowering; `None` for the selected
+    /// is checked here and retained through product lowering; `None` for the selected
     /// declaration and every ordinary machine.
     pub target: Option<Identifier>,
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
@@ -122,22 +134,23 @@ impl Machine {
 /// its authored target name, including the canonical one; the canonical
 /// member's `Machine::target` reads `None` until a swap for another target
 /// re-marks it. The current consumer still swaps bodies before checking;
-/// retaining every body through lowering and Terminal Psi is separate work.
-/// Families whose every target name resolves to no real target have no
-/// canonical member and are not recorded here: their bodies
-/// stay inert siblings that no portable call can name.
+/// retaining every body through lowering and Terminal Psi does not yet retire
+/// that early selection. A family owns a contract head even when none of its
+/// deployment tags belongs to the native target catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetMachineFamily {
     /// The authored contract path every member implements
     /// (`StatLayout::plan`); equal to each member machine's `name`.
     pub name: Identifier,
     /// The machine the frontend placed at the family path: the canonical
-    /// body, selected as the first recognized target in name order.
+    /// body, selected in target-name order independently of the native catalog.
     /// Portable call sites bind this symbol. When `select_product_target`
     /// runs for another target it renames the realized member's symbol to
     /// the family path and demotes this one; `canonical` still names the
     /// originally canonical body.
     pub canonical: SymbolHandle,
+    /// All members share the declaration's execution phase.
+    pub purpose: MachinePurpose,
     /// Every authored body keyed by its authored target name, ordered by
     /// target name. The canonical body appears under its own authored
     /// target.
@@ -165,6 +178,7 @@ impl Default for Machine {
             spelling: None,
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
+            purpose: MachinePurpose::Runtime,
             target: None,
             body_is_present: true,
             body_status: MachineBodyStatus::Complete,

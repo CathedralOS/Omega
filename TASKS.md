@@ -2132,15 +2132,18 @@ crash and native exit behavior.
   - `TypedTrees::target_machine_families` records member handles;
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/target_siblings.rs`
     binds same-target calls.
-  - The gap: `select_product_target` swaps bodies before checking
-    (`omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`),
-    and `prune_target_siblings` (`.../04_typed-trees-to-checked-trees/src/product_pruning/`,
-    called from the same file and from
-    `omega-rust/omega/compilation/build-evaluation/src/admission/checking.rs`)
-    drops siblings before Terminal.
-  - Carry every body's checked semantics, supply mode and conformances through
-    lowering and codec; `omega inspect-terminal` exposes each target tag.
-    Entry-reached bodies alone do not satisfy retention.
+  - The common lowering route retains runtime bodies and opaque contracts,
+    including unreachable members and uncatalogued tags, in Terminal family
+    rows; inspection exposes tags and exact callable ids. Product pruning
+    preserves those roots. Typed provider-default programs have an explicit
+    declaration purpose; final Build admission retains every target's effects.
+    Native admission narrows physical bodies without changing canonical storage.
+  - The frontier: `select_product_target` still swaps roles and retargets
+    portable source calls before checking. Replace that selection with explicit
+    portable family-call custody, carry complete per-member conformances, and
+    publish target-default effects in the source-free Build companion. Ensure
+    every entry/result lowering route uses the same complete family catalog;
+    entry-only producers currently refuse rather than omit retained members.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

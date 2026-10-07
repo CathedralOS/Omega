@@ -63,6 +63,20 @@ pub struct SettledTargetMachineDeclarations {
     pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
+/// Normalized declaration effects, retained for every authored deployment.
+/// These are Build inputs, not runtime machine bodies or installed authority.
+/// Symbols still bind the checked source continuation; portable companion
+/// publication must rejoin them to the produced artifact rather than encode
+/// these source handles as executable identities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetProviderDefaults {
+    /// None is a target-independent declaration.
+    pub target: Option<String>,
+    /// Includes empty declarations, whose phase must not depend on effects.
+    pub machines: Vec<symbols::SymbolHandle>,
+    pub selections: Vec<ProviderSelection>,
+}
+
 /// Final typed provider choices and their evidence. The selected plan facts
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.

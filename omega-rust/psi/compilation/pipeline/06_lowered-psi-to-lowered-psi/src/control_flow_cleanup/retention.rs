@@ -258,6 +258,15 @@ pub(super) fn retained_machines_with_roots(
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
     roots.insert(module.entry);
+    roots.extend(module.target_machine_families.iter().flat_map(|family| {
+        family
+            .members
+            .iter()
+            .filter_map(|member| match member.callable {
+                terminal_psi::TargetMachineCallable::Machine(machine) => Some(machine),
+                terminal_psi::TargetMachineCallable::Boundary(_) => None,
+            })
+    }));
     for coercion in &module.scalar_qualifications.coercions {
         roots.insert(coercion.machine);
     }

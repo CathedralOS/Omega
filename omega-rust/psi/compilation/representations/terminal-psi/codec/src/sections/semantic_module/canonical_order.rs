@@ -20,6 +20,23 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .target_machine_families
+            .iter()
+            .map(|family| family.canonical),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "target-machine families by canonical callable",
+        ));
+    }
+    for family in &module.target_machine_families {
+        if !strictly_increasing(family.members.iter().map(|member| member.target.as_str())) {
+            return Err(CodecError::NonCanonicalOrder(
+                "target-family members by deployment tag",
+            ));
+        }
+    }
+    if !strictly_increasing(
+        module
             .scalar_block_invariants
             .iter()
             .map(|invariant| (invariant.machine, invariant.header)),

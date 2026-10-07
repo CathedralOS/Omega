@@ -1693,10 +1693,10 @@ fail/targets/single_target_internal_package_statement_caller_rejected rejected 3
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/single_target_internal_statement_caller_rejected rejected 867ms expected @2d8ed253669f
 	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
-fail/targets/target_machine_duplicate_rejected rejected 15ms expected @2d8ed253669f
-	machine `Helper::pick` is implemented twice for the selected target -- a target supplies exactly one implementation of a contract machine
-fail/targets/target_machine_missing_rejected rejected 15ms expected @2d8ed253669f
-	machine `Helper::pick` has no implementation for the selected target -- target-scoped implementations exist for: demo_target, demo_target2 (add this target's `<target> machine Helper::pick(..)` in that target package)
+fail/targets/target_machine_duplicate_rejected rejected 5ms expected @2740301f86f2+wt
+	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
+fail/targets/unrealized_family_signature_rejected rejected 17ms expected @2740301f86f2+wt
+	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @2d8ed253669f
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
 fail/tasks/task_runtime_provider_contract_narrowing rejected 332ms expected @d83ae44b78cd
@@ -3264,7 +3264,7 @@ pass/structural/selected_record_payload_observations_exit checked 4647ms check-t
 pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f
-pass/targets/single_target_internal_machine_skipped checked 1217ms check-target:macos_arm64 @2d8ed253669f
+pass/targets/retained_target_family_bodies checked 1604ms check-target:macos_arm64 @2740301f86f2+wt
 pass/targets/single_target_internal_package_same_target_caller checked 1208ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/single_target_internal_same_target_caller checked 1238ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f

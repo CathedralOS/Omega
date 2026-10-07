@@ -1,0 +1,1 @@
+every target's body of one machine shares its signature

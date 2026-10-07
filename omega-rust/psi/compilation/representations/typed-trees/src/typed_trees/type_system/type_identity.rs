@@ -468,6 +468,21 @@ impl TypedTrees {
         ))
     }
 
+    /// The complete entry result type, normalized with the machine's generic
+    /// binders. Callable overload identity contains only result-domain dispatch;
+    /// bodies implementing one contract must also agree on the actual result.
+    pub fn machine_entry_result_type_identity(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> Option<NormalizedTypeIdentity> {
+        let entry = self.machine_states(machine).first()?;
+        let binders = callable_type_binders(machine.symbol, self.machine_type_parameters(machine));
+        Some(self.type_identity(TypeIdentityRequest {
+            binders: &binders,
+            ..TypeIdentityRequest::ordinary(entry.return_type)
+        }))
+    }
+
     /// Export a nominal data declaration's path without losing its module.
     /// Exact symbol and package custody remain separate from this projection.
     pub fn data_declaration_path(&self, definition: &crate::data::DataDefinition) -> String {
@@ -585,17 +600,7 @@ impl TypedTrees {
         parameters: &[crate::signature::StateParameter],
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
-        let mut binders = Vec::with_capacity(type_parameters.len() + 1);
-        if owner_symbol.is_valid() {
-            binders.push((owner_symbol, "$Self".to_owned()));
-        }
-        binders.extend(
-            type_parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| parameter.symbol.is_valid())
-                .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
-        );
+        let binders = callable_type_binders(owner_symbol, type_parameters);
         let parameters = parameters
             .iter()
             .map(|parameter| {
@@ -620,4 +625,22 @@ impl TypedTrees {
             result_dispatch: self.normalized_result_dispatch_set(return_type),
         }
     }
+}
+
+fn callable_type_binders(
+    owner: SymbolHandle,
+    parameters: &[crate::data::TypeParameter],
+) -> Vec<(SymbolHandle, String)> {
+    let mut binders = Vec::with_capacity(parameters.len() + 1);
+    if owner.is_valid() {
+        binders.push((owner, "$Self".to_owned()));
+    }
+    binders.extend(
+        parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.symbol.is_valid())
+            .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
+    );
+    binders
 }

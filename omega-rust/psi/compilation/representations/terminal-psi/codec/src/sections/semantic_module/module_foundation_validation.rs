@@ -34,6 +34,7 @@ use terminal_psi::{
 /// carrier relationships, signatures, and operation/result shape; it does not
 /// prove qualifications, reach closure, or claim dataflow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    validate_target_families(module)?;
     require_unique_nonempty_identities(
         module
             .structural_types
@@ -89,6 +90,55 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine)?;
+    }
+    Ok(())
+}
+
+/// Membership is data, not authorization to redirect an executable call.
+/// Every referenced callable retains its independently checked body/contract;
+/// a realization must admit its selected entry and provider relationships.
+fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
+    use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
+
+    let mut owners = BTreeSet::new();
+    for family in &module.target_machine_families {
+        if !family
+            .members
+            .iter()
+            .any(|member| member.callable == family.canonical)
+        {
+            return malformed("target family has no canonical member");
+        }
+        for member in &family.members {
+            if member.target.is_empty() || !owners.insert(member.callable) {
+                return malformed("target-family member has an empty tag or repeated callable");
+            }
+            match member.callable {
+                TargetMachineCallable::Machine(machine) => {
+                    if !matches!(
+                        member.supply,
+                        TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary
+                    ) || !module.machines.iter().any(|body| body.id == machine)
+                    {
+                        return malformed(
+                            "target-family checked member has no matching body supply",
+                        );
+                    }
+                }
+                TargetMachineCallable::Boundary(boundary) => {
+                    if member.supply == TargetMachineSupply::CheckedBody
+                        || !module
+                            .boundary_machines
+                            .iter()
+                            .any(|declaration| declaration.id == boundary)
+                    {
+                        return malformed(
+                            "target-family opaque member has no matching declaration supply",
+                        );
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }

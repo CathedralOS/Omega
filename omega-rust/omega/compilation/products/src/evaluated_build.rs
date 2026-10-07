@@ -116,6 +116,11 @@ pub struct ComputedBuildConfig {
 /// configuration that target products and review clones share.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildAdmission {
+    /// Checked target-default declaration effects, including unrequested
+    /// deployments. These bind the final source continuation, not the shared
+    /// Build evaluation's earlier symbol frontier. Selecting one realization
+    /// does not destroy the retained roster.
+    pub provider_defaults: Vec<provider_planning::TargetProviderDefaults>,
     /// The validated authored `Build::application` declaration; its name
     /// supplies the `.app` basename and inner executable leaf at publication
     /// and its artifact-only intent narrows the admitted route.

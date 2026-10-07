@@ -1,4 +1,4 @@
-//! Publish the resolved family membership of bodies that survived typing.
+//! Admit and publish the resolved family membership of bodies that survived typing.
 //! Neither target selection nor source-name reconstruction belongs here.
 
 use crate::lowerer::name::lower_name;
@@ -48,9 +48,30 @@ pub(super) fn append(
             })
             .collect::<Vec<_>>();
         members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
+        let canonical_identity = typed.machine_callable_identity(machine);
+        let canonical_result = typed.machine_entry_result_type_identity(machine);
+        for member in &members {
+            let member_machine = typed.machine_by_symbol(member.machine).ok_or_else(|| {
+                Diagnostic::error("target-machine family member did not survive typing")
+            })?;
+            let member_identity = typed.machine_callable_identity(member_machine);
+            if !canonical_identity.is_valid()
+                || !member_identity.is_valid()
+                || member_identity != canonical_identity
+                || typed.machine_entry_result_type_identity(member_machine) != canonical_result
+                || member_machine.purpose != machine.purpose
+            {
+                return Err(Diagnostic::error(format!(
+                    "machine `{}` has an incompatible signature for `{}` -- \
+                     every target's body of one machine shares its signature",
+                    machine.name, member.target,
+                )));
+            }
+        }
         families.push(TargetMachineFamily {
             name: machine.name.clone(),
             canonical,
+            purpose: machine.purpose,
             members,
         });
     }

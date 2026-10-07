@@ -25,6 +25,7 @@ mod operation_crash_contract_wire;
 mod placed_view_wire;
 mod proof_output_wire;
 mod scalar_block_invariant_wire;
+mod target_family_wire;
 
 use terminal_psi::{TerminalModule, TerminalRootServiceReach, VocabularyMarker};
 
@@ -194,6 +195,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for machine in &module.machines {
         super::machine_wire::encode_machine(&mut writer, machine)?;
     }
+    writer.len(
+        "target-machine families",
+        module.target_machine_families.len(),
+    )?;
+    for family in &module.target_machine_families {
+        target_family_wire::encode_family(&mut writer, family)?;
+    }
     Ok(writer.finish())
 }
 
@@ -262,6 +270,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     for _ in 0..machine_count {
         machines.push(super::machine_wire::decode_machine(reader)?);
     }
+    let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
     Ok(TerminalModule {
         scalar_qualifications,
         scalar_block_invariants,
@@ -294,5 +303,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         suspension_call_sites,
         suspension_call_plans,
         machines,
+        target_machine_families,
     })
 }

@@ -145,10 +145,11 @@ pub struct TypedTrees {
     /// Product-scope target-machine families: one record per authored
     /// contract name implemented under target heads, keying each target's
     /// body. Typing produces it from resolved family handles before the
-    /// per-target swap and check run. Checking prunes its member list with
-    /// the live bodies; portable retention through Terminal Psi remains
-    /// separate work. Empty for programs without admitted product-scope
-    /// target-scoped declarations.
+    /// per-target swap and check run. Product pruning preserves every member;
+    /// runtime families lower into Terminal and declaration programs retain
+    /// Build effects separately. Early portable-call retargeting remains a
+    /// transitional consumer. Empty for programs without admitted
+    /// product-scope target-scoped declarations.
     /// Seeded typing preserves the base prefix and appends new families in
     /// name order within the extension cohort.
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,

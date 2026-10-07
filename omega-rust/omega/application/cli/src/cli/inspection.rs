@@ -32,6 +32,18 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
         module.entry.get()
     )
     .expect("writing to a String cannot fail");
+    for family in &module.target_machine_families {
+        writeln!(output, "target_family canonical={:?}", family.canonical)
+            .expect("writing to a String cannot fail");
+        for member in &family.members {
+            writeln!(
+                output,
+                "  target={} callable={:?} supply={:?}",
+                member.target, member.callable, member.supply,
+            )
+            .expect("writing to a String cannot fail");
+        }
+    }
     for declaration in &module.structural_types {
         writeln!(
             output,

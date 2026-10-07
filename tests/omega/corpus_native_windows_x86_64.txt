@@ -885,7 +885,6 @@ pass/structural/local_record_receivers checked 433ms @0484de104502
 pass/structural/sum_attachment_receiver_compile checked 411ms @0484de104502
 pass/targets/aarch64_hfa_entry_argument checked 1340ms @0484de104502
 pass/targets/efi_vtable_call checked 469ms @0484de104502
-pass/targets/single_target_internal_machine_skipped built 1029ms @0484de104502
 pass/targets/single_target_internal_package_same_target_caller built 1050ms exit:70 @0484de104502
 pass/targets/single_target_internal_same_target_caller built 1061ms exit:70 @0484de104502
 pass/targets/sysv_mixed_aggregate_entry checked 1371ms @0484de104502

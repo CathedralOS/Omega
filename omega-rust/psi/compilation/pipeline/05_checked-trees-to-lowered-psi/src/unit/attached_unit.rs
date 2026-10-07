@@ -67,6 +67,7 @@ mod providers;
 mod scalar_callees;
 pub(crate) mod shared_closure;
 mod signatures;
+mod target_families;
 pub(crate) use entry_requirements::lower as lower_entry_requirements;
 
 // Body emission: each ordinary body and each composed state graph, through
@@ -230,6 +231,10 @@ pub(crate) fn lower_unit_closure(
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
+    for symbol in call_catalog.boundaries {
+        let boundary = unique_unit_boundary(plans, symbol)?;
+        retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
+    }
     if let Some(external) = &external {
         for symbol in external.boundary_roots {
             let boundary = unique_unit_boundary(plans, *symbol)?;
@@ -599,6 +604,8 @@ pub(crate) fn lower_unit_closure(
     )?;
 
     // Publication: one module in canonical roster order.
+    let target_machine_families =
+        target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
     scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
     let mut scalar_qualifications = scalar_output.qualifications;
     scalar_qualifications
@@ -648,6 +655,7 @@ pub(crate) fn lower_unit_closure(
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             machines,
+            target_machine_families,
         },
         debug_map: None,
         source_call_occurrences: occurrences.source_calls,

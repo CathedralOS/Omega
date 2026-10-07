@@ -205,7 +205,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     let mut boundary_machines = program
         .machines()
         .iter()
-        .filter(|machine| machine.supply_mode.is_boundary_declaration())
+        // An opaque callable's signature is portable even when its physical
+        // binding is not selected. Supply selects admission, not whether Psi
+        // may retain that declaration's contract.
+        .filter(|machine| !machine.supplies_checked_body())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
         .collect::<Vec<_>>();
     boundary_machines.extend(build_static_boundary_requirements(

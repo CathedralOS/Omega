@@ -1,0 +1,33 @@
+// None of these bodies is reached from main. Terminal still owns every
+// implementation, including unrequested and uncatalogued deployment tags.
+// The value bodies call the delta body for their own target, not the head.
+data Helper { seed: u32; }
+
+linux_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
+    transition { _ -> 63 }
+}
+macos_arm64 machine Helper::delta(helper: &Helper) -> u32 {
+    transition { _ -> 7 }
+}
+uefi_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
+    transition { _ -> 31 }
+}
+
+linux_x86_64 machine Helper::value(helper: &Helper) -> u32 {
+    transition { _ -> Helper::delta(helper) }
+}
+macos_arm64 machine Helper::value(helper: &Helper) -> u32 {
+    transition { _ -> Helper::delta(helper) }
+}
+uefi_x86_64 machine Helper::value(helper: &Helper) -> u32 {
+    transition { _ -> Helper::delta(helper) }
+}
+
+archive_target machine Helper::unrealized(helper: &Helper) -> u32 {
+    transition { _ -> 19 }
+}
+reserved_target machine Helper::unrealized(helper: &Helper) -> u32 {
+    transition { _ -> 23 }
+}
+
+machine main() { }

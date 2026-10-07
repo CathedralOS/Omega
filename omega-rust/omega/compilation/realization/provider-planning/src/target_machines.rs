@@ -1,14 +1,14 @@
 //! Prepare target families before resolution, then select a product body later.
 //!
-//! Product source uses the first recognized target in name order as each
+//! Product source uses the first authored target in name order as each
 //! family's canonical body. Other bodies retain their markers and resolve as
 //! siblings. Authored and generated product source therefore prepare the same
 //! frontend regardless of the requested native product. Build-scope source is
 //! different: its helpers must run against the admitted build execution target.
 //!
 //! Provider-default declarations retain their markers until their calls can be
-//! admitted as provider-selection inputs. Unknown authored target names remain
-//! inert; duplicate family members reject across authored and generated units.
+//! admitted as provider-selection inputs. Uncatalogued authored targets retain
+//! their own bodies; duplicate members reject across authored and generated units.
 //!
 //! `select_product_target` still swaps typed bodies before checking. Moving
 //! that selection behind Terminal Psi remains separate work; canonical source
@@ -19,7 +19,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{Item, ItemHandle};
-use target::{NativeTarget, TargetProfile};
+use target::TargetProfile;
 use typed_trees::TypedTrees;
 use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 
@@ -301,16 +301,6 @@ impl SelectedTargetMachineDeclarations {
             let wanted_origin = self.origin_index(typed, wanted)?;
             let canonical_machine = &typed.machines()[canonical_index];
             let wanted_machine = &typed.machines()[wanted_index];
-            let canonical_identity = typed.machine_callable_identity(canonical_machine);
-            let wanted_identity = typed.machine_callable_identity(wanted_machine);
-            if canonical_identity != wanted_identity {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{name}` has a different signature for `{}` than for `{}` -- \
-                     every target's body of one machine shares its signature",
-                    wanted.target, canonical.target,
-                )));
-                continue;
-            }
             let canonical_states = typed.machine_states(canonical_machine);
             let wanted_states = typed.machine_states(wanted_machine);
             if let (Some(from), Some(to)) = (canonical_states.first(), wanted_states.first()) {
@@ -434,9 +424,66 @@ impl SelectedTargetMachineDeclarations {
         }
     }
 
+    /// Normalize every Product declaration's effects before choosing a row.
+    /// Build declarations use their admitted execution scope instead; their
+    /// foreign siblings are not programs executed by this activation.
+    pub fn retain_provider_defaults(
+        &self,
+        context: crate::ProviderPlanningContext<'_>,
+    ) -> Result<Vec<crate::TargetProviderDefaults>, Vec<Diagnostic>> {
+        let typed = context.typed;
+        let mut rows: Vec<crate::TargetProviderDefaults> = Vec::new();
+        for machine in typed.machines().iter().filter(|machine| {
+            machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+                && context.contains(machine.symbol)
+                && (context.scope == source::DependencyScope::Product || machine.target.is_none())
+        }) {
+            let mut members = typed
+                .target_machine_families
+                .iter()
+                .flat_map(|family| &family.members)
+                .filter(|member| member.machine == machine.symbol);
+            let target = members
+                .next()
+                .map(|member| member.target.as_str().to_owned());
+            if members.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "provider-default declaration belongs to multiple target families",
+                )]);
+            }
+            let target = if context.scope == source::DependencyScope::Build {
+                let source = typed.symbols.symbol_provenance_source_span(machine.symbol);
+                self.selected_machine_origins
+                    .iter()
+                    .find_map(|(name, target, origin)| {
+                        (name == machine.name.as_str()
+                            && source.is_some_and(|span| span.source_id == *origin))
+                        .then(|| target.clone())
+                    })
+            } else {
+                target
+            };
+            let selections = crate::harvest_provider_selections(context, machine)?;
+            if let Some(row) = rows.iter_mut().find(|row| row.target == target) {
+                row.machines.push(machine.symbol);
+                row.selections.extend(selections);
+            } else {
+                rows.push(crate::TargetProviderDefaults {
+                    target,
+                    machines: vec![machine.symbol],
+                    selections,
+                });
+            }
+        }
+        rows.sort_by(|left, right| left.target.cmp(&right.target));
+        Ok(rows)
+    }
+
     pub fn settle_provider_defaults(
         &self,
         context: crate::ProviderPlanningContext<'_>,
+        retained: &[crate::TargetProviderDefaults],
+        target: TargetProfile,
     ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
         let typed = context.typed;
         // Source-instance identity survives target-body selection. A shared
@@ -449,33 +496,18 @@ impl SelectedTargetMachineDeclarations {
                 .find(|file| file.source_id == source)
                 .is_some_and(|file| file.dependency_scope != context.scope)
         };
-        let mut defaults = Vec::new();
+        let defaults = retained
+            .iter()
+            .filter(|row| {
+                row.target.as_ref().is_none_or(|name| {
+                    TargetProfile::from_canonical_target_name(name)
+                        .is_ok_and(|resolved| resolved == target)
+                })
+            })
+            .flat_map(|row| row.selections.iter().cloned())
+            .collect();
         let mut origins = Vec::new();
         let mut diagnostics = Vec::new();
-        for (machine_name, source) in &self.provider_default_machine_names {
-            if outside_context(*source) {
-                continue;
-            }
-            let Some(machine) = typed.machines().iter().find(|machine| {
-                machine.target.is_none()
-                    && machine.name.as_str() == machine_name
-                    && typed
-                        .symbols
-                        .symbol_provenance_source_span(machine.symbol)
-                        .is_some_and(|span| span.source_id == *source)
-            }) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "selected target provider-default machine `{machine_name}` did not survive lowering"
-                )));
-                continue;
-            };
-            match crate::harvest_provider_selections(context, machine) {
-                Ok(mut machine_defaults) => {
-                    defaults.append(&mut machine_defaults);
-                }
-                Err(mut errors) => diagnostics.append(&mut errors),
-            }
-        }
         for (machine_name, target, source) in &self.selected_machine_origins {
             if outside_context(*source) {
                 continue;
@@ -612,16 +644,12 @@ fn target_machine_origins(
             }
             continue;
         }
-        let canonical = family.iter().position(|(_, origin)| {
-            NativeTarget::from_omega_target_name(Some(&origin.target)).is_ok()
-        });
-        if let Some(canonical) = canonical {
-            // Mark duplicate rows too, so validation reports them instead of
-            // making source order silently choose an implementation.
-            let target = family[canonical].1.target.clone();
-            for (_, origin) in family {
-                origin.selected = origin.target == target;
-            }
+        // The contract head is portable source identity, not a deployment
+        // supported by this compiler. Every family owns one, including one
+        // whose tags are absent from the native target catalog.
+        let canonical_target = family[0].1.target.clone();
+        for (_, origin) in family {
+            origin.selected = origin.target == canonical_target;
         }
     }
     // Carry exact syntax handles to the immediate consumer rather than joining
@@ -640,13 +668,6 @@ fn target_machine_origins(
 fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<(), Vec<Diagnostic>> {
     for family in origins.chunk_by(|left, right| left.same_family(right)) {
         let full_name = &family[0].full_name;
-        let selected_count = family.iter().filter(|origin| origin.selected).count();
-        if selected_count > 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "machine `{full_name}` is implemented twice for the selected target -- \
-                 a target supplies exactly one implementation of a contract machine",
-            ))]);
-        }
         for members in family.chunk_by(|left, right| left.target == right.target) {
             if members.len() > 1 {
                 let target = &members[0].target;
@@ -655,18 +676,6 @@ fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<()
                      a target supplies exactly one implementation of a contract machine",
                 ))]);
             }
-        }
-        if selected_count == 0 && family.len() >= 2 {
-            let providers = family
-                .iter()
-                .map(|origin| origin.target.as_str())
-                .collect::<Vec<_>>();
-            return Err(vec![Diagnostic::error(format!(
-                "machine `{full_name}` has no implementation for the selected target -- \
-                 target-scoped implementations exist for: {} (add this target's \
-                 `<target> machine {full_name}(..)` in that target package)",
-                providers.join(", "),
-            ))]);
         }
     }
     Ok(())

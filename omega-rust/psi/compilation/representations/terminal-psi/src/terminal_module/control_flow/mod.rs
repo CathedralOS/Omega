@@ -7,6 +7,7 @@ mod operations;
 mod ranking;
 mod record_field;
 mod scalar_case_field;
+mod target_families;
 mod termination;
 mod trapping_integer;
 
@@ -23,5 +24,8 @@ pub use ranking::{
 };
 pub use record_field::{RecordFieldInitializer, RecordFieldValue};
 pub use scalar_case_field::ScalarCaseField;
+pub use target_families::{
+    TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
+};
 pub use termination::{CrashCause, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator};
 pub use trapping_integer::{TrappingIntegerOperation, TrappingIntegerPrimitive};

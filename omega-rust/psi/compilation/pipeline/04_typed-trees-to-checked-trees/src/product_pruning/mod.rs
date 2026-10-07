@@ -255,6 +255,13 @@ pub fn prune_checked_tree_product(
     let edges = collect_machine_edges(&checked.typed, &checked.facts, &index);
     let mut retained = interface_retention_set(&checked.typed, &checked.facts, &index);
     retained.extend(plan.roots().machines().iter().copied());
+    retained.extend(
+        checked
+            .typed
+            .target_machine_families
+            .iter()
+            .flat_map(|family| family.members.iter().map(|member| member.machine)),
+    );
 
     // Transitive closure over the checked edge relation. The relation is
     // finite (bounded by the machine table) so iteration always converges.

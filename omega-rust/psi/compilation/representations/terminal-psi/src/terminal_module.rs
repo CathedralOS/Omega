@@ -36,7 +36,8 @@ pub use control_flow::{
     FloatResultPolicy, FloatSaturationRule, MemoryOrdering, Operation, OperationKind,
     OperationResult, RecordFieldInitializer, RecordFieldValue, ScalarCaseField,
     StructuralCaseSuccessorEdge, StructuralOperationResult, StructuralResultClaimBinding,
-    SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine, TerminalNaturalCycle,
+    SuccessorEdge, TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember,
+    TargetMachineSupply, TerminalBlockNaturalRank, TerminalMachine, TerminalNaturalCycle,
     TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
     TrappingIntegerOperation, TrappingIntegerPrimitive,
 };
@@ -191,6 +192,9 @@ pub struct TerminalModule {
     pub suspension_call_sites: Vec<TerminalSuspensionCallSite>,
     pub suspension_call_plans: Vec<TerminalSuspensionCallPlan>,
     pub machines: Vec<TerminalMachine>,
+    /// All target-scoped callable members, including unreachable bodies and
+    /// opaque declarations. Selection belongs to subsequent realization.
+    pub target_machine_families: Vec<TargetMachineFamily>,
 }
 
 impl TerminalModule {
@@ -229,6 +233,7 @@ impl TerminalModule {
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             machines: Vec::new(),
+            target_machine_families: Vec::new(),
         }
     }
 }

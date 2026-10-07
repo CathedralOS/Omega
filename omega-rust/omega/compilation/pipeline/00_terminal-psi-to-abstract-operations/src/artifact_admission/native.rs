@@ -42,6 +42,36 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input.plan()
     }
 
+    /// Restrict physical work to this deployment's retained implementations.
+    /// Canonical Terminal storage and actual member identities remain intact;
+    /// this does not redirect calls or substitute a body at a family head.
+    /// A surviving call to an excluded member still fails ordinary closure
+    /// admission. Portable family-call binding is a separate pending producer
+    /// change: the current source continuation already selected those calls.
+    pub(crate) fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
+        let members = self
+            .optimization_input
+            .context
+            .module()
+            .target_machine_families
+            .iter()
+            .flat_map(|family| &family.members)
+            .filter_map(|member| match member.callable {
+                terminal_psi::TargetMachineCallable::Machine(machine) => {
+                    Some((machine, member.target.as_str() == profile.target_name()))
+                }
+                terminal_psi::TargetMachineCallable::Boundary(_) => None,
+            })
+            .collect::<Vec<_>>();
+        self.optimization_input.plan.functions.retain(|function| {
+            members
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .is_none_or(|(_, selected)| *selected)
+        });
+        self
+    }
+
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
         self.optimization_input.context()
     }

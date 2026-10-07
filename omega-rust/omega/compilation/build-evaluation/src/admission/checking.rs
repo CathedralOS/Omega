@@ -52,7 +52,12 @@ pub(crate) fn prepare_checked_build(
         &provisional,
         source::DependencyScope::Build,
     );
-    let declarations = target_machine_declarations.settle_provider_defaults(context)?;
+    let defaults = target_machine_declarations.retain_provider_defaults(context)?;
+    let declarations = target_machine_declarations.settle_provider_defaults(
+        context,
+        &defaults,
+        execution_profile.unwrap_or_else(target::TargetProfile::host),
+    )?;
     let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
         context,
         execution_profile,

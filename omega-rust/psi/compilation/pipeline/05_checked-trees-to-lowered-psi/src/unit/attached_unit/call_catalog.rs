@@ -18,6 +18,7 @@ pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,
     pub(super) scalars: Vec<symbols::SymbolHandle>,
+    pub(super) boundaries: Vec<symbols::SymbolHandle>,
 }
 
 pub(super) fn discover(
@@ -29,6 +30,45 @@ pub(super) fn discover(
     scalar_entry: bool,
 ) -> Result<CheckedCallCatalog, LoweringError> {
     let mut retained_roots = unit_roots.to_vec();
+    let mut family_scalar_roots = Vec::new();
+    let mut family_boundary_roots = Vec::new();
+    // Target families are portable product surface, not entry reachability.
+    // Discover every implementation before allocating the shared namespaces;
+    // independently lowered modules cannot be merged without changing IDs.
+    for member in checked
+        .typed
+        .target_machine_families
+        .iter()
+        .filter(|family| family.purpose == typed_trees::machine::MachinePurpose::Runtime)
+        .flat_map(|family| &family.members)
+    {
+        let machine =
+            checked
+                .typed
+                .machine_by_symbol(member.machine)
+                .ok_or(LoweringError::Unsupported(
+                    "target-family body is absent from checked input",
+                ))?;
+        if !machine.supplies_checked_body() {
+            super::unique_unit_boundary(plans, member.machine)?;
+            family_boundary_roots.push(member.machine);
+            continue;
+        }
+        if UnitBody::contains(plans, member.machine)
+            && UnitBody::find(plans, member.machine)?
+                .scalar_result_type()
+                .is_none()
+        {
+            if !retained_roots.contains(&member.machine) {
+                retained_roots.push(member.machine);
+            }
+        } else {
+            CheckedScalarCallee::find_for_unit_call(checked, member.machine)?;
+            if !family_scalar_roots.contains(&member.machine) {
+                family_scalar_roots.push(member.machine);
+            }
+        }
+    }
     // Scalar implementations a selection made in the closure can dispatch to.
     let mut dispatched_scalar_roots = Vec::new();
     loop {
@@ -58,6 +98,17 @@ pub(super) fn discover(
         let mut ordinary_scalar_roots =
             external.map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
         let mut structural_scalar_roots = Vec::new();
+        for root in &family_scalar_roots {
+            if !ordinary_scalar_roots.contains(root) {
+                ordinary_scalar_roots.push(*root);
+            }
+            if !CheckedScalarCallee::find_for_unit_call(checked, *root)?
+                .structural_parameters()
+                .is_empty()
+            {
+                structural_scalar_roots.push(*root);
+            }
+        }
         // A scalar provider joins the scalar closure as its call would; one
         // taking structural operands needs the structural call custody too.
         for candidate in candidates
@@ -273,6 +324,7 @@ pub(super) fn discover(
             operations: closure,
             providers: candidates,
             scalars: scalar_closure,
+            boundaries: family_boundary_roots,
         });
     }
 }

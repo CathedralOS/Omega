@@ -33,6 +33,9 @@ pub(crate) mod structural_signature_wire;
 pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
 
+#[cfg(test)]
+mod target_family_tests;
+
 pub(crate) use crate::codec_error::CodecError;
 use canonical_order::{
     canonical_proposition_order_key, crash_routes_are_canonical, validate_canonical_order,
@@ -49,8 +52,8 @@ use wire::{Reader, Writer, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Nominal cleanup retains the exact subtree path within its owned root.
-pub(crate) const FORMAT_MARKER: u16 = 121;
+// The trailing family roster retains target-tagged callable membership.
+pub(crate) const FORMAT_MARKER: u16 = 122;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

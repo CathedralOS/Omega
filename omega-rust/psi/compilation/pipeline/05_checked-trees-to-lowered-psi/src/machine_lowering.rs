@@ -203,6 +203,16 @@ fn lower_terminal_selection(
         source_machines,
         source_mapping,
     } = lower_selected_machine(checked, selection)?;
+    if lowered.semantic_module.target_machine_families.len()
+        != checked
+            .typed
+            .target_machine_families
+            .iter()
+            .filter(|family| family.purpose == typed_trees::machine::MachinePurpose::Runtime)
+            .count()
+    {
+        return unsupported("entry lowering did not retain the complete target-family catalog");
+    }
     reject_conditional_claim_joins(checked, &source_machines)?;
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
     retain_nominal_cleanup_roles(

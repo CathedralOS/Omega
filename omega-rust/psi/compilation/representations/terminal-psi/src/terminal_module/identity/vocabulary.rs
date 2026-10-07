@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Boundary completion is an explicit provider premise.
-        117
+        // Target families retain all checked and opaque members.
+        118
     }
 }

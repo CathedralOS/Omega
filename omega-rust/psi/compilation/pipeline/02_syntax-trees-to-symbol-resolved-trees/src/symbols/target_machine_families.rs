@@ -40,7 +40,8 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) {
         let (family, rest) = remaining.split_at(family_length);
         // Admission retains every sibling but clears only the canonical
         // body's marker. Do not import Omega's target catalog to choose one
-        // here. Unknown-only families remain inert.
+        // here. An unknown-only family still owns its complete portable
+        // roster; choosing its contract head grants no physical implementation.
         // Equal spellings in distinct modules or packages are not one
         // family. Resolve that association here once; sibling calls and
         // typing consume the canonical symbol, not a second name search.
@@ -49,14 +50,24 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) {
             let canonical = family
                 .iter()
                 .map(|&candidate| &program.machines[candidate])
-                .find(|candidate| {
-                    candidate.target.is_none()
-                        && program.symbols.symbol_module(candidate.symbol)
-                            == program.symbols.symbol_module(declaration.symbol)
+                .filter(|candidate| {
+                    program.symbols.symbol_module(candidate.symbol)
+                        == program.symbols.symbol_module(declaration.symbol)
                         && program.symbols.same_source_package(
                             candidate.name.source_span(),
                             declaration.name.source_span(),
                         )
+                })
+                .min_by(|left, right| {
+                    left.target
+                        .is_some()
+                        .cmp(&right.target.is_some())
+                        .then_with(|| {
+                            left.authored_target
+                                .as_ref()
+                                .map(|target| target.as_str())
+                                .cmp(&right.authored_target.as_ref().map(|target| target.as_str()))
+                        })
                 })
                 .map(|machine| machine.symbol);
             if let Some(canonical) = canonical {

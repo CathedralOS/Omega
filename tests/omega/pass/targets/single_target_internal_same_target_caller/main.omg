@@ -1,23 +1,7 @@
-// The EXEMPTION half of the inert-sibling rule, which nothing exercised.
-//
-// A target-scoped machine implemented by exactly ONE non-selected target is
-// that target's paradigm internal, and the filter drops it "with its
-// callers". A caller is exempt exactly when it is scoped to that SAME target
-// and goes inert alongside the callee -- both vanish together and the
-// program compiles and runs. `fail/targets/single_target_internal_{,statement_}caller_rejected`
-// pin the other direction, a SURVIVING portable caller, which must reject.
-//
-// `pass/targets/single_target_internal_machine_skipped` was the only positive
-// fixture here and it does NOT reach this rule twice over: it never calls its
-// helper at all, and it scopes to `demo_target`, a name resolving to no real
-// target, which is dropped before resolution rather than surviving as an
-// inert sibling. This file uses a REAL non-selected profile and an actual
-// call, so the exemption is what is being tested rather than an unused
-// declaration.
-//
-// `uefi_x86_64` is the portable choice for the same reason its fail siblings
-// give: a real profile that is nobody's development host, so both bodies are
-// inert on every host this canary runs on.
+// An unrealized target's caller resolves its own target's helper. Both
+// bodies are checked and retained, without demanding UEFI realization on a
+// development host. The portable-caller negative controls pin the distinct
+// obligation when a realized caller demands a missing target body.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -27,8 +11,7 @@ uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
-// The caller: scoped to the SAME non-selected target, so it is filtered out
-// alongside the callee instead of naming a body this build never realizes.
+// The caller and callee belong to the same target.
 uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
     transition { _ -> (Helper::paradigm_internal(helper)) }
 }

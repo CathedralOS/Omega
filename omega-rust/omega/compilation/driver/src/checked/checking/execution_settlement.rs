@@ -31,12 +31,15 @@ pub(crate) fn check_selected_execution(
         mut selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
-        admission,
+        mut admission,
     ) = super::build_continuation::complete_product_frontend(
         built,
         build_sources,
         package_inputs,
         timings,
+    )?;
+    admission.provider_defaults = selected_target_machine_declarations.retain_provider_defaults(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
     )?;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = &computed_build_config.config;
@@ -71,6 +74,8 @@ pub(crate) fn check_selected_execution(
     )?;
     let settled_target_machines = selected_target_machine_declarations.settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &admission.provider_defaults,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     )?;
     let provider_planning::CheckedProviderSelection {
         settlement: mut providers,
@@ -157,11 +162,8 @@ pub(crate) fn check_selected_execution(
         ..
     } = program;
     let mut checked = prepared.bind(program, provider_request)?;
-    // Every sibling was checked before realizing this target. Only the
-    // selected bodies remain in its executable product.
-    checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
-        std::sync::Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
-    ));
+    // Product target bodies remain checked input to Terminal production.
+    // Only Omega realization may discard another target's implementation.
     // Check all authored code before product pruning and sidecar derivation.
     let product_root_machines = build_config.checked_tree_product_roots(
         selected_target_profile,

@@ -17,10 +17,18 @@ use typed_trees::{
 };
 
 pub(crate) fn finalize_provider_default_calls(typed: &mut TypedTrees) -> Result<(), Diagnostic> {
+    // This declaration convention is normalized once at its language owner.
+    // Both empty declarations and declarations for unrequested targets keep
+    // their phase; downstream lowering must not infer it from body contents.
+    for machine in typed.machines_mut() {
+        if machine.name.as_str().ends_with("::provider_defaults") {
+            machine.purpose = typed_trees::machine::MachinePurpose::ProviderDefaults;
+        }
+    }
     let occurrences = typed
         .machines()
         .iter()
-        .filter(|machine| machine.name.as_str().ends_with("::provider_defaults"))
+        .filter(|machine| machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults)
         .flat_map(|machine| provider_default_call_occurrences(typed, machine))
         .collect::<Vec<_>>();
     if occurrences.is_empty() {

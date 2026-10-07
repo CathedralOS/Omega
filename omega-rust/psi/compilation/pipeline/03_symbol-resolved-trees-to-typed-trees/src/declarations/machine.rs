@@ -190,6 +190,7 @@ fn lower_machine_contents(
         is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
+        purpose: typed::machine::MachinePurpose::Runtime,
         target: machine
             .target
             .as_ref()
@@ -668,4 +669,3 @@ fn machine_interface_exposure(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
     }
 }
-

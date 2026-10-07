@@ -592,9 +592,9 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 117 + `u16` vocabulary
-marker 117 + the entry machine id, followed by the module's counted tables in
-the declaration order below and ending with the machine roster.
+Module bytes are `PSITERM\0` + `u16` format marker 122 + `u16` vocabulary
+marker 118 + the entry machine id, followed by the module's counted tables in
+the declaration order below and ending with the target-family roster.
 
 <!-- module-table-order -->
 | # | Module table | Row |
@@ -623,6 +623,20 @@ the declaration order below and ending with the machine roster.
 | 22 | scalar block invariants | the counted invariant rows above |
 | 23 | operation crash contracts | counted operation crash contract rows |
 | 24 | machines | counted machine rows |
+| 25 | target-machine families | counted family rows |
+
+A family row carries its canonical callable and counted members ordered by
+the exact authored deployment tag. A callable is a `u8` tag (`1` machine,
+`2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
+deployment tag, callable, and a `u8` supply tag: `1` checked body, `2`
+requirement, `3` top-level requirement, `4` boundary, `5` admission claim,
+`6` external realization. Families are ordered by canonical callable; each
+callable belongs to exactly one member, and every canonical callable appears
+in its family. Checked and opaque references must name their corresponding
+module rosters. Deployment tags are source identities, not native ISA names.
+Membership alone grants no call redirection or physical installation authority.
+Provider-default declaration programs produce Build-owned selections rather
+than executable members of this runtime roster.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1637,14 +1651,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (117). A
+debug map envelopes then carry the shared `u16` vocabulary marker (118). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 117 | yes |
+| semantic module | `PSITERM\0` | 122 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |
