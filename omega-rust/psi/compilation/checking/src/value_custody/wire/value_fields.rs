@@ -8,6 +8,20 @@ use typed_trees::wire::{WireField, WireMember, WireSchema};
 /// type that declares every CHILD schema field with the same primitive type
 /// -- the matching rule the top-level value obeys, applied one level down.
 #[allow(clippy::too_many_arguments)]
+/// Both codec directions gate a nested wire schema the same way: the child
+/// body must be scalar-only, since runtime-sized text or a doubly-nested
+/// body would each need another staging/end-bound story.
+pub(super) fn nested_schema_must_be_scalar_diagnostic(
+    schema: &WireSchema,
+    field: &WireField,
+    child: &WireSchema,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); runtime-sized text and doubly-nested message fields inside a nested message are not supported yet",
+        schema.name, field.name, child.name
+    ))
+}
+
 pub(super) fn validate_nested_value_field(
     program: &TypedTrees,
     schema: &WireSchema,

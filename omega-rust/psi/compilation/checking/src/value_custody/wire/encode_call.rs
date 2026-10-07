@@ -1,4 +1,6 @@
-use super::value_fields::{CodecDirection, validate_value_argument_fields};
+use super::value_fields::{
+    CodecDirection, nested_schema_must_be_scalar_diagnostic, validate_value_argument_fields,
+};
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -157,10 +159,7 @@ pub(super) fn validate_wire_encode_call(
             // is runtime-sized and a doubly-nested body would need a second staging
             // region, so both reject (one honest level first).
             let Some(nested_worst) = program.wire_nested_field_worst_case(child) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); runtime-sized text and doubly-nested message fields inside a nested message are not supported yet",
-                    schema.name, field.name, child.name
-                )));
+                diagnostics.push(nested_schema_must_be_scalar_diagnostic(schema, field, child));
                 schema_rejects = true;
                 continue;
             };
