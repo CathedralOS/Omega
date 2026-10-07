@@ -17,6 +17,7 @@
 //! acquires — or refuses — a native shape.
 
 use diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {
@@ -653,6 +654,23 @@ pub struct NativeTarget {
 }
 
 impl NativeTarget {
+    /// The canonical identity bytes this target contributes to an
+    /// identity hash: architecture, object format, pointer size and
+    /// alignment, in that order.
+    pub fn encode_identity(&self, hasher: &mut Sha256) {
+        hasher.update([match self.architecture {
+            Architecture::Aarch64 => 0,
+            Architecture::X86_64 => 1,
+        }]);
+        hasher.update([match self.object_format {
+            ObjectFormat::Elf => 0,
+            ObjectFormat::MachO => 1,
+            ObjectFormat::Coff => 2,
+        }]);
+        hasher.update((self.pointer_size as u64).to_le_bytes());
+        hasher.update((self.pointer_alignment as u64).to_le_bytes());
+    }
+
     pub fn host() -> Self {
         Self {
             architecture: host_architecture(),
