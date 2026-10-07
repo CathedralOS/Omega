@@ -77,7 +77,7 @@ pub use optimization_unit::{
     bound_value, canonical_ownership_frontier_snapshot, canonicalize_ordinary_path,
     case_field_initializer, constant_definition, declared_structural_type,
     derived_sccp_scalar_constant_fact_identity, descended_field, descended_field_id,
-    descended_field_matching, dominators, encode_value_definition_site_identity,
+    descended_field_matching, descended_type, dominators, encode_value_definition_site_identity,
     establishment_fields, establishment_producer, extract_integer_intervals, field_evidence,
     function_analysis, literal_scalar_constant_fact_identity, matches_constant_kind,
     matches_observed_kind, observed_field_declaration, ownership_frontier_fact_identity,

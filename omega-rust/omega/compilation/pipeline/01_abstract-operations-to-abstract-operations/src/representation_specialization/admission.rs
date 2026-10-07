@@ -14,7 +14,7 @@ use super::{
 use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     Establishment, canonicalize_ordinary_path, declared_structural_type, descended_field,
-    descended_field_id, establishment_producer, shape, structural_child,
+    descended_field_id, descended_type, establishment_producer, shape, structural_child,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use std::collections::BTreeSet;
@@ -640,50 +640,6 @@ fn resolved_sole_case(
         current = descended_type(unit, current, segment)?;
     }
     roster_sole_case(unit, current)
-}
-
-/// The structural type one path segment descends to under `current`, or
-/// `None` when the segment does not apply to `current`'s shape or names a
-/// field whose declared type is not structural.
-fn descended_type(
-    unit: &PsiOptimizationUnit,
-    current: StructuralTypeId,
-    segment: &StructuralPathSegment,
-) -> Option<StructuralTypeId> {
-    let shape = &unit
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|entry| entry.id == current)?
-        .shape;
-    match segment {
-        StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
-        StructuralPathSegment::Field(identity) => {
-            let fields = match shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
-                _ => return None,
-            };
-            match fields
-                .iter()
-                .find(|field| field.identity == *identity)?
-                .field_type
-            {
-                StructuralFieldType::Structural(next) => Some(next),
-                _ => None,
-            }
-        }
-        StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
-            match shape {
-                StructuralTypeShape::FixedArray { element, .. } => Some(*element),
-                _ => None,
-            }
-        }
-        StructuralPathSegment::Referent => match shape {
-            StructuralTypeShape::Reference { referent, .. } => Some(*referent),
-            _ => None,
-        },
-    }
 }
 
 /// The first declared case of `type_id`'s roster — the case a zeroed tag's

@@ -205,7 +205,7 @@ pub use structural_places::{
     Establishment, EstablishmentScalar, FieldEvidence, FunctionAnalysis, ObservedFieldKind,
     Position, ProvenFieldValue, RootProducer, bound_value, canonicalize_ordinary_path,
     case_field_initializer, constant_definition, declared_structural_type, descended_field,
-    descended_field_id, descended_field_matching, dominators, establishment_fields,
+    descended_field_id, descended_field_matching, descended_type, dominators, establishment_fields,
     establishment_producer, field_evidence, function_analysis, matches_constant_kind,
     matches_observed_kind, observed_field_declaration, record_initializer, root_producer, shape,
     structural_child, zeroed_fold,

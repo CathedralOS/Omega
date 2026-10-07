@@ -750,3 +750,47 @@ pub fn dominators(
         }
     }
 }
+
+/// The structural type one path segment descends to under `current`, or
+/// `None` when the segment does not apply to `current`'s shape or names a
+/// field whose declared type is not structural.
+pub fn descended_type(
+    unit: &PsiOptimizationUnit,
+    current: StructuralTypeId,
+    segment: &StructuralPathSegment,
+) -> Option<StructuralTypeId> {
+    let shape = &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == current)?
+        .shape;
+    match segment {
+        StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
+        StructuralPathSegment::Field(identity) => {
+            let fields = match shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => return None,
+            };
+            match fields
+                .iter()
+                .find(|field| field.identity == *identity)?
+                .field_type
+            {
+                StructuralFieldType::Structural(next) => Some(next),
+                _ => None,
+            }
+        }
+        StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
+            match shape {
+                StructuralTypeShape::FixedArray { element, .. } => Some(*element),
+                _ => None,
+            }
+        }
+        StructuralPathSegment::Referent => match shape {
+            StructuralTypeShape::Reference { referent, .. } => Some(*referent),
+            _ => None,
+        },
+    }
+}
