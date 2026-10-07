@@ -40,13 +40,7 @@ pub(super) fn call_argument_types(
             target_name,
             site,
         )
-        .map(|signature| {
-            program
-                .state_signature_parameters(signature)
-                .iter()
-                .map(|parameter| parameter.type_reference)
-                .collect()
-        })
+        .map(|signature| signature_parameter_types(program, signature))
         .or_else(|| {
             // A resolved requirement signature supplies the same formal
             // context, pairing every formal with its explicit argument.
@@ -57,13 +51,7 @@ pub(super) fn call_argument_types(
                 target_name,
                 site,
             )
-            .map(|signature| {
-                program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .map(|parameter| parameter.type_reference)
-                    .collect()
-            })
+            .map(|signature| signature_parameter_types(program, signature))
         })
         .unwrap_or_default();
     };
@@ -116,4 +104,17 @@ pub(crate) fn machine_state_by_symbol(
         .iter()
         .find(|state| state.symbol == symbol)
         .map(|state| (machine, state))
+}
+
+/// A signature's formal types in declaration order — the argument context
+/// either signature lane supplies.
+fn signature_parameter_types(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+) -> Vec<TypeReferenceHandle> {
+    program
+        .state_signature_parameters(signature)
+        .iter()
+        .map(|parameter| parameter.type_reference)
+        .collect()
 }
