@@ -179,11 +179,6 @@ pub fn has_builtin_spelled_expression_meaning(
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-        AuthoredDeclarationSelectionLateBinding as LateBinding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
     // Existence only: both resolution walks stop at the first match instead
     // of materializing candidate sets whose per-candidate operand matching
     // allocates generic substitutions.
@@ -197,21 +192,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
     ) && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
-        && program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .all(|occurrence| {
-                program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .is_some_and(|selection| {
-                        matches!(
-                            selection.target(),
-                            Target::Intrinsic(Intrinsic::BuiltinOperator)
-                                | Target::LateBound(LateBinding::CheckedOperator)
-                        )
-                    })
-            })
+        && crate::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling)
 }
 
 /// [`resolve_spelling_for_operand_types`] existence without collecting: stops
