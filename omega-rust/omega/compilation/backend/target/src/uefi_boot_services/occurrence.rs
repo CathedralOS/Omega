@@ -256,6 +256,16 @@ mod tests {
     fn layout() -> ValidatedUefiBootServicesNativeLayout {
         exact_uefi_x64_boot_services_native_layout()
     }
+    fn expect_rejection(bytes: &[u8], needle: &str) {
+        assert!(
+            validate_uefi_boot_services_occurrence(layout(), bytes)
+                .unwrap_err()
+                .diagnostic()
+                .message
+                .contains(needle)
+        );
+    }
+
     fn valid_occurrence(header_size: usize) -> Vec<u8> {
         let mut bytes = vec![0; header_size];
         bytes[0..8].copy_from_slice(&UEFI_BOOT_SERVICES_SIGNATURE.to_le_bytes());
@@ -284,42 +294,18 @@ mod tests {
     fn rejects_signature_coverage_reserved_and_crc_drift() {
         let mut bytes = valid_occurrence(376);
         bytes[0] ^= 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("signature")
-        );
+        expect_rejection(&bytes, "signature");
 
         let mut bytes = valid_occurrence(376);
         bytes[12..16].copy_from_slice(&375_u32.to_le_bytes());
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("does not cover")
-        );
+        expect_rejection(&bytes, "does not cover");
 
         let mut bytes = valid_occurrence(376);
         bytes[20] = 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("Reserved")
-        );
+        expect_rejection(&bytes, "Reserved");
 
         let mut bytes = valid_occurrence(376);
         bytes[152] ^= 1;
-        assert!(
-            validate_uefi_boot_services_occurrence(layout(), &bytes)
-                .unwrap_err()
-                .diagnostic()
-                .message
-                .contains("CRC32")
-        );
+        expect_rejection(&bytes, "CRC32");
     }
 }
