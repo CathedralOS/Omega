@@ -736,47 +736,7 @@ fn integer_range_for_literal(literal: &numerics::literals::IntegerLiteral) -> Op
 pub(crate) fn integer_range_from_constraints(
     constraints: &[ProofConstraint],
 ) -> Option<IntegerRange> {
-    let mut range: Option<IntegerRange> = None;
-
-    for constraint in constraints {
-        let ProofConstraint::IntegerRange { minimum, maximum } = constraint else {
-            continue;
-        };
-
-        let candidate = IntegerRange {
-            minimum: minimum.clone(),
-            maximum: maximum.clone(),
-        };
-
-        range = Some(match range {
-            Some(existing) => IntegerRange {
-                minimum: existing.minimum.max(candidate.minimum),
-                maximum: existing.maximum.min(candidate.maximum),
-            },
-            None => candidate,
-        });
-    }
-
-    // Named sign facts RAISE an existing floor only (see the obligations-
-    // side twin: the old standalone [0, i64::MAX] was a false upper claim
-    // for u64 atoms).
-    for constraint in constraints {
-        let ProofConstraint::Named(name) = constraint else {
-            continue;
-        };
-        let floor = match name.as_str() {
-            "non_negative" => BigInt::zero(),
-            "positive" => BigInt::from_i64(1),
-            _ => continue,
-        };
-        if let Some(existing) = range.as_mut()
-            && existing.minimum < floor
-        {
-            existing.minimum = floor;
-        }
-    }
-
-    range
+    crate::obligations::integer_range_from_constraint_iter(constraints.iter())
 }
 
 pub(crate) fn type_constraints<'proof>(

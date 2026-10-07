@@ -25,4 +25,4 @@ pub use plan::{
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
     IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
 };
-pub(crate) use ranges::integer_binary_range;
+pub(crate) use ranges::{integer_binary_range, integer_range_from_constraint_iter};

@@ -51,6 +51,13 @@ pub(crate) fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -
 pub(crate) fn integer_range_from_constraints(
     constraints: &ConstraintBuffer,
 ) -> Option<IntegerRange> {
+    integer_range_from_constraint_iter(constraints.iter())
+}
+
+pub(crate) fn integer_range_from_constraint_iter<'a>(
+    constraints: impl Iterator<Item = &'a ProofConstraint>,
+) -> Option<IntegerRange> {
+    let constraints: Vec<&ProofConstraint> = constraints.collect();
     let mut range: Option<IntegerRange> = None;
 
     for constraint in constraints.iter() {
