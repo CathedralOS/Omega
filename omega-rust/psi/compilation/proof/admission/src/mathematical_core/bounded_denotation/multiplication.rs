@@ -94,22 +94,7 @@ impl Denotation {
     /// every open `IntegerMathTerm::Multiply` denotes, so the fixed
     /// order laws quantify over its applications.
     pub(super) fn multiply_operation(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.multiplication.operation {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let result = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: integer,
-        });
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: result,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.multiplication.operation = Some(position);
-        Ok(position)
+        self.binary_integer_operation(|this| &mut this.multiplication.operation)
     }
 
     /// `mul l r` — the applicative denotation an open mathematical
@@ -119,16 +104,7 @@ impl Denotation {
         left: TermHandle,
         right: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = self.multiply_operation()?;
-        let operation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: operation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        self.binary_terms(Self::multiply_operation, left, right)
     }
 
     /// `law a₁ … aₙ` — one multiplication-roster constant applied to the

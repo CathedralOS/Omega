@@ -405,11 +405,35 @@ impl Denotation {
         })))
     }
 
-
     /// One binary operation applied to already-denoted operands —
     /// `op l r` as two `Apply`s over the operation's assumption constant.
     /// `operation` names which fixed operation's constant slot to use, so
     /// `add`/`subtract`/`multiply` keep their distinct functions.
+    /// `op : Π(_ : Int). Π(_ : Int). Int` — the shared binary integer
+    /// operation each open `IntegerMathTerm` arithmetic denotes, interned
+    /// once in the operation family's own table.
+    pub(super) fn binary_integer_operation(
+        &mut self,
+        cache: impl Fn(&mut Self) -> &mut Option<u32>,
+    ) -> Result<u32, BoundedDenotationError> {
+        if let Some(position) = *cache(self) {
+            return Ok(position);
+        }
+        let integer = self.integer_constant()?;
+        let result = self.arena.insert(Term::Pi {
+            domain: integer,
+            codomain: integer,
+        });
+        let ty = self.arena.insert(Term::Pi {
+            domain: integer,
+            codomain: result,
+        });
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        *cache(self) = Some(position);
+        Ok(position)
+    }
+
     pub(super) fn binary_terms(
         &mut self,
         operation: fn(&mut Self) -> Result<u32, BoundedDenotationError>,
@@ -443,9 +467,7 @@ impl Denotation {
         result_term: TermHandle,
         compute: impl Fn(&BigInt, &BigInt) -> BigInt,
         terms: fn(&mut Self, TermHandle, TermHandle) -> Result<TermHandle, BoundedDenotationError>,
-        cache: impl Fn(
-            &mut Self,
-        ) -> &mut BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
+        cache: impl Fn(&mut Self) -> &mut BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let as_integer = |value: IntegerValue| match value {
             IntegerValue::Signed(value) => BigInt::from_i128(value),

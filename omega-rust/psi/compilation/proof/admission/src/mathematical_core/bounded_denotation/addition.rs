@@ -79,22 +79,7 @@ impl Denotation {
     }
 
     pub(super) fn add_operation(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.addition.operation {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let result = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: integer,
-        });
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: result,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.addition.operation = Some(position);
-        Ok(position)
+        self.binary_integer_operation(|this| &mut this.addition.operation)
     }
 
     pub(super) fn add_terms(

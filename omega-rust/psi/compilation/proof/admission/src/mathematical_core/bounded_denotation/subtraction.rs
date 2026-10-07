@@ -92,22 +92,7 @@ pub(super) struct Subtraction {
 
 impl Denotation {
     pub(super) fn subtract_operation(&mut self) -> Result<u32, BoundedDenotationError> {
-        if let Some(position) = self.subtraction.operation {
-            return Ok(position);
-        }
-        let integer = self.integer_constant()?;
-        let result = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: integer,
-        });
-        let ty = self.arena.insert(Term::Pi {
-            domain: integer,
-            codomain: result,
-        });
-        let position = self.position()?;
-        self.declarations.push(Declaration::assumption(0, ty));
-        self.subtraction.operation = Some(position);
-        Ok(position)
+        self.binary_integer_operation(|this| &mut this.subtraction.operation)
     }
 
     pub(super) fn subtract_terms(
@@ -115,16 +100,7 @@ impl Denotation {
         left: TermHandle,
         right: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = self.subtract_operation()?;
-        let operation = self.constant(position);
-        let function = self.arena.insert(Term::Apply {
-            function: operation,
-            argument: left,
-        });
-        Ok(self.arena.insert(Term::Apply {
-            function,
-            argument: right,
-        }))
+        self.binary_terms(Self::subtract_operation, left, right)
     }
 
     fn subtract_law_application(
