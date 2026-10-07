@@ -123,8 +123,12 @@ fn map_integer_affine_bound_with_remainder_policy(
     {
         return map_direct_shift_left_bound(form, *count_type, count, root_bound);
     }
-    let (strict, bound, root_is_lower_endpoint, evidence_members) =
-        destructure_chain_root_bound(form, root_bound)?;
+    let ChainRootBound {
+        strict,
+        bound,
+        root_is_lower_endpoint,
+        evidence_members,
+    } = destructure_chain_root_bound(form, root_bound)?;
     if relative_translation::applies(form, strict, bound) {
         return relative_translation::map(form, &evidence_members);
     }
@@ -341,10 +345,21 @@ fn map_integer_affine_bound_with_remainder_policy(
 /// steps impose. The designated-slot rule keeps evidence such as
 /// `operand <= maximum - c` unambiguous even when the operand is itself the
 /// root value.
+/// One chain root bound destructured for affine conversion: `strict` marks
+/// `<` versus `<=`, `bound` is the non-root endpoint, `root_is_lower_endpoint`
+/// orients the root against that bound, and `evidence_members` carries the
+/// remaining conjunction conjuncts in order.
+struct ChainRootBound<'a> {
+    strict: bool,
+    bound: &'a ScalarTerm,
+    root_is_lower_endpoint: bool,
+    evidence_members: Vec<&'a Proposition>,
+}
+
 fn destructure_chain_root_bound<'a>(
     form: &CheckedIntegerAffineForm,
     root_bound: &'a Proposition,
-) -> Result<(bool, &'a ScalarTerm, bool, Vec<&'a Proposition>), IntegerAffineBoundConversionError> {
+) -> Result<ChainRootBound<'a>, IntegerAffineBoundConversionError> {
     let (relation, evidence_members) = match root_bound {
         Proposition::Conjunction(members) => {
             let Some((relation, evidence)) = members.split_first() else {
@@ -366,7 +381,12 @@ fn destructure_chain_root_bound<'a>(
     } else {
         return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
     };
-    Ok((strict, bound, root_is_lower_endpoint, evidence_members))
+    Ok(ChainRootBound {
+        strict,
+        bound,
+        root_is_lower_endpoint,
+        evidence_members,
+    })
 }
 
 /// Compute the exact no-wrap conjuncts a checked form needs from its root
@@ -377,8 +397,12 @@ pub fn integer_affine_wrapping_evidence(
     form: &CheckedIntegerAffineForm,
     relation: &Proposition,
 ) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
-    let (strict, bound, root_is_lower_endpoint, evidence_members) =
-        destructure_chain_root_bound(form, relation)?;
+    let ChainRootBound {
+        strict,
+        bound,
+        root_is_lower_endpoint,
+        evidence_members,
+    } = destructure_chain_root_bound(form, relation)?;
     if !evidence_members.is_empty() {
         return Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected);
     }
