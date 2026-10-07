@@ -20,6 +20,7 @@
 
 use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place};
+use crate::checks::contracts::call_bounds::fixed_integer;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
@@ -558,20 +559,6 @@ fn proof_integer_term(program: &TypedTrees, expression: ExpressionHandle) -> boo
         }
         _ => false,
     }
-}
-
-fn fixed_integer(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    )
 }
 
 fn fixed_unsigned_integer(primitive: PrimitiveType) -> bool {

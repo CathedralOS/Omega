@@ -434,7 +434,7 @@ fn binding(
     }
 }
 
-fn fixed_integer(primitive: PrimitiveType) -> bool {
+pub(crate) fn fixed_integer(primitive: PrimitiveType) -> bool {
     matches!(
         primitive,
         PrimitiveType::I8
