@@ -10,6 +10,17 @@ use semantic_vocabulary::{ObligationId, ValueId};
 use terminal_psi::{FloatResultPolicy, FloatSaturationRule};
 use terminal_psi::{OperationKind, TrappingIntegerOperation};
 
+// Fixed-tag scalar payloads declare their ordered, typed IDs beside the decoder.
+macro_rules! encode_scalar_ids {
+    ($name:ident => $tag:ident, $($field:ident : $ty:ty),+ $(,)?) => {
+        pub(super) fn $name(writer: &mut Writer, $($field: $ty),+) -> Result<(), CodecError> {
+            writer.u8(operation_tags::$tag);
+            $(writer.id($field);)+
+            Ok(())
+        }
+    };
+}
+
 pub(super) fn encode_ieee_float_compare(
     writer: &mut Writer,
     comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
@@ -86,18 +97,10 @@ pub(super) fn decode_landed_scalar_representation_view(
     })
 }
 
-pub(super) fn encode_nearest_ieee_float_fused_multiply_add(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    addend: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD);
-    writer.id(left);
-    writer.id(right);
-    writer.id(addend);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_nearest_ieee_float_fused_multiply_add => NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD,
+    left: ValueId, right: ValueId, addend: ValueId,
+);
 
 pub(super) fn decode_nearest_ieee_float_fused_multiply_add(
     reader: &mut Reader<'_>,
@@ -109,11 +112,10 @@ pub(super) fn decode_nearest_ieee_float_fused_multiply_add(
     })
 }
 
-pub(super) fn encode_boolean_not(writer: &mut Writer, operand: ValueId) -> Result<(), CodecError> {
-    writer.u8(operation_tags::BOOLEAN_NOT);
-    writer.id(operand);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_boolean_not => BOOLEAN_NOT,
+    operand: ValueId,
+);
 
 pub(super) fn decode_boolean_not(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::BooleanNot {
@@ -121,16 +123,10 @@ pub(super) fn decode_boolean_not(reader: &mut Reader<'_>) -> Result<OperationKin
     })
 }
 
-pub(super) fn encode_boolean_equal(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::BOOLEAN_EQUAL);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_boolean_equal => BOOLEAN_EQUAL,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_boolean_equal(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::BooleanEqual {
@@ -139,16 +135,10 @@ pub(super) fn decode_boolean_equal(reader: &mut Reader<'_>) -> Result<OperationK
     })
 }
 
-pub(super) fn encode_integer_equal(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_EQUAL);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_equal => INTEGER_EQUAL,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_equal(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::IntegerEqual {
@@ -157,16 +147,10 @@ pub(super) fn decode_integer_equal(reader: &mut Reader<'_>) -> Result<OperationK
     })
 }
 
-pub(super) fn encode_integer_less_than(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_LESS_THAN);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_less_than => INTEGER_LESS_THAN,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_less_than(
     reader: &mut Reader<'_>,
@@ -177,16 +161,10 @@ pub(super) fn decode_integer_less_than(
     })
 }
 
-pub(super) fn encode_integer_less_or_equal(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_LESS_OR_EQUAL);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_less_or_equal => INTEGER_LESS_OR_EQUAL,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_less_or_equal(
     reader: &mut Reader<'_>,
@@ -197,14 +175,10 @@ pub(super) fn decode_integer_less_or_equal(
     })
 }
 
-pub(super) fn encode_integer_bitwise_not(
-    writer: &mut Writer,
+encode_scalar_ids!(
+    encode_integer_bitwise_not => INTEGER_BITWISE_NOT,
     operand: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_BITWISE_NOT);
-    writer.id(operand);
-    Ok(())
-}
+);
 
 pub(super) fn decode_integer_bitwise_not(
     reader: &mut Reader<'_>,
@@ -214,14 +188,10 @@ pub(super) fn decode_integer_bitwise_not(
     })
 }
 
-pub(super) fn encode_integer_widen(
-    writer: &mut Writer,
+encode_scalar_ids!(
+    encode_integer_widen => INTEGER_WIDEN,
     operand: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_WIDEN);
-    writer.id(operand);
-    Ok(())
-}
+);
 
 pub(super) fn decode_integer_widen(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::IntegerWiden {
@@ -229,16 +199,10 @@ pub(super) fn decode_integer_widen(reader: &mut Reader<'_>) -> Result<OperationK
     })
 }
 
-pub(super) fn encode_integer_exact_cast(
-    writer: &mut Writer,
-    operand: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_EXACT_CAST);
-    writer.id(operand);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_exact_cast => INTEGER_EXACT_CAST,
+    operand: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_integer_exact_cast(
     reader: &mut Reader<'_>,
@@ -249,16 +213,10 @@ pub(super) fn decode_integer_exact_cast(
     })
 }
 
-pub(super) fn encode_integer_bitwise_and(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_BITWISE_AND);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_bitwise_and => INTEGER_BITWISE_AND,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_bitwise_and(
     reader: &mut Reader<'_>,
@@ -269,16 +227,10 @@ pub(super) fn decode_integer_bitwise_and(
     })
 }
 
-pub(super) fn encode_integer_bitwise_or(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_BITWISE_OR);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_bitwise_or => INTEGER_BITWISE_OR,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_bitwise_or(
     reader: &mut Reader<'_>,
@@ -289,16 +241,10 @@ pub(super) fn decode_integer_bitwise_or(
     })
 }
 
-pub(super) fn encode_integer_bitwise_xor(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_BITWISE_XOR);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_integer_bitwise_xor => INTEGER_BITWISE_XOR,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_integer_bitwise_xor(
     reader: &mut Reader<'_>,
@@ -309,16 +255,10 @@ pub(super) fn decode_integer_bitwise_xor(
     })
 }
 
-pub(super) fn encode_wrapping_integer_shift_left(
-    writer: &mut Writer,
-    value: ValueId,
-    count: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_SHIFT_LEFT);
-    writer.id(value);
-    writer.id(count);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_shift_left => WRAPPING_INTEGER_SHIFT_LEFT,
+    value: ValueId, count: ValueId,
+);
 
 pub(super) fn decode_wrapping_integer_shift_left(
     reader: &mut Reader<'_>,
@@ -329,16 +269,10 @@ pub(super) fn decode_wrapping_integer_shift_left(
     })
 }
 
-pub(super) fn encode_wrapping_integer_shift_right(
-    writer: &mut Writer,
-    value: ValueId,
-    count: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_SHIFT_RIGHT);
-    writer.id(value);
-    writer.id(count);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_shift_right => WRAPPING_INTEGER_SHIFT_RIGHT,
+    value: ValueId, count: ValueId,
+);
 
 pub(super) fn decode_wrapping_integer_shift_right(
     reader: &mut Reader<'_>,
@@ -349,18 +283,10 @@ pub(super) fn decode_wrapping_integer_shift_right(
     })
 }
 
-pub(super) fn encode_exact_integer_shift_left(
-    writer: &mut Writer,
-    value: ValueId,
-    count: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_SHIFT_LEFT);
-    writer.id(value);
-    writer.id(count);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_shift_left => EXACT_INTEGER_SHIFT_LEFT,
+    value: ValueId, count: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_shift_left(
     reader: &mut Reader<'_>,
@@ -372,18 +298,10 @@ pub(super) fn decode_exact_integer_shift_left(
     })
 }
 
-pub(super) fn encode_exact_integer_shift_right(
-    writer: &mut Writer,
-    value: ValueId,
-    count: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_SHIFT_RIGHT);
-    writer.id(value);
-    writer.id(count);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_shift_right => EXACT_INTEGER_SHIFT_RIGHT,
+    value: ValueId, count: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_shift_right(
     reader: &mut Reader<'_>,
@@ -395,18 +313,10 @@ pub(super) fn decode_exact_integer_shift_right(
     })
 }
 
-pub(super) fn encode_exact_integer_add(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_ADD);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_add => EXACT_INTEGER_ADD,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_add(
     reader: &mut Reader<'_>,
@@ -418,18 +328,10 @@ pub(super) fn decode_exact_integer_add(
     })
 }
 
-pub(super) fn encode_exact_integer_subtract(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_SUBTRACT);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_subtract => EXACT_INTEGER_SUBTRACT,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_subtract(
     reader: &mut Reader<'_>,
@@ -441,18 +343,10 @@ pub(super) fn decode_exact_integer_subtract(
     })
 }
 
-pub(super) fn encode_exact_integer_multiply(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_MULTIPLY);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_multiply => EXACT_INTEGER_MULTIPLY,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_multiply(
     reader: &mut Reader<'_>,
@@ -464,18 +358,10 @@ pub(super) fn decode_exact_integer_multiply(
     })
 }
 
-pub(super) fn encode_exact_integer_divide(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_DIVIDE);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_divide => EXACT_INTEGER_DIVIDE,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_divide(
     reader: &mut Reader<'_>,
@@ -487,18 +373,10 @@ pub(super) fn decode_exact_integer_divide(
     })
 }
 
-pub(super) fn encode_exact_integer_remainder(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::EXACT_INTEGER_REMAINDER);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_exact_integer_remainder => EXACT_INTEGER_REMAINDER,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_exact_integer_remainder(
     reader: &mut Reader<'_>,
@@ -510,18 +388,10 @@ pub(super) fn decode_exact_integer_remainder(
     })
 }
 
-pub(super) fn encode_wrapping_integer_divide(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_DIVIDE);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_divide => WRAPPING_INTEGER_DIVIDE,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_wrapping_integer_divide(
     reader: &mut Reader<'_>,
@@ -533,18 +403,10 @@ pub(super) fn decode_wrapping_integer_divide(
     })
 }
 
-pub(super) fn encode_wrapping_integer_remainder(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_REMAINDER);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_remainder => WRAPPING_INTEGER_REMAINDER,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_wrapping_integer_remainder(
     reader: &mut Reader<'_>,
@@ -556,18 +418,10 @@ pub(super) fn decode_wrapping_integer_remainder(
     })
 }
 
-pub(super) fn encode_saturating_integer_divide(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::SATURATING_INTEGER_DIVIDE);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_saturating_integer_divide => SATURATING_INTEGER_DIVIDE,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_saturating_integer_divide(
     reader: &mut Reader<'_>,
@@ -579,18 +433,10 @@ pub(super) fn decode_saturating_integer_divide(
     })
 }
 
-pub(super) fn encode_saturating_integer_remainder(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::SATURATING_INTEGER_REMAINDER);
-    writer.id(left);
-    writer.id(right);
-    writer.id(obligation);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_saturating_integer_remainder => SATURATING_INTEGER_REMAINDER,
+    left: ValueId, right: ValueId, obligation: ObligationId,
+);
 
 pub(super) fn decode_saturating_integer_remainder(
     reader: &mut Reader<'_>,
@@ -602,16 +448,10 @@ pub(super) fn decode_saturating_integer_remainder(
     })
 }
 
-pub(super) fn encode_wrapping_integer_add(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_ADD);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_add => WRAPPING_INTEGER_ADD,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_wrapping_integer_add(
     reader: &mut Reader<'_>,
@@ -622,16 +462,10 @@ pub(super) fn decode_wrapping_integer_add(
     })
 }
 
-pub(super) fn encode_saturating_integer_add(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::SATURATING_INTEGER_ADD);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_saturating_integer_add => SATURATING_INTEGER_ADD,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_saturating_integer_add(
     reader: &mut Reader<'_>,
@@ -642,16 +476,10 @@ pub(super) fn decode_saturating_integer_add(
     })
 }
 
-pub(super) fn encode_wrapping_integer_subtract(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_SUBTRACT);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_subtract => WRAPPING_INTEGER_SUBTRACT,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_wrapping_integer_subtract(
     reader: &mut Reader<'_>,
@@ -662,16 +490,10 @@ pub(super) fn decode_wrapping_integer_subtract(
     })
 }
 
-pub(super) fn encode_saturating_integer_subtract(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::SATURATING_INTEGER_SUBTRACT);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_saturating_integer_subtract => SATURATING_INTEGER_SUBTRACT,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_saturating_integer_subtract(
     reader: &mut Reader<'_>,
@@ -682,16 +504,10 @@ pub(super) fn decode_saturating_integer_subtract(
     })
 }
 
-pub(super) fn encode_wrapping_integer_multiply(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRAPPING_INTEGER_MULTIPLY);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_wrapping_integer_multiply => WRAPPING_INTEGER_MULTIPLY,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_wrapping_integer_multiply(
     reader: &mut Reader<'_>,
@@ -702,16 +518,10 @@ pub(super) fn decode_wrapping_integer_multiply(
     })
 }
 
-pub(super) fn encode_saturating_integer_multiply(
-    writer: &mut Writer,
-    left: ValueId,
-    right: ValueId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::SATURATING_INTEGER_MULTIPLY);
-    writer.id(left);
-    writer.id(right);
-    Ok(())
-}
+encode_scalar_ids!(
+    encode_saturating_integer_multiply => SATURATING_INTEGER_MULTIPLY,
+    left: ValueId, right: ValueId,
+);
 
 pub(super) fn decode_saturating_integer_multiply(
     reader: &mut Reader<'_>,
