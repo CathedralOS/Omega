@@ -393,6 +393,45 @@ impl DomainFactProof {
 /// or unauthorized occurrence declines instead of guessing. Without a
 /// selection (header-free probes) a leaf expands against the value carrier
 /// exactly as the original name-only lookup did.
+fn evaluate_const_domain_constraint(
+    syntax: &SyntaxTrees,
+    domain: &syntax_trees::types::DomainConstraint,
+    carrier: &str,
+    subject_binding: ConstSubjectBinding<'_>,
+    const_values: &HashMap<String, i128>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Option<DomainFactProof>, String> {
+    if domain.arguments.is_empty() {
+        evaluate_named_const_domain(
+            syntax,
+            domain.name.as_str(),
+            carrier,
+            subject_binding,
+            const_values,
+            &mut Vec::new(),
+            domain.name.source_span(),
+            selection,
+            warnings,
+        )
+    } else {
+        evaluate_indexed_const_domain(
+            syntax,
+            domain.name.as_str(),
+            domain.arguments,
+            carrier,
+            subject_binding,
+            const_values,
+            &HashMap::new(),
+            &[],
+            &mut Vec::new(),
+            domain.name.source_span(),
+            selection,
+            warnings,
+        )
+    }
+}
+
 fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     authored: &str,
@@ -1226,57 +1265,38 @@ pub(crate) fn prove_declared_const_domain_constraints(
         let TypeConstraintNode::Domain(domain) = constraint else {
             return Err(CONSTRAINED_CONST_FENCE.to_owned());
         };
-        let holds = if domain.arguments.is_empty() {
-            if selection.is_none() {
-                let authored = domain.name.as_str();
-                let expanded = format!("{carrier}::{authored}");
-                let mut matches = syntax.root_items().filter_map(|item| match item {
-                    Item::Domain(domain)
-                        if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
-                    {
-                        Some(domain)
-                    }
-                    _ => None,
-                });
-                let unmoduled_unique = matches.next().is_some_and(|domain| {
-                    matches.next().is_none()
-                        && crate::preparation::generic_data::module_constants::module_path(
-                            syntax,
-                            domain.name.source_span().source_id,
-                        )
-                        .is_none()
-                });
-                if !unmoduled_unique {
-                    return Err(CONSTRAINED_CONST_FENCE.to_owned());
+        if domain.arguments.is_empty() && selection.is_none() {
+            let authored = domain.name.as_str();
+            let expanded = format!("{carrier}::{authored}");
+            let mut matches = syntax.root_items().filter_map(|item| match item {
+                Item::Domain(domain)
+                    if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
+                {
+                    Some(domain)
                 }
+                _ => None,
+            });
+            let unmoduled_unique = matches.next().is_some_and(|domain| {
+                matches.next().is_none()
+                    && crate::preparation::generic_data::module_constants::module_path(
+                        syntax,
+                        domain.name.source_span().source_id,
+                    )
+                    .is_none()
+            });
+            if !unmoduled_unique {
+                return Err(CONSTRAINED_CONST_FENCE.to_owned());
             }
-            evaluate_named_const_domain(
-                syntax,
-                domain.name.as_str(),
-                &carrier,
-                subject_binding,
-                &const_values,
-                &mut Vec::new(),
-                domain.name.source_span(),
-                selection,
-                &mut warnings,
-            )?
-        } else {
-            evaluate_indexed_const_domain(
-                syntax,
-                domain.name.as_str(),
-                domain.arguments,
-                &carrier,
-                subject_binding,
-                &const_values,
-                &HashMap::new(),
-                &[],
-                &mut Vec::new(),
-                domain.name.source_span(),
-                selection,
-                &mut warnings,
-            )?
-        };
+        }
+        let holds = evaluate_const_domain_constraint(
+            syntax,
+            domain,
+            &carrier,
+            subject_binding,
+            &const_values,
+            selection,
+            &mut warnings,
+        )?;
         match holds {
             Some(DomainFactProof::Holds) => {}
             Some(DomainFactProof::Refuted {
@@ -1392,34 +1412,15 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
         let TypeConstraintNode::Domain(domain) = constraint else {
             continue;
         };
-        let holds = if domain.arguments.is_empty() {
-            evaluate_named_const_domain(
-                syntax,
-                domain.name.as_str(),
-                &carrier,
-                subject_binding,
-                &const_values,
-                &mut Vec::new(),
-                domain.name.source_span(),
-                selection,
-                &mut warnings,
-            )?
-        } else {
-            evaluate_indexed_const_domain(
-                syntax,
-                domain.name.as_str(),
-                domain.arguments,
-                &carrier,
-                subject_binding,
-                &const_values,
-                &HashMap::new(),
-                &[],
-                &mut Vec::new(),
-                domain.name.source_span(),
-                selection,
-                &mut warnings,
-            )?
-        };
+        let holds = evaluate_const_domain_constraint(
+            syntax,
+            domain,
+            &carrier,
+            subject_binding,
+            &const_values,
+            selection,
+            &mut warnings,
+        )?;
         match holds {
             Some(DomainFactProof::Holds) => {}
             Some(DomainFactProof::Refuted {
