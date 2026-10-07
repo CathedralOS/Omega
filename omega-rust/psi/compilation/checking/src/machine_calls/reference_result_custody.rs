@@ -189,17 +189,8 @@ pub fn initializer_source(
     {
         return None;
     }
-    let found = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .enumerate()
-        .find(|(_, parameter)| parameter.symbol == path.symbol);
+
+    let found = structural_parameter_position(program, state, path.symbol);
     if let Some((position, parameter)) = found {
         if parameter.name != *name
             || !reference_parameter_can_supply(program, parameter.type_reference, reference)
@@ -234,6 +225,28 @@ pub fn initializer_source(
 /// Lifetime validity is checked by the borrow checker; this reconstruction
 /// retains the exact referent (including qualifications). An outer constraint
 /// shell is not silently dropped to make an access conversion succeed.
+
+/// The filtered formal ordinal + parameter for a non-const, non-primitive
+/// state parameter named `symbol` — the structural-parameter lane both
+/// borrowed-carrier walks index by.
+fn structural_parameter_position<'program>(
+    program: &'program TypedTrees,
+    state: &'program typed_trees::state::State,
+    symbol: SymbolHandle,
+) -> Option<(usize, &'program typed_trees::signature::StateParameter)> {
+    program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == symbol)
+}
+
 fn reference_parameter_can_supply(
     program: &TypedTrees,
     source: TypeReferenceHandle,
@@ -302,17 +315,7 @@ pub fn borrowed_initializer_source(
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }
-    let found = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .enumerate()
-        .find(|(_, parameter)| parameter.symbol == path.symbol);
+    let found = structural_parameter_position(program, state, path.symbol);
     // The borrowed carrier roots at a non-self structural formal — the
     // existing ingress family — or at an established local of this state,
     // which mints the local's own storage as the loaned home. A formal still
