@@ -344,35 +344,9 @@ fn sparse_conditional_constants(
                             changed |= merge(target, &LatticeValue::Overdefined, &path_support);
                         }
                     }
-                    match feasible_edges.entry(successor.psi_edge) {
-                        std::collections::btree_map::Entry::Vacant(entry) => {
-                            entry.insert(path_support.clone());
-                            changed = true;
-                        }
-                        std::collections::btree_map::Entry::Occupied(mut entry) => {
-                            let mut joined = entry.get().clone();
-                            joined.union_with(&path_support);
-                            if joined != *entry.get() {
-                                entry.insert(joined);
-                                changed = true;
-                            }
-                        }
-                    }
+                    changed |= join_support(&mut feasible_edges, successor.psi_edge, &path_support);
                     changed |= reachable.insert(successor.target);
-                    match reach_support.entry(successor.target) {
-                        std::collections::btree_map::Entry::Vacant(entry) => {
-                            entry.insert(path_support.clone());
-                            changed = true;
-                        }
-                        std::collections::btree_map::Entry::Occupied(mut entry) => {
-                            let mut joined = entry.get().clone();
-                            joined.union_with(&path_support);
-                            if joined != *entry.get() {
-                                entry.insert(joined);
-                                changed = true;
-                            }
-                        }
-                    }
+                    changed |= join_support(&mut reach_support, successor.target, &path_support);
                     for binding in &successor.bindings {
                         let incoming = values
                             .get(&binding.argument)
@@ -578,5 +552,30 @@ fn sccp_machine_snapshot(
         blocks,
         edges,
         values: snapshot_values,
+    }
+}
+
+/// Insert `support` at `key` or union it into the resident support; whether
+/// the map changed.
+fn join_support<K: Ord>(
+    map: &mut BTreeMap<K, ScalarConstantSupport>,
+    key: K,
+    support: &ScalarConstantSupport,
+) -> bool {
+    match map.entry(key) {
+        std::collections::btree_map::Entry::Vacant(entry) => {
+            entry.insert(support.clone());
+            true
+        }
+        std::collections::btree_map::Entry::Occupied(mut entry) => {
+            let mut joined = entry.get().clone();
+            joined.union_with(support);
+            if joined != *entry.get() {
+                entry.insert(joined);
+                true
+            } else {
+                false
+            }
+        }
     }
 }
