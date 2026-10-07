@@ -4,14 +4,14 @@ use symbols::SymbolHandle;
 use super::super::tracker::BorrowOwnerSegment;
 
 #[derive(Clone)]
-pub(super) struct BorrowedInitializer {
+pub(in crate::borrow) struct BorrowedInitializer {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) expression: ExpressionHandle,
     pub(super) kind: BorrowedInitializerKind,
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum BorrowedInitializerKind {
+pub(in crate::borrow) enum BorrowedInitializerKind {
     Reference {
         is_mutable: bool,
     },

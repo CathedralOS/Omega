@@ -15,7 +15,7 @@
 
 pub(crate) use validation::integer_widen_is_total;
 
-pub(crate) use element_selection::*;
+pub(in crate::values::scalar) use element_selection::*;
 pub(crate) use entry_lowering::*;
 pub(crate) use integers::*;
 pub(crate) use recast_reads::*;

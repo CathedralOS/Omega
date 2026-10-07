@@ -15,7 +15,6 @@ use language_semantics::declaration_selection::CollectionMeasure;
 use std::cell::RefCell;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
-type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;

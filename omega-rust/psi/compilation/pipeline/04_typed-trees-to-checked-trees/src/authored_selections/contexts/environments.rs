@@ -6,8 +6,6 @@ use super::inference::type_reference_contains_expression;
 use super::{Binding, InferredType, OwnerEnvironmentIndex, TypeEnvironment};
 use checked_trees::{CheckFacts, ContractProofFactOwner};
 /// Handle-keyed indexes and reach sets take the integer hasher.
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
-type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;

@@ -8,7 +8,6 @@ use super::environments::{
 use super::{Binding, ExecutableSite, InferredType, OwnerIndex, TypeEnvironment};
 use checked_trees::CheckFacts;
 /// Handle-keyed indexes and reach sets take the integer hasher.
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
