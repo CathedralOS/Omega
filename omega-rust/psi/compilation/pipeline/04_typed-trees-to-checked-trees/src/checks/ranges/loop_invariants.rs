@@ -680,14 +680,18 @@ fn loop_head_relational_upper(
 /// The upper term and strictness in the unique positive arm from `source` to
 /// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
 /// as for the constant upper-bound candidate.
-fn source_arm_to_head_relational_upper(
+
+/// Scan `source`'s transitions for the head-bound edge and fold `parse`
+/// over its guard. More than one head edge, a continuation-to-head, or an
+/// unguarded/invalid guard all return `None`.
+fn single_head_bound_edge<T>(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     source: &State,
     head: SymbolHandle,
-    counter: SymbolHandle,
-) -> Option<RelationalUpper> {
-    let mut found: Option<RelationalUpper> = None;
+    mut parse: impl FnMut(&typed_trees::TypedTrees, &Machine, &State, ExpressionHandle) -> Option<T>,
+) -> Option<T> {
+    let mut found = None;
     for statement in program.statement_table.statements(source.statement_nodes) {
         let StatementNode::Transition(transition) = statement else {
             continue;
@@ -698,6 +702,7 @@ fn source_arm_to_head_relational_upper(
         if !target_is_head && !continuation_is_head {
             continue;
         }
+        // Via the continuation arm, or unguarded: no positive bound.
         if continuation_is_head {
             return None;
         }
@@ -705,18 +710,35 @@ fn source_arm_to_head_relational_upper(
             return None;
         };
         // Validate the original expression, including generated Boolean arm
-        // equality, before the relation reader peels any wrapper or operands.
+        // equality, before the reader peels any wrapper or operands.
         if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
         {
             return None;
         }
-        let edge_upper = parse_counter_relational_upper(program, machine, source, guard, counter)?;
         if found.is_some() {
             return None;
         }
-        found = Some(edge_upper);
+        found = Some(parse(program, machine, source, guard)?);
     }
     found
+}
+
+fn source_arm_to_head_relational_upper(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    source: &State,
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<RelationalUpper> {
+    single_head_bound_edge(
+        program,
+        machine,
+        source,
+        head,
+        |program, machine, source, guard| {
+            parse_counter_relational_upper(program, machine, source, guard, counter)
+        },
+    )
 }
 
 /// Parse `counter <[=] upper` (or `upper >[=] counter`) where `upper` is either
@@ -1059,35 +1081,15 @@ fn source_arm_to_head_upper_bound(
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<i64> {
-    let mut found: Option<i64> = None;
-    for statement in program.statement_table.statements(source.statement_nodes) {
-        let StatementNode::Transition(transition) = statement else {
-            continue;
-        };
-        let target_is_head = transition_target_symbol(program, transition.target) == Some(head);
-        let continuation_is_head =
-            transition_target_symbol(program, transition.continuation) == Some(head);
-        if !target_is_head && !continuation_is_head {
-            continue;
-        }
-        // Both arms to head, or via the continuation arm, or unguarded: no positive bound.
-        if continuation_is_head {
-            return None;
-        }
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            return None;
-        };
-        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
-        {
-            return None;
-        }
-        let edge_bound = parse_counter_upper_bound(program, machine, source, guard, counter)?;
-        if found.is_some() {
-            return None; // more than one arm to head
-        }
-        found = Some(edge_bound);
-    }
-    found
+    single_head_bound_edge(
+        program,
+        machine,
+        source,
+        head,
+        |program, machine, source, guard| {
+            parse_counter_upper_bound(program, machine, source, guard, counter)
+        },
+    )
 }
 
 /// The exclusive upper bound `B` a comparison guard puts on `counter`: `counter < L` -> `L`;
