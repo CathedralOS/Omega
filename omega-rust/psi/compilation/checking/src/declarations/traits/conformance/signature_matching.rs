@@ -266,22 +266,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         .zip(actual_type_parameters.iter())
         .enumerate()
         .find(|(_, (required, actual))| {
-            !matches!(
-                (&required.kind, &actual.kind),
-                (TypeParameterKind::Type, TypeParameterKind::Type)
-                    | (
-                        TypeParameterKind::Const { .. },
-                        TypeParameterKind::Const { .. }
-                    )
-                    | (
-                        TypeParameterKind::Value { .. },
-                        TypeParameterKind::Value { .. }
-                    )
-                    | (
-                        TypeParameterKind::Machine { .. },
-                        TypeParameterKind::Machine { .. }
-                    )
-            )
+            !super::type_parameter_kinds_callable(&required.kind, &actual.kind)
         })
     {
         diagnostics.push(Diagnostic::error(format!(

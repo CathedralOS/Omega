@@ -213,27 +213,7 @@ fn validate_machine_top_level_requirement_conformance(
         .zip(actual_type_parameters)
         .enumerate()
     {
-        let same_kind = matches!(
-            (&required.kind, &actual.kind),
-            (TypeParameterKind::Type, TypeParameterKind::Type)
-                | (
-                    TypeParameterKind::Const { .. },
-                    TypeParameterKind::Const { .. }
-                )
-                | (
-                    TypeParameterKind::Value { .. },
-                    TypeParameterKind::Value { .. }
-                )
-                | (
-                    TypeParameterKind::Machine { .. },
-                    TypeParameterKind::Machine { .. }
-                )
-                | (
-                    TypeParameterKind::Proposition { .. },
-                    TypeParameterKind::Proposition { .. }
-                )
-        );
-        if !same_kind {
+        if !super::type_parameter_kinds_identical(&required.kind, &actual.kind) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} static parameter {index} has a different kind"
             )));
