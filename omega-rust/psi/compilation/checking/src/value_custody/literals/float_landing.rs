@@ -45,18 +45,11 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
     for (handle, node) in program.expression_table.expression_entries() {
         match node {
             ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    let Some(field_type) =
-                        crate::value_custody::struct_literals::selected_construction_field_type(
-                            program,
-                            literal,
-                            field.field_symbol,
-                        )
-                    else {
-                        continue;
-                    };
-                    pairs.push((field.value, field_type));
-                }
+                crate::value_custody::struct_literals::each_selected_literal_field(
+                    program,
+                    literal,
+                    |value, field_type| pairs.push((value, field_type)),
+                );
             }
             ExpressionNode::Cast(cast) => {
                 let format =

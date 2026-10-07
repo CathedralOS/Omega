@@ -531,6 +531,24 @@ pub(crate) fn construction_field_type(
 /// exact constructor and case before choosing a destination; a same-spelled
 /// declaration in the consumer's source cannot change numeric landing or
 /// nominal field obligations. Projection-name lookup remains a separate caller.
+/// Calls `each` with `(value, declared field type)` for every authored field
+/// of `literal` whose construction field type resolves — the peel the literal
+/// walk-downs share.
+pub(crate) fn each_selected_literal_field(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    mut each: impl FnMut(ExpressionHandle, TypeReferenceHandle),
+) {
+    for field in program.expression_table.struct_fields(literal.fields) {
+        let Some(field_type) =
+            selected_construction_field_type(program, literal, field.field_symbol)
+        else {
+            continue;
+        };
+        each(field.value, field_type);
+    }
+}
+
 pub fn selected_construction_field_type(
     program: &TypedTrees,
     literal: &TableStructLiteral,

@@ -304,18 +304,13 @@ pub(crate) fn validate_suffix_landings(program: &TypedTrees, diagnostics: &mut V
         let ExpressionNode::StructLiteral(literal) = node else {
             continue;
         };
-        for field in program.expression_table.struct_fields(literal.fields) {
-            let Some(field_type) =
-                crate::value_custody::struct_literals::selected_construction_field_type(
-                    program,
-                    literal,
-                    field.field_symbol,
-                )
-            else {
-                continue;
-            };
-            validate_suffix_landing(program, field.value, field_type, diagnostics);
-        }
+        crate::value_custody::struct_literals::each_selected_literal_field(
+            program,
+            literal,
+            |value, field_type| {
+                validate_suffix_landing(program, value, field_type, diagnostics)
+            },
+        );
     }
 
     for machine in program.machines() {
