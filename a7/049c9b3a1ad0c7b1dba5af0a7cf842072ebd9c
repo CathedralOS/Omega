@@ -1,0 +1,4 @@
+owner: devin-1cef54ea: cross-domain reduce-loc batch 2 (encoder + case-membership consolidation)
+provenance: model=devin; worker=devin-1cef54ea619a; wave=cross-domain-reduce-loc-2
+ticket: 1e777c6402d94e27bed4d438e2a1025e
+published_utc: 2026-10-07T08:07:49.636088+00:00
