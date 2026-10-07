@@ -862,13 +862,12 @@ fn exclusive_place_loan_referent(
         }
         _ => return None,
     };
-    let (referee, access) = super::super::super::reference_results::mutable_borrowed_parts(
+    let referee = immutable_local_borrowed_referee(
         program,
-        local.type_reference,
+        local,
+        CheckedStructuralAccess::MutableBorrow,
+        super::super::super::reference_results::mutable_borrowed_parts,
     )?;
-    if access != CheckedStructuralAccess::MutableBorrow || local.is_mutable {
-        return None;
-    }
     borrowed_local_named_root(
         program,
         machine,
@@ -945,13 +944,12 @@ fn shared_place_loan_referent(
         }
         _ => return None,
     };
-    let (referee, access) = super::super::super::reference_results::shared_place_borrowed_parts(
+    let referee = immutable_local_borrowed_referee(
         program,
-        local.type_reference,
+        local,
+        CheckedStructuralAccess::SharedBorrow,
+        super::super::super::reference_results::shared_place_borrowed_parts,
     )?;
-    if access != CheckedStructuralAccess::SharedBorrow || local.is_mutable {
-        return None;
-    }
     borrowed_local_named_root(
         program,
         machine,
@@ -1140,4 +1138,23 @@ fn establish_declared_home(
     structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
     structural_local_symbols.push(local.symbol);
     Some(())
+}
+
+/// The referee beneath an immutable checked local's borrow carrier, when the
+/// carrier's access matches `expected`. `parts` selects the borrow flavor
+/// (mutable / shared place) the caller loans.
+fn immutable_local_borrowed_referee(
+    program: &typed_trees::TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+    expected: CheckedStructuralAccess,
+    parts: fn(
+        &typed_trees::TypedTrees,
+        typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(
+        typed_trees::types::TypeReferenceHandle,
+        CheckedStructuralAccess,
+    )>,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let (referee, access) = parts(program, local.type_reference)?;
+    (access == expected && !local.is_mutable).then_some(referee)
 }
