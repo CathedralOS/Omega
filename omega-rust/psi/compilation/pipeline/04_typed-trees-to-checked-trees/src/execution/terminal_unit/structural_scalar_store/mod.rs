@@ -201,15 +201,13 @@ pub(super) fn build_structural_call_result_field_store(
     (position, primitive_type): (u32, PrimitiveType),
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let [store] = <[_; 1]>::try_from(plan_assignment(
+    single_parameter_store(
         program,
         facts,
         machine,
         state,
-        StoreRoots::Parameters {
-            structural: structural_parameters,
-            scalar: scalar_parameters,
-        },
+        structural_parameters,
+        scalar_parameters,
         statement_index,
         assignment,
         AssignmentSource::CallResult {
@@ -217,9 +215,7 @@ pub(super) fn build_structural_call_result_field_store(
             primitive_type,
         },
         trace,
-    )?)
-    .ok()?;
-    Some(store)
+    )
 }
 
 /// A completed byte value uses the destination's ordinary replacement:
@@ -238,15 +234,13 @@ pub(super) fn build_byte_call_result_store(
     result_type: typed_trees::types::TypeReferenceHandle,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let [store] = <[_; 1]>::try_from(plan_assignment(
+    single_parameter_store(
         program,
         facts,
         machine,
         state,
-        StoreRoots::Parameters {
-            structural: structural_parameters,
-            scalar: scalar_parameters,
-        },
+        structural_parameters,
+        scalar_parameters,
         statement_index,
         assignment,
         AssignmentSource::StructuralCallResult {
@@ -254,9 +248,8 @@ pub(super) fn build_byte_call_result_store(
             result_type,
         },
         trace,
-    )?)
-    .ok()?;
-    matches!(store, CheckedUnitEffectOperationPlan::ByteSequenceStore(_)).then_some(store)
+    )
+    .filter(|store| matches!(store, CheckedUnitEffectOperationPlan::ByteSequenceStore(_)))
 }
 
 /// The scalar coordinate one carrier-path runtime index names at this
@@ -1019,4 +1012,38 @@ pub(in crate::execution::terminal_unit) fn is_shared_view_field(
         byte_sequence_carrier(program, type_reference, &[]),
         Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
     ) && !byte_stores::field_view_is_mutable(program, type_reference)
+}
+
+/// Plan an assignment against the parameter roster and keep its single store.
+/// Each call-result lane supplies only its `AssignmentSource` spelling; the
+/// byte lane further narrows the produced plan kind.
+#[allow(clippy::too_many_arguments)]
+fn single_parameter_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let [store] = <[_; 1]>::try_from(plan_assignment(
+        program,
+        facts,
+        machine,
+        state,
+        StoreRoots::Parameters {
+            structural: structural_parameters,
+            scalar: scalar_parameters,
+        },
+        statement_index,
+        assignment,
+        source,
+        trace,
+    )?)
+    .ok()?;
+    Some(store)
 }
