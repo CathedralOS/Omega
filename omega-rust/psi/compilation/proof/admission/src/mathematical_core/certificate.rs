@@ -177,6 +177,7 @@ mod tests {
         Budget, CoreError, Declaration, MathematicalCertificate, TermArena, TermHandle,
         certificate_assumption_closure, verify_mathematical_certificate,
     };
+    use crate::mathematical_core::tests::{lambda, pi, strict_sort};
     use crate::mathematical_core::{DEFAULT_CONVERSION_STEPS, Level, Sort, Term};
 
     fn budget() -> Budget {
@@ -187,20 +188,8 @@ mod tests {
         arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
     }
 
-    fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
-        arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
-    }
-
     fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
         arena.insert(Term::Variable(index))
-    }
-
-    fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-        arena.insert(Term::Pi { domain, codomain })
-    }
-
-    fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-        arena.insert(Term::Lambda { domain, body })
     }
 
     /// `λ(A : Type 0). λ(x : A). x` and its type `Π(A : Type 0). Π(x : A). A`.

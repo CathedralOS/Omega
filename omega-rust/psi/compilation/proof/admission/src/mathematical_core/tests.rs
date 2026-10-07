@@ -18,7 +18,7 @@ fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }
 
-fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
+pub(crate) fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
 }
 
@@ -26,11 +26,11 @@ fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
     arena.insert(Term::Variable(index))
 }
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
+pub(crate) fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
     arena.insert(Term::Pi { domain, codomain })
 }
 
-fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
+pub(crate) fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
     arena.insert(Term::Lambda { domain, body })
 }
 
