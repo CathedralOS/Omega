@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 5.1, "load1_start": 5.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.96, "load1_start": 4.96, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1570,6 +1570,10 @@ fail/slices/inclusive_negative_endpoint rejected 338ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `0..end` is within unknown slice length
 fail/slices/index_operator_contract_unproven rejected 185ms expected @5aed35f3503f+wt
 	machine `Main::main` state `main` value call to `Slice::index` violates required fact `index < items.len`: the instantiated fact is structurally false
+fail/slices/inline_mutable_call_windows_overlap rejected 365ms expected @1bad63ca3002+wt
+	state `inspect` receives `values[0..2]` as mutable more than once
+fail/slices/inline_shared_window_mutable_call rejected 191ms expected @1bad63ca3002+wt
+	argument `values` for state `entry` is declared `&mut` (`&mut [u64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 683ms expected @2d8ed253669f
 	cannot prove index `index` is within length 4
 fail/slices/invalid_subslice_bounded_order_unchecked rejected 682ms expected @2d8ed253669f
@@ -3053,6 +3057,8 @@ pass/slices/runtime_guarded_view_copy_cycle_exit checked 2015ms check-target:mac
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 1689ms check-target:macos_arm64 @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 1707ms check-target:macos_arm64 @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 7001ms check-target:macos_arm64 @d10c66094158
+pass/slices/runtime_inline_mutable_byte_window_call_write_exit checked 1685ms check-target:macos_arm64 @1bad63ca3002+wt
+pass/slices/runtime_inline_mutable_view_call_write_exit checked 1684ms check-target:macos_arm64 @1bad63ca3002+wt
 pass/slices/runtime_join_meet_bound_exit checked 1360ms check-target:macos_arm64 @2d8ed253669f
 pass/slices/runtime_literal_view_return_exit checked 4289ms check-target:macos_arm64 @cfe60a3a242
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 1659ms check-target:macos_arm64 @0991904fed3b+wt

@@ -553,10 +553,11 @@ pub(super) fn account(
                 matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
                     if store.value.completed_call_binding_ordinal() == Some(result.binding_ordinal))
             });
-        // A whole unrestricted result can be copied or shared by a later call,
-        // independently of whether a call or construction produced it. Neither
-        // observation creates affine transfer debt; exact source occurrence,
-        // producer order and loan authority are retained by the consumer.
+        // A whole unrestricted result can be copied or lent by a later call,
+        // independently of whether a call or construction produced it. Every
+        // admitted access leaves the unrestricted carrier without affine
+        // transfer debt; exclusive access still owes the consumer's exact
+        // loan checks. Access is not a second multiplicity classification.
         let observed_by_call = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..]
                 .iter()
@@ -565,10 +566,6 @@ pub(super) fn account(
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
                         && argument.type_identity == result.type_identity
-                        && matches!(
-                            argument.access,
-                            CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
-                        )
                         && argument.path.is_empty()
                 });
         let total = usize::from(

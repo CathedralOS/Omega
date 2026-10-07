@@ -3238,6 +3238,10 @@ deletions, which the commit lists.
   comparison bounds across Boolean aliases, inline descriptor arguments and
   state transfers; `collections/authored_index_guard_bound` must not acquire
   bounds from a user-defined comparison.
+  `slices/runtime_inline_mutable_{view,byte_window}_call_write_exit` (0)
+  constrain evaluated exclusive descriptors, Unit/scalar call completion and
+  original backing; `slices/inline_mutable_call_windows_overlap` and
+  `slices/inline_shared_window_mutable_call` must reject independently.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

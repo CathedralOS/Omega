@@ -356,15 +356,21 @@ pub(super) fn argument(
     // referent. The caller's operation sequence supplies this exact earlier
     // binding whether a call or a checked descriptor formation produced it;
     // requiring a flow-call row would erase non-call producers and their loans.
+    // This forwards the descriptor's already checked access, including an
+    // exclusive range operand. It does not borrow the anonymous descriptor's
+    // home or recover authority from the consumer's requested referent type.
     if !projected
-        && access == CheckedStructuralAccess::SharedBorrow
-        && (crate::execution::terminal_unit::types::borrowed_slice_view(
+        && ((matches!(
+            access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        ) && crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,
-        ) || crate::execution::terminal_unit::types::borrowed_named_view(
-            program,
-            parameter.type_reference,
-        ))
+        )) || (access == CheckedStructuralAccess::SharedBorrow
+            && crate::execution::terminal_unit::types::borrowed_named_view(
+                program,
+                parameter.type_reference,
+            )))
         && result.type_identity == target_identity
         && let facts::PlaceRoot::Expression(source) = place.root
         && source == expression

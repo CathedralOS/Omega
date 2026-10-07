@@ -14,6 +14,49 @@ use checked_trees::{
     CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitStructuralResultBindingPlan,
 };
 
+/// An evaluated slice operand establishes a descriptor, not an owned referent.
+/// Its access stays on the authored reference shell while its storage identity
+/// names the slice. Other constructions retain the ordinary owned-value
+/// contract; this does not admit arbitrary reference temporaries.
+fn operand_contract(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> Result<
+    (
+        validation::StructuralResultContract,
+        Option<checked_trees::CheckedStructuralAccess>,
+    ),
+    LoweringError,
+> {
+    if let Some(view) = validation::slice_view_shell(&checked.typed, reference, &[]) {
+        let access = match view.access {
+            language_core::ReferenceAccess::Shared => {
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            language_core::ReferenceAccess::Mutable => {
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+            }
+            language_core::ReferenceAccess::WriteOnly => {
+                return unsupported("slice operand has unsupported write-only access");
+            }
+        };
+        return Ok((
+            validation::StructuralResultContract {
+                carrier: view.slice,
+                qualifications: validation::view_result_carrier_qualifications(
+                    &checked.typed,
+                    reference,
+                )
+                .map_err(LoweringError::Unsupported)?,
+            },
+            Some(access),
+        ));
+    }
+    validation::structural_result_contract(&checked.typed, reference)
+        .map(|contract| (contract, None))
+        .map_err(LoweringError::Unsupported)
+}
+
 /// The ordinary call with a Unit result an operation performs, if any.
 fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&CheckedUnitCallPlan> {
     operation
@@ -305,7 +348,9 @@ fn validate_argument_construction_consumer(
                 .root_for_expression(state, source.result.statement_index, expression)
                 .filter(|root| root.machine == machine && root.root == *value)
                 .and_then(|root| {
-                    validation::structural_result_contract(&checked.typed, root.type_reference).ok()
+                    operand_contract(checked, root.type_reference)
+                        .ok()
+                        .map(|(contract, _)| contract)
                 })
                 .is_some_and(|contract| contract.qualifications == parameter.qualifications)
         }
@@ -320,6 +365,7 @@ fn validate_argument_construction_consumer(
             argument.access,
             checked_trees::CheckedStructuralAccess::Owned
                 | checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
         )
         || parameter.access != argument.access
         || parameter.fused_service_erasure.is_some()
@@ -1960,21 +2006,25 @@ fn validate_operand_producers(
                 // that producer; whole transfer does not mint memberships.
                 || (result.multiplicity == Multiplicity::Unrestricted
                     && crate::content_classes::plain_owned_with_represented_constraints(checked, construction_type));
-            let contract =
-                validation::structural_result_contract(&checked.typed, construction_type)
-                    .map_err(LoweringError::Unsupported)?;
+            let (contract, descriptor_access) = operand_contract(checked, construction_type)?;
+            let access_matches = descriptor_access.map_or_else(
+                || {
+                    matches!(
+                        argument.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    )
+                },
+                |access| argument.access == access,
+            );
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                 return unsupported("constructed operand names another completed owner");
             }
             if names_result
                 && ((authored.boundary && !copied_array)
-                    || !matches!(
-                        argument.access,
-                        checked_trees::CheckedStructuralAccess::Owned
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow
-                    )
+                    || !access_matches
                     || !argument.path.is_empty()
-                    || !whole_owned_contents
+                    || (!whole_owned_contents && descriptor_access.is_none())
                     || checked
                         .typed
                         .normalized_type_identity(contract.carrier)
