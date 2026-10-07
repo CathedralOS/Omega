@@ -5,6 +5,40 @@
 //! `external_shapes.rs` the external native shapes; `generic_operator.rs`
 //! stays as it was.
 
+
+/// The provider's effectively-reached services outside `allowed_services`,
+/// named for diagnostics; `None` (with the missing-summary diagnostic
+/// already pushed) when the provider has no inferred summary.
+fn disallowed_reached_service_names<'program>(
+    program: &'program typed_trees::TypedTrees,
+    service_reaches: &'program flow_effects::ServiceReachInferencePlan,
+    machine: &'program typed_trees::machine::Machine,
+    allowed_services: &[language_semantics::ServiceReachId],
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) -> Option<Vec<&'program str>> {
+    let Some(summary) = service_reaches.for_machine(machine.symbol) else {
+        diagnostics.push(diagnostics::Diagnostic::error(format!(
+            "machine `{}` has no inferred service-reach summary for requirement checking",
+            machine.name,
+        )));
+        return None;
+    };
+    Some(
+        service_reaches
+            .services(summary.effective)
+            .iter()
+            .filter(|service| !allowed_services.contains(*service))
+            .map(|service| {
+                program
+                    .service_reaches
+                    .definition(*service)
+                    .map(|definition| definition.name.as_str())
+                    .unwrap_or("<unknown canonical service>")
+            })
+            .collect(),
+    )
+}
+
 mod bounds;
 mod external_shapes;
 mod generic_operator;

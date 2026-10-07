@@ -492,24 +492,19 @@ fn validate_top_level_requirement_effect_ceiling(
         .services(requirement.service_reach_row);
     // Checked providers contribute their whole call closure. Comparing only
     // authored clauses would let an annotation-free helper evade this bound.
-    let Some(summary) = service_reaches.for_machine(machine.symbol) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` has no inferred service-reach summary for requirement checking",
-            machine.name,
-        )));
+    let Some(disallowed) = super::disallowed_reached_service_names(
+        program,
+        service_reaches,
+        machine,
+        allowed_services,
+        diagnostics,
+    ) else {
         return;
     };
-    for service in service_reaches.services(summary.effective) {
-        if !allowed_services.contains(service) {
-            let service_name = program
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>");
-            diagnostics.push(Diagnostic::error(format!(
-                "{label} reaches service `{service_name}` outside the requirement ceiling"
-            )));
-        }
+    for service_name in disallowed {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} reaches service `{service_name}` outside the requirement ceiling"
+        )));
     }
     if machine.suspends && !requirement.suspends {
         diagnostics.push(Diagnostic::error(format!(

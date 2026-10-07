@@ -511,28 +511,23 @@ fn validate_trait_effect_ceiling(
         .services(requirement.service_reach_row);
     // The requirement stays fixed while the checked provider's published
     // service row includes conservative reach through ordinary helpers.
-    let Some(summary) = service_reaches.for_machine(machine.symbol) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` has no inferred service-reach summary for requirement checking",
-            machine.name,
-        )));
+    let Some(disallowed) = super::disallowed_reached_service_names(
+        program,
+        service_reaches,
+        machine,
+        allowed_services,
+        diagnostics,
+    ) else {
         return;
     };
-    for service in service_reaches.services(summary.effective) {
-        if !allowed_services.contains(service) {
-            let service_name = program
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>");
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",
-                machine.name,
-                state.name,
-                trait_name,
-                requirement.name,
-            )));
-        }
+    for service_name in disallowed {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",
+            machine.name,
+            state.name,
+            trait_name,
+            requirement.name,
+        )));
     }
 
     if machine.suspends && !requirement.suspends {
