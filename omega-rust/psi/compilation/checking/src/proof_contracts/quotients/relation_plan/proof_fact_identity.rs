@@ -20,6 +20,19 @@ pub(super) struct ProofValueSubstitution {
     trace: String,
 }
 
+
+/// A fixed-size nested array's `[r1, r2, ...]` display rows — every leaf
+/// element kind renders identically.
+fn nested_array_rendered<T: std::fmt::Debug>(rows: &[std::sync::Arc<[T]>]) -> String {
+    format!(
+        "[{}]",
+        rows.iter()
+            .map(|row| format!("{:?}", row.as_ref()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
 impl ProofValueSubstitution {
     pub(super) fn symbolic(symbol: SymbolHandle, identity: String) -> Self {
         Self {
@@ -91,13 +104,7 @@ impl ProofValueSubstitution {
     ) -> Self {
         Self {
             symbol,
-            rendered: format!(
-                "[{}]",
-                rows.iter()
-                    .map(|row| format!("{:?}", row.as_ref()))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            rendered: nested_array_rendered(rows),
             trace: array_trace(
                 rows.iter().map(|row| {
                     array_trace(row.iter().map(|byte| format!("integer:{byte}:unlanded")))
@@ -112,13 +119,7 @@ impl ProofValueSubstitution {
     ) -> Self {
         Self {
             symbol,
-            rendered: format!(
-                "[{}]",
-                rows.iter()
-                    .map(|row| format!("{:?}", row.as_ref()))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            rendered: nested_array_rendered(rows),
             trace: array_trace(
                 rows.iter()
                     .map(|row| array_trace(row.iter().map(|value| boolean_trace(*value)))),
