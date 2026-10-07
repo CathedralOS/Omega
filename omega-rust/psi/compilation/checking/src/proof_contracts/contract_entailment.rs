@@ -340,6 +340,17 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // REJECT when any are present, since the unread fact could entail the
     // goal.
     let mut all_facts_are_expressions = true;
+    let push_unsupported_stand_down =
+        |stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
+         contract_index: usize,
+         fact_index: usize| {
+            stand_downs.push(crate::ContractEntailmentStandDown {
+                machine_symbol: machine.symbol,
+                contract_index,
+                fact_index,
+                reason: crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
+            });
+        };
     for (contract_index, contract) in program.machine_contracts(machine).iter().enumerate() {
         let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
@@ -364,13 +375,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     if matches!(contract.kind, SignatureContractKind::Requires) {
                         requires_propositions.push(application);
                     } else if account_stand_downs {
-                        stand_downs.push(crate::ContractEntailmentStandDown {
-                            machine_symbol: machine.symbol,
+                        push_unsupported_stand_down(
+                            stand_downs,
                             contract_index,
                             fact_index,
-                            reason:
-                                crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
-                        });
+                        );
                     }
                     all_facts_are_expressions = false;
                 }
@@ -383,13 +392,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                             membership.domain_symbol,
                         )
                     {
-                        stand_downs.push(crate::ContractEntailmentStandDown {
-                            machine_symbol: machine.symbol,
+                        push_unsupported_stand_down(
+                            stand_downs,
                             contract_index,
                             fact_index,
-                            reason:
-                                crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
-                        });
+                        );
                     }
                     all_facts_are_expressions = false;
                 }
