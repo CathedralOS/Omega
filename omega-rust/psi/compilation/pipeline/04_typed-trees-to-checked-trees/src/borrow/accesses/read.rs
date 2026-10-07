@@ -8,7 +8,13 @@ pub(super) fn collect_place_evaluation_reads(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {
-    match collection.program.expression_table.expression(expression) {
+    let program = collection.program;
+    if super::super::children::recurse_shared_children(program, expression, &mut |child| {
+        collect_read_accesses(collection, child);
+    }) {
+        return;
+    }
+    match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {}
         ExpressionNode::Member(member) => {
             collect_place_evaluation_reads(collection, member.receiver);
@@ -32,44 +38,6 @@ pub(super) fn collect_read_accesses(
     expression: ExpressionHandle,
 ) {
     match collection.program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            collect_read_accesses(collection, dispatch.subject);
-            // This is a may-read summary, not an execution or move schedule.
-            // Each arm retains result loans; only copied reads and loans
-            // internal to a completed nested call expire within that arm.
-            for arm in collection
-                .program
-                .expression_table
-                .match_arms(dispatch.arms)
-            {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    collect_read_accesses(collection, pattern);
-                }
-                collect_read_accesses(collection, arm.value);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => collect_read_accesses(collection, atomic.value),
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in collection
-                .program
-                .expression_table
-                .expression_handles(*values)
-            {
-                collect_read_accesses(collection, *value);
-            }
-        }
-        ExpressionNode::Range(range) => {
-            if range.start.is_valid() {
-                collect_read_accesses(collection, range.start);
-            }
-            if range.end.is_valid() {
-                collect_read_accesses(collection, range.end);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_read_accesses(collection, binary.left);
-            collect_read_accesses(collection, binary.right);
-        }
         ExpressionNode::Call(call) => {
             let first_access = collection.access_count();
             // Static qualification selects a declaration, not a runtime place.
@@ -93,7 +61,6 @@ pub(super) fn collect_read_accesses(
             );
             collection.finish_nested_call(first_access, expression);
         }
-        ExpressionNode::Cast(cast) => collect_read_accesses(collection, cast.value),
         ExpressionNode::Indexed(indexed) => {
             if !append_read_access(collection, expression) {
                 // A computed collection has no retained source place, but its
@@ -118,22 +85,7 @@ pub(super) fn collect_read_accesses(
             append_read_access(collection, expression);
         }
         ExpressionNode::Borrow(_) => super::collect_argument_accesses(collection, expression),
-        ExpressionNode::Unary(unary) => collect_read_accesses(collection, unary.operand),
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in collection
-                .program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_read_accesses(collection, field.value);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        _ => {}
     }
 }
 

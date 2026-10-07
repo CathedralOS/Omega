@@ -8,44 +8,13 @@ pub(super) fn collect_expression_borrow_calls(
     collection: &mut BorrowCallCollection<'_>,
     expression: ExpressionHandle,
 ) {
-    match collection.program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            collect_expression_borrow_calls(collection, dispatch.subject);
-            // These rows name authored calls, not a simultaneous execution.
-            // Keep even covered suffixes so lexical call ordinals stay stable.
-            for arm in collection
-                .program
-                .expression_table
-                .match_arms(dispatch.arms)
-            {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    collect_expression_borrow_calls(collection, pattern);
-                }
-                collect_expression_borrow_calls(collection, arm.value);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => collect_expression_borrow_calls(collection, atomic.value),
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in collection
-                .program
-                .expression_table
-                .expression_handles(*values)
-            {
-                collect_expression_borrow_calls(collection, *value);
-            }
-        }
-        ExpressionNode::Range(range) => {
-            if range.start.is_valid() {
-                collect_expression_borrow_calls(collection, range.start);
-            }
-            if range.end.is_valid() {
-                collect_expression_borrow_calls(collection, range.end);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_borrow_calls(collection, binary.left);
-            collect_expression_borrow_calls(collection, binary.right);
-        }
+    let program = collection.program;
+    if super::super::children::recurse_shared_children(program, expression, &mut |child| {
+        collect_expression_borrow_calls(collection, child);
+    }) {
+        return;
+    }
+    match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(collection.program, call.receiver);
@@ -132,7 +101,6 @@ pub(super) fn collect_expression_borrow_calls(
                 collect_expression_borrow_calls(collection, *argument);
             }
         }
-        ExpressionNode::Cast(cast) => collect_expression_borrow_calls(collection, cast.value),
         ExpressionNode::Indexed(indexed) => {
             collect_expression_borrow_calls(collection, indexed.collection);
             collect_expression_borrow_calls(collection, indexed.index);
@@ -143,22 +111,6 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Borrow(inner_expression) => {
             collect_expression_borrow_calls(collection, inner_expression.target)
         }
-        ExpressionNode::Unary(unary) => collect_expression_borrow_calls(collection, unary.operand),
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in collection
-                .program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_expression_borrow_calls(collection, field.value);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        _ => {}
     }
 }
