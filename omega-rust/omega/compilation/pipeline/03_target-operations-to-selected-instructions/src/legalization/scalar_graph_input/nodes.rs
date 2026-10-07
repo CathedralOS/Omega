@@ -621,10 +621,10 @@ pub(super) fn validate(
                 || super::byte_views::element_type(optimized, *destination, types).and_then(
                     |element| terminal_semantics::element_view_leaf_scalar(types, element, path),
                 ) != value_type(optimized, *value)
-                || !matches!(
-                    value_type(optimized, *value),
-                    Some(ScalarType::Integer(_) | ScalarType::Boolean)
-                )
+                // A scalar store has the same native storage carriers as a
+                // scalar read. The exact declared leaf above, not an integer
+                // family recognizer, owns its width and representation.
+                || value_type(optimized, *value).and_then(scalar_shape).is_none()
             {
                 return Err(LegalizationError::custody());
             }

@@ -36,7 +36,7 @@ pub(super) fn write(
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
             )
-        || !matches!(value_type, ScalarType::Integer(_) | ScalarType::Boolean)
+        || crate::structural_inputs::structural_reference_input::scalar_shape(value_type).is_none()
     {
         return Err(invalid());
     }

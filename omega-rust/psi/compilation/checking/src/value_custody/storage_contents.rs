@@ -4,7 +4,10 @@
 //! checks. A shared loan can freeze ordinary contents without owning them; that
 //! never authorizes no-code moves, cleanup erasure, or a copied reference ABI.
 //! Observation permits only recursively stable contents and understood value
-//! refinements. Unknown qualifications and mutation-capable loans stay opaque.
+//! refinements. Predicate-only value facts share callable contracts' complete
+//! subject-bound meaning; they add no storage or cleanup. Classifying their
+//! carrier proves no membership and preserves their invariant-window custody.
+//! Unknown qualifications and mutation-capable loans stay opaque.
 
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
@@ -465,6 +468,17 @@ fn resolve(
                 // Exact type correspondence remains the caller's obligation.
                 typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => true,
                 typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    // Predicate-only value facts have no semantic atom, new
+                    // storage or cleanup action. Every content judgment keeps
+                    // the same carrier; invariant-window checking still owns
+                    // its validity. Declared theories retain the narrower
+                    // custody rules below, including routes and semantic roles.
+                    if matches!(domain.subject,
+                        typed_trees::types::DomainConstraintSubject::Value(_))
+                    {
+                        return matches!(contents, ContentType::Scalar(primitive)
+                            if crate::scalar_field_domain_predicate(program, domain, primitive).is_some());
+                    }
                     (matches!(
                         requirement,
                         ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal

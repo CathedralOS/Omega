@@ -3139,11 +3139,11 @@ deletions, which the commit lists.
     casts still need exact source-decision transport. Join the exact checked
     occurrence rather than performing another syntax walk.
   - Cover representation geometry, capacities
-    and remaining bounded stores outside completed bounded-integer field
-    replacements and interval-refined element-view writes, including generated
-    indexed stores. Finish the formation audit across aggregate and proposition
-    positions; unify abstract declaration-contract carrier resolution with the
-    ordinary formation walk.
+    and remaining bounded stores outside bounded-integer field replacements
+    and interval/finite-refined element-view writes, including generated indexed
+    stores. Finish the formation audit outside statement-level concrete scalar
+    constructor first stores across aggregate and proposition positions; unify
+    abstract declaration-contract carrier resolution with the ordinary formation walk.
   - Carry source decisions for invocation-entry, scalar-graph,
     local-refinement and inferred arrival obligations, and conditional cleanup
     prerequisites. Keep call/cleanup contracts and mathematical proofs distinct
@@ -3202,6 +3202,13 @@ deletions, which the commit lists.
   finite-result guarantees and payload-preserving casts in callers and returns;
   `float/same_carrier_cast_cannot_mint_finite` and
   `float/finite_result_requires_proof` must still reject independently.
+  `collections/runtime_finite_element_view_call_write_exit` (0) constrains
+  finite-result stores, captured indices and ordinary float carriers;
+  `float/finite_constructor_requires_operand_proof` must reject an unqualified
+  operand independently of its receiving field. Retain
+  `float/runtime_finite_record_invariant_window_exit` (native/checked 0) for
+  temporary poison repaired before borrowing; shared Terminal execution needs
+  the `TERMINAL-RUNTIME-DRIVERS` host-binding adapter for `Float::divide`.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

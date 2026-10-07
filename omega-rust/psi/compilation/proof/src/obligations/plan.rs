@@ -423,15 +423,33 @@ pub enum ProofObligationOwner {
         local: Identifier,
         statement_index: usize,
     },
+    /// One selected field's first store in an aggregate constructor. The
+    /// declaration owns the receiving constraint, and the statement coordinate
+    /// selects the evaluated operand's current facts; this is not a local binder.
+    ConstructorField {
+        machine_symbol: SymbolHandle,
+        machine: Identifier,
+        state_symbol: SymbolHandle,
+        state: Identifier,
+        field_symbol: SymbolHandle,
+        field: Identifier,
+        statement_index: usize,
+    },
 }
 
 impl ProofObligationOwner {
     /// `(machine, state, statement index)` of the statement that evaluates
-    /// the owned value. Only a state local's initializer has one; owned data,
+    /// the owned value. Local and constructor-field initializers have one; owned data,
     /// parameters and returns are not evaluated at a single statement.
     pub(crate) fn state_statement(&self) -> Option<(SymbolHandle, SymbolHandle, usize)> {
         match self {
             Self::StateLocal {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | Self::ConstructorField {
                 machine_symbol,
                 state_symbol,
                 statement_index,
@@ -475,6 +493,15 @@ impl fmt::Display for ProofObligationOwner {
             } => write!(
                 formatter,
                 "machine `{machine}` state `{state}` local `{local}`"
+            ),
+            Self::ConstructorField {
+                machine,
+                state,
+                field,
+                ..
+            } => write!(
+                formatter,
+                "machine `{machine}` state `{state}` constructor field `{field}`"
             ),
         }
     }

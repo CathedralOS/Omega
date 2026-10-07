@@ -531,7 +531,7 @@ pub(crate) fn construction_field_type(
 /// exact constructor and case before choosing a destination; a same-spelled
 /// declaration in the consumer's source cannot change numeric landing or
 /// nominal field obligations. Projection-name lookup remains a separate caller.
-pub(crate) fn selected_construction_field_type(
+pub fn selected_construction_field_type(
     program: &TypedTrees,
     literal: &TableStructLiteral,
     field: symbols::SymbolHandle,

@@ -37,8 +37,9 @@ pub(crate) use window_elements::validate_array_window_elements;
 
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
+pub use field_obligations::selected_construction_field_type;
 pub(crate) use field_obligations::{
-    construction_field_type, selected_construction_field_type, validate_array_literal_elements,
+    construction_field_type, validate_array_literal_elements,
     validate_array_literal_elements_for_shape,
 };
 

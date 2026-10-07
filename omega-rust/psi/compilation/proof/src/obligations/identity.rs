@@ -15,8 +15,10 @@
 //! symbols rather than their spellings.
 //!
 //! What stays out: `Identifier` display fields beside a resolved symbol,
-//! source spans, positional statement indices, and checker seeds -- none of
-//! them distinguish obligations semantically. Identifiers that ARE the
+//! source spans and checker seeds. Initializers retain their statement
+//! coordinate because reaching stores and call effects change the available
+//! facts at that occurrence; other variants encode their own retained context.
+//! Identifiers that ARE the
 //! retained identity (receivers, evidence names, symbolic-constraint field
 //! names, witness places) keep their authored text. `KEY_SCHEMA` versions
 //! the encoding itself, so checker/schema changes can invalidate stale keys
@@ -44,8 +46,8 @@ pub const KEY_SCHEMA: u32 = 1;
 
 /// Canonical semantic identity of one proof obligation. The string is the
 /// complete normalized content; equal obligations produce equal keys even
-/// when their display spellings or statement positions differ, and distinct
-/// content never merges.
+/// when their display spellings differ. Occurrence-bound initializer context
+/// and distinct retained content never merge.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ProofObligationKey(String);
 
@@ -334,6 +336,24 @@ fn owner_identity(program: &TypedTrees, owner: &ProofObligationOwner) -> String 
                 atom("state-local-state", symbol_identity(program, *state_symbol)),
                 atom("state-local", symbol_identity(program, *local_symbol)),
                 atom("state-local-statement", statement_index.to_string()),
+            ],
+        ),
+        ProofObligationOwner::ConstructorField {
+            machine_symbol,
+            state_symbol,
+            field_symbol,
+            statement_index,
+            ..
+        } => compound(
+            "owner",
+            [
+                atom(
+                    "constructor-machine",
+                    symbol_identity(program, *machine_symbol),
+                ),
+                atom("constructor-state", symbol_identity(program, *state_symbol)),
+                atom("constructor-field", symbol_identity(program, *field_symbol)),
+                atom("constructor-statement", statement_index.to_string()),
             ],
         ),
     }

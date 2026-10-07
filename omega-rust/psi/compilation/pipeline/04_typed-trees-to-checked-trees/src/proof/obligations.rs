@@ -30,6 +30,11 @@ pub(crate) fn lower_proof_obligation(
                     machine_symbol,
                     state_symbol,
                     ..
+                }
+                | proof::obligations::ProofObligationOwner::ConstructorField {
+                    machine_symbol,
+                    state_symbol,
+                    ..
                 } => (*machine_symbol, *state_symbol),
                 _ => (
                     symbols::SymbolHandle::invalid(),
@@ -128,6 +133,11 @@ pub(crate) fn proof_obligation_owner(
         },
         // A local is part of its state's body, as an assignment's place is.
         proof::obligations::ProofObligationOwner::StateLocal {
+            machine_symbol,
+            state_symbol,
+            ..
+        }
+        | proof::obligations::ProofObligationOwner::ConstructorField {
             machine_symbol,
             state_symbol,
             ..

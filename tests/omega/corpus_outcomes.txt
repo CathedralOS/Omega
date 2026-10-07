@@ -1094,6 +1094,8 @@ fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8e
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
 fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
 	data `Sample`'s default domain is still FALSE at a call: the invariant window opened on `sample` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/float/finite_constructor_requires_operand_proof rejected 530ms expected @222cdf8fe2a0+wt
+	cannot prove initializer `value` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 fail/float/finite_result_requires_proof rejected 1069ms expected @4f590536f488+wt
 	cannot prove return value `value` satisfies `finite` for bounded return type in `invalid.entry`
 fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
@@ -2329,6 +2331,7 @@ pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-ta
 pass/collections/runtime_double_indexed_rmw_exit checked 1513ms check-target:macos_arm64 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_element_view_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
+pass/collections/runtime_finite_element_view_call_write_exit checked 6032ms check-target:macos_arm64 @222cdf8fe2a0+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit checked 2775ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-target:macos_arm64 @3ff24ec6504a+wt
 pass/collections/runtime_fixed_array_selector_call_store_exit checked 2807ms check-target:macos_arm64 @faca6c5c7f5
@@ -2768,6 +2771,7 @@ pass/float/named_provider_multiply_then_add_exit checked 4722ms check-target:mac
 pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
+pass/float/runtime_finite_record_invariant_window_exit checked 5990ms check-target:macos_arm64 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit checked 9730ms check-target:macos_arm64 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 4633ms check-target:macos_arm64 @2d8ed253669f

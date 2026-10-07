@@ -228,11 +228,21 @@ impl Predicate<'_> {
 /// operands are anonymous, so overload lookup uses wildcard operand types;
 /// an applicable authored operator therefore prevents builtin interpretation.
 /// This is source authority, independent of a producer's retained field plan.
+/// Compiler-known value refinements use the same subject-bound meaning as
+/// callable contracts. Projecting that meaning does not prove membership or
+/// change an invariant-window fact into a per-write storage restriction.
 pub fn scalar_field_domain_predicate(
     program: &TypedTrees,
     constraint: &typed_trees::types::DomainConstraint,
     primitive: PrimitiveType,
 ) -> Option<Boolean> {
+    let subject = Scalar::Parameter {
+        position: 0,
+        primitive_type: primitive,
+    };
+    if let typed_trees::types::DomainConstraintSubject::Value(domain) = constraint.subject {
+        return crate::scalar_value_domain_predicate(domain, subject);
+    }
     if constraint.subject != typed_trees::types::DomainConstraintSubject::Declared
         || !constraint.arguments.is_empty()
         || !constraint.establishment_routes.is_empty()
@@ -247,10 +257,6 @@ pub fn scalar_field_domain_predicate(
     if scalar_membership_carrier(program, &membership)? != primitive {
         return None;
     }
-    let subject = Scalar::Parameter {
-        position: 0,
-        primitive_type: primitive,
-    };
     let predicates = project(
         program,
         &membership,

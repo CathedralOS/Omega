@@ -1,6 +1,10 @@
 //! Building a proof plan from a typed program: walking every bounded
 //! value, initializer, assignment, call argument, state return and
 //! transition argument into its obligation.
+//! A selected scalar constructor field receives a first value just as a local
+//! does. Its declaration supplies the required predicate, never the operand's
+//! proof. Both share the occurrence-bound initializer check; later mutable
+//! field writes retain the separate invariant-window rules.
 
 use crate::obligations::constraints::{
     collect_constraints, derived_binary_constraints, expression_constraints,
@@ -197,9 +201,11 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                     | StatementNode::AssemblyFact(_)
                     | StatementNode::Expression(_) => {}
                 }
-                // A call nested in any of the statement's expressions delivers
-                // its arguments exactly as a statement call does.
-                collect_nested_call_argument_obligations(
+                // Calls and aggregate fields receive evaluated operands just
+                // like statement calls and local initializers. One structural
+                // walk locates both, retaining the selected destination and
+                // statement occurrence for the ordinary bounded-value checker.
+                collect_nested_receiving_obligations(
                     program,
                     machine,
                     state,
@@ -887,7 +893,7 @@ struct CallOccurrence<'program> {
     arguments: &'program [ExpressionHandle],
 }
 
-fn collect_nested_call_argument_obligations(
+fn collect_nested_receiving_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -896,6 +902,7 @@ fn collect_nested_call_argument_obligations(
     proof_plan: &mut ProofPlan<'_>,
 ) {
     let mut calls = Vec::new();
+    let mut fields = Vec::new();
     let mut visited = Vec::new();
     for (_, root) in program.statement_table.expression_roots(statement) {
         validation::expression_traversal::visit_post_order(program, root, &mut visited, |node| {
@@ -909,7 +916,42 @@ fn collect_nested_call_argument_obligations(
                     arguments: program.expression_table.expression_handles(call.arguments),
                 });
             }
+            if let ExpressionNode::StructLiteral(literal) = node {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(reference) = validation::selected_construction_field_type(
+                        program,
+                        literal,
+                        field.field_symbol,
+                    ) else {
+                        continue;
+                    };
+                    // Reference/aggregate custody remains with construction;
+                    // only a scalar's own receiving predicate is owed here.
+                    if program.primitive_type_reference(reference).is_some() {
+                        fields.push((field, reference));
+                    }
+                }
+            }
         });
+    }
+    for (field, reference) in fields {
+        collect_receiving_initializer_obligation(
+            program,
+            machine,
+            state,
+            field.value,
+            reference,
+            ProofObligationOwner::ConstructorField {
+                machine_symbol: machine.symbol,
+                machine: machine.name.clone(),
+                state_symbol: state.symbol,
+                state: state.name.clone(),
+                field_symbol: field.field_symbol,
+                field: field.name.clone(),
+                statement_index,
+            },
+            proof_plan,
+        );
     }
     for call in calls {
         collect_bounded_call_argument_obligations(
@@ -995,29 +1037,48 @@ fn collect_bounded_local_initializer_obligation(
     {
         return;
     }
-    let Some((base_type, constraints)) = constrained_type_reference(program, local.type_reference)
-    else {
-        return;
-    };
-    let value_constraints = proof_plan.store_constraints(expression_constraints(
+    collect_receiving_initializer_obligation(
         program,
         machine,
         state,
         local.initial_value,
-    ));
+        local.type_reference,
+        ProofObligationOwner::StateLocal {
+            machine_symbol: machine.symbol,
+            machine: machine.name.clone(),
+            state_symbol: state.symbol,
+            state: state.name.clone(),
+            local_symbol: local.symbol,
+            local: local.name.clone(),
+            statement_index,
+        },
+        proof_plan,
+    );
+}
+
+/// A scalar receiving declaration cannot establish its operand's facts. Field
+/// and local first stores share this obligation; changing the storage home must
+/// not mint finiteness or a range. The ordinary checker consumes the exact
+/// owner/operand coordinate and proves the complete receiving constraint.
+fn collect_receiving_initializer_obligation(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    owner: ProofObligationOwner,
+    proof_plan: &mut ProofPlan<'_>,
+) {
+    let Some((base_type, constraints)) = constrained_type_reference(program, reference) else {
+        return;
+    };
+    let value_constraints =
+        proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
     proof_plan.push_obligation(ProofObligation::BoundedInitializer(
         BoundedInitializerObligation {
-            owner: ProofObligationOwner::StateLocal {
-                machine_symbol: machine.symbol,
-                machine: machine.name.clone(),
-                state_symbol: state.symbol,
-                state: state.name.clone(),
-                local_symbol: local.symbol,
-                local: local.name.clone(),
-                statement_index,
-            },
-            value: local.initial_value,
+            owner,
+            value,
             value_constraints,
             base_type,
             constraints,
