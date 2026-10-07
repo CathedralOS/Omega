@@ -13,6 +13,37 @@ use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
 };
 
+/// `place_case_has_value` for the Case segment at `position`, evaluated on
+/// the subject truncated just before that segment.
+#[allow(clippy::too_many_arguments)]
+fn case_segment_value(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: &CanonicalPlace,
+    position: usize,
+    variant: SymbolHandle,
+    expected: bool,
+) -> bool {
+    place_case_has_value(
+        program,
+        semantic,
+        contexts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &CanonicalPlace {
+            root: subject.root,
+            segments: subject.segments[..position].to_vec(),
+        },
+        variant,
+        expected,
+    )
+}
+
 pub(crate) fn place_cases_are_selected(
     program: &TypedTrees,
     semantic: &FactPlan,
@@ -30,17 +61,15 @@ pub(crate) fn place_cases_are_selected(
             let PlaceSegment::Case { variant } = segment else {
                 return true;
             };
-            place_case_has_value(
+            case_segment_value(
                 program,
                 semantic,
                 contexts,
                 machine_symbol,
                 state_symbol,
                 statement_index,
-                &CanonicalPlace {
-                    root: subject.root,
-                    segments: subject.segments[..position].to_vec(),
-                },
+                subject,
+                position,
                 *variant,
                 true,
             )
@@ -68,17 +97,15 @@ pub(crate) fn place_case_path_is_inactive(
             let PlaceSegment::Case { variant } = segment else {
                 return false;
             };
-            place_case_has_value(
+            case_segment_value(
                 program,
                 semantic,
                 contexts,
                 machine_symbol,
                 state_symbol,
                 statement_index,
-                &CanonicalPlace {
-                    root: subject.root,
-                    segments: subject.segments[..position].to_vec(),
-                },
+                subject,
+                position,
                 *variant,
                 false,
             )
