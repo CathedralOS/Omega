@@ -770,21 +770,14 @@ fn evaluate_application_round(
     // Bind exact authored provider occurrences before cloning specializations,
     // on a private copy: the caller's tree keeps its authored selection and
     // source-owned handles for final checking.
-    let selected_execution =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            provider_bodies,
-            operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
-        selected_execution.as_ref().unwrap_or(typed),
+    let (prepared, admission) = crate::const_evaluation::prepared_admission(
+        typed,
+        provider_bodies,
+        operators,
+        selection_authority.clone(),
         domain,
     )?;
     let execution = prepared.typed();
-    let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
-        .with_selected_operators(execution, operators)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
 
     let mut round = ApplicationRound {
         folds: Vec::new(),
