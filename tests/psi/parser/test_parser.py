@@ -183,7 +183,13 @@ def decode(payload: bytes) -> Observation:
     )
 
 
+# Every distinct source the gate runs is one case; the determinism check runs
+# its source twice and counts once.
+CASE_SOURCES: set[bytes] = set()
+
+
 def run(program: str, source: bytes) -> tuple[int, bytes]:
+    CASE_SOURCES.add(source)
     completed = subprocess.run([program], input=source, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
     return completed.returncode, completed.stdout
@@ -930,7 +936,7 @@ def main() -> None:
     second = run(program, repeat_source)
     assert first == second, "parser observation is not deterministic"
 
-    print("Psi parser slices: 94 cases passed")
+    print(f"Psi parser slices: {len(CASE_SOURCES)} cases passed")
 
 
 if __name__ == "__main__":

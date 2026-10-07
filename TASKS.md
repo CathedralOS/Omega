@@ -5777,18 +5777,17 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
-  Current blocker: `OMEGA_CLI=<fresh debug CLI> OMEGA_TARGET=macos_arm64
-  tests/psi/parser/test-parser.sh` reviews and checks the gate's three
-  packages (the gate package's check takes 113 s), produces Terminal Psi,
-  and selects `ParserHarness::main`'s zero-initialized `Lexer` as one
-  `ZeroBytes` fill. The native build (228 s) then fails in register
-  allocation with `RegisterAllocation(RuntimeSpill(Rewrite(WorkBudgetExceeded)))`:
-  the runtime-spill rewrite's step bound, sized from the victim function's
-  instructions, blocks and memory accesses, exceeds its validation budget.
-  `omega --check source/omega/main.omg` is unverified on current main. Then
-  run all 75 gate cases, keeping the
-  acceptance/rejection, lexical handoff, structural identity, capacity and
-  determinism controls. Keep range-proven narrowing casts.
+  Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
+  OMEGA_TARGET=macos_arm64 tests/psi/parser/test-parser.sh` reviews and
+  checks the gate's three packages, builds the harness natively and passes
+  all 97 cases (78 to 115 s end to end), and `omega --check
+  source/omega/main.omg` checks its 31 files. Next: carry the product past
+  parsing, starting with symbol resolution of the parsed `use`/`data` roots
+  in `source/psi/`, through the same pipeline and with gate cases for each
+  accepted and rejected form; run the parser gate on Linux and Windows
+  hosts. Keep the acceptance/rejection, lexical handoff, structural
+  identity, capacity and determinism controls and range-proven narrowing
+  casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the

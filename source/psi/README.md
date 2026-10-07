@@ -44,21 +44,20 @@ with the explicit Omega executable path. The gate is its own package beside this
 root: under it, the gate's lock and build output would be `psi` source. Delete
 the gate only when an equal or stronger product-source gate subsumes every
 retained failure class, and the harness only when an equal or stronger
-semantic-free gate preserves all 75 cases.
+semantic-free gate preserves all of its cases.
 
-The source closure and harness previously passed checked-source compilation,
-but fresh native publication remained fail-closed at the attached Unit transitive
-machine-plan boundary. The latest macOS check-only recheck exceeded ten minutes
-on both the original and revised harness. The required 75-case run is not current
-acceptance evidence and no cached executable may stand in for it.
+On macOS ARM64 the gate builds the harness natively from a fresh CLI and all
+97 cases pass; the gate counts each distinct source it runs as one case. No
+cached executable may stand in for that run. Linux and Windows hosts have
+not run it.
 
 The lexer keeps its one canonical mixed `Token` stream; the parser observes it
 through a shared borrow forwarded along its state edges.
 There is no `TokenObservation`, numeric token array, per-token handoff, raw
 parser ordinal, or scalar tag/span cache. Structural parser serialization lives
 only in the gate-owned Omega harness; the exact
-product entrypoint retains phase driving and exit diagnostics. The same 75
-parser cases and structural observations remain mandatory, and the Python
+product entrypoint retains phase driving and exit diagnostics. The same parser
+cases and structural observations remain mandatory, and the Python
 decoder stays semantic-free. The former 32-case lexical parity matrix and its
 numeric token protocol are removed; these parser cases do not replace that
 lexical coverage.
