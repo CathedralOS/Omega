@@ -17,26 +17,43 @@ use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::TransitionGuardNode;
 
+/// The argument-integer-range spine both operand-arg obligations share:
+/// anonymous-argument literal first, then literal-or-constraints.
+fn integer_range_for_argument(
+    proof_plan: &ProofPlan,
+    operand: ExpressionHandle,
+    base_type: typed_trees::types::TypeReferenceHandle,
+    constraints: HandleSpan<ProofConstraint>,
+) -> Option<IntegerRange> {
+    if let Some(range) = anonymous_integer_argument_range(proof_plan, operand, base_type) {
+        return Some(range);
+    }
+    integer_range_for_value(proof_plan, operand, constraints)
+}
+
+/// The literal-or-constraints integer range spine every stored-value
+/// obligation shares.
+fn integer_range_for_value(
+    proof_plan: &ProofPlan,
+    operand: ExpressionHandle,
+    constraints: HandleSpan<ProofConstraint>,
+) -> Option<IntegerRange> {
+    match proof_plan.program.expression_table.expression(operand) {
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
+        _ => integer_range_from_constraints(type_constraints(proof_plan, constraints)),
+    }
+}
+
 pub(crate) fn integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<IntegerRange> {
-    if let Some(range) =
-        anonymous_integer_argument_range(proof_plan, obligation.argument, obligation.base_type)
-    {
-        return Some(range);
-    }
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.argument)
-    {
-        ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => integer_range_from_constraints(type_constraints(
-            proof_plan,
-            obligation.argument_constraints,
-        )),
-    }
+    integer_range_for_argument(
+        proof_plan,
+        obligation.argument,
+        obligation.base_type,
+        obligation.argument_constraints,
+    )
 }
 
 pub(crate) fn guarded_integer_range_for_transition_argument(
@@ -181,22 +198,12 @@ pub(crate) fn integer_range_for_call_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
-    if let Some(range) =
-        anonymous_integer_argument_range(proof_plan, obligation.argument, obligation.base_type)
-    {
-        return Some(range);
-    }
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.argument)
-    {
-        ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => integer_range_from_constraints(type_constraints(
-            proof_plan,
-            obligation.argument_constraints,
-        )),
-    }
+    integer_range_for_argument(
+        proof_plan,
+        obligation.argument,
+        obligation.base_type,
+        obligation.argument_constraints,
+    )
 }
 
 fn anonymous_integer_argument_range(
@@ -219,17 +226,7 @@ fn integer_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<IntegerRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
-        ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => integer_range_from_constraints(type_constraints(
-            proof_plan,
-            obligation.value_constraints,
-        )),
-    }
+    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
 }
 
 pub(crate) fn guarded_integer_range_for_assignment(
@@ -673,34 +670,14 @@ pub(crate) fn integer_range_for_return_value(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
 ) -> Option<IntegerRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
-        ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => integer_range_from_constraints(type_constraints(
-            proof_plan,
-            obligation.value_constraints,
-        )),
-    }
+    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
 }
 
 pub(crate) fn integer_range_for_initializer(
     proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
 ) -> Option<IntegerRange> {
-    match proof_plan
-        .program
-        .expression_table
-        .expression(obligation.value)
-    {
-        ExpressionNode::Integer(value) => integer_range_for_literal(value),
-        _ => integer_range_from_constraints(type_constraints(
-            proof_plan,
-            obligation.value_constraints,
-        )),
-    }
+    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
 }
 
 /// The "know nothing" starting interval for guard refinement: the i64 line.
