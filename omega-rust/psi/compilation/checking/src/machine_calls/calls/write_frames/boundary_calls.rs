@@ -568,6 +568,64 @@ fn requirement_signature_in_trait<'program>(
 /// proven rather than spelled, and the requirement is then unique by name.
 /// An indexed or non-place link never reaches this fallback — its receiver
 /// chain was already rejected by the caller's exact-receiver gate.
+/// The written paths every admitted exclusive argument contributes, shared
+/// by the boundary frame and the resolved-signature frame: a by-value
+/// carrier that can still contain mutable references refuses the frame
+/// rather than manufacture a receiver-only approximation.
+#[allow(clippy::too_many_arguments)]
+fn boundary_written_argument_paths(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    parameters: Vec<&StateParameter>,
+    arguments: &[ExpressionHandle],
+    written: &mut Vec<String>,
+    bindings: &TypeBindings,
+    inference: &mut FrameInference,
+) -> Option<()> {
+    for (parameter, argument) in parameters.into_iter().zip(arguments) {
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let parameter_type = substituted_head(program, parameter_type, &bindings);
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            if !matches!(
+                program.type_reference_table.type_reference(parameter_type),
+                TypeReferenceNode::Unit
+            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
+            {
+                // A by-value carrier can still contain mutable references.
+                // Without leaf-origin transport, omitting their writes would
+                // manufacture a complete receiver-only frame.
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
+            return None;
+        }
+        for origin in boundary_argument_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            *argument,
+            inference,
+        )? {
+            if !written.contains(&origin.path) {
+                written.push(origin.path);
+            }
+        }
+    }
+
+    Some(())
+}
+
 fn requirement_signature_for_receiver_path<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
@@ -706,45 +764,17 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
         arguments,
         Vec::new(),
     )?;
-    for (parameter, argument) in paired.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let parameter_type = substituted_head(program, parameter_type, &bindings);
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
-        else {
-            if !matches!(
-                program.type_reference_table.type_reference(parameter_type),
-                TypeReferenceNode::Unit
-            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
-            {
-                // A by-value carrier can still contain mutable references.
-                // Without leaf-origin transport, omitting their writes would
-                // manufacture a complete receiver-only frame.
-                return None;
-            }
-            continue;
-        };
-        if !access.is_exclusive() {
-            continue;
-        }
-        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
-            return None;
-        }
-        for origin in boundary_argument_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            *argument,
-            inference,
-        )? {
-            if !written.contains(&origin.path) {
-                written.push(origin.path);
-            }
-        }
-    }
-
+    boundary_written_argument_paths(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        paired,
+        arguments,
+        &mut written,
+        &bindings,
+        inference,
+    )?;
     Some(written)
 }
 
@@ -953,45 +983,17 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         bindings,
     )?;
 
-    for (parameter, argument) in parameters.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let parameter_type = substituted_head(program, parameter_type, &bindings);
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program.type_reference_table.type_reference(parameter_type)
-        else {
-            if !matches!(
-                program.type_reference_table.type_reference(parameter_type),
-                TypeReferenceNode::Unit
-            ) && !type_is_caller_isolated_local_in(program, parameter_type, &bindings)
-            {
-                // A by-value carrier can still contain mutable references.
-                // Without leaf-origin transport, omitting their writes would
-                // manufacture a complete receiver-only frame.
-                return None;
-            }
-            continue;
-        };
-        if !access.is_exclusive() {
-            continue;
-        }
-        if !referent_has_only_owned_storage_in(program, *referee, &bindings) {
-            return None;
-        }
-        for origin in boundary_argument_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            symbols,
-            *argument,
-            inference,
-        )? {
-            if !written.contains(&origin.path) {
-                written.push(origin.path);
-            }
-        }
-    }
-
+    boundary_written_argument_paths(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        parameters,
+        arguments,
+        &mut written,
+        &bindings,
+        inference,
+    )?;
     Some(written)
 }
 
