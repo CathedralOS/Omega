@@ -6,6 +6,24 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use tokens::{KeywordKind, PunctuationKind};
 
+/// The fact-list terminator shared by every signature contract clause: a
+/// clause ends at `;`, `{`, the next contract keyword, or input end.
+fn signature_clause_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("terminates")
+        || input.at_contextual("reaches")
+        || input.at_contextual("effects")
+        || input.at_contextual("invokes")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
+        || input.at_contextual("where")
+        || input.tokens.is_empty()
+}
+
 /// Parses the `reaches`/`requires`/`ensures` clauses that may follow a bodyless
 /// machine signature: trait machine signatures and platform entry signatures
 /// share this clause grammar.
@@ -80,21 +98,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             }
             input = input.take_contextual("where")?;
             let ((facts, _token_count), rest) =
-                parse_proof_facts_until(syntax_trees, input, |input| {
-                    input.at_punctuation(PunctuationKind::Semicolon)
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.at_contextual("requires")
-                        || input.at_contextual("ensures")
-                        || input.at_contextual("terminates")
-                        || input.at_contextual("reaches")
-                        || input.at_contextual("effects")
-                        || input.at_contextual("invokes")
-                        || input.at_contextual("suspends")
-                        || input.at_contextual("blocks")
-                        || input.at_contextual("crashes")
-                        || input.at_contextual("where")
-                        || input.tokens.is_empty()
-                })?;
+                parse_proof_facts_until(syntax_trees, input, signature_clause_boundary)?;
             where_fact_start = facts.start();
             where_fact_count = facts.count();
             input = rest;
@@ -227,21 +231,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             let after_header = after_cause;
             let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =
-                parse_proof_facts_until(syntax_trees, after_header, |input| {
-                    input.at_punctuation(PunctuationKind::Semicolon)
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.at_contextual("requires")
-                        || input.at_contextual("ensures")
-                        || input.at_contextual("terminates")
-                        || input.at_contextual("reaches")
-                        || input.at_contextual("effects")
-                        || input.at_contextual("invokes")
-                        || input.at_contextual("suspends")
-                        || input.at_contextual("blocks")
-                        || input.at_contextual("crashes")
-                        || input.at_contextual("where")
-                        || input.tokens.is_empty()
-                })?;
+                parse_proof_facts_until(syntax_trees, after_header, signature_clause_boundary)?;
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {
@@ -284,21 +274,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 (None, input)
             };
             let ((facts, token_count), rest) =
-                parse_proof_facts_until(syntax_trees, fact_input, |input| {
-                    input.at_punctuation(PunctuationKind::Semicolon)
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.at_contextual("requires")
-                        || input.at_contextual("ensures")
-                        || input.at_contextual("terminates")
-                        || input.at_contextual("reaches")
-                        || input.at_contextual("effects")
-                        || input.at_contextual("invokes")
-                        || input.at_contextual("suspends")
-                        || input.at_contextual("blocks")
-                        || input.at_contextual("crashes")
-                        || input.at_contextual("where")
-                        || input.tokens.is_empty()
-                })?;
+                parse_proof_facts_until(syntax_trees, fact_input, signature_clause_boundary)?;
             if binding.is_some() && facts.count() != 1 {
                 return Err(fact_input.error_here(
                     "a named bodyless-signature contract must contain exactly one proposition",
