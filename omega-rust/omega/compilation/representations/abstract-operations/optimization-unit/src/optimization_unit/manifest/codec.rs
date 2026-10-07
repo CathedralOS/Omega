@@ -121,31 +121,9 @@ pub(super) fn pre_physical_manifest_identity(
 
 fn encode_manifest_content(manifest: &PrePhysicalOptimizationManifest) -> Vec<u8> {
     let mut canonical = Vec::new();
-    canonical.push(match manifest.stage {
-        OptimizationManifestStage::PrePhysicalAbstractPlan => 1,
-    });
-    canonical.push(match manifest.physical_data {
-        PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization => 1,
-    });
-    canonical.extend_from_slice(&manifest.psi.vocabulary_marker.get().to_le_bytes());
-    canonical.extend_from_slice(manifest.psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&manifest.fuel_schedule.marker().to_le_bytes());
-    canonical.extend_from_slice(&manifest.initial_unit.bytes());
-    canonical.extend_from_slice(&manifest.final_unit.bytes());
-    canonical.extend_from_slice(&manifest.projection.bytes());
-    encode_bytes(&mut canonical, &manifest.selections.encode());
-    encode_bytes(&mut canonical, &manifest.psi_selections.encode());
-    canonical.extend_from_slice(&manifest.budget_per_pass.encode());
-    canonical.extend_from_slice(&manifest.usage.encode());
-    encode_bytes(&mut canonical, &manifest.decision_log.encode());
-    encode_len(&mut canonical, manifest.pass_manifests.len());
-    for pass in &manifest.pass_manifests {
-        encode_bytes(&mut canonical, &pass.encode());
-    }
+    encode_manifest_body_prefix(&mut canonical, manifest);
     canonical.extend_from_slice(&manifest.transformation_ledger.identity().bytes());
-    encode_bytes(&mut canonical, &manifest.identity_bundle.encode());
-    encode_statistics(&mut canonical, manifest.source_statistics);
-    encode_statistics(&mut canonical, manifest.optimized_statistics);
+    encode_manifest_body_suffix(&mut canonical, manifest);
     canonical
 }
 
@@ -155,31 +133,9 @@ fn encode_manifest_content(manifest: &PrePhysicalOptimizationManifest) -> Vec<u8
 /// the optimization result's established identity domain.
 fn encode_manifest_artifact_content(manifest: &PrePhysicalOptimizationManifest) -> Vec<u8> {
     let mut canonical = Vec::new();
-    canonical.push(match manifest.stage {
-        OptimizationManifestStage::PrePhysicalAbstractPlan => 1,
-    });
-    canonical.push(match manifest.physical_data {
-        PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization => 1,
-    });
-    canonical.extend_from_slice(&manifest.psi.vocabulary_marker.get().to_le_bytes());
-    canonical.extend_from_slice(manifest.psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&manifest.fuel_schedule.marker().to_le_bytes());
-    canonical.extend_from_slice(&manifest.initial_unit.bytes());
-    canonical.extend_from_slice(&manifest.final_unit.bytes());
-    canonical.extend_from_slice(&manifest.projection.bytes());
-    encode_bytes(&mut canonical, &manifest.selections.encode());
-    encode_bytes(&mut canonical, &manifest.psi_selections.encode());
-    canonical.extend_from_slice(&manifest.budget_per_pass.encode());
-    canonical.extend_from_slice(&manifest.usage.encode());
-    encode_bytes(&mut canonical, &manifest.decision_log.encode());
-    encode_len(&mut canonical, manifest.pass_manifests.len());
-    for pass in &manifest.pass_manifests {
-        encode_bytes(&mut canonical, &pass.encode());
-    }
+    encode_manifest_body_prefix(&mut canonical, manifest);
     encode_bytes(&mut canonical, &manifest.transformation_ledger.encode());
-    encode_bytes(&mut canonical, &manifest.identity_bundle.encode());
-    encode_statistics(&mut canonical, manifest.source_statistics);
-    encode_statistics(&mut canonical, manifest.optimized_statistics);
+    encode_manifest_body_suffix(&mut canonical, manifest);
     canonical
 }
 
@@ -277,4 +233,45 @@ impl<'encoded> ManifestCursor<'encoded> {
     fn remaining(&self) -> usize {
         self.encoded.len() - self.offset
     }
+}
+
+/// The manifest-body bytes shared by content and artifact encodings: stage
+/// and physical-data tags, psi markers, unit/projection payloads, selection
+/// and decision rows, and the per-pass manifest sequence.
+fn encode_manifest_body_prefix(
+    canonical: &mut Vec<u8>,
+    manifest: &PrePhysicalOptimizationManifest,
+) {
+    canonical.push(match manifest.stage {
+        OptimizationManifestStage::PrePhysicalAbstractPlan => 1,
+    });
+    canonical.push(match manifest.physical_data {
+        PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization => 1,
+    });
+    canonical.extend_from_slice(&manifest.psi.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(manifest.psi.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&manifest.fuel_schedule.marker().to_le_bytes());
+    canonical.extend_from_slice(&manifest.initial_unit.bytes());
+    canonical.extend_from_slice(&manifest.final_unit.bytes());
+    canonical.extend_from_slice(&manifest.projection.bytes());
+    encode_bytes(canonical, &manifest.selections.encode());
+    encode_bytes(canonical, &manifest.psi_selections.encode());
+    canonical.extend_from_slice(&manifest.budget_per_pass.encode());
+    canonical.extend_from_slice(&manifest.usage.encode());
+    encode_bytes(canonical, &manifest.decision_log.encode());
+    encode_len(canonical, manifest.pass_manifests.len());
+    for pass in &manifest.pass_manifests {
+        encode_bytes(canonical, &pass.encode());
+    }
+}
+
+/// The trailing rows shared by content and artifact encodings: the identity
+/// bundle and both statistics blocks.
+fn encode_manifest_body_suffix(
+    canonical: &mut Vec<u8>,
+    manifest: &PrePhysicalOptimizationManifest,
+) {
+    encode_bytes(canonical, &manifest.identity_bundle.encode());
+    encode_statistics(canonical, manifest.source_statistics);
+    encode_statistics(canonical, manifest.optimized_statistics);
 }
