@@ -12,7 +12,7 @@ use crate::value_custody::recasts::record_representation::{
 };
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression, TableIndexedExpression};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// Canonical checked footprint for the first precise indexed-recast loan rung.
@@ -43,26 +43,23 @@ impl ValidatedLiteralIndexedRecastFootprint {
     }
 }
 
-/// Replay the canonical recast judgment and retain one exact literal-index
-/// byte footprint for borrow overlap.
-///
-/// This excludes runtime or singleton-range offsets and whole-array sources.
-/// An interior slice covers the complete literal suffix of its byte collection;
-/// its element layout and exact tiling are checked by the ordinary recast
-/// judgment. Aggregate targets are limited to one closed,
-/// recursively fact-free fixed record or recursively nonzero literal fixed
-/// arrays ending in either an exact primitive or that same closed-record
-/// subset. Other shapes remain under their existing conservative loan fence
-/// even when the broader recast judgment can validate their representation.
-pub fn validate_literal_indexed_recast_footprint(
-    program: &TypedTrees,
+/// The shared admission preamble of both indexed-recast walks: the borrow
+/// access note, the recast-form cast unwrap, the scalar recast judgment,
+/// and the indexed-source unwrap.
+#[allow(clippy::too_many_arguments)]
+fn literal_indexed_recast_preamble<'program>(
+    program: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
     viewed_type: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
-) -> Option<ValidatedLiteralIndexedRecastFootprint> {
+) -> Option<(
+    &'program TableCastExpression,
+    ExpressionHandle,
+    &'program TableIndexedExpression,
+)> {
     let spelled_borrow_exclusive = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
         _ => None,
@@ -96,6 +93,38 @@ pub fn validate_literal_indexed_recast_footprint(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
         return None;
     };
+    Some((cast, source, indexed))
+}
+
+/// Replay the canonical recast judgment and retain one exact literal-index
+/// byte footprint for borrow overlap.
+///
+/// This excludes runtime or singleton-range offsets and whole-array sources.
+/// An interior slice covers the complete literal suffix of its byte collection;
+/// its element layout and exact tiling are checked by the ordinary recast
+/// judgment. Aggregate targets are limited to one closed,
+/// recursively fact-free fixed record or recursively nonzero literal fixed
+/// arrays ending in either an exact primitive or that same closed-record
+/// subset. Other shapes remain under their existing conservative loan fence
+/// even when the broader recast judgment can validate their representation.
+pub fn validate_literal_indexed_recast_footprint(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    viewed_type: TypeReferenceHandle,
+    access: language_core::ReferenceAccess,
+) -> Option<ValidatedLiteralIndexedRecastFootprint> {
+    let (cast, source, indexed) = literal_indexed_recast_preamble(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        viewed_type,
+        access,
+    )?;
     let ExpressionNode::Integer(offset) = program.expression_table.expression(indexed.index) else {
         return None;
     };
@@ -159,39 +188,15 @@ pub fn validate_runtime_indexed_recast_source(
     viewed_type: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
 ) -> Option<ExpressionHandle> {
-    let spelled_borrow_exclusive = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
-        _ => None,
-    };
-    let initializer = strip_mutable(program, expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
-        return None;
-    };
-    if !cast.form.is_recast() {
-        return None;
-    }
-
-    let mut diagnostics = Vec::new();
-    judge_scalar_recast(
+    let (cast, source, indexed) = literal_indexed_recast_preamble(
         program,
         machine,
         state,
         statement_index,
-        cast,
-        initializer,
+        expression,
         viewed_type,
-        access.is_exclusive(),
-        spelled_borrow_exclusive,
-        &mut diagnostics,
-    );
-    if !diagnostics.is_empty() {
-        return None;
-    }
-
-    let source = strip_mutable(program, cast.value);
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
-        return None;
-    };
+        access,
+    )?;
     // Literal indices keep the exact `FixedRange` footprint arm; this gate
     // owns only runtime or otherwise non-literal offsets.
     if matches!(
