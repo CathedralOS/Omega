@@ -68,7 +68,10 @@ not additional permissions to omit unresolved loans.
 
 Moving a borrow-carrying value transfers its exact contained loan paths and
 access. Constructing an enclosing field or array element prefixes those paths;
-it does not merge unrelated siblings. Projecting a field retains that field's
+it does not merge unrelated siblings. The leaves of one value formed together
+are held at once, so they obey the compatibility of one call's operands: an
+exclusive or write-only leaf must not overlap another leaf of that value.
+Projecting a field retains that field's
 loans. A fixed index can retain its element's loans, while an unresolved dynamic
 selection conservatively retains all possible sources.
 

@@ -31,6 +31,7 @@ pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_aft
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::owner_segment_matches_place_segment;
+pub(crate) use loans::returned_value_loans;
 pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
 pub(crate) use tracker::BorrowOwnerSegment;

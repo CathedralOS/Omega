@@ -1,6 +1,8 @@
 //! Borrow checks over the facts constructed once by the check stage.
 //! Calls and statements judge conflicts at their actual evaluation points;
-//! returned views and stored carriers are checked for escape and persistence.
+//! a call's operands and an aggregate's reference leaves share one
+//! simultaneous-hold judgment; returned views and stored carriers are checked
+//! for escape and persistence.
 //! Resource rows are prepared before this pass for lowering. Compatibility
 //! results are transient judgments, not certificates to serialize and replay.
 
@@ -9,7 +11,9 @@ mod elision;
 mod escape;
 mod persistent;
 
-// Call and statement judgments, plus resource rows consumed by lowering.
+// Call, aggregate formation and statement judgments, plus resource rows
+// consumed by lowering.
+mod aggregates;
 pub(crate) mod calls;
 mod resources;
 pub(crate) use resources::{LifecyclePhase, weakening_event_boundary};
@@ -22,6 +26,7 @@ mod access_sources;
 mod aliases;
 mod details;
 mod overlap;
+mod simultaneous;
 
 use super::ranges::incoming_guards::IncomingGuardIndex;
 use checked_trees::{CheckFacts, FlowStateFact};
@@ -60,9 +65,9 @@ pub(crate) fn check_flow_call_borrows(
     // judgments; they build on the first call that needs them.
     let receiver_reads = crate::flow::StateReceiverReadCache::default();
     for (_, state_flow) in facts.flow.control.states.iter() {
-        if matching_borrow_state(facts, state_flow).is_none() {
+        let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {
             continue;
-        }
+        };
 
         // Entry premises are stable inside the state. Statement-local call
         // guarantees are appended by the consumer at the exact use point.
@@ -96,6 +101,16 @@ pub(crate) fn check_flow_call_borrows(
             mutation_summaries,
             &receiver_reads,
             call_frames,
+            &mut bound_lookup,
+        );
+        aggregates::check_formed_aggregates(
+            program,
+            facts,
+            state_flow,
+            borrow_state,
+            &stated_premises,
+            call_frames,
+            &mut diagnostics,
             &mut bound_lookup,
         );
     }

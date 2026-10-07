@@ -584,6 +584,10 @@ remain separate work; accepted evidence counts cannot stand in for them.
 
 [borrows.rs](src/checks/borrows.rs) judges calls, statements, returned views and
 persistent carriers over the single `BorrowFacts` built by fact production.
+A call's operands and the reference leaves of one aggregate formed by a `let`,
+a store or a return are held together, so both pass the one pairwise
+[simultaneous-hold judgment](src/checks/borrows/simultaneous.rs);
+[aggregates.rs](src/checks/borrows/aggregates.rs) selects the leaves.
 Compatibility results are transient: there are no retained compatibility,
 mutation or call-comparison certificates. The overlap and containment judgments
 share a local selector cache, not a serialized snapshot to replay.

@@ -1,1 +1,1 @@
-reference result aliases its mapped sources
+machine `collect` returns `source.first` as mutable more than once

@@ -142,7 +142,7 @@ pub(super) fn check_view_return_escape(
 /// The borrow expression a state returns at a given statement: a terminal
 /// `Expression` or a transition `Value` target. Other statements/targets do not
 /// return a value.
-fn return_expression(
+pub(super) fn return_expression(
     program: &typed_trees::TypedTrees,
     statement: &StatementNode,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
@@ -196,7 +196,7 @@ fn local_name(
     )
 }
 
-fn state_subject<'a>(
+pub(super) fn state_subject<'a>(
     machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,
 ) -> &'a str {

@@ -263,8 +263,8 @@ fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 253
 	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 299ms expected @69d297ae3ee5
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/borrows/direct_reference_array_duplicate_mutable rejected 1517ms expected @15c77983aab0+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "projected ingress remains suspended by a live reference" }))
+fail/borrows/direct_reference_array_duplicate_mutable rejected 2664ms expected @ccd480905812+wt
+	`messages` holds `main.first` as mutable more than once
 fail/borrows/direct_reference_array_live_source_move rejected 385ms expected @15c77983aab0+wt
 	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/direct_reference_array_live_source_write rejected 339ms expected @15c77983aab0+wt
@@ -324,8 +324,8 @@ fail/borrows/record_view_field_backing_write_while_stored rejected 271ms expecte
 fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
-fail/borrows/reference_array_result_duplicate_mutable rejected 2696ms expected @6ba9c43af356+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "reference result aliases its mapped sources" }))
+fail/borrows/reference_array_result_duplicate_mutable rejected 2573ms expected @ccd480905812+wt
+	machine `collect` returns `source.first` as mutable more than once
 fail/borrows/reference_array_result_live_source_write rejected 1362ms expected @6ba9c43af356+wt
 	statement 8 mutates `main.cells.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/reference_array_result_local_escape rejected 1407ms expected @6ba9c43af356+wt
@@ -334,6 +334,10 @@ fail/borrows/reference_array_shared_cohort_live_source_write rejected 339ms expe
 	statement 2 mutates `source.second.value` while local borrow `messages` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_carrier_store_while_shared rejected 210ms expected @f41cc6938f06+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/reference_record_duplicate_mutable rejected 2326ms expected @ccd480905812+wt
+	`pair` holds `main.first` as mutable more than once
+fail/borrows/reference_record_mutable_shared_overlap rejected 2207ms expected @ccd480905812+wt
+	`view` holds `main.first` as both mutable and read-only
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt
@@ -1921,6 +1925,7 @@ pass/borrows/projected_scalar_member_loan checked 1316ms check-target:macos_arm6
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_record_view_call_exit checked 2701ms check-target:macos_arm64 @53d5dde47ae5
+pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 8626ms check-target:macos_arm64 @ccd480905812+wt
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms check-target:macos_arm64 @2816825e8941

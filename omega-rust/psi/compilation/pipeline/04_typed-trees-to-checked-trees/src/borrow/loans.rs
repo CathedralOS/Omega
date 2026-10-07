@@ -29,7 +29,8 @@
 //! `owner_paths` matches owner field paths against place segments, and
 //! `types` answers whether a type is a reference and with which access.
 //! Other modules use `borrow_initializer_expressions` (persistent storage
-//! check), `helper_call_borrow_loan_place` and
+//! check), `returned_value_loans` (a returned aggregate's leaves for the
+//! formed-aggregate check), `helper_call_borrow_loan_place` and
 //! `call_declares_direct_view_source` (resource lineage replay), and
 //! `types::reference_borrow_access_kind` (borrow check details).
 
@@ -99,6 +100,86 @@ pub(crate) fn borrow_initializer_expressions(
         .into_iter()
         .map(|initializer| initializer.expression)
         .collect()
+}
+
+/// One reference leaf a returned value carries: its position in the value,
+/// the source expression that formed it, the place it borrows and its access.
+pub(crate) struct ReturnedLoan {
+    pub(crate) formation_expression: ExpressionHandle,
+    pub(crate) owner_path: Vec<BorrowOwnerSegment>,
+    pub(crate) place: accesses::BorrowAccessPlace,
+    pub(crate) kind: checked_trees::BorrowAccessKind,
+}
+
+/// The loans a borrow-carrying value returned at `statement_index` carries,
+/// resolved exactly as for a local initialized from the returned expression,
+/// against the loans its state formed before the return. A returned value has
+/// no local owner, so these loans are never recorded as facts; they exist to
+/// judge the value's leaves against each other. A bare reference result is a
+/// single leaf and yields nothing here.
+pub(crate) fn returned_value_loans(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state: &typed_trees::state::State,
+    borrow: &checked_trees::BorrowFacts,
+    borrow_state: &checked_trees::StateBorrowFact,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Vec<ReturnedLoan> {
+    if is_reference_type(program, state.return_type)
+        || !is_borrow_carrying_data(program, state.return_type)
+    {
+        return Vec::new();
+    }
+    // The fact builder resolved each statement against the loans recorded
+    // before it; the state's span keeps that order. Lineage is not read here,
+    // so a call-result root needs no separate marker.
+    let span_start = borrow_state.loans.start();
+    let prior_loans: Vec<StateLoanTracker> = borrow
+        .loans
+        .span_or_empty(borrow_state.loans)
+        .iter()
+        .zip(0u32..)
+        .take_while(|(loan, _)| loan.statement_index < statement_index)
+        .map(|(loan, offset)| StateLoanTracker {
+            handle: Handle::from_parts(span_start.arena_index() + offset, span_start.generation()),
+            owner_symbol: loan.owner_symbol,
+            owner_name: program.symbols.name(loan.owner_symbol).into(),
+            kind: loan.kind.clone(),
+            lineage: loan.lineage.clone(),
+            call_result: false,
+            owner_path: borrow.loan_owner_path(loan).to_vec(),
+            place: accesses::BorrowAccessPlace {
+                root_symbol: loan.root_symbol,
+                segments: borrow.loan_segments(loan).to_vec(),
+            },
+        })
+        .collect();
+    let returned_value = checked_trees::statement::TableLocalData {
+        symbol: state.symbol,
+        name: state.name.clone(),
+        type_reference: state.return_type,
+        initial_value: expression,
+        is_mutable: false,
+        type_is_inferred: false,
+        relevance: language_core::BindingRelevance::Relevant,
+    };
+    borrow_carrying_data_loans(
+        program,
+        state,
+        statement_index,
+        machine_symbol,
+        &returned_value,
+        &prior_loans,
+    )
+    .into_iter()
+    .map(|loan| ReturnedLoan {
+        formation_expression: loan.formation_expression,
+        owner_path: loan.owner_path,
+        place: loan.place,
+        kind: loan.kind,
+    })
+    .collect()
 }
 
 pub(super) fn statement_borrow_loans(

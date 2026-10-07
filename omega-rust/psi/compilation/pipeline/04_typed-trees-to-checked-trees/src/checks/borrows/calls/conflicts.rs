@@ -1,4 +1,4 @@
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
@@ -6,6 +6,7 @@ use crate::labels::{borrow_access_label, symbol_name};
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
 use super::super::overlap::{canonical_place_loan_compatibility, captured_place_compatibility};
+use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 
 pub(super) fn check_call_access_conflicts<'p>(
     program: &'p typed_trees::TypedTrees,
@@ -104,7 +105,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            if captured_place_compatibility(
+            let Some(conflict) = simultaneous_hold_conflict(
                 program,
                 &CapturedPlace {
                     root_symbol: access.root_symbol,
@@ -118,49 +119,23 @@ pub(super) fn check_call_access_conflicts<'p>(
                 &other_access.kind,
                 stated_premises,
                 bound_lookup,
-            )
-            .non_interfering
-            {
+            ) else {
                 continue;
-            }
-
-            match (&access.kind, &other_access.kind) {
-                (BorrowAccessKind::Mutable, BorrowAccessKind::Mutable) => {
-                    diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives `{}` as mutable more than once",
-                    borrow_access_label(program, &facts.borrow, access),
-                )))
-                }
-                (BorrowAccessKind::Mutable, BorrowAccessKind::Read)
-                | (BorrowAccessKind::Read, BorrowAccessKind::Mutable) => {
-                    let mutable = if access.kind == BorrowAccessKind::Mutable {
-                        access
-                    } else {
-                        other_access
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives `{}` as both mutable and read-only",
-                    borrow_access_label(program, &facts.borrow, mutable),
-                )))
-                }
-                (BorrowAccessKind::WriteOnly, _)
-                | (_, BorrowAccessKind::WriteOnly) => {
-                    let write_only = if access.kind == BorrowAccessKind::WriteOnly {
-                        access
-                    } else {
-                        other_access
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives write-only `{}` overlapping another argument in the same call",
-                    borrow_access_label(program, &facts.borrow, write_only)
-                )))
-                }
-                (BorrowAccessKind::Read, BorrowAccessKind::Read) => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "state `{target_name}` receives dependent read-only places that do not establish non-interference"
-                    )))
-                }
-            }
+            };
+            let label = |hold| {
+                borrow_access_label(
+                    program,
+                    &facts.borrow,
+                    match hold {
+                        Hold::First => access,
+                        Hold::Second => other_access,
+                    },
+                )
+            };
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` receives {}",
+                conflict.phrase(label, "another argument in the same call"),
+            )));
         }
 
         for (loan_handle, loan) in &active_loans {
