@@ -726,17 +726,6 @@ fn validate_expression_call_bounds(
             );
             return;
         }
-        report_unresolved_value_call(
-            program,
-            current_machine,
-            current_state,
-            symbols,
-            Some(receiver_name),
-            receiver_type,
-            call,
-            diagnostics,
-        );
-        return;
     }
 
     report_unresolved_value_call(
