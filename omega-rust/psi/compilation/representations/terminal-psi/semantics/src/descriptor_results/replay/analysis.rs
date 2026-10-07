@@ -1,3 +1,4 @@
+use super::replay::Origin;
 use super::*;
 
 /// Disposable current-body analysis. Snapshots and summaries are shared across

@@ -1469,4 +1469,5 @@ fn envelope(seed: u64, proof: ProofNode) -> Option<CertificateEnvelope> {
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
 mod coverage_tests;

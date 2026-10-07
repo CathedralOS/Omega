@@ -11,7 +11,7 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 mod analysis;
 mod replay;
 pub use analysis::DescriptorAnalysis;
-use replay::{Origin, Replay, ResultSlot, State, States, Summary, Value};
+use replay::Replay;
 
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
