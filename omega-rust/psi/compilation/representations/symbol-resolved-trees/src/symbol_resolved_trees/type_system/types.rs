@@ -765,19 +765,10 @@ impl PrimitiveType {
         }
     }
 
+    /// The fixed-range integer carriers: every range-constrained spelling
+    /// except the two finite floats.
     pub fn accepts_integer_literal(self) -> bool {
-        matches!(
-            self,
-            Self::I8
-                | Self::I16
-                | Self::I32
-                | Self::I64
-                | Self::U8
-                | Self::U16
-                | Self::U32
-                | Self::U64
-                | Self::Addr
-        )
+        self.accepts_range_constraint() && !self.accepts_finite_constraint()
     }
 
     pub fn accepts_float_literal(self) -> bool {

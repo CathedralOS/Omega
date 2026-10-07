@@ -1,4 +1,4 @@
-use crate::data::{Binder, DataProperties};
+use crate::data::Binder;
 use crate::expression::ExpressionHandle;
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
