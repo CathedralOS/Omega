@@ -216,23 +216,15 @@ pub(super) fn builtin_ordering(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    let spelling = match comparison.operator {
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return false,
-    };
-    typed_trees::operator::has_builtin_spelled_expression_meaning(
-        program,
-        machine.symbol,
-        expression,
-        spelling,
-        &[
-            operand_type(program, machine, state, comparison.left),
-            operand_type(program, machine, state, comparison.right),
-        ],
-    )
+    builtin_comparison_meaning(program, machine, state, expression, comparison, |operator| {
+        match operator {
+            BinaryOperator::Less => Some(OperatorSpelling::Less),
+            BinaryOperator::LessOrEqual => Some(OperatorSpelling::LessEqual),
+            BinaryOperator::Greater => Some(OperatorSpelling::Greater),
+            BinaryOperator::GreaterOrEqual => Some(OperatorSpelling::GreaterEqual),
+            _ => None,
+        }
+    })
 }
 
 pub(super) fn builtin_boolean_equality(
@@ -249,24 +241,16 @@ pub(super) fn builtin_boolean_equality(
     if has_exact_case_membership_meaning(program, machine, state, expression, comparison) {
         return true;
     }
-    let spelling = match comparison.operator {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        _ => return false,
-    };
     // Parser-generated arm comparisons are ordinary equality expressions too.
     // Neither their missing authored occurrence nor their Boolean literal is
     // evidence that a visible equality declaration has builtin meaning.
-    typed_trees::operator::has_builtin_spelled_expression_meaning(
-        program,
-        machine.symbol,
-        expression,
-        spelling,
-        &[
-            operand_type(program, machine, state, comparison.left),
-            operand_type(program, machine, state, comparison.right),
-        ],
-    )
+    builtin_comparison_meaning(program, machine, state, expression, comparison, |operator| {
+        match operator {
+            BinaryOperator::Equal => Some(OperatorSpelling::Equal),
+            BinaryOperator::NotEqual => Some(OperatorSpelling::NotEqual),
+            _ => None,
+        }
+    })
 }
 
 /// Whether `comparison` unambiguously selects the exact sealed toolchain
@@ -1026,4 +1010,30 @@ fn constant_subtree_meaning(
         }
         _ => None,
     }
+}
+
+/// The shared spelled-operator check behind the ordering and equality
+/// builtin tests: `spelling` maps the admitted operators, and both operand
+/// types must be spelled-meaning arguments at the comparison site.
+fn builtin_comparison_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    spelling: impl Fn(BinaryOperator) -> Option<OperatorSpelling>,
+) -> bool {
+    let Some(spelling) = spelling(comparison.operator) else {
+        return false;
+    };
+    typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program,
+        machine.symbol,
+        expression,
+        spelling,
+        &[
+            operand_type(program, machine, state, comparison.left),
+            operand_type(program, machine, state, comparison.right),
+        ],
+    )
 }
