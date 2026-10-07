@@ -341,24 +341,8 @@ impl CheckedOperatorCandidateFact {
 
     pub const fn domain(operator_symbol: SymbolHandle, domain_symbol: SymbolHandle) -> Self {
         Self {
-            operator_symbol,
             domain_symbol,
-            conformance_symbol: SymbolHandle::invalid(),
-            trait_requirement_symbol: SymbolHandle::invalid(),
-            realization_machine_symbol: SymbolHandle::invalid(),
-            realization_state_symbol: SymbolHandle::invalid(),
-            conformance_application_report_fingerprint: 0,
-            conformance_application_commitment:
-                typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
-                    [0; 32],
-                ),
-            receiver_type: TypeReferenceHandle::invalid(),
-            return_type: TypeReferenceHandle::invalid(),
-            contracts: HandleSpan::empty(),
-            type_parameter_count: 0,
-            parameter_count: 0,
-            contract_count: 0,
-            is_boundary: false,
+            ..Self::root(operator_symbol)
         }
     }
 
