@@ -399,6 +399,42 @@ pub enum ScalarTerm {
     },
 }
 
+macro_rules! integer_binary_term {
+    ($name:ident => $variant:ident) => {
+        pub fn $name(
+            scalar_type: IntegerType,
+            left: ScalarTerm,
+            right: ScalarTerm,
+        ) -> Result<Self, PropositionError> {
+            validate_integer_operands(scalar_type, &left, &right)?;
+            Ok(Self::$variant {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        }
+    };
+}
+
+macro_rules! integer_shift_term {
+    ($name:ident => $variant:ident) => {
+        pub fn $name(
+            value_type: IntegerType,
+            count_type: IntegerType,
+            value: ScalarTerm,
+            count: ScalarTerm,
+        ) -> Result<Self, PropositionError> {
+            validate_integer_shift_operands(value_type, count_type, &value, &count)?;
+            Ok(Self::$variant {
+                value_type,
+                count_type,
+                value: Box::new(value),
+                count: Box::new(count),
+            })
+        }
+    };
+}
+
 impl ScalarTerm {
     pub fn value(id: ValueId, scalar_type: ScalarType) -> Self {
         Self::Value { id, scalar_type }
@@ -593,18 +629,7 @@ impl ScalarTerm {
         })
     }
 
-    pub fn integer_bitwise_and(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::IntegerBitwiseAnd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(integer_bitwise_and => IntegerBitwiseAnd);
 
     pub fn integer_bitwise_not(
         scalar_type: IntegerType,
@@ -665,104 +690,19 @@ impl ScalarTerm {
         })
     }
 
-    pub fn integer_bitwise_or(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::IntegerBitwiseOr {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(integer_bitwise_or => IntegerBitwiseOr);
 
-    pub fn integer_bitwise_xor(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::IntegerBitwiseXor {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(integer_bitwise_xor => IntegerBitwiseXor);
 
-    pub fn wrapping_integer_shift_left(
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ScalarTerm,
-        count: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
-        Ok(Self::WrappingIntegerShiftLeft {
-            value_type,
-            count_type,
-            value: Box::new(value),
-            count: Box::new(count),
-        })
-    }
+    integer_shift_term!(wrapping_integer_shift_left => WrappingIntegerShiftLeft);
 
-    pub fn wrapping_integer_shift_right(
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ScalarTerm,
-        count: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
-        Ok(Self::WrappingIntegerShiftRight {
-            value_type,
-            count_type,
-            value: Box::new(value),
-            count: Box::new(count),
-        })
-    }
+    integer_shift_term!(wrapping_integer_shift_right => WrappingIntegerShiftRight);
 
-    pub fn exact_integer_shift_right(
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ScalarTerm,
-        count: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
-        Ok(Self::ExactIntegerShiftRight {
-            value_type,
-            count_type,
-            value: Box::new(value),
-            count: Box::new(count),
-        })
-    }
+    integer_shift_term!(exact_integer_shift_right => ExactIntegerShiftRight);
 
-    pub fn exact_integer_shift_left(
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ScalarTerm,
-        count: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_shift_operands(value_type, count_type, &value, &count)?;
-        Ok(Self::ExactIntegerShiftLeft {
-            value_type,
-            count_type,
-            value: Box::new(value),
-            count: Box::new(count),
-        })
-    }
+    integer_shift_term!(exact_integer_shift_left => ExactIntegerShiftLeft);
 
-    pub fn exact_integer_add(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::ExactIntegerAdd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(exact_integer_add => ExactIntegerAdd);
 
     pub fn exact_integer_subtract(
         scalar_type: IntegerType,
@@ -777,96 +717,19 @@ impl ScalarTerm {
         })
     }
 
-    pub fn exact_integer_multiply(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::ExactIntegerMultiply {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(exact_integer_multiply => ExactIntegerMultiply);
 
-    pub fn exact_integer_divide(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::ExactIntegerDivide {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(exact_integer_divide => ExactIntegerDivide);
 
-    pub fn exact_integer_remainder(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::ExactIntegerRemainder {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(exact_integer_remainder => ExactIntegerRemainder);
 
-    pub fn wrapping_integer_divide(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::WrappingIntegerDivide {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(wrapping_integer_divide => WrappingIntegerDivide);
 
-    pub fn wrapping_integer_remainder(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::WrappingIntegerRemainder {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(wrapping_integer_remainder => WrappingIntegerRemainder);
 
-    pub fn saturating_integer_divide(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::SaturatingIntegerDivide {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(saturating_integer_divide => SaturatingIntegerDivide);
 
-    pub fn saturating_integer_remainder(
-        scalar_type: IntegerType,
-        left: ScalarTerm,
-        right: ScalarTerm,
-    ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
-        Ok(Self::SaturatingIntegerRemainder {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
-    }
+    integer_binary_term!(saturating_integer_remainder => SaturatingIntegerRemainder);
 
     pub fn integer(
         scalar_type: IntegerType,
