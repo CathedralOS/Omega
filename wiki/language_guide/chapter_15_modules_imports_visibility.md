@@ -21,7 +21,7 @@ machine build(builder: &mut Build) {
 ```
 
 Use `Build::application(builder, "name")` for an application, executable by default.
-Add direct `Build::artifact_only(builder)` for an artifact-only application; it must
+Add `Build::artifact_only(builder)` for an artifact-only application; it must
 complete at least one required output and cannot select executable roots/providers.
 A workspace instead lists
 `Build::member(builder, "path")` calls; each member is an independently selectable
@@ -29,9 +29,11 @@ root, not part of one combined dependency graph. An application can depend on
 packages, but cannot itself be imported as a library.
 
 The build root is a free `machine build(builder: &mut Build)`, not an attached
-`Owner::build`. Project kind, members, and dependencies are direct unconditional
-statements: the package manager reads them before executing any build code.
-Helpers may perform later admitted build work, but cannot hide dependency edges.
+`Owner::build`. The compiler checks and interprets its core-only discovery
+closure first; that execution emits project kind, members, and dependency
+requests before package resolution. The complete Build closure runs after those
+dependencies resolve. Helpers and control flow are ordinary checked Omega in
+both closures; discovery cannot call dependency code it has not obtained yet.
 
 A package name is not globally unique. Its stable identity combines its declared
 name with its source lineage. A revision identifies the selected source, not a
@@ -54,7 +56,7 @@ proof, reach, or artifact checks.
 ### Build and product dependencies
 
 Use `depend`/`depend_as` for product code and `build_depend`/`build_depend_as`
-for build-only libraries. Both are direct unconditional root declarations:
+for build-only libraries. Both are explicit discovery effects:
 
 ```omega
 machine build(builder: &mut Build) {

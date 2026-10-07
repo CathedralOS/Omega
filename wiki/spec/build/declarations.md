@@ -12,47 +12,49 @@ in `omega.lock`; they cannot approve those requests themselves. Build selections
 also cannot choose an external ecosystem's receiving policy. Producing a binary
 requires no such policy declaration.
 
+Project discovery is itself interpreted Omega, not a privileged syntax subset.
+The compiler constructs a core-only discovery program from `build.omg`, checks
+it through the Psi driver and runs its Terminal artifact against the
+toolchain-owned `omega::core` Build-discovery boundary. That first program may
+use local helpers and control flow but no dependency code; its explicit inputs,
+effects and resource bounds are part of admission. It emits the root role and
+product/build dependency requests. Package management resolves and reviews that
+graph, then the compiler checks and interprets the complete Build program with
+those dependencies available. No Rust parser recognizes Build call names to
+decide project semantics.
+
 ## Project role
 
 A selected `build.omg` has exactly one free
 `machine build(builder: &mut Build)` entry. Its kind is explicit:
 
-| Direct root declaration | Role |
+| Discovery result | Role |
 | --- | --- |
 | `Build::package(builder, "name")` | Package |
 | `Build::application(builder, "name")` | Application |
 | One or more `Build::member(builder, "path")` calls | Workspace |
 
-Within a selected authored build file, exactly one package/application
-declaration or the workspace member set is required. Mixed, missing, duplicate,
-and noncanonical declarations reject.
+One interpreted discovery execution must produce exactly one
+package/application declaration or the workspace member set. Mixed, missing,
+duplicate, and noncanonical results reject.
 `Owner::build` is not a project root and cannot acquire a synthesized receiver.
 An ordinary same-spelled machine remains ordinary source.
 
-With no selected `build.omg`, compilation uses default build configuration,
-not an ownerless entrance or a second compilation pipeline. No file need be
-written. A standalone loose root defaults to application role; an already
-resolved package retains its supplied role and owner. Checking source does not
-require an executable entry. Executable output still needs the ordinary
-target-slot selections and provider checks; this default
-does not introduce special discovery of a machine named `main` or grant host
-authority. Defaults supplied by tooling must become explicit ordinary build
-selections, not bypass [entry admission](entry_roots.md).
+With no selected `build.omg`, the compiler supplies ordinary default Build
+source and runs it through the same discovery and complete-Build routes. No file
+need be written. A standalone loose root defaults to application role; an
+already resolved package retains its supplied role and owner. Checking source
+does not require an executable entry. Executable output still needs ordinary
+target-slot selections and provider checks; the default does not discover a
+machine named `main` or bypass [entry admission](entry_roots.md).
 
-Role and dependency discovery project the exact retained source bytes before
-build execution or dependency-provided services. Declarations must be direct
-statements on the canonical build parameter. Helpers, control flow, expression
-use, generated declarations, authored substitutes for toolchain vocabulary, and
-dependency-dependent declarations cannot supply project identity.
-
-`package`, `application`, `member`, `depend`, `depend_as`, `build_depend`,
-`build_depend_as`, and `artifact_only` are statically projected. Product and
-build dependency sets are separate and unconditional; aliases are unique within
-each scope, with no cross-scope fallback. No target
-control-flow interpretation, conditional dependency helper, or per-profile map
-discovers additional edges. Default configuration does not discover undeclared
-dependency edges from imports. Package tooling must materialize an ordinary
-build declaration before persisting dependency edits to a loose project.
+`package`, `application`, `member`, `depend`, `depend_as`, `build_depend`, and
+`build_depend_as` are compiler-supplied boundary operations in the discovery
+environment. Product and build dependency sets remain separate; aliases are
+unique within each scope, with no cross-scope fallback. The interpreted result,
+not source spelling, determines the requested graph. Default configuration does
+not discover undeclared dependency edges from imports. Package tooling edits
+ordinary Build source when persisting dependency changes to a loose project.
 
 `depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
 authorize imports in the build entry and its local helpers. An imported host
@@ -61,12 +63,12 @@ in both contexts requires both edges, including std. Legacy locks cannot imply
 a missing edge. [Scoped execution](scoped_execution.md#two-checked-contexts)
 defines purpose-specific scheduling, acquisition reuse, provenance, and migration.
 
-Applications default to executable output. The optional direct unconditional
-`Build::artifact_only(builder)` declaration is valid once in an application root, never
-in a package/workspace or helper. It requires at least one completed required
-artifact and rejects executable root/provider selections. It is not a new role
-or target profile. [Staged products](scoped_execution.md#staged-products-and-failure)
-defines completion and whole-result publication.
+Applications default to executable output. The complete Build program may
+request `artifact_only` once for an application, never a package/workspace. It
+requires at least one completed required artifact and rejects executable
+root/provider selections. It is not a new role or target profile.
+[Staged products](scoped_execution.md#staged-products-and-failure) defines
+completion and whole-result publication.
 
 ## Names, lineage, and resolution
 

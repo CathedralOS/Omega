@@ -794,9 +794,8 @@ defines the complete product bar.
   --target <host> --jobs 1` (local review, build, documented exit/output).
   Pending review decisions accepted by the native gate are measurement, not a
   dependency audit. Samples without an oracle stay unscored; freestanding
-  samples (`samples/uefi/uefi_hello`) need their own runner. `omega
-  refresh-samples` publishes but does not run. Reproduce with the current CLI
-  and the sample's own package/entry inputs; a stale binary, an earlier review
+  samples (`samples/uefi/uefi_hello`) need their own runner. Reproduce with the
+  current CLI and the sample's own package/entry inputs; a stale binary, an earlier review
   refusal or an effect-free reduction does not exercise the same route. A trace
   phase records the last route entered and can misidentify the declining
   operation.
@@ -882,6 +881,20 @@ defines the complete product bar.
   `expected_native_exit.txt`. `checked` is never execution evidence.
 
   Roster and oracle accounting:
+  - The runner invokes production application/compiler/package/interpreter
+    facades; it never parses `build.omg`, synthesizes package identities,
+    discovers target bindings, infers dangerous services or mints accepted
+    semantic bindings. Delete `driver/tests/support/fixture_package_inputs.rs`,
+    `console_acceptance.rs`, `dangerous_service_acceptance.rs` and
+    `process_exit_acceptance.rs`. Package fixtures run the real isolated
+    update/review/lock workflow through package-manager APIs before ordinary
+    compilation. Language-only fixtures use the compiler facade with an
+    explicit constructed default Build. A green corpus therefore exercises a
+    workflow users can run, not repository-only trust policy.
+  - The harness does not independently project realization targets from
+    `build.omg`; product requests and reports expose the selected targets. Keep
+    fixture discovery, sharding, timeouts and oracle comparison as test-owned
+    concerns, but remove every duplicated source/build semantic query.
   - Reconcile added/removed fixtures with the check and per-host native
     goldens after attributing their outcomes, without treating a missing row
     as a run.
@@ -1514,6 +1527,11 @@ then independent claimed restoration slices -> final closure.
   foreign-package/build confinement at its existing trust boundary.
   Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/program.rs`,
   `src/instance.rs`, `src/execution.rs`, `src/adapters.rs` within that crate.
+  Expose one interpreter facade that accepts the common borrowed Terminal
+  artifact view, exact provisions and host resources. Its source convenience
+  route asks the Psi driver for an artifact; its binary route admits owned
+  bytes once. The application and tests depend on this facade, never directly
+  on interpreter internals or compiler runtime helpers.
   Acceptance: a produced Terminal program executes through the common lifecycle;
   missing/wrong-instance imports fail before effects, and pause/resume does not
   repeat an effect. Source constructors and byte loaders reach that same core.
@@ -1574,9 +1592,18 @@ then independent claimed restoration slices -> final closure.
   after tree execution is removed. Depends on **EARLY-TERMINAL-JOBS**. Inventory
   the actual transitive Build/core/stdlib requirements of the seed before
   selecting its scope; a minimal source file does not imply a trivial Build.
-  Preserve the statically projected application and dependency declarations;
-  run remaining guest computation in the core and bind exact provider and
-  entry observation services.
+  Retire static syntax projection as a second Build language. Put project-role
+  and dependency discovery operations in ordinary `omega::core` boundary
+  traits/machines with compiler/package-manager host implementations. An
+  explicit dependency-discovery entry compiled from the root plus core runs in
+  the Terminal interpreter and emits role/product/build dependency effects;
+  package management resolves that graph, then the ordinary Build entry
+  compiles and runs with its declared dependencies. Helpers and control flow are
+  ordinary checked Omega, not direct-call syntax recognized by Rust.
+  A missing `build.omg` is compiler-constructed ordinary source for the same
+  discovery/Build contracts, not a separate `BuildConfig::default()` semantic
+  route. Keep discovery deterministic, bounded and authority-explicit; it may
+  only use local/core code and supplied inputs before dependencies exist.
   Product description queries do not execute product bodies. Preserve
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
@@ -1589,7 +1616,12 @@ then independent claimed restoration slices -> final closure.
   after normal local package preparation produces 70. Freeze its actual closure,
   not the whole passing corpus. Unrelated unsupported features may become gaps.
   Current frontier: `Build::application`, `Build::depend(Source::Path)` and std's
-  `Build::package` are statically projected, not runtime imports. The seed's
+  `Build::package` are statically projected by
+  `omega-rust/omega/packages/build-declarations`; that parser is migration debt,
+  not the retained architecture. Delete its role/dependency call-name grammar,
+  package-manager projection consumers and fixture copies after the interpreted
+  discovery entry carries the same exact identities. Update the Build
+  declaration/execution specs in that landing. The seed's
   runtime work is its four authored `Build::bind` rows. Unpublished source
   preparation carries generalized `RootBinding` plans, exact declaration
   coordinates and authenticated original Build inputs through the common core;
@@ -1705,8 +1737,16 @@ then independent claimed restoration slices -> final closure.
   rerun Build or evaluate source expressions. Restore complete operation/import
   families, not a simple-program eligibility matrix. Unsupported interpretation
   stays explicitly unavailable; actual disagreement is an error.
-  Owners: the shared `omega-rust/omega/compilation/driver/src/runtime.rs`, CLI
-  execution and corpus adapters. Acceptance: `omega run --both` for
+  Owner: the interpreter facade and its host-adapter packages under
+  `omega-rust/psi/interpreter/`; CLI execution, embedding and corpus are thin
+  consumers. Move `omega-rust/omega/compilation/driver/src/runtime.rs` in full:
+  Terminal loading, entry establishment, provider/import installation,
+  stdin/stdout/stderr, virtual clocks, provisions and observations are not
+  compiler responsibilities. Remove `compiler::runtime` and direct
+  `terminal-interpreter` dependencies from the application. Add a production
+  command/API that executes an owned Terminal artifact without compiling
+  source, beside the source route that asks only the Psi driver.
+  Acceptance: `omega run --both` for
   `pass/float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`
   returns native/interpreter 70; restore **WINDOWS-CONSOLE-INPUT**'s Loader and
   five bounded-line controls through the common core. Missing/wrong-instance
@@ -1882,6 +1922,15 @@ crash and native exit behavior.
     without adding the dependency to the production target. The gate names the
     forbidden edge and the owning stage; it does not maintain a second pipeline
     roster unrelated to `omega-rust/pipeline.md`.
+  - Enforce product facades. Only the Psi driver depends on Psi stage 00–07 and
+    intermediate source representations; only the Omega driver depends on
+    Omega stage 00–09, realization and backend internals. Package manager,
+    application, interpreter, inspection and test runners depend on those
+    drivers/facades plus shared request/artifact contracts. Add `cargo metadata`
+    guards for these application/package/interpreter boundaries. Remove the
+    application's direct stage 05–07, lowered/Terminal representation,
+    proof-admission, target and package-compilation dependencies; inspection
+    requests an explicit Psi-driver stop instead of calling `lower_machine`.
   - Enforce complete producer records. Stage 05 may consume checked plans, not
     `checked.typed`, source statement/expression tables, validation helpers or
     source-node kinds. Omega may consume canonical Terminal Psi, Build rows and
@@ -1920,6 +1969,15 @@ crash and native exit behavior.
     they do not assemble stages 00-07, provider settlement or sidecars. Review
     and accepted compilation may run in separate process invocations and need
     not share an in-memory artifact, but both drive exactly this operation.
+  - Replace oversized Rust call stacks with explicit arena-handle worklists and
+    invocation-owned frame storage suitable for the Omega port. Remove the
+    256 MiB command, compile, checked-interpreter and proof-verification thread
+    stacks; package/review, syntax, checking and proof traversals run on the
+    platform default stack with measured bounded depth. Acceptance includes a
+    source guard against production `stack_size(256 * 1024 * 1024)` and peak
+    stack measurements for deep syntax, package graphs and proof terms. Heap or
+    arena budgets remain separately accounted and no recursion-limit increase
+    counts as repair.
 
   Acceptance: a two-target integration fixture proves with invocation counters
   that source/Psi 00-07, Build and Terminal publication each execute once, then
@@ -2285,6 +2343,13 @@ crash and native exit behavior.
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation
     and semantic pruning belong inside stages 02–04. Carry discovery, grants,
     sponsors and snapshots in the owning stage inputs/outputs.
+  - Package manager supplies resolved/accepted source custody, lock decisions,
+    grants and review policy to the compiler facade; it does not return
+    `CheckedCompilation`, call `admit_trust`/`prepare_product_report`, or invoke
+    terminal/native production. Delete the duplicated check/native sequencing
+    in `operations/accepted_compilation.rs`, `check_project.rs` and
+    `compile_project.rs`. Package-aware check, compile, run and inspection all
+    construct the same driver request and consume its typed outcome.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target
     publication.
@@ -5630,8 +5695,9 @@ report a missing runtime leg explicitly.
   `RC-REPRESENTATIVE-PROGRAMS` must pass on every lane; the others must pass
   wherever they ran and run somewhere; each lane needs a passing
   `--native-execution` observation. No record exists yet.
-  `RC-REPRESENTATIVE-PROGRAMS` (`refresh-samples`) builds samples but does not
-  run their exit/output oracles; **SAMPLE-CORPUS** owns that execution.
+  `RC-REPRESENTATIVE-PROGRAMS` uses `tools/sample_native_gate.py` to perform
+  each applicable sample's real review, build, execution and documented oracle;
+  **SAMPLE-CORPUS** owns failures and non-host runners.
 
   Acceptance: four same-commit records (pinned toolchain, host
   OS/architecture, exact commands, outcomes, elapsed time, expected skips,

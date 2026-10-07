@@ -90,7 +90,9 @@ discoverability, compositional lowering — lives in
 Psi groups compilation machinery under `compilation/`, execution engines under
 `interpreter/`, and shared primitives under `foundation/`. Compile-time admission
 and result elaboration belong to `compilation/compile-time/`, not an interpreter.
-The product still has one driver; these domain folders do not create another.
+The product has one visible route composed from two driver facades: Psi produces
+Terminal Psi, then Omega realizes it. These domain folders do not create another
+driver, and consumers do not assemble stages behind either facade.
 
 Durable IRs stay in independent `compilation/representations/` packages grouped by actual
 pipeline program family. Shared vocabulary, target/ABI descriptions, planning

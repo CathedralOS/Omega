@@ -41,19 +41,47 @@ setup are not additional public program stages.
 | Resolved program → machine bytes | [machine-emission](omega/compilation/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/compilation/backend/images/image-emission/src/lib.rs) |
 
-## One driver, one pass, per-target realization
+<a id="one-driver-one-pass-per-target-realization"></a>
 
-The product compiler is one driver that feeds each stage's output into the
-next. Psi's stages 00 through 07 run once per compilation and never observe a
-target: target-scoped machine bodies are data checked for every target, and
-the Build evaluates once into rows keyed by target
+## Two drivers, one pass, per-target realization
+
+Independent stage crates remain directly testable, but production consumers do
+not assemble them. The Psi driver feeds stages 00 through 07 once per
+compilation and never observes a realization target: target-scoped machine
+bodies are data checked for every target, and the Build evaluates once into
+rows keyed by target
 ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
-Omega then realizes each target in the realization set from the same Terminal
-Psi and that target's rows: provider selection and installation in stage 00,
-then stages 01 through 09 and image emission. A consumer that needs only a
-prefix of the route, such as package review discovering bindings or a test
-checking a fixture, calls the same stage functions itself; there are no
-alternate entry points, mode flags, or preliminary passes.
+It returns one Terminal Psi artifact. The Omega driver realizes each target in
+the realization set from that artifact and the target's Build rows: provider
+selection and installation in stage 00, then stages 01 through 09 and image
+emission.
+
+The two drivers are the production dependency boundary around the stages. A
+consumer needing source semantics calls the Psi driver with explicit source,
+package and Build custody; a consumer needing machine output calls the Omega
+driver with Terminal Psi plus target/realization inputs. Package management,
+the application, interpreters, inspection and test runners do not depend on
+stage or intermediate-representation crates and cannot invent a stage order,
+skip checks or retain sidecars. Focused tools select an explicit driver stop or
+inspect the driver's returned product; they are not alternate compile modes.
+
+One Psi invocation owns its arenas and lends a lifetime-bound Terminal artifact
+view to immediate consumers. Publication transfers the same artifact into an
+owned encoded form; external ingress decodes and admits that form once. Omega
+realization and interpretation consume one common borrowed view over either the
+retained or admitted-owned artifact. Same-invocation realization therefore
+does not serialize, decode or clone Terminal Psi merely to cross an API.
+
+The shipped product exposes four facades: application coordination, package
+management, the two compiler drivers, and Terminal interpretation. Package
+management owns acquisition, the resolved graph, review proposals/decisions and
+`omega.lock`, then supplies source custody to Psi. It does not return checked
+trees, settle compiler products or call native production. The interpreter owns
+Terminal loading, entry establishment, provider/import installation, host
+bindings, execution resources and observations; it can execute an artifact
+directly or ask the Psi driver to compile source to one. The application depends
+on those facades and shared request/artifact contracts, never their internal
+stages, representations, backend or package-compilation helpers.
 
 The current Rust implementation does not meet this yet. Source preparation and
 checked/Terminal coordination still sit outside the numbered stages. Targets
@@ -105,13 +133,15 @@ library APIs; they do not introduce another compiler driver.
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
-| Application commands and policy files | Omega `application/` |
-| Product sequencing | Omega `compilation/driver/` |
+| Application workflows and presentation | Omega `application/`, depending only on product facades and shared request/result contracts |
+| Source/package custody, lock updates and review decisions | Omega `packages/package-manager/`; no checking or product production |
+| Source → Terminal product sequencing | Psi compiler facade over stages 00–07 |
+| Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over stages 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
-| Source acquisition, package operations and review | Omega `packages/` |
-| Checked and Terminal Psi execution | Psi `interpreter/` |
+| Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
+| Terminal Psi loading, host binding and execution | Psi interpreter facade under `interpreter/` |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
-| Checked program → published Terminal artifact | Omega `compilation/driver/terminal-production/`, sequencing Psi stages 05–07 |
+| Checked program → published Terminal artifact | Psi compiler facade; current Rust migration adapter: `omega/compilation/driver/terminal-production/` |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages

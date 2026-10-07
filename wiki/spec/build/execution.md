@@ -9,9 +9,11 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 The order is:
 
-1. Project the root role, both dependency scopes, and output mode from retained source.
+1. Check and interpret the core-only discovery program to obtain root role and
+  product/build dependency requests.
 2. Resolve the purpose-specific immutable closures and capture inputs under resolver/sponsor custody.
-3. Check the host build entry and helpers; freeze the authored product-selection frontier.
+3. Check the complete host Build entry and helpers with resolved dependencies;
+  freeze the authored product-selection frontier.
 4. Surface restricted build requests for project acceptance, join actual executor grants, and admit the complete build contract before executing its prepared projection.
 5. Incorporate generated source, resolve final selections, and finish all requested product checks, including behavior exclusions.
 6. Discover registered test roots, admit their execution authority, and run all enabled [test groups](testing.md).
@@ -28,8 +30,9 @@ authorize a build-time query of that unfinished product or change the build
 entry's own admission. Physical exclusions additionally require complete selected
 mechanism classification before realized-product admission.
 
-Before step 4, pre-resolution evaluation, target filtering, symbol/type
-resolution, semantic prechecks, and exact dynamic-call binding are complete.
+Before step 4, discovery interpretation, dependency resolution, target
+filtering, symbol/type resolution, semantic prechecks, and exact dynamic-call
+binding are complete.
 The admitted checkpoint binds the base typed program, prepared specialized
 build projection, operational/reach plans, source snapshot, and authority verdict.
 Execution uses that exact admitted entry, not a later name lookup, and runs once.

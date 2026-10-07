@@ -13,12 +13,12 @@ shipped signatures or wire compatibility.
 | Question | Required behavior |
 | --- | --- |
 | One builder or two? | One `Build`; scope and authority are enforced at individual operations. |
-| Build-only code? | Direct `build_depend`/`build_depend_as` declarations; separate host/product nameability and checked instances. |
+| Build-only code? | Interpreted `build_depend`/`build_depend_as` discovery results; separate host/product nameability and checked instances. |
 | Reference target code from a host build? | Existing designated product operands plus qualified, non-callable product descriptions; no general host import of target code. |
 | Filesystem default? | Exact read-only input tree, append-and-seal staging, deterministic logical metadata, no implicit symlink traversal or ambient services. |
 | Extra host files? | Independently supplied captured inputs; live-host protocols are not added by this slice. |
 | Build failure? | Checked local errors, linear required outputs, sticky explicit failure, and no final result set after interruption or failed checks. |
-| Artifact-only application? | One direct root declaration, at least one completed artifact, and no executable root/provider selections. |
+| Artifact-only application? | One complete-Build request, at least one completed artifact, and no executable root/provider selections. |
 | Generated entry or inspection of this build's final executable? | Separate staged compilation; no cycle through this invocation's generated source. |
 
 Detailed rules below define these requirements. The comparison section
@@ -39,7 +39,7 @@ snapshot; transitional implementations must distinguish those modes.
 
 Use one `machine build(builder: &mut Build)` entry with:
 
-1. Explicit build-only dependency declarations and separate selection contexts.
+1. Explicit interpreted build-only dependency requests and separate selection contexts.
 2. Read-only captured inputs and private staged outputs as the default filesystem
    contract, with explicit delegation for any additional host authority.
 3. Explicit product-description selection without executing target code.
@@ -58,7 +58,7 @@ Extend these contracts rather than introduce parallel acquisition, evaluation,
 or evidence systems:
 
 - [Build declarations](declarations.md): root discovery, package
-  identity, and direct dependency projection.
+  identity, and interpreted dependency discovery.
 - [Build execution](execution.md): admission before effects,
   generated-source strata, dependency build outputs, and observation custody.
 - [Modules](../language/modules.md) and
@@ -76,10 +76,11 @@ or evidence systems:
 
 Keep `depend` / `depend_as` for product dependencies. Add `build_depend` /
 `build_depend_as` for build-only dependencies, with the same source-selection
-vocabulary. Both forms must be direct statements on the canonical root builder,
-just like existing dependency declarations. Aliases are unique within each scope;
-the same alias may identify different packages in the two contexts without
-cross-context lookup or fallback.
+vocabulary. The core-only discovery program emits both forms through the exact
+root Build activation; local helpers and control flow may compute them without
+calling dependency code. Aliases are unique within each scope; the same alias
+may identify different packages in the two contexts without cross-context
+lookup or fallback.
 
 Illustrative build source:
 
@@ -552,11 +553,9 @@ to exist in a previous output folder. Per-target children retain independent
 outcomes; failure of one child is not hidden by another child's successful set.
 
 An application build may publish companion artifacts. Select
-`Build::artifact_only(builder)` as an optional direct unconditional declaration in the
-root build entry, extracted with project role before execution. It is valid once
-for an application, invalid for a workspace/package declaration, and cannot be
-introduced by a helper, alias, conditional, or generated code. No fourth project
-role is added. Executable is the application default. Artifact-only mode rejects
+`Build::artifact_only(builder)` once during complete Build execution. It is valid
+for an application and invalid for a workspace/package. No fourth project role
+is added. Executable is the application default. Artifact-only mode rejects
 executable root/provider selections rather than silently ignoring them and must
 complete at least one required artifact. Ordinary packages can publish companion
 files without this application-mode declaration.
