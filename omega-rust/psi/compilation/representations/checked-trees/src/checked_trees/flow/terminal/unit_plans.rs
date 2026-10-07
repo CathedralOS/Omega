@@ -1,19 +1,19 @@
 //! The one Unit-bodied plan a checked machine carries.
 //!
-//! The affine cleanup rosters and the two control rosters remain separate
+//! The affine cleanup rosters and the composed control roster remain separate
 //! tables because each retains the structural-type roster its lowering emits
 //! and the cleanup kinds must never be reread as a trivial discard by another
 //! producer. This view names the family once, so a consumer asks which Unit
-//! plan a machine lowers instead of walking four rosters and repeating the
-//! same attachment admission beside each.
+//! plan a machine lowers instead of walking three rosters and repeating the
+//! same attachment admission beside each. Every multi-state Unit control graph
+//! is a composed plan; no separate structural control roster competes for it.
 
 use symbols::SymbolHandle;
 
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
     CheckedComposedUnitControlMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedTerminalSignatureEligibility,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTerminalSignatureEligibility,
 };
 
 /// The Unit-bodied plan one machine lowers. Each variant borrows the row of
@@ -31,8 +31,6 @@ pub enum CheckedUnitPlan<'a> {
     PartialAffineCleanup(&'a CheckedPartialAffineUnitCleanupMachinePlan),
     /// A composed multi-state control graph with a Unit or structural result.
     ComposedControl(&'a CheckedComposedUnitControlMachinePlan),
-    /// An attached structural multi-state control graph.
-    StructuralControl(&'a CheckedStructuralUnitControlMachinePlan),
 }
 
 impl<'a> CheckedUnitPlan<'a> {
@@ -51,11 +49,6 @@ impl<'a> CheckedUnitPlan<'a> {
                     .composed_for_machine(machine)
                     .map(Self::ComposedControl)
             })
-            .or_else(|| {
-                flow.terminal_structural_unit_controls
-                    .for_machine(machine)
-                    .map(Self::StructuralControl)
-            })
     }
 
     /// The selected machine this plan lowers.
@@ -64,7 +57,6 @@ impl<'a> CheckedUnitPlan<'a> {
             Self::NominalAffineCleanup(plan) => plan.machine.machine,
             Self::PartialAffineCleanup(plan) => plan.machine.machine,
             Self::ComposedControl(plan) => plan.machine,
-            Self::StructuralControl(plan) => plan.machine,
         }
     }
 
@@ -74,7 +66,6 @@ impl<'a> CheckedUnitPlan<'a> {
             Self::NominalAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
             Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
             Self::ComposedControl(plan) => plan.attachment_type_identity.as_deref(),
-            Self::StructuralControl(plan) => plan.attachment_type_identity.as_deref(),
         }
     }
 
@@ -109,12 +100,6 @@ impl<'a> CheckedUnitPlan<'a> {
             Self::ComposedControl(_) => flow
                 .terminal_unit_effects
                 .composed_machines
-                .iter()
-                .filter(|plan| plan.machine == machine)
-                .count(),
-            Self::StructuralControl(_) => flow
-                .terminal_structural_unit_controls
-                .machines
                 .iter()
                 .filter(|plan| plan.machine == machine)
                 .count(),

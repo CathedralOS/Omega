@@ -30,12 +30,6 @@ pub(crate) fn finalize_execution(
         crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
             program, &facts,
         );
-    facts.flow.terminal_structural_unit_controls =
-        crate::execution::terminal_unit::control::build_checked_structural_unit_control_plans(
-            program,
-            &facts,
-            call_frames.as_ref(),
-        );
     facts.flow.terminal_structural_returns =
         crate::execution::terminal_unit::returns::build_checked_structural_return_plans(
             program, &facts,

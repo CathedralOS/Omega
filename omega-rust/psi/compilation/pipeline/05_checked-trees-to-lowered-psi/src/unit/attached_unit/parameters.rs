@@ -99,12 +99,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .iter()
             .any(|plan| has_receipt(&plan.machine.structural_parameters))
         || flow
-            .terminal_structural_unit_controls
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.states)
-            .any(|state| has_receipt(&state.structural_parameters))
-        || flow
             .terminal_structural_scalar_returns
             .machines
             .iter()

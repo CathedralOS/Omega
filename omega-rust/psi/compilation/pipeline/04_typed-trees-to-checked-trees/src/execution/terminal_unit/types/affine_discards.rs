@@ -183,31 +183,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     ))
 }
 
-pub(in crate::execution::terminal_unit) fn checked_no_code_affine_discard_positions(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-) -> Option<Vec<u32>> {
-    let positions = crate::execution::terminal_cleanup::checked_whole_affine_discard_parameters(
-        program, facts, machine, state,
-    )?
-    .into_iter()
-    .map(|(_, position)| position)
-    .collect::<Vec<_>>();
-    if positions.iter().any(|position| {
-        program
-            .state_parameters(state)
-            .get(*position as usize)
-            .is_none_or(|parameter| {
-                type_graph_requires_nominal_drop(program, parameter.type_reference)
-            })
-    }) {
-        return None;
-    }
-    Some(positions)
-}
-
 /// Check source access independently of structural shape collection. Generic
 /// arguments and declaration fields are both inspected: substituting an owned
 /// argument cannot turn an authored reference field into owned storage.

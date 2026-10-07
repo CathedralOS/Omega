@@ -2559,10 +2559,13 @@ pass/control_flow/projected_loan_state_argument_exit checked 2026ms check-target
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit checked 2994ms check-target:macos_arm64 @36ad3370c97a
 pass/control_flow/runtime_branch_parameter_cleanup_exit checked 603ms check-target:macos_arm64 @70f761d06258
+pass/control_flow/runtime_branch_transfer_owned_record_exit checked 2456ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_branching_helper_string checked 635ms check-target:macos_arm64 @58e4f6f8667
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 1328ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1563ms check-target:macos_arm64 @15f38e49aac2+wt
+pass/control_flow/runtime_diamond_join_borrowed_record_exit checked 2407ms check-target:macos_arm64 @64c766216f02+wt
+pass/control_flow/runtime_diamond_join_owned_record_exit checked 2404ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_entry_loan_with_view_field_forwarded_exit checked 1020ms check-target:macos_arm64 @c3ad5f6e051f+wt
 pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656ms check-target:macos_arm64 @e7c13a0f55b2+wt
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms check-target:macos_arm64 @5ce122a775ca+wt
@@ -2579,6 +2582,8 @@ pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit check
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 924ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_shared_loan_exit checked 1648ms check-target:macos_arm64
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms check-target:macos_arm64 @ca8c127c90c5
+pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 2446ms check-target:macos_arm64 @64c766216f02+wt
+pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 2437ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_string_literal_dispatch_exit checked 1339ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 1457ms check-target:macos_arm64 @84c87cb730d8
 pass/control_flow/runtime_tuple_case_destructure_exit checked 1792ms check-target:macos_arm64 @84c87cb730d8

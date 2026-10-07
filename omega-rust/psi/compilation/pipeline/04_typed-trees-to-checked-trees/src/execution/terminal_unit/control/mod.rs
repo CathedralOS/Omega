@@ -1,7 +1,6 @@
 //! Structural control and boundary-machine construction.
 //!
-//! This file owns the control plan entry point. `structural_unit_machine.rs`
-//! builds a structural unit's control machine, `boundary_machine.rs` builds
+//! This file owns the control plan entry point. `boundary_machine.rs` builds
 //! boundary machines and their static requirements, `checked_machine.rs`
 //! builds a checked machine (`construction_trace.rs` records where it stopped
 //! when it declines a body) and `call_results.rs` binds call results to unit
@@ -16,7 +15,6 @@ mod construction_trace;
 pub(in crate::execution::terminal_unit) mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
-mod structural_unit_machine;
 
 pub(super) use crate::semantic::calls::terminal_callable_target;
 pub(crate) use boundary_machine::{
@@ -32,51 +30,12 @@ pub(crate) use checked_machine::{
     build_checked_machine_residual_parts, build_checked_machine_traced,
 };
 pub(crate) use construction_trace::LocalConstructionTrace;
-pub(crate) use structural_unit_machine::build_structural_unit_control_machine;
 
 use super::{
-    BTreeSet, CheckFacts, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
+    CheckFacts, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralUnitControlPlans, CheckedUnitEffectOperationPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, MachineSupplyMode, Multiplicity,
-    PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle,
+    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
+    MachineSupplyMode, Multiplicity, PermissionEventSource, StatementNode, SymbolHandle,
+    TypeReferenceHandle,
 };
-use crate::execution::terminal_unit::types::ShapeCollector;
-
-pub(crate) fn build_checked_structural_unit_control_plans(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> CheckedStructuralUnitControlPlans {
-    let mut shapes = ShapeCollector::new(program);
-    let machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_structural_unit_control_machine(program, facts, &mut shapes, machine, call_frames)
-        })
-        .collect::<Vec<_>>();
-    let retained = machines
-        .iter()
-        .flat_map(|machine| {
-            machine
-                .attachment_type_identity
-                .as_deref()
-                .into_iter()
-                .chain(
-                    machine
-                        .states
-                        .iter()
-                        .flat_map(|state| &state.structural_parameters)
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-        })
-        .collect::<BTreeSet<_>>();
-    shapes.retain_transitive(&retained);
-    CheckedStructuralUnitControlPlans {
-        structural_types: shapes.types.into_values().collect(),
-        machines,
-    }
-}

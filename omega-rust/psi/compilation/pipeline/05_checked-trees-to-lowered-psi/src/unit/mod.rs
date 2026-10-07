@@ -13,12 +13,12 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedIntegerComparisonKind,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility,
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -26,10 +26,9 @@ use language_semantics::{
 };
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, DomainSemanticId, EdgeId, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, PlaceId, Proposition, QualifiedScalarType, ScalarTerm,
-    ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, DomainSemanticId, IntegerType, MachineId, ObligationId,
+    PlaceId, Proposition, QualifiedScalarType, ScalarTerm, ScalarType, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
@@ -42,9 +41,8 @@ use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedScc, Terminator,
+    ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
 
@@ -74,22 +72,19 @@ use crate::proofs::crash_routes::{
 };
 use crate::retention::placed_view_inputs::lower_placed_view_input;
 use crate::returns::structural_types::{
-    lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
-    terminal_byte_sequence_carrier,
+    lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };
 use crate::scalar_graph::scalar_carriers;
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
     boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,
     lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id, machine_id,
-    obligation_id, operation_id, place_id, service_id, structural_domain_id, structural_field_id,
+    obligation_id, place_id, service_id, structural_domain_id, structural_field_id,
     structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
-    lower_composed_unit_control_machine, lower_unit_closure, lower_unit_parameters,
-    unique_unit_machine,
+    lower_composed_unit_control_machine, lower_unit_closure, unique_unit_machine,
 };
-use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
@@ -99,7 +94,6 @@ pub(crate) mod crash_interface;
 pub(crate) mod dynamic_dispatch;
 pub(crate) use crash_interface::effective_crash_routes;
 pub(crate) mod runtime_requirements;
-pub(crate) mod structural_unit_control;
 pub(crate) mod unit_cleanup;
 
 /// Lower the one checked Unit plan a selected machine carries: the body that
@@ -133,14 +127,6 @@ pub(crate) fn lower_unit_plan_machine(
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
-        ),
-        CheckedUnitPlan::StructuralControl(plan) => LoweredSelectedMachine::entry_only(
-            lower_structural_unit_control_machine(checked, plan)?,
-            LoweringCompletion {
-                debug: DebugPublication::Omit,
-                ..Default::default()
-            },
-            vec![plan.machine],
         ),
     })
 }

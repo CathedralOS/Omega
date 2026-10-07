@@ -127,8 +127,6 @@ use checked_trees::{
     CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
     CheckedTraitOperatorScalarReturnMachinePlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
     CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,

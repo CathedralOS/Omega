@@ -91,8 +91,6 @@ pub use structural_control_plans::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_return_plans::{

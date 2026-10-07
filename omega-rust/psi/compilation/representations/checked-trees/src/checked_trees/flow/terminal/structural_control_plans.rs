@@ -1,10 +1,8 @@
-//! Structural control plans: cleanup edges, unit control machines, ranked
-//! strongly connected components and control transfers.
+//! Structural control plans: cleanup edges, ranked strongly connected
+//! components and control transfers.
 
 use crate::checked_trees::flow::terminal::{
-    CheckedOperandSequence, CheckedStructuralScalarParameterPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedOperandSequence, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
@@ -63,41 +61,6 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
-/// Complete checked input for the first terminal structural-control producer.
-/// This deliberately supports only claim-free affine, Unit-returning attached
-/// graphs whose states return naturally, unconditionally transfer whole
-/// parameters, or have at most two states select independent whole-parameter
-/// successors from one retained Boolean scalar input. One two-predecessor join
-/// may reconverge identical structural frontiers. Ordinary successor edges may
-/// also forward direct primitive scalar inputs.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedStructuralUnitControlPlans {
-    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
-    pub machines: Vec<CheckedStructuralUnitControlMachinePlan>,
-}
-
-impl CheckedStructuralUnitControlPlans {
-    pub fn for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&CheckedStructuralUnitControlMachinePlan> {
-        self.machines.iter().find(|plan| plan.machine == machine)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralUnitControlMachinePlan {
-    pub machine: SymbolHandle,
-    /// The owner an authored receiver retains as attachment storage; `None`
-    /// for a receiver-free machine, qualified or not.
-    pub attachment_type_identity: Option<String>,
-    pub states: Vec<CheckedStructuralUnitControlStatePlan>,
-    /// The first retained cyclic-control proof. `None` preserves the acyclic
-    /// structural-Unit slice; a cyclic plan is published only when the
-    /// termination checker supplied this exact source-handle-free component.
-    pub ranked_scc: Option<CheckedStructuralRankedSccPlan>,
-}
-
 /// One canonical Nat-descending component. Bounds are the exact unsigned
 /// carrier bounds, not authored text. Each retained edge names the checked
 /// transition coordinate and either its direct countdown proof or the
@@ -148,33 +111,6 @@ pub enum CheckedStructuralRankedArgumentPlan {
         source_scalar_parameter_index: u32,
         target_scalar_parameter_index: u32,
         primitive_type: PrimitiveType,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralUnitControlStatePlan {
-    pub state: SymbolHandle,
-    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
-    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
-    pub terminator: CheckedStructuralUnitControlTerminatorPlan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedStructuralUnitControlTerminatorPlan {
-    ReturnUnit {
-        trivial_affine_discard_parameter_positions: Vec<u32>,
-    },
-    Jump {
-        statement_ordinal: u32,
-        target_state: SymbolHandle,
-        transfers: Vec<CheckedStructuralControlTransferPlan>,
-        scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
-        trivial_affine_discard_parameter_positions: Vec<u32>,
-    },
-    Conditional {
-        guard_scalar_parameter_index: u32,
-        when_true: CheckedStructuralControlSuccessorPlan,
-        when_false: CheckedStructuralControlSuccessorPlan,
     },
 }
 

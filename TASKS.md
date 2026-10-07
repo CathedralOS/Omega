@@ -458,12 +458,8 @@ defines the complete product bar.
   - **Computed calls and state transfers.** Finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results and boundary consumers on the common
-    `EstablishStructuralValue` route. Stage 05's
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`
-    still refuses "scalar and Unit dynamic joins compete for one caller";
-    `.../src/unit/structural_unit_control.rs` still refuses checked
-    expressions in its scalar-successor route. Remove those through ordinary
-    argument evaluation, not another whole-body plan. Preserve once-only
+    `EstablishStructuralValue` route through ordinary argument evaluation,
+    not another whole-body plan. Preserve once-only
     field/operand order, selective short-circuit effects, computed-result float
     format, selected affine cleanup and omitted common-field zero initialization:
     `pass/float/computed_comparison_literal_landing_exit`,
@@ -2504,17 +2500,21 @@ code and preserve check/native behavior for the named customer slices.
   for the affected ownership slice.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
-  parameter transfer are lowered in about five places:
-  - `unit/attached_unit/composed_control/state_graph/edges.rs` and
-    `state_graph/emission/successor_edge.rs`;
-  - `unit/structural_unit_control.rs`;
-  - `scalar_graph/scalar_graph_module/state_emission.rs`.
+  parameter transfer are lowered by two stage 05 routes:
+  - the composed route, `unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`,
+    after `state_graph/edges.rs` re-checks each edge against source;
+  - the scalar route, `scalar_graph/scalar_graph_lowering/call_lowering.rs`
+    and `scalar_graph/scalar_graph_module/state_emission.rs`.
 
-  Stage 04 builds successor plans in `execution/terminal_unit/state_graph/mod.rs`,
-  `control/structural_unit_machine.rs`, `execution/terminal_scalar/successors.rs`,
-  `composed_control/topology.rs` and `state_graph/closed_sum.rs`. Make one
-  successor-plan builder in stage 04 and one lowering in the shared
-  `unit/attached_unit/operation_frame.rs`, used by every route. Acceptance:
+  Stage 04 builds `CheckedStructuralControlSuccessorPlan` in
+  `execution/terminal_unit/state_graph/successors.rs` (also for
+  `state_graph/closed_sum.rs`) and `CheckedScalarSuccessor` in
+  `execution/terminal_scalar/successors.rs`; argument-to-formal resolution,
+  erased arguments and the computation-root check are duplicated between
+  them. Only the scalar route carries continuation arguments, and only the
+  composed route carries edge-local custody sources and closed-sum payloads.
+  Make one successor-plan builder in stage 04 and one lowering in stage 05,
+  used by every route. Acceptance:
   a source-scanning guard finds a single constructor and a single lowering
   of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
   is unchanged in check and native.
@@ -2543,18 +2543,6 @@ code and preserve check/native behavior for the named customer slices.
   `--filter calls/,boundary/,providers/` is unchanged;
   `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
 
-- **STRUCTURAL-UNIT-CONTROL-RETIRED.** (new-scope) Depends on
-  **ONE-TRANSITION-LOWERING**. Fold
-  `.../05_checked-trees-to-lowered-psi/src/unit/structural_unit_control.rs`
-  into the composed state-graph route and delete it. That includes the
-  `lower_ranked_structural_unit_countdown` rung, which requires exactly a
-  header and an exit state with one scalar parameter. Ranked loops then
-  lower through the general rank plans, without the
-  `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
-  case. Acceptance: the file is gone; add corpus fixtures for ranked loops,
-  transfer and cleanup frontiers, diamond joins and resumable execution
-  (their Rust tests were cut); each executes natively with its oracle.
-
 - **RETURN-ROUTES-RETIRED.** (new-scope) Depends on **ONE-CALL-LOWERING**.
   Replace the six return rosters in
   `.../05_checked-trees-to-lowered-psi/src/returns/` (structural-scalar,
@@ -2569,7 +2557,7 @@ code and preserve check/native behavior for the named customer slices.
   `--filter returns/,operators/,providers/` is unchanged in check and native.
 
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Depends on
-  **STRUCTURAL-UNIT-CONTROL-RETIRED** and **RETURN-ROUTES-RETIRED**. Lower scalar machines through the same body
+  **RETURN-ROUTES-RETIRED**. Lower scalar machines through the same body
   route as Unit machines and delete
   `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (19.4k lines) and
   the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Account
@@ -2577,7 +2565,10 @@ code and preserve check/native behavior for the named customer slices.
   - continuation-arm custody (`CheckedStructuralControlSuccessorPlan` lacks
     continuation identity);
   - later-state mutable scalar stores;
-  - crash predicates, float prefix initializers and debug maps.
+  - crash predicates, float prefix initializers and debug maps;
+  - ranked loops through the general rank plans, retiring the
+    `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
+    case, with a fixture for resumable (fuel-suspended) ranked execution.
 
   Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
   exits returning 20 and 30 under `ensures result >= 20` still hold;

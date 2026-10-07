@@ -131,8 +131,6 @@ pub use flow::{
     CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
-    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
     CheckedStructuralValueCall, CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan,
     CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
     CheckedTerminalSignatureEligibility, CheckedTerminalStateDebugPlan,

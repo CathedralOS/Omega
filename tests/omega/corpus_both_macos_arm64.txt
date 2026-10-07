@@ -181,9 +181,14 @@ pass/control_flow/case_arm_scalar_payload_arguments_exit built 2830ms exit:70 in
 pass/control_flow/conditional_unit_completion_exit built 4490ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 4999ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 813ms exit:0 interpreter-exit:0 interpreter:agrees @70f761d06258
+pass/control_flow/runtime_branch_transfer_owned_record_exit built 2293ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1701ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
+pass/control_flow/runtime_diamond_join_borrowed_record_exit built 2467ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
+pass/control_flow/runtime_diamond_join_owned_record_exit built 2375ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
+pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit built 2550ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
+pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2205ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/self_case_payload_both_arms_exit built 2333ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
 pass/dependent/runtime_sibling_len_index_exit built 4665ms exit:7 interpreter-exit:7 interpreter:agrees @e477ee0294de+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b

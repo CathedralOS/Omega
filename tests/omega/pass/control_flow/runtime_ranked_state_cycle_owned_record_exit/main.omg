@@ -1,0 +1,32 @@
+// An owned affine record travels around a ranked state cycle and is disposed
+// at the exit state. Each edge transfers the whole record; no state keeps a
+// second copy.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Token { id: u32; }
+data Main { console: Binding<Console>; }
+
+machine spin(token: Token, remaining: u32)
+terminates by remaining;
+requires remaining <= 5
+{
+    transition remaining > 0 {
+        true -> step(token, remaining - 1)
+        false -> done(token)
+    }
+    state step(held: Token, left: u32)
+    requires left <= 5
+    {
+        transition left > 0 {
+            true -> step(held, left - 1)
+            false -> done(held)
+        }
+    }
+    state done(finished: Token) {}
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    spin(Token { id: 9 }, 3);
+    main.console.exit_process(70);
+}
