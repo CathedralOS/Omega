@@ -67,7 +67,10 @@ pub(crate) fn array_path_type(
 ) -> Option<StructuralTypeId> {
     for segment in path {
         structural_type = match (segment, &types.get(&structural_type)?.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields, .. },
+            ) => {
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;

@@ -341,9 +341,8 @@ impl TerminalExecution {
             .get(&parent_type.ok_or_else(malformed)?)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields
-            }
+            StructuralTypeShape::Record { fields, .. }
+            | StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return Err(malformed()),
         };
         let mut matching = fields.iter().filter(|field| field.id == cell.field);

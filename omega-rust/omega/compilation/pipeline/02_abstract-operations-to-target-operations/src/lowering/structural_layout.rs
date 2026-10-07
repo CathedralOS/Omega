@@ -616,6 +616,7 @@ pub(super) fn resolve_structural_field_path(
         active,
         StructuralFieldType::canonical_leaf_shape,
     )
+    .map(|(selected, shape, offset, _)| (selected, shape, offset))
 }
 
 fn field_path(
@@ -625,10 +626,11 @@ fn field_path(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
-) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+) -> Result<(StructuralTypeId, ValueShape, u32, Option<u64>), LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
+    let mut repeated_stride = None;
     for segment in path {
         let StructuralPathSegment::Field(identity) = segment else {
             return Err(LoweringError::UnknownStructuralType(structural_type));
@@ -659,6 +661,10 @@ fn field_path(
             local_offset =
                 structural_field_offset(field, local_offset, field_shape.alignment, root_type)?;
             if field.identity == *identity {
+                repeated_stride = field
+                    .storage
+                    .as_ref()
+                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
@@ -699,7 +705,7 @@ fn field_path(
         selected_shape = Some(field_shape);
     }
     selected_shape
-        .map(|shape| (structural_type, shape, total_offset))
+        .map(|shape| (structural_type, shape, total_offset, repeated_stride))
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
@@ -937,16 +943,44 @@ pub(super) fn resolve_structural_projection_path(
 }
 
 fn projection_path(
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    let (selected, shape, offset, indices) = storage_projection_path(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        leaf_shape,
+    )?;
+    if !indices.is_empty() {
+        return Err(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ));
+    }
+    Ok((selected, shape, offset))
+}
+
+// One ordered walk keeps an authored array stride across its selecting field.
+// Static and runtime indices consume that same storage occurrence.
+fn storage_projection_path(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Result<RuntimeProjection, LoweringError> {
     let root_type = structural_type;
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
+    let mut indices = Vec::new();
+    let mut repeated_stride = None;
     let mut segments = path.iter();
     while let Some(segment) = segments.next() {
         let (selected_type, shape, local_offset) = match segment {
@@ -975,6 +1009,10 @@ fn projection_path(
                 let StructuralFieldType::Structural(selected) = field.field_type else {
                     return Err(invalid());
                 };
+                repeated_stride = field
+                    .storage
+                    .as_ref()
+                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
                 let layout = structural_sum_layout(structural_type, declarations, cache, active)?;
                 (
                     selected,
@@ -982,29 +1020,32 @@ fn projection_path(
                     layout.cases[case_position].fields[field_position].byte_offset,
                 )
             }
-            StructuralPathSegment::Referent
-            | StructuralPathSegment::FixedByteRange { .. }
-            | StructuralPathSegment::RuntimeIndex { .. } => {
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReference(
                     structural_type,
                 ));
             }
-            StructuralPathSegment::Field(_) => field_path(
-                structural_type,
-                std::slice::from_ref(segment),
-                declarations,
-                cache,
-                active,
-                leaf_shape,
-            )?,
-            StructuralPathSegment::FixedIndex(index) => {
+            StructuralPathSegment::Field(_) => {
+                let (selected, shape, offset, stride) = field_path(
+                    structural_type,
+                    std::slice::from_ref(segment),
+                    declarations,
+                    cache,
+                    active,
+                    leaf_shape,
+                )?;
+                repeated_stride = stride;
+                (selected, shape, offset)
+            }
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
                 let declaration = declarations
                     .get(&structural_type)
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                 let element = match &declaration.shape {
                     StructuralTypeShape::FixedArray { element, length } => {
-                        if *index >= *length {
+                        if matches!(segment, StructuralPathSegment::FixedIndex(index) if index >= length)
+                        {
                             return Err(LoweringError::UnknownStructuralType(structural_type));
                         }
                         *element
@@ -1016,12 +1057,23 @@ fn projection_path(
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
                 let shape = structural_shape(element, declarations, cache, active)?;
-                let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
-                    .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
-                let offset = u64::from(stride)
-                    .checked_mul(*index)
-                    .and_then(|offset| u32::try_from(offset).ok())
-                    .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+                let stride = match repeated_stride.take() {
+                    Some(stride) => u32::try_from(stride)
+                        .map_err(|_| LoweringError::StructuralTypeTooLarge(root_type))?,
+                    None => checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
+                        .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?,
+                };
+                let offset = match segment {
+                    StructuralPathSegment::FixedIndex(index) => u64::from(stride)
+                        .checked_mul(*index)
+                        .and_then(|offset| u32::try_from(offset).ok())
+                        .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?,
+                    StructuralPathSegment::RuntimeIndex { index, .. } => {
+                        indices.push((*index, stride));
+                        0
+                    }
+                    _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
+                };
                 (element, shape, offset)
             }
         };
@@ -1037,7 +1089,7 @@ fn projection_path(
         Some(shape) => shape,
         None => structural_shape(structural_type, declarations, cache, active)?,
     };
-    Ok((structural_type, shape, total_offset))
+    Ok((structural_type, shape, total_offset, indices))
 }
 
 type RuntimeProjection = (
@@ -1141,68 +1193,14 @@ fn runtime_projection_with_leaf_shape(
             projection.leaf.indices,
         ));
     }
-    let mut structural_type = structural_type;
-    let mut byte_offset = 0u32;
-    let mut indices = Vec::new();
-    let mut segment_start = 0usize;
-    for (position, segment) in path.iter().enumerate() {
-        let StructuralPathSegment::RuntimeIndex { index, .. } = segment else {
-            continue;
-        };
-        if position > segment_start {
-            let (container, _shape, run_offset) = projection_path(
-                structural_type,
-                &path[segment_start..position],
-                declarations,
-                cache,
-                active,
-                leaf_shape,
-            )?;
-            structural_type = container;
-            byte_offset = byte_offset
-                .checked_add(run_offset)
-                .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-        }
-        let declaration = declarations
-            .get(&structural_type)
-            .copied()
-            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let element = match &declaration.shape {
-            StructuralTypeShape::FixedArray { element, .. }
-            // A view carries no literal length: the selector's bound is the
-            // operation's own obligation against the stored extent.
-            | StructuralTypeShape::ElementView { element } => *element,
-            _ => {
-                return Err(LoweringError::UnsupportedStructuralReference(
-                    structural_type,
-                ));
-            }
-        };
-        let element_shape = structural_shape(element, declarations, cache, active)?;
-        let stride =
-            checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
-                .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-        indices.push((*index, stride));
-        structural_type = element;
-        segment_start = position + 1;
-    }
-    let (endpoint, shape, tail_offset) = if segment_start == path.len() {
-        let shape = structural_shape(structural_type, declarations, cache, active)?;
-        (structural_type, shape, 0)
-    } else {
-        projection_path(
-            structural_type,
-            &path[segment_start..],
-            declarations,
-            cache,
-            active,
-            leaf_shape,
-        )?
-    };
-    let byte_offset = byte_offset
-        .checked_add(tail_offset)
-        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-    Ok((endpoint, shape, byte_offset, indices))
+    storage_projection_path(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        leaf_shape,
+    )
 }
 
 pub(super) fn byte_sequence_shape(

@@ -162,7 +162,9 @@ pub(crate) fn requires_materialized_host_custody(
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::Record { fields: members, .. } => fields.extend(members),
+            StructuralTypeShape::Record {
+                fields: members, ..
+            } => fields.extend(members),
             // A discriminator and actual payload are required even when every
             // field is an unrestricted scalar. Opaque identity is not a case.
             StructuralTypeShape::Sum { .. } => return true,

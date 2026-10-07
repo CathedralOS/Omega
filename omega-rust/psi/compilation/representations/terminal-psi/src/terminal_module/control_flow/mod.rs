@@ -16,8 +16,7 @@ pub use float_result_policy::{FloatResultPolicy, FloatSaturationRule};
 pub use machines::{Block, TerminalMachine};
 pub use operations::{
     ByteSequenceOperand, ElementViewRegion, Operation, OperationKind, OperationResult,
-    ReferenceStorageView,
-    StructuralOperationResult, StructuralResultClaimBinding,
+    ReferenceStorageView, StructuralOperationResult, StructuralResultClaimBinding,
 };
 pub use ranking::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,

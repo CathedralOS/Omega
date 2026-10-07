@@ -499,7 +499,10 @@ fn resolve_structural_path(
     for segment in path {
         let declaration = exact_structural_type(structural_types, structural_type)?;
         structural_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields, .. },
+            ) => {
                 let mut matching = fields.iter().filter(|field| {
                     field.identity == *identity && field.relevance == BindingRelevance::Relevant
                 });

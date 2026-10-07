@@ -205,7 +205,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ScanByteSequence { predicate } => {
             bytes.push(predicate.mask_bit());
         }
-        SelectedInstructionKind::CompareByteSequences | SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar => {}
+        SelectedInstructionKind::CompareByteSequences
+        | SelectedInstructionKind::LoadEncodedScalar
+        | SelectedInstructionKind::StoreEncodedScalar => {}
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
@@ -544,20 +546,28 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.extend_from_slice(&byte_size.to_le_bytes());
                 bytes.extend_from_slice(&alignment.to_le_bytes());
             }
-            crate::SelectedStructuralTransport::ScalarReference { base, byte_offset, source, destination } => {
+            crate::SelectedStructuralTransport::ScalarReference {
+                base,
+                byte_offset,
+                source,
+                destination,
+            } => {
                 bytes.push(4);
                 match base {
                     crate::SelectedAddressBase::Register(register) => {
-                        bytes.push(0); bytes.extend_from_slice(&register.0.to_le_bytes());
+                        bytes.push(0);
+                        bytes.extend_from_slice(&register.0.to_le_bytes());
                     }
                     crate::SelectedAddressBase::Local(slot) => {
-                        bytes.push(1); slot.encode_identity(bytes);
+                        bytes.push(1);
+                        slot.encode_identity(bytes);
                     }
                 }
                 bytes.extend_from_slice(&byte_offset.to_le_bytes());
                 match source {
                     crate::SelectedScalarReferenceSource::Canonical { codec } => {
-                        bytes.push(0); bytes.extend_from_slice(&codec.to_le_bytes());
+                        bytes.push(0);
+                        bytes.extend_from_slice(&codec.to_le_bytes());
                     }
                     crate::SelectedScalarReferenceSource::Descriptor => bytes.push(1),
                 }

@@ -16,7 +16,9 @@ use symbols::SymbolHandle;
 pub enum CheckedReferenceStorage {
     #[default]
     Declared,
-    View { stored_scalar: Option<semantic_vocabulary::ScalarType> },
+    View {
+        stored_scalar: Option<semantic_vocabulary::ScalarType>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

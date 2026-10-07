@@ -155,7 +155,9 @@ fn requires_contents(
                 pending.push(*element);
                 continue;
             }
-            StructuralTypeShape::Record { fields: members, .. } => fields.extend(members),
+            StructuralTypeShape::Record {
+                fields: members, ..
+            } => fields.extend(members),
             StructuralTypeShape::Sum { cases } => {
                 fields.extend(cases.iter().flat_map(|case| &case.fields));
             }

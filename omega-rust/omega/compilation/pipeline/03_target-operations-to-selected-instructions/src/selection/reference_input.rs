@@ -248,14 +248,8 @@ pub(super) fn mutable_projection<'path>(
     let (StructuralPathSegment::Referent, suffix) = path.split_first()? else {
         return None;
     };
-    if suffix.iter().any(|segment| {
-        !matches!(
-            segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-        )
-    }) {
-        return None;
-    }
+    // The storage query admits the complete suffix. Selector presence does
+    // not change the carrier's required pointer crossing.
     let (_, result) = super::aggregate_result_input::home(function, place)?;
     let (referent, access) = carrier_referent(function, result)?;
     (access == StructuralAccess::MutableBorrow).then_some((referent, suffix))

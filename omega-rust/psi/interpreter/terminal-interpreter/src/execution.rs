@@ -532,7 +532,10 @@ impl TerminalExecution {
                 };
                 self.validate_case_projections(operation)?;
                 let flow = match operation.kind {
-                    OperationKind::EstablishReference { ref source, storage } => {
+                    OperationKind::EstablishReference {
+                        ref source,
+                        storage,
+                    } => {
                         self.establish_reference(operation, source, storage)?;
                         OperationFlow::Advance
                     }

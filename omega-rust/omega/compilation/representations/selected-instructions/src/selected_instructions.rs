@@ -54,8 +54,9 @@ pub use constraints::{
 };
 pub use control_flow::{
     SelectedAddressBase, SelectedBlock, SelectedBlockOrigin, SelectedFunction,
-    SelectedStructuralBinding, SelectedStructuralTransport, SelectedScalarReferenceSource, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    SelectedScalarReferenceSource, SelectedStructuralBinding, SelectedStructuralTransport,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineAlternative,

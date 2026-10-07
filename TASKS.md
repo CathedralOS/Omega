@@ -3072,10 +3072,9 @@ deletions, which the commit lists.
   narrower than their semantic carrier. This is an independent representation
   and ABI outcome, not a prerequisite for deleting PCC certificates.
 
-  Parent and leaf formation must retain their original endpoint and authored
-  storage codec. Carry
-  backing and encoding through joins, returns, recursion and stored references in native
-  and both interpreters. The checked interpreter currently declines encoded
+  Carry backing and encoding through joins, returns, recursion and stored
+  references in native and both interpreters without losing the original
+  endpoint or authored storage codec. The checked interpreter declines encoded
   reference-valued results because its Value-only seam loses view metadata;
   multi-origin reference results still lack a complete source-loan resource.
   Runtime encoding choices cannot be solved by

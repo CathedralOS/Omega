@@ -150,7 +150,10 @@ fn resolve_copyable_path(
             .iter()
             .find(|candidate| candidate.id == structural_type)?;
         structural_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields, .. },
+            ) => {
                 let field = fields.iter().find(|candidate| {
                     candidate.identity == *identity && !candidate.relevance.is_erased()
                 })?;

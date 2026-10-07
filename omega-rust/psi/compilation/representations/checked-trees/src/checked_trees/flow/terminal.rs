@@ -79,8 +79,9 @@ pub use scalar_return_plans::{
     CheckedStructuralScalarReturnPlans,
 };
 pub use structural_argument_plans::{
-    CheckedCallScalarArgument, CheckedReferenceStorage, CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedCallScalarArgument, CheckedReferenceStorage, CheckedUnitCallCoordinate,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
 };
 pub use structural_control_plans::{
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,

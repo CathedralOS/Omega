@@ -5,8 +5,8 @@ use crate::{
 };
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ServiceId,
-    ScalarType, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ScalarType, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
     SuspensionCrossingId, ValueId,
 };
 

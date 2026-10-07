@@ -1763,22 +1763,36 @@ fn project_with_leaf_shape(
 ) -> Option<(StructuralTypeId, u32)> {
     project_inner(
         root,
-        path.iter().map(|segment| match segment {
-            StructuralPathSegment::Field(name) => Projection::FieldName(name),
-            StructuralPathSegment::Case(case) => Projection::Case(*case),
-            StructuralPathSegment::FixedIndex(position) => Projection::FixedIndex(*position),
-            _ => Projection::Unsupported,
-        }),
+        path.iter().map(Projection::from),
         declarations,
         leaf_shape,
     )
+    .and_then(|(selected, offset, elements)| elements.is_empty().then_some((selected, offset)))
 }
 
 enum Projection<'a> {
     Case(semantic_vocabulary::StructuralCaseId),
     FieldName(&'a str),
     FixedIndex(u64),
+    RuntimeIndex(
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ObligationId,
+    ),
     Unsupported,
+}
+
+impl<'a> From<&'a StructuralPathSegment> for Projection<'a> {
+    fn from(segment: &'a StructuralPathSegment) -> Self {
+        match segment {
+            StructuralPathSegment::Field(name) => Self::FieldName(name),
+            StructuralPathSegment::Case(case) => Self::Case(*case),
+            StructuralPathSegment::FixedIndex(position) => Self::FixedIndex(*position),
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                Self::RuntimeIndex(*index, *obligation)
+            }
+            _ => Self::Unsupported,
+        }
+    }
 }
 
 fn project_inner<'a>(
@@ -1786,9 +1800,11 @@ fn project_inner<'a>(
     path: impl Iterator<Item = Projection<'a>>,
     declarations: &[StructuralTypeDeclaration],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
-) -> Option<(StructuralTypeId, u32)> {
+) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let mut carrier = root;
     let mut offset = 0_u32;
+    let mut elements = Vec::new();
+    let mut repeated_stride = None;
     shape(root, declarations)?;
     let mut path = path;
     while let Some(segment) = path.next() {
@@ -1823,25 +1839,42 @@ fn project_inner<'a>(
                         .byte_offset,
                 )?;
                 carrier = selected;
+                repeated_stride = field
+                    .storage
+                    .as_ref()
+                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
             }
-            (
-                Projection::FixedIndex(position),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if position < *length => {
-                let element_shape = shape(*element, declarations)?;
-                let stride = align(element_shape.byte_size, element_shape.alignment)?;
-                offset = offset
-                    .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
-                carrier = *element;
-            }
-            (Projection::FixedIndex(position), StructuralTypeShape::ElementView { element }) => {
-                // A view's referent storage is element-contiguous; its
-                // stored extent, not a literal length, bounds the index.
-                let element_shape = shape(*element, declarations)?;
-                let stride = align(element_shape.byte_size, element_shape.alignment)?;
-                offset = offset
-                    .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
-                carrier = *element;
+            (selection @ (Projection::FixedIndex(_) | Projection::RuntimeIndex(..)), array) => {
+                let (element, extent) = match array {
+                    StructuralTypeShape::FixedArray { element, length } => {
+                        (*element, Some(*length))
+                    }
+                    StructuralTypeShape::ElementView { element } => (*element, None),
+                    _ => return None,
+                };
+                let element_shape = shape(element, declarations)?;
+                let stride = match repeated_stride.take() {
+                    Some(stride) => u32::try_from(stride).ok()?,
+                    None => align(element_shape.byte_size, element_shape.alignment)?,
+                };
+                match selection {
+                    Projection::FixedIndex(position) => {
+                        if extent.is_some_and(|length| position >= length) {
+                            return None;
+                        }
+                        offset = offset.checked_add(
+                            u32::try_from(u64::from(stride).checked_mul(position)?).ok()?,
+                        )?;
+                    }
+                    Projection::RuntimeIndex(index, obligation) => elements.push(RuntimeElement {
+                        index,
+                        obligation,
+                        stride,
+                        extent,
+                    }),
+                    _ => return None,
+                }
+                carrier = element;
             }
             (Projection::FieldName(name), StructuralTypeShape::Mixed { fields, .. }) => {
                 let (position, field) = fields
@@ -1865,6 +1898,10 @@ fn project_inner<'a>(
                     .byte_offset;
                 carrier = nested;
                 offset = offset.checked_add(field_offset)?;
+                repeated_stride = field
+                    .storage
+                    .as_ref()
+                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
             }
             (Projection::FieldName(name), StructuralTypeShape::Record { fields, .. }) => {
                 let mut field_offset = 0;
@@ -1889,19 +1926,26 @@ fn project_inner<'a>(
                                     .map(|declaration| declaration.id)?
                             }
                         };
-                        found = Some((nested, field_offset));
+                        found = Some((
+                            nested,
+                            field_offset,
+                            field.storage.as_ref().and_then(
+                                semantic_vocabulary::AuthoredFieldStorage::element_stride,
+                            ),
+                        ));
                         break;
                     }
                     field_offset = field_offset.checked_add(layout.byte_size)?;
                 }
-                let (nested, field_offset) = found?;
+                let (nested, field_offset, stride) = found?;
                 carrier = nested;
                 offset = offset.checked_add(field_offset)?;
+                repeated_stride = stride;
             }
             _ => return None,
         }
     }
-    Some((carrier, offset))
+    Some((carrier, offset, elements))
 }
 
 /// Resolve a projection that may traverse `RuntimeIndex` segments at any
@@ -1962,50 +2006,14 @@ fn runtime_projection_with_leaf_shape(
             terminal_semantics::primitive_projection_declaration(declarations.iter(), root, path)?;
         return Some((endpoint, offset, elements));
     }
-    let mut container = root;
-    let mut byte_offset = 0u32;
-    let mut elements = Vec::new();
-    let mut segment_start = 0usize;
-    for (position, segment) in path.iter().enumerate() {
-        let StructuralPathSegment::RuntimeIndex { index, obligation } = segment else {
-            continue;
-        };
-        if position > segment_start {
-            let (selected, run_offset) = project_with_leaf_shape(
-                container,
-                &path[segment_start..position],
-                declarations,
-                leaf_shape,
-            )?;
-            container = selected;
-            byte_offset = byte_offset.checked_add(run_offset)?;
-        }
-        let (element, extent) = match &declarations
-            .iter()
-            .find(|declaration| declaration.id == container)?
-            .shape
-        {
-            StructuralTypeShape::FixedArray { element, length } => (*element, Some(*length)),
-            // A view's extent is its own stored runtime length — the bound
-            // re-proves against the dominating length observation the
-            // obligation names, never against this layout.
-            StructuralTypeShape::ElementView { element } => (*element, None),
-            _ => return None,
-        };
-        let element_shape = shape(element, declarations)?;
-        let stride = align(element_shape.byte_size, element_shape.alignment)?;
-        elements.push(RuntimeElement {
-            index: *index,
-            obligation: *obligation,
-            stride,
-            extent,
-        });
-        container = element;
-        segment_start = position + 1;
-    }
-    let (endpoint, tail_offset) =
-        project_with_leaf_shape(container, &path[segment_start..], declarations, leaf_shape)?;
-    Some((endpoint, byte_offset.checked_add(tail_offset)?, elements))
+    // Static and runtime selectors consume the same retained field placement.
+    // Splitting a path into static runs discarded authored repeated strides.
+    project_inner(
+        root,
+        path.iter().map(Projection::from),
+        declarations,
+        leaf_shape,
+    )
 }
 
 /// The field-store geometry: the static offset of `field` beneath the
