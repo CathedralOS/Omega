@@ -495,18 +495,8 @@ pub fn mutable_integer_bound_storage_symbol(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    if members.len() != 1 {
-        return None;
-    }
     let (symbol, is_mutable, type_reference) =
-        if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            bound_name_receiver(lookup, path)?
-        } else {
-            match local_by_name(lookup, members[0].as_str()) {
-                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
-                LocalLookup::Missing | LocalLookup::Invalid => return None,
-            }
-        };
+        single_segment_receiver(lookup, path, members)?;
     if !is_mutable || !symbol.is_valid() {
         return None;
     }
@@ -542,18 +532,8 @@ fn projected_integer_bound_field<'program>(
         return None;
     };
     let members = program.expression_table.name_path_members(path.members);
-    if members.len() != 1 {
-        return None;
-    }
     let (symbol, is_mutable, type_reference) =
-        if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            bound_name_receiver(lookup, path)?
-        } else {
-            match local_by_name(lookup, members[0].as_str()) {
-                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
-                LocalLookup::Missing | LocalLookup::Invalid => return None,
-            }
-        };
+        single_segment_receiver(lookup, path, members)?;
     if !symbol.is_valid() {
         return None;
     }
@@ -828,6 +808,29 @@ fn normalize_local(
 /// The mutability and declared type of one resolved bound name: a unique
 /// local, a state parameter, or — when the name resolves to the machine
 /// itself — the machine's `self` receiver parameter.
+/// A single-segment path's storage coordinate — the resolved symbol, its
+/// mutability, and its declared type — joined through bound provenance or
+/// the local lookup.
+fn single_segment_receiver(
+    lookup: &ImmutableBoundLookup<'_>,
+    path: &typed_trees::expression::TableNamePath,
+    members: &[typed_trees::name::Identifier],
+) -> Option<(SymbolHandle, bool, typed_trees::types::TypeReferenceHandle)> {
+    if members.len() != 1 {
+        return None;
+    }
+    if path.symbol.is_valid() && path.head_symbol == path.symbol {
+        bound_name_receiver(lookup, path)
+    } else {
+        match local_by_name(lookup, members[0].as_str()) {
+            LocalLookup::Found(local) => {
+                Some((local.symbol, local.is_mutable, local.type_reference))
+            }
+            LocalLookup::Missing | LocalLookup::Invalid => None,
+        }
+    }
+}
+
 fn bound_name_receiver(
     lookup: &ImmutableBoundLookup<'_>,
     path: &typed_trees::expression::TableNamePath,
