@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.81, "load1_start": 3.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 14.15, "load1_start": 14.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -675,6 +675,15 @@ fail/capabilities/provider_widens_requirement_ceiling rejected 284ms expected @2
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
 fail/capabilities/undeclared_synchronous_invocation rejected 214ms expected @fea536d0a672+wt
 	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
+fail/collections/array_child_membership_requires_issuance rejected 405ms expected @1fb1b73fcfb5
+	cannot prove default-domain field requirement for call observe from literal::entry: parameter values[1].ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from stale::entry: parameter values[1].ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from sibling::entry: parameter values[1].ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from lookalike::entry: parameter values[1].ticket requires Ticket::Issued
+	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669f
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
@@ -2469,6 +2478,7 @@ pass/collections/policy_array_literal_store_exit checked 1541ms check-target:mac
 pass/collections/record_array_field_access_exit checked 1074ms check-target:macos_arm64 @3b6b4258b4af+wt
 pass/collections/record_array_literal_field_store_exit checked 1646ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_argmax_index_exit checked 1390ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_array_child_membership_transport_exit checked 1751ms check-target:macos_arm64 @1fb1b73fcfb5
 pass/collections/runtime_borrowed_element_float_guard_exit checked 6010ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 791ms check-target:macos_arm64 @e94b9f79576e+wt
 pass/collections/runtime_bounded_byte_reference_forward_exit checked 2738ms check-target:macos_arm64 @c86f2eca11a9
@@ -2729,6 +2739,7 @@ pass/domains/record_predicate_domain_member_exit checked 791ms check-target:maco
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_computed_qualification_exit checked 4558ms check-target:macos_arm64 @27dfa182e550
+pass/domains/runtime_constructor_ensured_membership_exit checked 1751ms check-target:macos_arm64 @1fb1b73fcfb5
 pass/domains/runtime_nested_record_membership_transport_exit checked 1648ms check-target:macos_arm64 @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 1704ms check-target:macos_arm64 @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 1334ms check-target:macos_arm64 @6949147699f7
