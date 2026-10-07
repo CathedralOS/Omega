@@ -60,7 +60,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             .into_iter()
             .filter(Diagnostic::is_error),
     );
-    let expression_domain = |candidate| {
+    let analyzed = |candidate| {
         let mut ignored_diagnostics = Vec::new();
         analyze(
             program,
@@ -73,27 +73,9 @@ pub(crate) fn validate_total_specification_arithmetic(
             owner,
             &mut ignored_diagnostics,
         )
-        .value
-        .domain
     };
-    let expression_interval = |candidate| {
-        let mut ignored_diagnostics = Vec::new();
-        Some(
-            analyze(
-                program,
-                machine,
-                state,
-                candidate,
-                environment,
-                None,
-                ArithmeticDomain::Exact,
-                owner,
-                &mut ignored_diagnostics,
-            )
-            .value
-            .interval,
-        )
-    };
+    let expression_domain = |candidate| analyzed(candidate).value.domain;
+    let expression_interval = |candidate| Some(analyzed(candidate).value.interval);
     validate_total_specification_arithmetic_with_domain_lookup(
         program,
         expression,
