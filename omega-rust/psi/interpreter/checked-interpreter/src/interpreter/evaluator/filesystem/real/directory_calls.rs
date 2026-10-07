@@ -1,6 +1,7 @@
 //! Directory enumeration: `readdir` windows and the Win32 find cursor.
 
-use super::{DirectoryEntrySnapshotKind, EBADF, ENOENT, real_directory_entries};
+use super::host_io::{DirectoryEntrySnapshotKind, real_directory_entries};
+use super::{EBADF, ENOENT};
 use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall};
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {

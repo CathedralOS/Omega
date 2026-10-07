@@ -1,9 +1,8 @@
 //! Operations addressed by path: opens and creates, removals, renames,
 //! links, permissions, ownership, canonicalization and path metadata.
 
-use super::{
-    EACCES, EBADF, EINVAL, ENOENT, io_errno, open_options_for, open_real, real_os_bytes, real_path,
-};
+use super::host_io::{open_options_for, open_real, real_os_bytes, real_path};
+use super::{EACCES, EBADF, EINVAL, ENOENT, io_errno};
 use crate::interpreter::evaluator::{
     EvalResult, FilesystemGrantRefusalReason, PreparedFilesystemCall,
 };
