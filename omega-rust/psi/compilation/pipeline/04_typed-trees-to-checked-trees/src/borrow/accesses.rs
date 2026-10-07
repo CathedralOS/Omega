@@ -43,23 +43,17 @@ pub(crate) fn collect_call_argument_accesses(
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
-    let mut accesses = arena::HandleSpan::empty();
-
-    {
-        let mut collection = BorrowAccessCollection::new(
-            program,
-            access_segments,
-            argument_accesses,
-            &mut accesses,
-            state_symbol,
-            statement_index,
-            machine_symbol,
-        );
-
-        collect_target_argument_accesses(&mut collection, arguments, target_symbol);
-    }
-
-    accesses
+    collect_argument_access_span(
+        program,
+        access_segments,
+        argument_accesses,
+        arguments,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        target_symbol,
+        false,
+    )
 }
 
 /// A transition arm's own target roster. Its plain-copy payload bindings were
@@ -75,6 +69,30 @@ pub(crate) fn collect_transition_target_argument_accesses(
     machine_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
+    collect_argument_access_span(
+        program,
+        access_segments,
+        argument_accesses,
+        arguments,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        target_symbol,
+        true,
+    )
+}
+
+fn collect_argument_access_span(
+    program: &typed_trees::TypedTrees,
+    access_segments: &mut arena::Arena<facts::PlaceSegment>,
+    argument_accesses: &mut arena::Arena<BorrowArgumentAccessFact>,
+    arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    after_dispatch: bool,
+) -> arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = arena::HandleSpan::empty();
 
     {
@@ -86,8 +104,10 @@ pub(crate) fn collect_transition_target_argument_accesses(
             state_symbol,
             statement_index,
             machine_symbol,
-        )
-        .after_dispatch_extraction();
+        );
+        if after_dispatch {
+            collection = collection.after_dispatch_extraction();
+        }
 
         collect_target_argument_accesses(&mut collection, arguments, target_symbol);
     }
