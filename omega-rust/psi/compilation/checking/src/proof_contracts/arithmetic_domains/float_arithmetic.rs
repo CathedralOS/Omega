@@ -98,6 +98,7 @@ pub(crate) fn float_source_bounds(
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
+    let converted = selected_format_conversion_bounds(program, machine, state, environment, value);
     let range = if let Some(value) = float_literal_value(program, value) {
         if value.is_nan() {
             return None;
@@ -107,10 +108,11 @@ pub(crate) fn float_source_bounds(
             high: Some(value),
         }
     } else {
-        if declared.is_none() && !non_nan {
+        if declared.is_none() && converted.is_none() && !non_nan {
             return None;
         }
-        declared.map_or(flow, |declared| declared.intersect(flow))
+        let range = declared.map_or(flow, |declared| declared.intersect(flow));
+        converted.map_or(range, |converted| range.intersect(converted))
     };
     let minimum = range.low?;
     let maximum = range.high?;
@@ -118,6 +120,46 @@ pub(crate) fn float_source_bounds(
         primitive,
         minimum,
         maximum,
+    })
+}
+
+/// A selected sealed format guarantee transports the completed operand's
+/// enclosure. IEEE format conversion is monotone on ordered values, so its
+/// endpoint images enclose every result; no target predicate supplies a bound.
+fn selected_format_conversion_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+) -> Option<FloatInterval> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
+    let (source, target) = crate::float_format_conversion_contract(program, operator)?;
+    let [operand] = program.expression_table.expression_handles(call.arguments) else {
+        return None;
+    };
+    let bounds = float_source_bounds(program, machine, state, environment, *operand)?;
+    if bounds.primitive != source {
+        return None;
+    }
+    let format = if target == PrimitiveType::F32 {
+        numerics::float_semantics::FloatFormat::BINARY32
+    } else {
+        numerics::float_semantics::FloatFormat::BINARY64
+    };
+    let convert = |value| {
+        numerics::float_semantics::FloatSemantics::convert(
+            format,
+            &numerics::float_semantics::FloatMeaning::from_f64(value),
+        )
+        .to_f64()
+    };
+    Some(FloatInterval {
+        low: Some(convert(bounds.minimum)),
+        high: Some(convert(bounds.maximum)),
     })
 }
 

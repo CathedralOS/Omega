@@ -2057,7 +2057,8 @@ crash and native exit behavior.
   Remaining:
   - **Float/receiver signatures.** Complete call composition for the
     remaining signatures. Value-dependent integer-to-float representability and
-    target-predicate casts need lowering that keeps the predicate; a rounding
+    semantic-domain-qualified carrier conversions still need lowering that keeps
+    the qualification; a rounding
     conversion cannot stand in for an exact cast. Domain-qualified float casts
     still take the legacy truncating/clamping route: enforce unchanged denotation
     for `as`, leaving policy-bearing conversions on the named-call surface.
@@ -3200,6 +3201,10 @@ deletions, which the commit lists.
   overflow, integer-ended fractional intervals, stale writes and spelling lookalikes.
   Shared Terminal execution needs **TERMINAL-RUNTIME-DRIVERS**' exact
   host-binding adapter for `I32::from_f64` before its remaining reachable imports.
+  `float/runtime_refined_conversion_target_exit` (0) constrains carrier
+  conversion beneath explicit target ranges and same-carrier call completion;
+  `float/refined_conversion_target_requires_source_proof` must reject wrong or
+  excluded bounds independently of fractional and lossy coercion obligations.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

@@ -255,37 +255,27 @@ fn float_membership(
     else {
         return false;
     };
-    let source = match program.expression_table.expression(cast.value) {
-        ExpressionNode::Float(literal) => match literal.landing() {
-            Some(numerics::literals::FloatFormat::F32) => Some(PrimitiveType::F32),
-            Some(numerics::literals::FloatFormat::F64) | None => Some(PrimitiveType::F64),
-        },
-        _ => super::declared_place_type_raw(program, machine, state, cast.value)
-            .and_then(|reference| program.primitive_type_reference(reference)),
-    };
-    if source != Some(target) {
-        return false;
-    }
-    let bounds = |expression| {
-        if let Some(value) =
-            crate::proof_contracts::arithmetic_domains::float_arithmetic::float_literal_value(
-                program, expression,
-            )
-        {
-            return value.is_finite().then_some((value, value));
+    let source = super::float_source_bounds(program, machine, state, environment, cast.value);
+    let endpoint_bounds = |expression| {
+        if let Some(endpoint) = crate::closed_float_range_endpoint(program, expression, target) {
+            let value = match endpoint {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                    f64::from(f32::from_bits(bits))
+                }
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => f64::from_bits(bits),
+            };
+            return Some((value, value));
         }
-        let path = super::place_path(program, expression)?;
-        let (interval, non_nan) = environment.float_fact(&path);
-        let (low, high) = (interval.low?, interval.high?);
-        (non_nan && low.is_finite() && high.is_finite() && low <= high).then_some((low, high))
+        let bounds = super::float_source_bounds(program, machine, state, environment, expression)?;
+        Some((bounds.minimum, bounds.maximum))
     };
-    match (bounds(cast.value), bounds(minimum), bounds(maximum)) {
-        (Some((source_low, source_high)), Some((_, minimum_high)), Some((maximum_low, _))) => {
-            minimum_high <= source_low
+    match (source, endpoint_bounds(minimum), endpoint_bounds(maximum)) {
+        (Some(source), Some((_, minimum_high)), Some((maximum_low, _))) => {
+            minimum_high <= source.minimum
                 && if end_inclusive {
-                    source_high <= maximum_low
+                    source.maximum <= maximum_low
                 } else {
-                    source_high < maximum_low
+                    source.maximum < maximum_low
                 }
         }
         _ => false,

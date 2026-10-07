@@ -17,8 +17,11 @@
 //! the selected provider. A cast that stays a cast therefore reaches no
 //! executable route.
 //!
-//! This pass turns the cast into the ordinary call the author could have
-//! written, like `bind_selected_operator_calls` does for a spelled `a * b`.
+//! This pass puts the ordinary conversion call beneath the authored cast.
+//! The call owns carrier realization and the cast keeps qualification,
+//! including target predicates, under the ordinary membership checker. A
+//! constrained destination is not a reason to omit an executable operation,
+//! and its annotation is never a premise about the conversion's result.
 //! The cast names the requirement path by the conversion-naming law
 //! (destination `I32`, source `f64`) and selects its overload by the cast's
 //! complete result qualification under the
@@ -33,8 +36,8 @@
 //! Exact float-to-integer casts select the unqualified conversion through the
 //! same route. Selection grants no conversion proof: ordinary call validation
 //! still checks the selected requirement's finite/truncated-range premises,
-//! and Terminal publication retains those obligations. Leaving Exact casts
-//! behind would give valid checked expressions no executable operation.
+//! and Terminal publication retains those obligations. Leaving the carrier
+//! conversion unbound would give valid checked expressions no executable operation.
 //!
 //! The pass runs after `resolve_named_result_overloads`. That pass re-selects
 //! a named operator call from the result type its context expects, and a
@@ -68,9 +71,8 @@ struct ConversionCastBinding {
     requirement_member: Identifier,
 }
 
-/// Rewrite Exact format casts and float-to-integer casts whose
-/// destination-owned conversion overload is visible into a call of that
-/// overload. Returns the number of casts bound.
+/// Bind the visible destination-owned conversion beneath each supported
+/// numeric cast, retaining its target predicates. Returns the number bound.
 pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let bindings = collect_conversion_cast_bindings(program);
@@ -96,30 +98,46 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
         let arguments = program
             .expression_table
             .insert_expression_handles([binding.operand]);
-        *program.expression_table.expression_mut(binding.cast) =
-            ExpressionNode::Call(TableCallExpression {
-                exact_coercion_target: binding.exact_coercion_target,
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: binding.requirement,
-                static_machine_parameter: SymbolHandle::invalid(),
-                target: binding.requirement_member.clone(),
-                static_requirement_dispatch: None,
-                machine_arguments: Box::default(),
-                quotient_operation: None,
-                private_layout_operation: None,
-                layout_query: None,
-                arguments,
-                evidence_arguments: Box::default(),
-                // The authored cast selects this conversion; its span carries
-                // the Call selection recorded above, exactly one per call.
-                operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
-                    origin: language_semantics::CallOperationalAcknowledgementOrigin::Source,
-                    ..Default::default()
-                },
-            });
+        let conversion =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    exact_coercion_target: binding.exact_coercion_target,
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: binding.requirement,
+                    static_machine_parameter: SymbolHandle::invalid(),
+                    target: binding.requirement_member.clone(),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::default(),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    layout_query: None,
+                    arguments,
+                    evidence_arguments: Box::default(),
+                    // The authored cast selects this conversion; its span carries
+                    // the Call selection recorded above, exactly one per call.
+                    operational_acknowledgement:
+                        language_semantics::CallOperationalAcknowledgement {
+                            origin:
+                                language_semantics::CallOperationalAcknowledgementOrigin::Source,
+                            ..Default::default()
+                        },
+                }));
         program
             .expression_table
-            .attach_authored_selection_occurrences(binding.cast, [occurrence]);
+            .set_source_span(conversion, source_span);
+        program
+            .expression_table
+            .attach_authored_selection_occurrences(conversion, [occurrence]);
+        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(binding.cast)
+        else {
+            diagnostics.push(
+                Diagnostic::error("numeric conversion binding lost its authored cast")
+                    .with_source_span(source_span),
+            );
+            continue;
+        };
+        cast.value = conversion;
     }
     if diagnostics.is_empty() {
         Ok(bindings.len())
@@ -207,16 +225,6 @@ fn selected_conversion(
         return None;
     }
     let destination = program.primitive_type_reference(cast.target_type)?;
-    // Replacing a constrained cast with a bare call would delete its target
-    // predicate obligations: result-domain dispatch does not include them.
-    if !matches!(
-        program
-            .type_reference_table
-            .type_reference(cast.target_type),
-        typed_trees::types::TypeReferenceNode::Named { .. }
-    ) {
-        return None;
-    }
     let destination_owner = destination_conversion_owner(destination)?;
     let source = crate::value_custody::expression_types::expression_result_type_reference(
         program, machine, state, cast.value,

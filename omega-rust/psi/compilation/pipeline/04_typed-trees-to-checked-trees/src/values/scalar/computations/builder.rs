@@ -177,8 +177,8 @@ impl Builder<'_, '_> {
         )
     }
 
-    /// A cast to the same bare carrier leaves its payload unchanged, whether
-    /// it selects an arithmetic policy or forgets predicate-only facts. Forward
+    /// A cast to the same carrier leaves its payload unchanged, whether
+    /// it selects an arithmetic policy or changes predicate-only facts. Forward
     /// its already-checked operand through ordinary computation building; a
     /// call result must not depend on whether a policy changes. Earlier
     /// operations keep their selected policy. Semantic domains and carrier
@@ -209,12 +209,10 @@ impl Builder<'_, '_> {
         };
         if cast.form.is_recast()
             || !cast.semantic_domain.is_empty()
-            || !matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(cast.target_type),
-                TypeReferenceNode::Named { .. }
-            )
+            // Membership checking already discharged numeric predicates.
+            // Range shells do not create payload operations; real semantic
+            // qualifications retain their separately checked custody below.
+            || semantic_casts::has_declared_domains(self.program, cast.target_type)
         {
             return None;
         }
