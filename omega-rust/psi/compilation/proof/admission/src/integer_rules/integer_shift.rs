@@ -341,17 +341,11 @@ mod tests {
         IntegerShiftStepWitness, IntegerSign, IntegerType, IntegerValue, Proposition,
         PropositionContext, ScalarTerm, ScalarType, check_integer_shift_chain_witness,
     };
+    use super::super::value;
     use semantic_vocabulary::ValueId;
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
         IntegerType::new(sign, bits).expect("fixed integer type")
-    }
-
-    fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
-        ScalarTerm::value(
-            ValueId::new(id).expect("value"),
-            ScalarType::Integer(integer_type),
-        )
     }
 
     fn integer(integer_type: IntegerType, value: i128) -> ScalarTerm {

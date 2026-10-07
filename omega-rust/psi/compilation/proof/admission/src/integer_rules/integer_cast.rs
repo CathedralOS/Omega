@@ -376,17 +376,11 @@ mod tests {
         PropositionContext, ScalarTerm, ScalarType, check_integer_cast_bound_conversion,
         check_integer_cast_chain_witness,
     };
+    use super::super::value;
     use semantic_vocabulary::ValueId;
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
         IntegerType::new(sign, bits).expect("fixed integer type")
-    }
-
-    fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
-        ScalarTerm::value(
-            ValueId::new(id).expect("value"),
-            ScalarType::Integer(integer_type),
-        )
     }
 
     fn cast_definition(
