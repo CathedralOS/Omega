@@ -166,6 +166,28 @@ pub(super) fn retain_record_locals(
     Some(())
 }
 
+/// Retain a Case subject's value shapes and enqueue its field values.
+fn retain_case_subject_fields(
+    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
+    plans: &CheckedScalarComputationPlans,
+    program: &TypedTrees,
+    subject: &checked_trees::CheckedScalarCaseConstruction,
+    pending: &mut Vec<arena::Handle<checked_trees::CheckedScalarComputation>>,
+) -> Option<()> {
+    retain_declarations(
+        shapes,
+        super::super::terminal_unit::scalar_case_value_shapes(program, subject.type_reference)?,
+    )?;
+    pending.extend(
+        plans
+            .case_fields
+            .span(subject.fields)?
+            .iter()
+            .map(|field| field.value),
+    );
+    Some(())
+}
+
 pub(super) fn retain_shapes(
     program: &TypedTrees,
     plans: &CheckedScalarComputationPlans,
@@ -195,22 +217,7 @@ pub(super) fn retain_shapes(
             CheckedScalarComputationKind::CaseMembership {
                 subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
-            } => {
-                retain_declarations(
-                    shapes,
-                    super::super::terminal_unit::scalar_case_value_shapes(
-                        program,
-                        subject.type_reference,
-                    )?,
-                )?;
-                pending.extend(
-                    plans
-                        .case_fields
-                        .span(subject.fields)?
-                        .iter()
-                        .map(|field| field.value),
-                );
-            }
+            } => retain_case_subject_fields(shapes, plans, program, subject, &mut pending)?,
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
@@ -323,20 +330,7 @@ pub(super) fn retain_shapes(
                         subject,
                     ) = argument
                     {
-                        retain_declarations(
-                            shapes,
-                            super::super::terminal_unit::scalar_case_value_shapes(
-                                program,
-                                subject.type_reference,
-                            )?,
-                        )?;
-                        pending.extend(
-                            plans
-                                .case_fields
-                                .span(subject.fields)?
-                                .iter()
-                                .map(|field| field.value),
-                        );
+                        retain_case_subject_fields(shapes, plans, program, subject, &mut pending)?;
                     }
                 }
             }
