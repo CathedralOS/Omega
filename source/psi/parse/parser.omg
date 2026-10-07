@@ -141,8 +141,7 @@ crashes Trap
     }
 
     state public_data_root(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> public_data_keyword(parser, input)
             _ -> expected_data_after_public_at_end(parser)
@@ -214,8 +213,7 @@ crashes Trap
 
     state use_start(parser: &mut Parser, input: &TokenStream) {
         parser.use_first_member = parser.output.member_count as u64 in Trapping;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> first_member(parser, input)
             _ -> expected_member_at_end(parser)
@@ -275,8 +273,7 @@ crashes Trap
     ) {
         parser.output.members[parser.output.member_count] = Parser::identifier_span(parser, start, end);
         parser.output.member_count = parser.output.member_count + 1;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> path_tail(parser, input)
             _ -> expected_separator_at_end(parser)
@@ -302,8 +299,7 @@ crashes Trap
     }
 
     state separator(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> next_member(parser, input)
             _ -> expected_member_at_end(parser)

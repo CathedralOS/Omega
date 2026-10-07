@@ -42,8 +42,7 @@ machine Parser::parse_data(
         parser.data_first_case = parser.output.case_count as u64 in Trapping;
         parser.data_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.data_multiplicity = DataMultiplicity::Affine;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_name(parser, input)
             _ -> expected_data_name_at_end(parser)
@@ -91,8 +90,7 @@ machine Parser::parse_data(
     ) {
         parser.data_name_start = start;
         parser.data_name_end = end;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_body(parser, input)
             _ -> expected_data_body_at_end(parser)
@@ -131,8 +129,7 @@ machine Parser::parse_data(
 
     state data_property_start(parser: &mut Parser, input: &TokenStream) {
         parser.data_property_generic = false;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_property(parser, input)
             _ -> expected_data_property_at_end(parser)
@@ -193,8 +190,7 @@ machine Parser::parse_data(
     }
 
     state retain_multiplicity_property(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_property_end(parser, input)
             _ -> expected_data_property_end_at_end(parser)
@@ -218,8 +214,7 @@ machine Parser::parse_data(
     }
 
     state data_property_trailing_comma(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_property_trailing_end(parser, input)
             _ -> expected_data_property_end_at_end(parser)
@@ -319,8 +314,7 @@ machine Parser::parse_data(
 
     state after_data_property(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.data_property_generic {
             true -> generic_bounds_after(parser, input, token.end)
             _ -> data_property_after(parser, input)
@@ -342,8 +336,7 @@ machine Parser::parse_data(
     }
 
     state data_body_start(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_member(parser, input)
             _ -> expected_data_body_at_end(parser)
@@ -379,8 +372,7 @@ machine Parser::parse_data(
     ) {
         parser.case_start = start;
         parser.case_keyword_end = end;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> case_marker_tail(parser, input)
             _ -> expected_data_case_name_at_end(parser)
@@ -477,8 +469,7 @@ machine Parser::parse_data(
         parser.case_name_start = start;
         parser.case_name_end = end;
         parser.case_first_payload_field = parser.output.payload_field_count as u64 in Trapping;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> case_end(parser, input)
             _ -> expected_data_case_end_at_end(parser)
@@ -504,8 +495,7 @@ machine Parser::parse_data(
     }
 
     state begin_case_payload(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> case_payload_item_or_end(parser, input)
             _ -> expected_case_payload_field_at_end(parser)
@@ -564,8 +554,7 @@ machine Parser::parse_data(
         parser.payload_field_start = start;
         parser.payload_field_name_start = start;
         parser.payload_field_name_end = end;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> payload_field_colon(parser, input)
             _ -> expected_payload_field_colon_at_end(parser)
@@ -586,8 +575,7 @@ machine Parser::parse_data(
     }
 
     state payload_field_type_start(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> payload_field_type(parser, input)
             _ -> expected_payload_field_type_at_end(parser)
@@ -647,8 +635,7 @@ machine Parser::parse_data(
         parser.type_qualified = false;
         parser.type_qualifier_payload = true;
         parser.type_qualifier_generic = false;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> payload_field_end(parser, input)
             _ -> expected_payload_separator_or_end_at_end(parser)
@@ -792,8 +779,7 @@ machine Parser::parse_data(
     }
 
     state advance_payload_field(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> case_payload_item_or_end(parser, input)
             _ -> expected_case_payload_field_at_end(parser)
@@ -801,8 +787,7 @@ machine Parser::parse_data(
     }
 
     state finish_case_payload(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> case_end(parser, input)
             _ -> expected_data_case_end_at_end(parser)
@@ -852,8 +837,7 @@ machine Parser::parse_data(
             source_span: Parser::source_span(parser, parser.case_start, case_end)
         };
         parser.output.data_member_count = parser.output.data_member_count + 1;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_member(parser, input)
             _ -> expected_data_body_at_end(parser)
@@ -911,8 +895,7 @@ machine Parser::parse_data(
         parser.field_start = start;
         parser.field_name_start = start;
         parser.field_name_end = end;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> field_colon(parser, input)
             _ -> expected_field_colon_at_end(parser)
@@ -935,8 +918,7 @@ machine Parser::parse_data(
     }
 
     state field_type_start(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> field_type(parser, input)
             _ -> expected_field_type_at_end(parser)
@@ -999,8 +981,7 @@ machine Parser::parse_data(
         parser.type_qualified = false;
         parser.type_qualifier_payload = false;
         parser.type_qualifier_generic = false;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> field_end(parser, input)
             _ -> expected_field_end_at_end(parser)
@@ -1109,8 +1090,7 @@ machine Parser::parse_data(
     }
 
     state type_domain_start(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> type_domain(parser, input)
             _ -> expected_type_domain_at_end(parser)
@@ -1156,8 +1136,7 @@ machine Parser::parse_data(
         parser.type_domain_start = start;
         parser.type_domain_end = end;
         parser.type_qualified = true;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> type_qualified_end(parser, input)
             _ -> type_qualified_end_at_end(parser, input)
@@ -1289,8 +1268,7 @@ machine Parser::parse_data(
             source_span: Parser::source_span(parser, parser.field_start, field_end)
         };
         parser.output.data_member_count = parser.output.data_member_count + 1;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_member(parser, input)
             _ -> expected_data_body_at_end(parser)
@@ -1305,8 +1283,7 @@ machine Parser::parse_data(
     // `[property]` bounds through the shared data-property chain.
     state generic_list_start(parser: &mut Parser, input: &TokenStream) {
         parser.generic_saw_runtime = false;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_parameter(parser, input)
             _ -> expected_generic_parameter_at_end(parser)
@@ -1383,8 +1360,7 @@ machine Parser::parse_data(
     }
 
     state generic_lifetime_name_start(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_lifetime_name(parser, input, param_start)
             _ -> expected_generic_name_at_end(parser)
@@ -1415,8 +1391,7 @@ machine Parser::parse_data(
     // the generic separator just as the real grammar rejects them (a machine
     // parameter takes its contract in a `where` clause, not property brackets).
     state generic_machine_word(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_machine_name(parser, input, param_start)
             _ -> expected_generic_name_at_end(parser)
@@ -1518,8 +1493,7 @@ machine Parser::parse_data(
     // `const` is confirmed: the following identifier is the binder name and a
     // mandatory colon introduces its type.
     state generic_const_name_start(parser: &mut Parser, input: &TokenStream, param_start: u64 in Trapping) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_binder_name(parser, input, GenericParameterKind::Const, param_start)
             _ -> expected_generic_name_at_end(parser)
@@ -1572,8 +1546,7 @@ machine Parser::parse_data(
         parser.generic_decoded_start = token.decoded_start;
         parser.generic_decoded_length = token.decoded_length;
         parser.generic_bounds = DataMultiplicity::Affine;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition { _ -> generic_dup_begin(parser, input) }
     }
 
@@ -1597,8 +1570,7 @@ machine Parser::parse_data(
         parser.generic_decoded_start = decoded_start;
         parser.generic_decoded_length = decoded_length;
         parser.generic_bounds = DataMultiplicity::Affine;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition { _ -> generic_dup_begin(parser, input) }
     }
 
@@ -1762,8 +1734,7 @@ machine Parser::parse_data(
     }
 
     state generic_binder_type_start(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_binder_type(parser, input)
             _ -> expected_generic_type_at_end(parser)
@@ -1814,8 +1785,7 @@ machine Parser::parse_data(
         parser.type_qualified = false;
         parser.type_qualifier_payload = false;
         parser.type_qualifier_generic = true;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_type_end(parser, input)
             _ -> expected_generic_end_at_end(parser)
@@ -1903,8 +1873,7 @@ machine Parser::parse_data(
 
     state generic_bounds_start(parser: &mut Parser, input: &TokenStream) {
         parser.data_property_generic = true;
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_property(parser, input)
             _ -> expected_data_property_at_end(parser)
@@ -1992,8 +1961,7 @@ machine Parser::parse_data(
     }
 
     state generic_parameter_next(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> generic_parameter(parser, input)
             _ -> expected_generic_parameter_at_end(parser)
@@ -2001,8 +1969,7 @@ machine Parser::parse_data(
     }
 
     state generic_close(parser: &mut Parser, input: &TokenStream) {
-        parser.cursor = parser.cursor + 1;
-        Parser::skip_trivia(parser, input);
+                Parser::advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> data_body(parser, input)
             _ -> expected_data_body_at_end(parser)

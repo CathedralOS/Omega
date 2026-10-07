@@ -33,6 +33,11 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
     }
 }
 
+machine Parser::advance(parser: &mut Parser, input: &TokenStream) {
+    parser.cursor = parser.cursor + 1;
+    Parser::skip_trivia(parser, input);
+}
+
 machine Parser::skip_trivia(parser: &mut Parser, input: &TokenStream) {
     transition parser.cursor < input.token_count {
         true -> classify(parser, input)
