@@ -180,30 +180,6 @@ helper that passes does not close an item.
   unrelated declarations preserve it, and invalid selected plans reject for
   their actual contract rather than an accidental name collision.
 
-- **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
-  Bring `samples/cli/games/dungeon_crawler_cli` within the sample gate's normal
-  300 s per-call timeout, preserving its runtime oracle. First remeasure on
-  one host and compiler profile:
-  `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
-  - On macOS ARM64 (debug CLI, light load) `omega update` takes 22 s and
-    `--resume` 20 s with a warm review cache (174 s cold), so review no longer
-    counts; the native compile (`omega --timings --target macos_arm64`) takes
-    645 s: 16 s checking, 16 s settlement, 229 s Psi lowering, about 384 s
-    native realization. Stack samples put the lowering
-    certificate production in that profile is now deleted; remeasure lowering,
-    and most of realization in spill recovery
-    (`selected_instructions_to_register_homes/src/assignment/runtime_spill/recovery.rs::recover_over`),
-    which re-analyzes the changed function's liveness, live ranges and
-    allocation legality at each of several hundred steps (per-function digest
-    reuse already skips unchanged functions; do not implement it again).
-  - Terminal receiver verification and certificate production are gone. The old
-    stage 03 legalization replay is also gone;
-    do not restore it or create a new replay harness as a prerequisite.
-  Acceptance: the sample native gate builds the app within its normal timeout
-  and the app meets the oracle in
-  [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
-
-
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   Finish realization of explicit completion calls under
   [domain authority and separate implementation selection](wiki/spec/resources/authority.md#completion-authority-and-implementation-selection).
@@ -956,8 +932,7 @@ defines the complete product bar.
   samples/gui/windowed_calculator/main.omg` from a scratch copy spent 9 s
   checking std and 277 s checking the sample package, then had not finished
   Psi lowering and native realization when a 3000 s limit stopped it. Profile
-  those phases before attributing the cost (the dungeon's equivalent split is
-  on **STATIC-DUNGEON**).
+  those phases before attributing the cost.
 
   Acceptance: every maintained sample checks, every applicable native product
   builds, and documented runtime oracles pass on every required matching host.
@@ -1415,7 +1390,7 @@ defines the complete product bar.
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
   The Dungeon Crawler is migrated to explicit parameters and meets its README
-  runtime oracle natively; its build time is **STATIC-DUNGEON-NATIVE-BUILD-COST**.
+  runtime oracle natively within the sample gate's 300 s per-call timeout.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
