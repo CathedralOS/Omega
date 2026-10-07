@@ -167,22 +167,15 @@ impl RankProjection {
             {
                 return None;
             }
-            return Some(Self {
-                order: RankOrder::SliceLength,
-                parameter: parameter.symbol,
-                paired_parameter: SymbolHandle::default(),
-                record_subject: if member_subject(program, *subject) {
-                    parameter.symbol
-                } else {
-                    Default::default()
-                },
-                paired_record_subject: SymbolHandle::default(),
+            return Some(Self::for_subject(
+                program,
+                parameter,
+                *subject,
                 argument_position,
-                subject: *subject,
-                paired_subject: ExpressionHandle::invalid(),
-                range: custody.rank_range.unwrap_or_default(),
-                measure: Some(RankingRangeMeasure::SliceLength(*subject)),
-            });
+                RankOrder::SliceLength,
+                RankingRangeMeasure::SliceLength(*subject),
+                custody.rank_range.unwrap_or_default(),
+            ));
         }
         if matches!(
             witness.ranking_view,
@@ -203,33 +196,26 @@ impl RankProjection {
                 return None;
             }
             let primitive = unsigned_subject_carrier(program, machine, entry, *subject, parameter)?;
-            return Some(Self {
-                order: if increasing {
+            return Some(Self::for_subject(
+                program,
+                parameter,
+                *subject,
+                argument_position,
+                if increasing {
                     RankOrder::IncreasingTo(primitive)
                 } else {
                     RankOrder::Natural(primitive)
                 },
-                parameter: parameter.symbol,
-                paired_parameter: SymbolHandle::default(),
-                record_subject: if member_subject(program, *subject) {
-                    parameter.symbol
-                } else {
-                    Default::default()
-                },
-                paired_record_subject: SymbolHandle::default(),
-                argument_position,
-                subject: *subject,
-                paired_subject: ExpressionHandle::invalid(),
-                range: custody.rank_range.unwrap_or_default(),
-                measure: Some(if increasing {
+                if increasing {
                     RankingRangeMeasure::IncreasingTo {
                         subject: *subject,
                         limit,
                     }
                 } else {
                     RankingRangeMeasure::Single(*subject)
-                }),
-            });
+                },
+                custody.rank_range.unwrap_or_default(),
+            ));
         }
         if witness.ranking_view.is_valid()
             || !witness.view_arguments.is_empty()
@@ -264,22 +250,15 @@ impl RankProjection {
                     carrier: view.carrier,
                 },
             };
-            return Some(Self {
-                order,
-                parameter: parameter.symbol,
-                paired_parameter: SymbolHandle::default(),
-                record_subject: if member_subject(program, *subject) {
-                    parameter.symbol
-                } else {
-                    Default::default()
-                },
-                paired_record_subject: SymbolHandle::default(),
+            return Some(Self::for_subject(
+                program,
+                parameter,
+                *subject,
                 argument_position,
-                subject: *subject,
-                paired_subject: ExpressionHandle::invalid(),
-                range: custody.rank_range.unwrap_or_default(),
-                measure: Some(measure),
-            });
+                order,
+                measure,
+                custody.rank_range.unwrap_or_default(),
+            ));
         }
         // A declared field view produces the exact `u64` projection its
         // measure body declares. The subject must be the entry formal whose
@@ -433,6 +412,37 @@ impl RankProjection {
             range: ExpressionHandle::invalid(),
             measure: None,
         })
+    }
+
+
+    /// The shared single-subject projection shape every declared rank view
+    /// fills: `order`/`measure` vary per view; the subject's carrier formal
+    /// also names the record when the subject is a member chain.
+    fn for_subject(
+        program: &TypedTrees,
+        parameter: &StateParameter,
+        subject: ExpressionHandle,
+        argument_position: usize,
+        order: RankOrder,
+        measure: RankingRangeMeasure,
+        range: ExpressionHandle,
+    ) -> Self {
+        Self {
+            order,
+            parameter: parameter.symbol,
+            paired_parameter: SymbolHandle::default(),
+            record_subject: if member_subject(program, subject) {
+                parameter.symbol
+            } else {
+                Default::default()
+            },
+            paired_record_subject: SymbolHandle::default(),
+            argument_position,
+            subject,
+            paired_subject: ExpressionHandle::invalid(),
+            range,
+            measure: Some(measure),
+        }
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
