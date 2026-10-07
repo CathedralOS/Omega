@@ -107,15 +107,6 @@ fn family_budget() -> Budget {
 // here exactly as `indexed_vector.rs` encodes it, since the nested
 // family's payload references it.
 
-/// The vector's constructor carrier `A_v = Σ(tag : Two). Payload_v tag`.
-fn vec_carrier(arena: &mut TermArena) -> TermHandle {
-    let tag = variable(arena, 0);
-    let payload_fn = elem_nat_payload(arena);
-    let codomain = apply(arena, payload_fn, tag);
-    let domain = two(arena);
-    sigma(arena, domain, codomain)
-}
-
 /// `Id Two zero zero` — the single live child position of a cons.
 
 /// `B_v = λ(a : A_v). caseTwo(λ_.Type 0, Id Two zero one, Id Two zero
@@ -127,7 +118,7 @@ fn vec_branching(arena: &mut TermArena) -> TermHandle {
     let bound = variable(arena, 0);
     let tag = fst(arena, bound);
     let body = case_two(arena, motive, empty, unit, tag);
-    let domain = vec_carrier(arena);
+    let domain = carrier(arena, elem_nat_payload);
     lambda(arena, domain, body)
 }
 
@@ -159,7 +150,7 @@ fn vec_out(arena: &mut TermArena) -> TermHandle {
         let body = nat_succ(arena, predecessor);
         lambda(arena, domain, body)
     };
-    let carrier_handle = vec_carrier(arena);
+    let carrier_handle = carrier(arena, elem_nat_payload);
     tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
@@ -203,7 +194,7 @@ fn vec_next(arena: &mut TermArena) -> TermHandle {
         let inner = lambda(arena, position_domain, body);
         lambda(arena, payload_domain, inner)
     };
-    let carrier_handle = vec_carrier(arena);
+    let carrier_handle = carrier(arena, elem_nat_payload);
     tag_selected_children(arena, carrier_handle, motive, zero_branch, one_branch)
 }
 
@@ -213,7 +204,7 @@ fn vector_family(arena: &mut TermArena) -> IndexedFamily {
     IndexedFamily {
         levels: [Level::Constant(0), Level::Constant(0), Level::Constant(0)],
         index: nat(arena),
-        carrier: vec_carrier(arena),
+        carrier: carrier(arena, elem_nat_payload),
         children: vec_branching(arena),
         out: vec_out(arena),
         next: vec_next(arena),
