@@ -26,6 +26,25 @@ machine Parser::type_reference(
     }
 }
 
+machine Parser::store_generic_parameter(
+    parser: &mut Parser,
+    param_end: u64 in Trapping,
+    has_type_reference: bool,
+    type_reference: u64 in Trapping
+) {
+    parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
+        kind: parser.generic_pending_kind,
+        name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
+        name_decoded_start: parser.generic_decoded_start,
+        name_decoded_length: parser.generic_decoded_length,
+        has_type_reference: has_type_reference,
+        type_reference: type_reference,
+        bounds: parser.generic_bounds,
+        source_span: Parser::source_span(parser, parser.generic_param_start, param_end)
+    };
+    parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
+}
+
 machine Parser::parse_data(
     parser: &mut Parser,
     input: &TokenStream,
@@ -1904,32 +1923,14 @@ machine Parser::parse_data(
     }
 
     state generic_retain_typed(parser: &mut Parser, input: &TokenStream, param_end: u64 in Trapping) {
-        parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
-            kind: parser.generic_pending_kind,
-            name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
-            name_decoded_start: parser.generic_decoded_start,
-            name_decoded_length: parser.generic_decoded_length,
-            has_type_reference: true,
-            type_reference: parser.generic_type_index,
-            bounds: parser.generic_bounds,
-            source_span: Parser::source_span(parser, parser.generic_param_start, param_end)
-        };
-        parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
+        Parser::store_generic_parameter(parser, param_end,
+                true, parser.generic_type_index);
         transition { _ -> generic_mark_runtime(parser, input) }
     }
 
     state generic_retain_untyped(parser: &mut Parser, input: &TokenStream, param_end: u64 in Trapping) {
-        parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
-            kind: parser.generic_pending_kind,
-            name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
-            name_decoded_start: parser.generic_decoded_start,
-            name_decoded_length: parser.generic_decoded_length,
-            has_type_reference: false,
-            type_reference: 0,
-            bounds: parser.generic_bounds,
-            source_span: Parser::source_span(parser, parser.generic_param_start, param_end)
-        };
-        parser.output.generic_parameter_count = parser.output.generic_parameter_count + 1;
+        Parser::store_generic_parameter(parser, param_end,
+                false, 0);
         transition parser.generic_pending_kind {
             GenericParameterKind::Lifetime -> generic_separator(parser, input)
             _ -> generic_mark_runtime(parser, input)
