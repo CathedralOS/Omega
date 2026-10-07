@@ -1,61 +1,47 @@
 #![forbid(unsafe_code)]
 
-//! Compiler-owned accounting for a disposable build-filesystem session.
+//! Resource accounting for private append-and-seal staging.
 //!
-//! Accounting remains independent of either filesystem provider. A
-//! provider prepares an accounting transaction before attempting its mutation,
-//! commits the token only after the provider succeeds, and otherwise drops or
-//! aborts the token. One outstanding token reserves the account, so committed
-//! state cannot change between provider preflight and accounting commit.
+//! The host tree is the namespace. The account keeps entry/byte counters and
+//! only live writer custody; closing releases the path and extent. No object
+//! graph, namespace snapshot, state clone or divergence replay remains.
+//! Exclusive creation, append-only writes and no removal/rename/links mean
+//! retained storage only grows until disposal, so counters suffice. Ordinary
+//! real-host grants use their provider without this staging sponsor.
 //!
-//! This file owns the sponsor, its limits and its account operations.
-//! `private_staging.rs` owns optional fresh-directory custody and cleanup;
-//! Omega still decides which grants and acceptance classification are lawful.
-//! `sponsor_errors.rs` carries the sponsor error, `snapshots.rs` sponsor
-//! paths, descriptors and the namespace snapshot staged-output capture reads,
-//! `prepared_transactions.rs` prepared mutations, opens, writes and
-//! account transactions, `accounts.rs` accounts, their state and object
-//! records and `tests.rs` the sponsor tests.
+//! Tokens reserve growth before mutation and charge after host success. The
+//! provider must create exclusively and keep the sole writer until closing.
+//! Private directory custody supplies the documented isolation premise; host
+//! preflight never follows a staging symlink. This is not grant admission.
 
 mod accounts;
+mod handles;
 mod prepared_transactions;
 mod private_staging;
-mod snapshots;
 mod sponsor_errors;
-
+use accounts::{
+    FilesystemAccount, StagingWriter, check_account_path, checked_add, normalize_absolute,
+};
+pub use handles::{FilesystemOpenDescriptor, FilesystemSponsorEntry, FilesystemSponsorPath};
+use prepared_transactions::{PreparedAccountTransaction, StagingChange};
 pub use prepared_transactions::{
     PreparedFilesystemMutation, PreparedFilesystemOpen, PreparedFilesystemWrite,
 };
-pub use snapshots::{
-    FilesystemOpenDescriptor, FilesystemSponsorEntry, FilesystemSponsorNamespaceEntry,
-    FilesystemSponsorNamespaceEntryKind, FilesystemSponsorNamespaceSnapshot, FilesystemSponsorPath,
-};
 pub use sponsor_errors::FilesystemSponsorError;
-
-use crate::filesystem_sponsor::accounts::{
-    AccountState, DescriptorId, FilesystemAccount, NamespaceEntry, ObjectRecord,
-    check_account_path, checked_add, normalize_absolute, usize_to_u64,
-};
-use crate::filesystem_sponsor::prepared_transactions::PreparedAccountTransaction;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub const COMPILER_DEFAULT_STAGING_ENTRY_LIMIT: u64 = 4_096;
-
 pub const COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES: u64 = 256 * 1024 * 1024;
-
 pub const COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT: u64 = 256 * 1024 * 1024;
-
 static NEXT_ACCOUNT_ID: AtomicU64 = AtomicU64::new(1);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FilesystemSponsorLimits {
     pub maximum_entries: u64,
     pub maximum_total_logical_bytes: u64,
     pub maximum_object_extent: u64,
 }
-
 impl FilesystemSponsorLimits {
     pub const COMPILER_DEFAULT: Self = Self {
         maximum_entries: COMPILER_DEFAULT_STAGING_ENTRY_LIMIT,
@@ -63,32 +49,27 @@ impl FilesystemSponsorLimits {
         maximum_object_extent: COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
     };
 }
-
 impl Default for FilesystemSponsorLimits {
     fn default() -> Self {
         Self::COMPILER_DEFAULT
     }
 }
-
 #[derive(Debug, Clone)]
 pub struct FilesystemSponsor {
     account: Arc<Mutex<FilesystemAccount>>,
     private_staging: Option<Arc<private_staging::PrivateStaging>>,
 }
-
 impl PartialEq for FilesystemSponsor {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.account, &other.account)
     }
 }
-
 impl Eq for FilesystemSponsor {}
 
 impl FilesystemSponsor {
     pub fn new(session_root: impl AsRef<Path>) -> Result<Self, FilesystemSponsorError> {
         Self::with_limits(session_root, FilesystemSponsorLimits::COMPILER_DEFAULT)
     }
-
     pub fn with_limits(
         session_root: impl AsRef<Path>,
         limits: FilesystemSponsorLimits,
@@ -105,28 +86,21 @@ impl FilesystemSponsor {
                 id,
                 session_root,
                 limits,
-                committed: AccountState {
-                    next_object_id: 1,
-                    next_descriptor_id: 1,
-                    ..AccountState::default()
-                },
+                entries: 0,
+                logical_bytes: 0,
+                writers: vec![None],
                 prepared_transaction: None,
                 next_transaction_id: 1,
             })),
         })
     }
-
     pub fn limits(&self) -> Result<FilesystemSponsorLimits, FilesystemSponsorError> {
         Ok(self.lock_account()?.limits)
     }
-
     pub fn session_root(&self) -> Result<PathBuf, FilesystemSponsorError> {
         Ok(self.lock_account()?.session_root.clone())
     }
-
-    /// Bind an absolute provider path to this account after lexical containment
-    /// checking. The account namespace never follows symlinks while resolving a
-    /// bound path.
+    /// Bind a strict descendant lexically; operation preflight checks host kinds.
     pub fn bind_path(
         &self,
         absolute_path: impl AsRef<Path>,
@@ -144,410 +118,203 @@ impl FilesystemSponsor {
             relative: relative.to_path_buf(),
         })
     }
-
-    /// Read-only logical namespace and quiescence evidence for compiler-owned
-    /// staged-output capture. Object groups are account-local correlation IDs;
-    /// they are never canonical package identity.
-    pub fn namespace_snapshot(
-        &self,
-    ) -> Result<FilesystemSponsorNamespaceSnapshot, FilesystemSponsorError> {
-        let account = self.lock_account()?;
-        let entries = account
-            .committed
-            .namespace
-            .iter()
-            .map(|(relative_path, entry)| {
-                let kind = match entry {
-                    NamespaceEntry::Directory => FilesystemSponsorNamespaceEntryKind::Directory,
-                    NamespaceEntry::Symlink { spelling_bytes } => {
-                        FilesystemSponsorNamespaceEntryKind::Symlink {
-                            spelling_bytes: *spelling_bytes,
-                        }
-                    }
-                    NamespaceEntry::Object(object_id) => {
-                        let object = account
-                            .committed
-                            .objects
-                            .get(object_id)
-                            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-                        FilesystemSponsorNamespaceEntryKind::Object {
-                            group: object_id.0,
-                            extent: object.extent,
-                        }
-                    }
-                };
-                Ok(FilesystemSponsorNamespaceEntry {
-                    relative_path: relative_path.clone(),
-                    kind,
-                })
-            })
-            .collect::<Result<Vec<_>, FilesystemSponsorError>>()?;
-        Ok(FilesystemSponsorNamespaceSnapshot {
-            entries,
-            open_descriptors: usize_to_u64(account.committed.descriptors.len())?,
-            transaction_prepared: account.prepared_transaction.is_some(),
-        })
-    }
-
+    /// Inspect one actual host entry, without retaining a namespace model.
     pub fn entry(
         &self,
         path: &FilesystemSponsorPath,
     ) -> Result<Option<FilesystemSponsorEntry>, FilesystemSponsorError> {
-        let account = self.lock_account()?;
-        check_account_path(account.id, path)?;
-        let Some(entry) = account.committed.namespace.get(&path.relative) else {
-            return Ok(None);
-        };
-        let entry = match entry {
-            NamespaceEntry::Directory => FilesystemSponsorEntry::Directory,
-            NamespaceEntry::Symlink { spelling_bytes } => FilesystemSponsorEntry::Symlink {
-                spelling_bytes: *spelling_bytes,
-            },
-            NamespaceEntry::Object(object_id) => {
-                let object = account
-                    .committed
-                    .objects
-                    .get(object_id)
-                    .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-                FilesystemSponsorEntry::Object {
-                    extent: object.extent,
-                    names: object.names,
-                    open_descriptors: object.open_descriptors,
-                }
+        let absolute = self.host_path(path)?;
+        match std::fs::symlink_metadata(&absolute) {
+            Ok(metadata) if metadata.is_dir() => Ok(Some(FilesystemSponsorEntry::Directory)),
+            Ok(metadata) if metadata.is_file() => Ok(Some(FilesystemSponsorEntry::Object {
+                extent: metadata.len(),
+            })),
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = std::fs::read_link(&absolute).map_err(backing_error)?;
+                let spelling_bytes = u64::try_from(target.as_os_str().as_encoded_bytes().len())
+                    .map_err(|_| FilesystemSponsorError::ArithmeticOverflow)?;
+                Ok(Some(FilesystemSponsorEntry::Symlink { spelling_bytes }))
             }
-        };
-        Ok(Some(entry))
+            Ok(_) => Err(FilesystemSponsorError::EntryIsNotRegularObject(
+                path.relative.clone(),
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(backing_error(error)),
+        }
     }
-
     pub fn prepare_create_directory(
         &self,
         path: &FilesystemSponsorPath,
     ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.prepare_fixed(&[path], |state, _, path| {
-            state.require_available_parent(path)?;
-            state.insert_new(path, NamespaceEntry::Directory)
+        self.require_fresh_path(path)?;
+        Ok(PreparedFilesystemMutation {
+            prepared: self.reserve(self.lock_account()?, StagingChange::Directory, 1, 0, 0)?,
         })
     }
-
-    pub fn prepare_create_object(
-        &self,
-        path: &FilesystemSponsorPath,
-        initial_extent: u64,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.prepare_fixed(&[path], |state, _, path| {
-            state.require_available_parent(path)?;
-            let object_id = state.allocate_object_id()?;
-            state.objects.insert(
-                object_id,
-                ObjectRecord {
-                    extent: initial_extent,
-                    names: 1,
-                    open_descriptors: 0,
-                },
-            );
-            state.insert_new(path, NamespaceEntry::Object(object_id))
-        })
-    }
-
-    /// Prepare creation and the resulting open descriptor as one accounting
-    /// transaction. A provider commits this token only after its create/open
-    /// operation succeeds.
+    /// Exclusive creation is the only write-open in the staging protocol.
     pub fn prepare_create_object_open(
         &self,
         path: &FilesystemSponsorPath,
         initial_extent: u64,
     ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {
-        let (prepared, mut candidate, account_id) = self.begin_candidate(&[path])?;
-        let result = (|| {
-            candidate.require_available_parent(&path.relative)?;
-            let object_id = candidate.allocate_object_id()?;
-            candidate.objects.insert(
-                object_id,
-                ObjectRecord {
+        self.require_fresh_path(path)?;
+        Ok(PreparedFilesystemOpen {
+            prepared: self.reserve(
+                self.lock_account()?,
+                StagingChange::CreateWriter(StagingWriter {
+                    relative_path: path.relative.clone(),
                     extent: initial_extent,
-                    names: 1,
-                    open_descriptors: 0,
-                },
-            );
-            candidate.insert_new(&path.relative, NamespaceEntry::Object(object_id))?;
-            candidate.open_object(object_id)
-        })();
-        self.finish_open(prepared, candidate, account_id, result)
-    }
-
-    pub fn prepare_create_symlink(
-        &self,
-        path: &FilesystemSponsorPath,
-        target_spelling: &[u8],
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        let spelling_bytes = usize_to_u64(target_spelling.len())?;
-        self.prepare_fixed(&[path], move |state, _, path| {
-            state.require_available_parent(path)?;
-            state.insert_new(path, NamespaceEntry::Symlink { spelling_bytes })
+                }),
+                1,
+                initial_extent,
+                initial_extent,
+            )?,
         })
     }
-
-    pub fn prepare_hard_link(
-        &self,
-        existing: &FilesystemSponsorPath,
-        new_name: &FilesystemSponsorPath,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.prepare_fixed(&[existing, new_name], |state, existing, new_name| {
-            state.require_available_parent(new_name)?;
-            if state.namespace.contains_key(new_name) {
-                return Err(FilesystemSponsorError::EntryAlreadyExists(new_name.clone()));
-            }
-            let object_id = match state.namespace.get(existing) {
-                Some(NamespaceEntry::Object(object_id)) => *object_id,
-                Some(_) => {
-                    return Err(FilesystemSponsorError::EntryIsNotRegularObject(
-                        existing.clone(),
-                    ));
-                }
-                None => return Err(FilesystemSponsorError::EntryNotFound(existing.clone())),
-            };
-            let object = state
-                .objects
-                .get_mut(&object_id)
-                .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-            object.names = checked_add(object.names, 1)?;
-            state
-                .namespace
-                .insert(new_name.clone(), NamespaceEntry::Object(object_id));
-            Ok(())
-        })
-    }
-
-    pub fn prepare_rename(
-        &self,
-        source: &FilesystemSponsorPath,
-        destination: &FilesystemSponsorPath,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.prepare_fixed(&[source, destination], |state, source, destination| {
-            state.rename(source, destination)
-        })
-    }
-
-    pub fn prepare_unlink(
+    /// Readers may observe sealed files, never a live writer's mutable bytes.
+    pub fn require_sealed(
         &self,
         path: &FilesystemSponsorPath,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.prepare_fixed(&[path], |state, _, path| state.unlink(path))
-    }
-
-    pub fn prepare_open(
-        &self,
-        path: &FilesystemSponsorPath,
-    ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {
-        self.prepare_open_with_extent(path, None)
-    }
-
-    /// Prepare an open of an existing object, optionally replacing its extent
-    /// in the same transaction. `Some(0)` models `O_TRUNC`; `None` leaves the
-    /// existing extent unchanged.
-    pub fn prepare_open_with_extent(
-        &self,
-        path: &FilesystemSponsorPath,
-        replacement_extent: Option<u64>,
-    ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {
-        let (prepared, mut candidate, account_id) = self.begin_candidate(&[path])?;
-        let object_id = match candidate.namespace.get(&path.relative) {
-            Some(NamespaceEntry::Object(object_id)) => *object_id,
-            Some(_) => {
-                return Err(
-                    prepared.cancel_with(FilesystemSponsorError::EntryIsNotRegularObject(
-                        path.relative.clone(),
-                    )),
-                );
-            }
-            None => {
-                return Err(prepared
-                    .cancel_with(FilesystemSponsorError::EntryNotFound(path.relative.clone())));
-            }
-        };
-        if let Some(extent) = replacement_extent {
-            candidate
-                .objects
-                .get_mut(&object_id)
-                .expect("namespace object identity was checked above")
-                .extent = extent;
+    ) -> Result<(), FilesystemSponsorError> {
+        self.host_path(path)?;
+        if self
+            .lock_account()?
+            .writers
+            .iter()
+            .flatten()
+            .any(|writer| writer.relative_path == path.relative)
+        {
+            return Err(FilesystemSponsorError::UnsealedEntry(path.relative.clone()));
         }
-        let result = candidate.open_object(object_id);
-        self.finish_open(prepared, candidate, account_id, result)
+        Ok(())
     }
-
-    /// Prepare a duplicate descriptor which refers to the same unique object
-    /// and contributes one additional live-open count.
-    pub fn prepare_duplicate(
-        &self,
-        descriptor: &FilesystemOpenDescriptor,
-    ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {
-        self.check_descriptor_account(descriptor)?;
-        let (prepared, mut candidate, account_id) = self.begin_candidate(&[])?;
-        let result = candidate
-            .descriptors
-            .get(&descriptor.descriptor_id)
-            .copied()
-            .ok_or(FilesystemSponsorError::OpenDescriptorNotFound)
-            .and_then(|object_id| candidate.open_object(object_id));
-        self.finish_open(prepared, candidate, account_id, result)
-    }
-
     pub fn prepare_close(
         &self,
         descriptor: &FilesystemOpenDescriptor,
     ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.check_descriptor_account(descriptor)?;
-        let (prepared, mut candidate, _) = self.begin_candidate(&[])?;
-        let result = candidate.close_descriptor(descriptor.descriptor_id);
-        self.finish_fixed(prepared, candidate, result)
+        let account = self.lock_account()?;
+        self.writer(&account, descriptor)?;
+        Ok(PreparedFilesystemMutation {
+            prepared: self.reserve(
+                account,
+                StagingChange::CloseWriter(descriptor.writer_id),
+                0,
+                0,
+                0,
+            )?,
+        })
     }
-
-    pub fn prepare_set_extent(
-        &self,
-        descriptor: &FilesystemOpenDescriptor,
-        new_extent: u64,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        self.check_descriptor_account(descriptor)?;
-        let (prepared, mut candidate, _) = self.begin_candidate(&[])?;
-        let result = candidate.set_descriptor_extent(descriptor.descriptor_id, new_extent);
-        self.finish_fixed(prepared, candidate, result)
-    }
-
-    /// Reserve the worst-case extent for a provider write. After the provider
-    /// succeeds, commit its actual byte count with
-    /// [`PreparedFilesystemWrite::commit_written`].
+    /// Reserve append growth; repositioned writes and truncation are unsupported.
     pub fn prepare_write(
         &self,
         descriptor: &FilesystemOpenDescriptor,
         offset: u64,
         requested_bytes: u64,
     ) -> Result<PreparedFilesystemWrite, FilesystemSponsorError> {
-        self.check_descriptor_account(descriptor)?;
-        let (prepared, base, _) = self.begin_candidate(&[])?;
-        let limits = prepared.limits()?;
-        let object_id = match base.descriptors.get(&descriptor.descriptor_id) {
-            Some(object_id) => *object_id,
-            None => {
-                return Err(prepared.cancel_with(FilesystemSponsorError::OpenDescriptorNotFound));
-            }
-        };
-        let mut worst_case = base.clone();
-        let result = worst_case.extend_object(object_id, offset, requested_bytes);
-        if let Err(error) = result.and_then(|()| worst_case.recalculate_and_validate(limits)) {
-            return Err(prepared.cancel_with(error));
+        let account = self.lock_account()?;
+        let extent = self.writer(&account, descriptor)?.extent;
+        if offset != extent {
+            return Err(FilesystemSponsorError::UnsupportedStagingOperation(
+                "non-append write",
+            ));
         }
+        let end = checked_add(extent, requested_bytes)?;
         Ok(PreparedFilesystemWrite {
-            prepared,
-            base: Some(base),
-            object_id,
-            offset,
-            prepared_bytes: requested_bytes,
-            limits,
+            prepared: self.reserve(
+                account,
+                StagingChange::Append {
+                    writer_id: descriptor.writer_id,
+                    bytes: requested_bytes,
+                },
+                0,
+                requested_bytes,
+                end,
+            )?,
         })
     }
-
-    fn prepare_fixed<F>(
+    fn writer<'account>(
         &self,
-        paths: &[&FilesystemSponsorPath],
-        mutate: F,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError>
-    where
-        F: FnOnce(&mut AccountState, &PathBuf, &PathBuf) -> Result<(), FilesystemSponsorError>,
-    {
-        let (prepared, mut candidate, _) = self.begin_candidate(paths)?;
-        let first = paths
-            .first()
-            .map_or_else(PathBuf::new, |path| path.relative.clone());
-        let last = paths
-            .last()
-            .map_or_else(PathBuf::new, |path| path.relative.clone());
-        let result = mutate(&mut candidate, &first, &last);
-        self.finish_fixed(prepared, candidate, result)
+        account: &'account FilesystemAccount,
+        descriptor: &FilesystemOpenDescriptor,
+    ) -> Result<&'account StagingWriter, FilesystemSponsorError> {
+        if account.id != descriptor.account_id {
+            return Err(FilesystemSponsorError::CrossAccountOperation);
+        }
+        account
+            .writers
+            .get(descriptor.writer_id)
+            .and_then(Option::as_ref)
+            .ok_or(FilesystemSponsorError::OpenDescriptorNotFound)
     }
-
-    fn finish_fixed(
+    fn reserve(
         &self,
-        prepared: PreparedAccountTransaction,
-        candidate: AccountState,
-        result: Result<(), FilesystemSponsorError>,
-    ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
-        if let Err(error) = result {
-            return Err(prepared.cancel_with(error));
-        }
-        let limits = prepared.limits()?;
-        if let Err(error) = candidate.recalculate_and_validate(limits) {
-            return Err(prepared.cancel_with(error));
-        }
-        Ok(PreparedFilesystemMutation {
-            prepared,
-            candidate: Some(candidate),
-        })
-    }
-
-    fn finish_open(
-        &self,
-        prepared: PreparedAccountTransaction,
-        candidate: AccountState,
-        account_id: u64,
-        result: Result<DescriptorId, FilesystemSponsorError>,
-    ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {
-        let descriptor_id = match result {
-            Ok(descriptor_id) => descriptor_id,
-            Err(error) => return Err(prepared.cancel_with(error)),
-        };
-        let limits = prepared.limits()?;
-        if let Err(error) = candidate.recalculate_and_validate(limits) {
-            return Err(prepared.cancel_with(error));
-        }
-        Ok(PreparedFilesystemOpen {
-            prepared,
-            candidate: Some(candidate),
-            descriptor: FilesystemOpenDescriptor {
-                account_id,
-                descriptor_id,
-            },
-        })
-    }
-
-    fn begin_candidate(
-        &self,
-        paths: &[&FilesystemSponsorPath],
-    ) -> Result<(PreparedAccountTransaction, AccountState, u64), FilesystemSponsorError> {
-        let mut account = self.lock_account()?;
-        for path in paths {
-            check_account_path(account.id, path)?;
-        }
+        mut account: MutexGuard<'_, FilesystemAccount>,
+        change: StagingChange,
+        entries: u64,
+        bytes: u64,
+        extent: u64,
+    ) -> Result<PreparedAccountTransaction, FilesystemSponsorError> {
         if account.prepared_transaction.is_some() {
             return Err(FilesystemSponsorError::TransactionAlreadyPrepared);
         }
+        account.admit_growth(entries, bytes, extent)?;
         let transaction_id = account.next_transaction_id;
-        account.next_transaction_id = checked_add(account.next_transaction_id, 1)?;
+        account.next_transaction_id = checked_add(transaction_id, 1)?;
         account.prepared_transaction = Some(transaction_id);
-        Ok((
-            PreparedAccountTransaction {
-                account: Arc::clone(&self.account),
-                transaction_id,
-                active: true,
-            },
-            account.committed.clone(),
-            account.id,
-        ))
+        Ok(PreparedAccountTransaction {
+            account: Arc::clone(&self.account),
+            transaction_id,
+            change: Some(change),
+        })
     }
-
-    fn check_descriptor_account(
+    fn host_path(&self, path: &FilesystemSponsorPath) -> Result<PathBuf, FilesystemSponsorError> {
+        let account = self.lock_account()?;
+        check_account_path(account.id, path)?;
+        let mut absolute = account.session_root.clone();
+        drop(account);
+        let root = std::fs::symlink_metadata(&absolute).map_err(backing_error)?;
+        if !root.is_dir() || root.file_type().is_symlink() {
+            return Err(FilesystemSponsorError::ParentIsNotDirectory(absolute));
+        }
+        let mut components = path.relative.components().peekable();
+        while let Some(component) = components.next() {
+            let Component::Normal(name) = component else {
+                return Err(FilesystemSponsorError::PathEscapesFilesystemRoot(
+                    path.relative.clone(),
+                ));
+            };
+            absolute.push(name);
+            if components.peek().is_none() {
+                break;
+            }
+            match std::fs::symlink_metadata(&absolute) {
+                Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+                Ok(_) => return Err(FilesystemSponsorError::ParentIsNotDirectory(absolute)),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Err(FilesystemSponsorError::ParentEntryMissing(absolute));
+                }
+                Err(error) => return Err(backing_error(error)),
+            }
+        }
+        Ok(absolute)
+    }
+    fn require_fresh_path(
         &self,
-        descriptor: &FilesystemOpenDescriptor,
+        path: &FilesystemSponsorPath,
     ) -> Result<(), FilesystemSponsorError> {
-        if self.lock_account()?.id != descriptor.account_id {
-            return Err(FilesystemSponsorError::CrossAccountOperation);
+        if self.entry(path)?.is_some() {
+            return Err(FilesystemSponsorError::EntryAlreadyExists(
+                path.relative.clone(),
+            ));
         }
         Ok(())
     }
-
     fn lock_account(&self) -> Result<MutexGuard<'_, FilesystemAccount>, FilesystemSponsorError> {
         self.account
             .lock()
             .map_err(|_| FilesystemSponsorError::AccountPoisoned)
     }
+}
+fn backing_error(error: std::io::Error) -> FilesystemSponsorError {
+    FilesystemSponsorError::BackingStore(error.to_string())
 }

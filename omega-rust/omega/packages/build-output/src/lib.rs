@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![cfg_attr(windows, feature(windows_by_handle))]
 
 //! Retained build-output custody, canonical identity, and materialization.
 //!
@@ -17,8 +18,6 @@ mod captured_source;
 mod materialization;
 mod portable_paths;
 mod staged_output_tree;
-#[cfg(test)]
-mod tests;
 mod tree_from_entries;
 
 pub use capture::capture;

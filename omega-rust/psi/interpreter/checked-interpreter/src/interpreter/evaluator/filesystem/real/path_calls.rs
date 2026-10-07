@@ -20,11 +20,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             match self.authorized_path(&path, true, 0) {
                 Some(path) => {
                     let prepared = self.prepare_sponsored_open(&path, true, true, true)?;
-                    let opened = std::fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .open(&path);
+                    let mut options = std::fs::OpenOptions::new();
+                    options.write(true).create(true).truncate(true);
+                    if matches!(prepared, super::sponsor::SponsorPreparation::Prepared(_)) {
+                        options.create_new(true);
+                    }
+                    let opened = options.open(&path);
                     self.finish_real_open(opened, path, false, prepared, false)?
                 }
                 None => -1,
@@ -57,7 +58,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                         wants_write,
                     )?;
-                    let options = open_options_for(flags, mode as u32, true);
+                    let mut options = open_options_for(flags, mode as u32, true);
+                    if matches!(prepared, super::sponsor::SponsorPreparation::Prepared(_)) {
+                        options.create_new(true);
+                    }
                     let opened = open_real(&options, &path, wants_write);
                     self.finish_real_open(
                         opened,
@@ -487,7 +491,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                         wants_write,
                     )?;
-                    let options = open_options_for(flags, 0, false);
+                    let mut options = open_options_for(flags, 0, false);
+                    if matches!(prepared, super::sponsor::SponsorPreparation::Prepared(_)) {
+                        options.create_new(true);
+                    }
                     let opened = open_real(&options, &path, wants_write);
                     self.finish_real_open(
                         opened,

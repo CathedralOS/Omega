@@ -1,131 +1,128 @@
-//! Prepared mutations, opens, writes and account transactions.
+//! Reserve growth before host mutation and charge the actual result afterwards.
+//!
+//! A token owns a resource delta, never a cloned filesystem state. Dropping a
+//! failed host operation releases its reservation without charging counters.
 
-use crate::filesystem_sponsor::accounts::{AccountState, FilesystemAccount, ObjectId};
-use crate::filesystem_sponsor::{
-    FilesystemOpenDescriptor, FilesystemSponsorError, FilesystemSponsorLimits,
-};
+use super::accounts::{FilesystemAccount, StagingWriter, checked_add};
+use super::{FilesystemOpenDescriptor, FilesystemSponsorError};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
-pub struct PreparedFilesystemMutation {
-    pub(crate) prepared: PreparedAccountTransaction,
-    pub(crate) candidate: Option<AccountState>,
-}
-
-#[derive(Debug)]
-pub struct PreparedFilesystemOpen {
-    pub(crate) prepared: PreparedAccountTransaction,
-    pub(crate) candidate: Option<AccountState>,
-    pub(crate) descriptor: FilesystemOpenDescriptor,
-}
-
-#[derive(Debug)]
-pub struct PreparedFilesystemWrite {
-    pub(crate) prepared: PreparedAccountTransaction,
-    pub(crate) base: Option<AccountState>,
-    pub(crate) object_id: ObjectId,
-    pub(crate) offset: u64,
-    pub(crate) prepared_bytes: u64,
-    pub(crate) limits: FilesystemSponsorLimits,
+pub(crate) enum StagingChange {
+    Directory,
+    CreateWriter(StagingWriter),
+    CloseWriter(usize),
+    Append { writer_id: usize, bytes: u64 },
 }
 
 #[derive(Debug)]
 pub(crate) struct PreparedAccountTransaction {
     pub(crate) account: Arc<Mutex<FilesystemAccount>>,
     pub(crate) transaction_id: u64,
-    pub(crate) active: bool,
+    pub(crate) change: Option<StagingChange>,
+}
+#[derive(Debug)]
+pub struct PreparedFilesystemMutation {
+    pub(crate) prepared: PreparedAccountTransaction,
+}
+#[derive(Debug)]
+pub struct PreparedFilesystemOpen {
+    pub(crate) prepared: PreparedAccountTransaction,
+}
+#[derive(Debug)]
+pub struct PreparedFilesystemWrite {
+    pub(crate) prepared: PreparedAccountTransaction,
 }
 
 impl PreparedFilesystemMutation {
-    pub fn commit(mut self) -> Result<(), FilesystemSponsorError> {
-        let candidate = self
-            .candidate
-            .take()
-            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-        self.prepared.commit(candidate)
+    pub fn commit(self) -> Result<(), FilesystemSponsorError> {
+        self.prepared.commit(None).map(|_| ())
     }
-
     pub fn abort(self) {}
 }
-
 impl PreparedFilesystemOpen {
-    pub fn commit(mut self) -> Result<FilesystemOpenDescriptor, FilesystemSponsorError> {
-        let candidate = self
-            .candidate
-            .take()
-            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-        self.prepared.commit(candidate)?;
-        Ok(self.descriptor)
+    pub fn commit(self) -> Result<FilesystemOpenDescriptor, FilesystemSponsorError> {
+        self.prepared
+            .commit(None)?
+            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)
     }
-
     pub fn abort(self) {}
 }
-
 impl PreparedFilesystemWrite {
-    pub fn commit_written(mut self, actual_bytes: u64) -> Result<(), FilesystemSponsorError> {
-        if actual_bytes > self.prepared_bytes {
-            return Err(FilesystemSponsorError::PartialWriteExceedsPrepared {
-                prepared: self.prepared_bytes,
-                actual: actual_bytes,
-            });
-        }
-        let mut candidate = self
-            .base
-            .take()
-            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
-        candidate.extend_object(self.object_id, self.offset, actual_bytes)?;
-        candidate.recalculate_and_validate(self.limits)?;
-        self.prepared.commit(candidate)
+    pub fn commit_written(self, bytes: u64) -> Result<(), FilesystemSponsorError> {
+        self.prepared.commit(Some(bytes)).map(|_| ())
     }
-
     pub fn abort(self) {}
 }
 
 impl PreparedAccountTransaction {
-    pub(crate) fn limits(&self) -> Result<FilesystemSponsorLimits, FilesystemSponsorError> {
-        Ok(self
+    fn commit(
+        mut self,
+        actual_bytes: Option<u64>,
+    ) -> Result<Option<FilesystemOpenDescriptor>, FilesystemSponsorError> {
+        let mut account = self
             .account
             .lock()
-            .map_err(|_| FilesystemSponsorError::AccountPoisoned)?
-            .limits)
-    }
-
-    fn commit(mut self, candidate: AccountState) -> Result<(), FilesystemSponsorError> {
-        {
-            let mut account = self
-                .account
-                .lock()
-                .map_err(|_| FilesystemSponsorError::AccountPoisoned)?;
-            if account.prepared_transaction != Some(self.transaction_id) {
-                return Err(FilesystemSponsorError::TransactionNoLongerCurrent);
+            .map_err(|_| FilesystemSponsorError::AccountPoisoned)?;
+        if account.prepared_transaction != Some(self.transaction_id) {
+            return Err(FilesystemSponsorError::TransactionNoLongerCurrent);
+        }
+        let change = self
+            .change
+            .take()
+            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
+        let descriptor = match change {
+            StagingChange::Directory => {
+                account.entries = checked_add(account.entries, 1)?;
+                None
             }
-            account.committed = candidate;
-            account.prepared_transaction = None;
-        }
-        self.active = false;
-        Ok(())
+            StagingChange::CreateWriter(writer) => {
+                let writer_id = account.writers.len();
+                account.entries = checked_add(account.entries, 1)?;
+                account.logical_bytes = checked_add(account.logical_bytes, writer.extent)?;
+                account.writers.push(Some(writer));
+                Some(FilesystemOpenDescriptor {
+                    account_id: account.id,
+                    writer_id,
+                })
+            }
+            StagingChange::CloseWriter(writer_id) => {
+                account
+                    .writers
+                    .get_mut(writer_id)
+                    .and_then(Option::take)
+                    .ok_or(FilesystemSponsorError::OpenDescriptorNotFound)?;
+                None
+            }
+            StagingChange::Append { writer_id, bytes } => {
+                let actual =
+                    actual_bytes.ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
+                if actual > bytes {
+                    return Err(FilesystemSponsorError::PartialWriteExceedsPrepared {
+                        prepared: bytes,
+                        actual,
+                    });
+                }
+                let writer = account
+                    .writers
+                    .get_mut(writer_id)
+                    .and_then(Option::as_mut)
+                    .ok_or(FilesystemSponsorError::OpenDescriptorNotFound)?;
+                writer.extent = checked_add(writer.extent, actual)?;
+                account.logical_bytes = checked_add(account.logical_bytes, actual)?;
+                None
+            }
+        };
+        account.prepared_transaction = None;
+        Ok(descriptor)
     }
-
-    pub(crate) fn cancel_with(mut self, error: FilesystemSponsorError) -> FilesystemSponsorError {
-        self.cancel();
-        error
-    }
-
-    fn cancel(&mut self) {
-        if !self.active {
-            return;
-        }
+}
+impl Drop for PreparedAccountTransaction {
+    fn drop(&mut self) {
         if let Ok(mut account) = self.account.lock()
             && account.prepared_transaction == Some(self.transaction_id)
         {
             account.prepared_transaction = None;
         }
-        self.active = false;
-    }
-}
-
-impl Drop for PreparedAccountTransaction {
-    fn drop(&mut self) {
-        self.cancel();
     }
 }

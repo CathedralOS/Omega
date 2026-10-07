@@ -20,39 +20,19 @@ pub(super) fn checked_written_count(written: usize) -> EvalResult<i64> {
     }
 }
 
-/// A sponsor preflight can be absent, ready to commit, or can predict an
-/// ordinary host-filesystem refusal. The last case still executes the host
-/// operation so callers receive its native errno/BOOL; host success would
-/// reveal sponsor/host divergence and is therefore an invariant halt.
+/// Staging growth is reserved before host mutation. Unsponsored operations
+/// retain ordinary host behavior; a staging protocol or resource refusal
+/// stops before the operation, without replaying a duplicate namespace.
 #[derive(Debug)]
 pub(super) enum SponsorPreparation<T> {
     Unsponsored,
     Prepared(T),
-    ExpectedHostFailure,
 }
 
 pub(super) fn sponsor_preparation<T>(
     result: Result<T, crate::FilesystemSponsorError>,
 ) -> EvalResult<SponsorPreparation<T>> {
-    match result {
-        Ok(prepared) => Ok(SponsorPreparation::Prepared(prepared)),
-        Err(
-            crate::FilesystemSponsorError::ParentEntryMissing(_)
-            | crate::FilesystemSponsorError::ParentIsNotDirectory(_)
-            | crate::FilesystemSponsorError::EntryAlreadyExists(_)
-            | crate::FilesystemSponsorError::EntryNotFound(_)
-            | crate::FilesystemSponsorError::EntryIsNotRegularObject(_)
-            | crate::FilesystemSponsorError::DirectoryNotEmpty(_)
-            | crate::FilesystemSponsorError::InvalidDirectoryRename(_),
-        ) => Ok(SponsorPreparation::ExpectedHostFailure),
-        Err(error) => crate::interpreter::evaluator::filesystem_sponsor_halt(error),
-    }
-}
-
-pub(super) fn unexpected_sponsored_success<T>() -> EvalResult<T> {
-    crate::interpreter::evaluator::filesystem_sponsor_halt(
-        crate::FilesystemSponsorError::TransactionNoLongerCurrent,
-    )
+    sponsor_value(result).map(SponsorPreparation::Prepared)
 }
 
 pub(super) fn read_only_open_bypasses_sponsor(
@@ -114,19 +94,18 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(SponsorPreparation::Unsponsored);
         }
         let sponsored_path = sponsor_value(sponsor.bind_path(path))?;
-        let entry = sponsor_value(sponsor.entry(&sponsored_path))?;
-        if matches!(entry, Some(crate::FilesystemSponsorEntry::Directory))
-            && !may_create
-            && !truncates
-        {
+        if !wants_write && !may_create && !truncates {
+            sponsor_value(sponsor.require_sealed(&sponsored_path))?;
             return Ok(SponsorPreparation::Unsponsored);
         }
-        let prepared = if entry.is_none() && may_create {
-            sponsor.prepare_create_object_open(&sponsored_path, 0)
-        } else {
-            sponsor.prepare_open_with_extent(&sponsored_path, truncates.then_some(0))
-        };
-        sponsor_preparation(prepared)
+        if !may_create {
+            return sponsor_value(Err(
+                crate::FilesystemSponsorError::UnsupportedStagingOperation(
+                    "write-open of an existing file",
+                ),
+            ));
+        }
+        sponsor_preparation(sponsor.prepare_create_object_open(&sponsored_path, 0))
     }
 
     pub(super) fn finish_real_open(
@@ -169,7 +148,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         match prepared {
             SponsorPreparation::Unsponsored => Ok(None),
             SponsorPreparation::Prepared(prepared) => Ok(Some(sponsor_value(prepared.commit())?)),
-            SponsorPreparation::ExpectedHostFailure => unexpected_sponsored_success(),
         }
     }
 
@@ -188,7 +166,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             return Ok(SponsorPreparation::Unsponsored);
         };
-        sponsor_preparation(sponsor.prepare_duplicate(&descriptor))
+        let _ = (sponsor, descriptor);
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("duplicate writer"),
+        ))
     }
 
     pub(super) fn prepare_sponsored_close(
@@ -219,12 +200,15 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(SponsorPreparation::Unsponsored);
         };
         let Some(entry) = real.files.get(&fd) else {
-            return Ok(SponsorPreparation::ExpectedHostFailure);
+            return Ok(SponsorPreparation::Unsponsored);
         };
         let Some(descriptor) = entry.sponsor_descriptor else {
-            return Ok(SponsorPreparation::ExpectedHostFailure);
+            return Ok(SponsorPreparation::Unsponsored);
         };
-        sponsor_preparation(sponsor.prepare_set_extent(&descriptor, extent))
+        let _ = (sponsor, descriptor, extent);
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("truncate writer"),
+        ))
     }
 
     pub(super) fn prepare_sponsored_write(
@@ -241,7 +225,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(Err(EBADF));
         };
         let Some(descriptor) = entry.sponsor_descriptor else {
-            return Ok(Ok(SponsorPreparation::ExpectedHostFailure));
+            return Ok(Ok(SponsorPreparation::Unsponsored));
         };
         let offset = if entry.append {
             match entry.file.metadata() {
@@ -279,9 +263,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let prepared = match prepared {
             SponsorPreparation::Unsponsored => return Ok(()),
             SponsorPreparation::Prepared(prepared) => prepared,
-            SponsorPreparation::ExpectedHostFailure => {
-                return unexpected_sponsored_success();
-            }
         };
         let written = match u64::try_from(written) {
             Ok(written) => written,
@@ -311,7 +292,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let Some((sponsor, path)) = self.sponsor_path(path)? else {
             return Ok(SponsorPreparation::Unsponsored);
         };
-        sponsor_preparation(sponsor.prepare_unlink(&path))
+        let _ = (sponsor, path);
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("remove staging entry"),
+        ))
     }
 
     pub(super) fn prepare_sponsored_rename(
@@ -326,9 +310,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             return Ok(SponsorPreparation::Unsponsored);
         };
-        let from = sponsor_value(sponsor.bind_path(from))?;
-        let to = sponsor_value(sponsor.bind_path(to))?;
-        sponsor_preparation(sponsor.prepare_rename(&from, &to))
+        sponsor_value(sponsor.bind_path(from))?;
+        sponsor_value(sponsor.bind_path(to))?;
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("rename staging entry"),
+        ))
     }
 
     pub(super) fn prepare_sponsored_hard_link(
@@ -343,9 +329,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         else {
             return Ok(SponsorPreparation::Unsponsored);
         };
-        let existing = sponsor_value(sponsor.bind_path(existing))?;
-        let new_name = sponsor_value(sponsor.bind_path(new_name))?;
-        sponsor_preparation(sponsor.prepare_hard_link(&existing, &new_name))
+        sponsor_value(sponsor.bind_path(existing))?;
+        sponsor_value(sponsor.bind_path(new_name))?;
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("hard link staging entry"),
+        ))
     }
 
     pub(super) fn prepare_sponsored_symlink(
@@ -356,7 +344,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let Some((sponsor, link)) = self.sponsor_path(link)? else {
             return Ok(SponsorPreparation::Unsponsored);
         };
-        sponsor_preparation(sponsor.prepare_create_symlink(&link, target_spelling))
+        let _ = (sponsor, link, target_spelling);
+        sponsor_value(Err(
+            crate::FilesystemSponsorError::UnsupportedStagingOperation("symlink staging entry"),
+        ))
     }
 
     pub(super) fn sponsor_path(
@@ -381,7 +372,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         match prepared {
             SponsorPreparation::Unsponsored => Ok(()),
             SponsorPreparation::Prepared(prepared) => sponsor_value(prepared.commit()),
-            SponsorPreparation::ExpectedHostFailure => unexpected_sponsored_success(),
         }
     }
 

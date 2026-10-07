@@ -14,10 +14,10 @@ pub enum FilesystemSponsorError {
     ParentEntryMissing(PathBuf),
     ParentIsNotDirectory(PathBuf),
     EntryAlreadyExists(PathBuf),
-    EntryNotFound(PathBuf),
     EntryIsNotRegularObject(PathBuf),
-    DirectoryNotEmpty(PathBuf),
-    InvalidDirectoryRename(PathBuf),
+    UnsealedEntry(PathBuf),
+    UnsupportedStagingOperation(&'static str),
+    BackingStore(String),
     OpenDescriptorNotFound,
     TransactionAlreadyPrepared,
     TransactionNoLongerCurrent,
@@ -69,9 +69,6 @@ impl fmt::Display for FilesystemSponsorError {
             Self::EntryAlreadyExists(path) => {
                 write!(formatter, "entry already exists: {}", path.display())
             }
-            Self::EntryNotFound(path) => {
-                write!(formatter, "entry does not exist: {}", path.display())
-            }
             Self::EntryIsNotRegularObject(path) => {
                 write!(
                     formatter,
@@ -79,14 +76,15 @@ impl fmt::Display for FilesystemSponsorError {
                     path.display()
                 )
             }
-            Self::DirectoryNotEmpty(path) => {
-                write!(formatter, "directory is not empty: {}", path.display())
+            Self::UnsealedEntry(path) => {
+                write!(formatter, "staging entry is not sealed: {}", path.display())
             }
-            Self::InvalidDirectoryRename(path) => write!(
-                formatter,
-                "directory cannot be renamed beneath itself: {}",
-                path.display()
-            ),
+            Self::UnsupportedStagingOperation(operation) => {
+                write!(formatter, "staging protocol does not support {operation}")
+            }
+            Self::BackingStore(message) => {
+                write!(formatter, "staging backing store failed: {message}")
+            }
             Self::OpenDescriptorNotFound => formatter.write_str("open descriptor does not exist"),
             Self::TransactionAlreadyPrepared => {
                 formatter.write_str("another filesystem accounting transaction is prepared")

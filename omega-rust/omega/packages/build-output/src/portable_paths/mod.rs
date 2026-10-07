@@ -5,6 +5,19 @@ use crate::staged_output_tree::{MAX_STAGED_OUTPUT_PATH_BYTES, diagnostics};
 use diagnostics::Diagnostic;
 use std::path::{Component, Path};
 
+#[cfg(test)]
+mod tests {
+    use super::validate_portable_component;
+    use std::path::Path;
+
+    #[test]
+    fn rejects_portability_collisions() {
+        assert!(validate_portable_component(b"NUL.txt", Path::new("NUL.txt")).is_err());
+        assert!(validate_portable_component(b"COM1", Path::new("COM1")).is_err());
+        assert!(validate_portable_component(b"trailing.", Path::new("trailing.")).is_err());
+    }
+}
+
 pub(crate) fn canonical_relative_path(
     relative: &Path,
     diagnostic_path: &Path,

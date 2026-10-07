@@ -1,7 +1,8 @@
 #![forbid(unsafe_code)]
 
 //! Portable filesystem authority, canonical metadata, and operation observations.
-//! Stateful filesystem sponsorship and provider execution remain with their runtime owners.
+//! Staging resource accounting and private-directory custody are independent
+//! of provider execution; runtime owners perform the authorized operations.
 
 mod filesystem;
 mod filesystem_sponsor;

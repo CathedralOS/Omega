@@ -39,7 +39,6 @@ use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use super::CandidateSourcePreparation;
 use crate::build_session::PreparedPackageSource;

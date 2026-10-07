@@ -265,6 +265,15 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 mode: _,
             } => match self.authorized_namespace_leaf(&path, true, 0) {
                 Some(path) => {
+                    if let Some(sponsor) = self.real_fs_mut().sponsor.clone() {
+                        let bound = sponsor::sponsor_value(sponsor.bind_path(&path))?;
+                        if matches!(
+                            sponsor::sponsor_value(sponsor.entry(&bound))?,
+                            Some(crate::FilesystemSponsorEntry::Directory)
+                        ) {
+                            return Ok(Value::Int(0));
+                        }
+                    }
                     let prepared = self.prepare_sponsored_create_directory(&path)?;
                     let outcome = std::fs::create_dir(path);
                     self.finish_real_mutation(outcome, prepared, false)?
@@ -346,7 +355,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                     wants_write,
                 )?;
-                let options = open_options_for(flags, mode, create_variant);
+                let mut options = open_options_for(flags, mode, create_variant);
+                if matches!(prepared, sponsor::SponsorPreparation::Prepared(_)) {
+                    options.create_new(true);
+                }
                 let opened = open_real(&options, &path, wants_write);
                 self.finish_real_open(
                     opened,
