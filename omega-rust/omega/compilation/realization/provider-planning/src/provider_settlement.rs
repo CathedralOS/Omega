@@ -44,8 +44,54 @@ use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
-use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs};
+use package_compilation::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
+};
 use typed_trees::TypedTrees;
+
+/// Resolve the exact Product boundary and normalized schema for a canonical
+/// host binding. Filesystem and time settlement share this declaration join;
+/// their role, fallback and target realization policies stay with each mint.
+fn resolve_canonical_host_binding<'trees>(
+    typed: &'trees TypedTrees,
+    binding: &AcceptedSemanticBinding,
+) -> Result<
+    (
+        &'trees typed_trees::trait_definition::TraitDefinition,
+        effects::provider_plan::ServiceSchema,
+    ),
+    Diagnostic,
+> {
+    let matches = typed
+        .traits()
+        .iter()
+        .filter_map(|definition| {
+            if !definition.is_boundary
+                || typed.symbols.symbol_package_identity(definition.symbol)
+                    != Some(binding.package())
+                || typed.symbols.display_path(definition.symbol, "::") != binding.declaration_path()
+            {
+                return None;
+            }
+            let schema = crate::service_schema::from_typed(
+                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+                definition,
+            )?;
+            (schema.trait_package_identity == Some(binding.package())
+                && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
+                    == binding.normalized_schema_digest())
+            .then_some((definition, schema))
+        })
+        .collect::<Vec<_>>();
+    let [resolved] = matches.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
+            binding.role(),
+            matches.len(),
+        )));
+    };
+    Ok(resolved.clone())
+}
 
 /// The toolchain-settled mint output shared by the canonical host plans:
 /// the plan plus the exact symbols the provenance and erasure joins need.

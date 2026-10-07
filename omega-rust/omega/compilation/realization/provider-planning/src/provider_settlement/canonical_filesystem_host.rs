@@ -130,53 +130,6 @@ fn toolchain_filesystem_leaves(target_name: &str) -> &'static [ToolchainFilesyst
     }
 }
 
-/// Resolve the accepted `FilesystemHostService` binding against the typed
-/// program: the exact package-owned boundary trait, its reified service
-/// schema, and a digest check identical to the post-checking rejoin in
-/// `selected-dispatch`'s `resolve_accepted_service_binding`. Returns the
-/// trait definition too so the caller can bind requirement symbols and
-/// fused-service erasure against it.
-fn resolve_filesystem_host_binding<'trees>(
-    typed: &'trees TypedTrees,
-    binding: &AcceptedSemanticBinding,
-) -> Result<
-    (
-        &'trees typed_trees::trait_definition::TraitDefinition,
-        effects::provider_plan::ServiceSchema,
-    ),
-    Diagnostic,
-> {
-    let matches = typed
-        .traits()
-        .iter()
-        .filter_map(|definition| {
-            if !definition.is_boundary
-                || typed.symbols.symbol_package_identity(definition.symbol)
-                    != Some(binding.package())
-                || typed.symbols.display_path(definition.symbol, "::") != binding.declaration_path()
-            {
-                return None;
-            }
-            let schema = crate::service_schema::from_typed(
-                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-                definition,
-            )?;
-            (schema.trait_package_identity == Some(binding.package())
-                && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
-                    == binding.normalized_schema_digest())
-            .then_some((definition, schema))
-        })
-        .collect::<Vec<_>>();
-    let [resolved] = matches.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
-            binding.role(),
-            matches.len(),
-        )));
-    };
-    Ok(resolved.clone())
-}
-
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
@@ -219,7 +172,7 @@ pub fn mint_canonical_filesystem_host_plan(
         return Ok(None);
     }
     let (definition, schema) =
-        resolve_filesystem_host_binding(typed, binding).map_err(|error| vec![error])?;
+        super::resolve_canonical_host_binding(typed, binding).map_err(|error| vec![error])?;
     let signatures = typed.trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
         selected.schema.trait_package_identity == schema.trait_package_identity
