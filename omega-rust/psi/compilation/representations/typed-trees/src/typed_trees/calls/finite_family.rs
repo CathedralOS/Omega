@@ -10,8 +10,8 @@
 //! tuples, opaque predicates, ranges, or mere finite carrier ranges never
 //! enumerate.
 
-use crate::typed_trees::escape;
 use crate::TypedTrees;
+use crate::typed_trees::escape;
 
 /// One canonical value in a finite-family tuple. `identity` is the string a
 /// `MachineSpecialization` retains in `const_argument_identities` for the
@@ -93,9 +93,11 @@ impl TypedTrees {
         };
 
         let mut tuples = Vec::new();
-        for alternative in self.or_alternatives(*root) {
+        for alternative in self.binary_chain_leaves(*root, crate::expression::BinaryOperator::Or) {
             let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
-            for conjunct in self.and_conjuncts(alternative) {
+            for conjunct in
+                self.binary_chain_leaves(alternative, crate::expression::BinaryOperator::And)
+            {
                 let Some((binder_index, value)) = self.equality_assignment(&binders, conjunct)
                 else {
                     return FamilyProbe::NotFinite(
@@ -135,46 +137,26 @@ impl TypedTrees {
         }
     }
 
-    /// Flatten an authored `||` chain into its alternatives.
-    fn or_alternatives(
+    /// Flatten an authored `operator` chain into its leaves.
+    fn binary_chain_leaves(
         &self,
         expression: crate::expression::ExpressionHandle,
+        operator: crate::expression::BinaryOperator,
     ) -> Vec<crate::expression::ExpressionHandle> {
-        let mut alternatives = Vec::new();
+        let mut leaves = Vec::new();
         let mut stack = vec![expression];
         while let Some(current) = stack.pop() {
             match self.expression_table.expression(current) {
                 crate::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == crate::expression::BinaryOperator::Or =>
+                    if binary.operator == operator =>
                 {
                     stack.push(binary.right);
                     stack.push(binary.left);
                 }
-                _ => alternatives.push(current),
+                _ => leaves.push(current),
             }
         }
-        alternatives
-    }
-
-    /// Flatten an authored `&&` chain into its conjuncts.
-    fn and_conjuncts(
-        &self,
-        expression: crate::expression::ExpressionHandle,
-    ) -> Vec<crate::expression::ExpressionHandle> {
-        let mut conjuncts = Vec::new();
-        let mut stack = vec![expression];
-        while let Some(current) = stack.pop() {
-            match self.expression_table.expression(current) {
-                crate::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == crate::expression::BinaryOperator::And =>
-                {
-                    stack.push(binary.right);
-                    stack.push(binary.left);
-                }
-                _ => conjuncts.push(current),
-            }
-        }
-        conjuncts
+        leaves
     }
 
     /// Read one `Binder == literal` conjunct against the signature's declared
