@@ -6,11 +6,9 @@
 //! object, symbol, version, or ordinal values.
 
 use crate::TargetProfile;
+use crate::compatibility_fingerprint::Fnv1a;
 use sha2::{Digest, Sha256};
 use std::fmt;
-
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Untrusted owned coordinates produced by future ordinary `Binding` value
 /// evaluation. Vector lengths retain the fixed-array widths of that value;
@@ -357,33 +355,6 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
             .to_le_bytes(),
     );
     digest.update(bytes);
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

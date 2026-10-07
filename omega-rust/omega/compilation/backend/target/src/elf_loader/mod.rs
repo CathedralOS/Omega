@@ -12,6 +12,7 @@
 //! probes the build host's loader.
 
 use crate::TargetProfile;
+use crate::compatibility_fingerprint::Fnv1a;
 use std::fmt;
 
 /// Every deployment profile whose dynamically linked output carries a
@@ -52,9 +53,6 @@ pub fn declared_elf_interpreter_default(
             .expect("a declared target-environment loader is a valid interpreter plan")
     })
 }
-
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Read-only, structurally validated input for one exact Linux ELF
 /// interpreter.
@@ -156,33 +154,6 @@ fn non_authoritative_compatibility_fingerprint(
     hash.bytes(target.target_name().as_bytes());
     hash.bytes(interpreter_path);
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]

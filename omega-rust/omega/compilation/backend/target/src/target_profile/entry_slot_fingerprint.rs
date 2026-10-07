@@ -1,14 +1,13 @@
 //! Entry-slot fingerprint bytes; layout callers keep their own state and
 //! domains. Raw tags and length-prefixed payloads remain distinct operations.
 
+pub(crate) use crate::compatibility_fingerprint::Fnv1a;
+
 use super::{
     ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
     ProgramEntryReceiverProvisioning, ProgramEntrySchema, ProgramEntrySlotDeclaration,
     ProgramEntryVisibleParameters,
 };
-
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 pub(crate) fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
     hash.bytes(entry_slot.owner.target_name().as_bytes());
@@ -66,32 +65,5 @@ fn hash_optional_str(hash: &mut Fnv1a, value: Option<&str>) {
             hash.bytes(value.as_bytes());
         }
         None => hash.byte(0),
-    }
-}
-
-pub(crate) struct Fnv1a(u64);
-
-impl Fnv1a {
-    pub(crate) const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    pub(crate) fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-
-    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-
-    pub(crate) const fn finish(self) -> u64 {
-        self.0
     }
 }

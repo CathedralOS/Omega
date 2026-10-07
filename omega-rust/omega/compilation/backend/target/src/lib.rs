@@ -13,6 +13,7 @@
 //! extraction, signed images, and application-package publication.
 
 mod application;
+mod compatibility_fingerprint;
 mod elf_loader;
 mod explicit_target_set;
 mod foreign_locator;

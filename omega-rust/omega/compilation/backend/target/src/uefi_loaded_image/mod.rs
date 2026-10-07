@@ -19,6 +19,7 @@
 
 pub(crate) mod occurrence;
 
+use crate::compatibility_fingerprint::Fnv1a;
 use crate::{
     Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
     ProgramEntrySlotDeclaration, TargetProfile,
@@ -33,8 +34,6 @@ const FIELD_COUNT: usize = 15;
 const SEMANTIC_FIELD_COUNT: usize = 13;
 const PROTOCOL_SIZE: u32 = 96;
 const PROTOCOL_ALIGNMENT: u32 = 8;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Compact FNV coordinate for the `EfiLoadedImage` schema the compiler
 /// materializes from `std/targets/uefi_x86_64/tables.omg`, recorded from the
@@ -424,30 +423,6 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
     condition
         .then_some(())
         .ok_or_else(|| Diagnostic::error(message))
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(FNV_PRIME);
-    }
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            self.byte(byte);
-        }
-    }
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]
