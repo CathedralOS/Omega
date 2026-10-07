@@ -134,11 +134,13 @@ pub(crate) fn apply_handle_condition_complement(
 /// `guard_refined_binary_range`'s complement twin: refine a `place +- K`
 /// argument by narrowing the PLACE operand with a REFUTED prior guard and
 /// refolding.
-fn complement_refined_binary_range(
+/// The `place +- K` refine-then-refold spine: narrow the PLACE operand by
+/// the caller's condition projection, then refold through the binary.
+fn place_refined_binary_range(
     proof_plan: &ProofPlan,
     range: IntegerRange,
     value: ExpressionHandle,
-    refuted: ExpressionHandle,
+    narrow: impl FnOnce(&ProofPlan, IntegerRange, ExpressionHandle) -> IntegerRange,
 ) -> IntegerRange {
     let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(value)
     else {
@@ -152,6 +154,7 @@ fn complement_refined_binary_range(
         } else {
             return range;
         };
+    // value = place + K  =>  place = value - K (and the subtract mirrors).
     let literal = BigInt::from_i64(literal);
     let place_range = match (binary.operator, place_is_left) {
         (BinaryOperator::Add, _) => IntegerRange {
@@ -168,8 +171,7 @@ fn complement_refined_binary_range(
         },
         _ => return range,
     };
-    let narrowed =
-        apply_handle_condition_complement(proof_plan, place_range.clone(), place, refuted);
+    let narrowed = narrow(proof_plan, place_range.clone(), place);
     if narrowed == place_range {
         return range;
     }
@@ -192,6 +194,17 @@ fn complement_refined_binary_range(
         minimum: range.minimum.max(refolded.minimum),
         maximum: range.maximum.min(refolded.maximum),
     }
+}
+
+fn complement_refined_binary_range(
+    proof_plan: &ProofPlan,
+    range: IntegerRange,
+    value: ExpressionHandle,
+    refuted: ExpressionHandle,
+) -> IntegerRange {
+    place_refined_binary_range(proof_plan, range, value, |plan, place_range, place| {
+        apply_handle_condition_complement(plan, place_range, place, refuted)
+    })
 }
 
 pub(crate) fn integer_range_for_call_argument(
@@ -612,58 +625,9 @@ fn guard_refined_binary_range(
     let TransitionGuardNode::When(condition) = guard else {
         return range;
     };
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(value)
-    else {
-        return range;
-    };
-    let (place, literal, place_is_left) =
-        if let Some(literal) = integer_literal_handle(proof_plan, binary.right) {
-            (binary.left, literal, true)
-        } else if let Some(literal) = integer_literal_handle(proof_plan, binary.left) {
-            (binary.right, literal, false)
-        } else {
-            return range;
-        };
-    // value = place + K  =>  place = value - K (and the subtract mirrors).
-    let literal = BigInt::from_i64(literal);
-    let place_range = match (binary.operator, place_is_left) {
-        (BinaryOperator::Add, _) => IntegerRange {
-            minimum: range.minimum.sub(&literal),
-            maximum: range.maximum.sub(&literal),
-        },
-        (BinaryOperator::Subtract, true) => IntegerRange {
-            minimum: range.minimum.add(&literal),
-            maximum: range.maximum.add(&literal),
-        },
-        (BinaryOperator::Subtract, false) => IntegerRange {
-            minimum: literal.sub(&range.maximum),
-            maximum: literal.sub(&range.minimum),
-        },
-        _ => return range,
-    };
-    let narrowed = apply_handle_condition(proof_plan, place_range.clone(), place, *condition);
-    if narrowed == place_range {
-        return range;
-    }
-    let refolded = match (binary.operator, place_is_left) {
-        (BinaryOperator::Add, _) => IntegerRange {
-            minimum: narrowed.minimum.add(&literal),
-            maximum: narrowed.maximum.add(&literal),
-        },
-        (BinaryOperator::Subtract, true) => IntegerRange {
-            minimum: narrowed.minimum.sub(&literal),
-            maximum: narrowed.maximum.sub(&literal),
-        },
-        (BinaryOperator::Subtract, false) => IntegerRange {
-            minimum: literal.sub(&narrowed.maximum),
-            maximum: literal.sub(&narrowed.minimum),
-        },
-        _ => unreachable!("classified above"),
-    };
-    IntegerRange {
-        minimum: range.minimum.max(refolded.minimum),
-        maximum: range.maximum.min(refolded.maximum),
-    }
+    place_refined_binary_range(proof_plan, range, value, |plan, place_range, place| {
+        apply_handle_condition(plan, place_range, place, *condition)
+    })
 }
 
 pub(crate) fn integer_range_for_return_value(
