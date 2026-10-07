@@ -5,8 +5,8 @@
 #![allow(dead_code)]
 
 use proof_admission::{
-    Budget, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level, Sort, Term, TermArena,
-    TermHandle, indexed_scheme,
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level, Sort,
+    Term, TermArena, TermHandle, indexed_scheme, infer_type,
 };
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
@@ -322,4 +322,21 @@ pub(crate) fn nat_succ_declarations(arena: &mut TermArena) -> Vec<Declaration> {
     let succ_statement = pi(arena, succ_domain, succ_codomain);
     declarations.push(Declaration::assumption(0, succ_statement)); // succN
     declarations
+}
+
+/// `family` re-indexed with `children`, then `index`'s member type inferred —
+/// the shared setup of every strict-children rejection assertion; the caller
+/// still names its expected error class.
+pub(crate) fn strict_children_error(
+    arena: &mut TermArena,
+    context: &Context,
+    family: &IndexedFamily,
+    children: TermHandle,
+    index: TermHandle,
+    budget: &mut Budget,
+) -> CoreError {
+    let mut strict = family.clone();
+    strict.children = children;
+    let malformed = strict.indexed_w(arena, index);
+    infer_type(arena, context, malformed, budget).unwrap_err()
 }

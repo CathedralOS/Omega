@@ -39,7 +39,7 @@
 
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, TermArena, TermHandle, check_signature, check_type, indexed_scheme,
+    Signature, TermArena, TermHandle, check_signature, check_type,
     infer_type,
 };
 use crate::common::*;
@@ -470,16 +470,14 @@ fn vectors_reject_wrong_indices_and_malformed_descriptions() {
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever
     // runs.
-    let mut strict = family.clone();
-    strict.children = {
+    let children = {
         let carrier = carrier(&mut arena, elem_nat_payload);
         let empty = empty_positions(&mut arena);
         let unit = unit_position(&mut arena);
         strict_branching(&mut arena, carrier, empty, |_, _| unit)
     };
     let length = variable(&mut arena, 1);
-    let malformed = strict.indexed_w(&mut arena, length);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
+    let error = strict_children_error(&mut arena, &context, &family, children, length, &mut budget);
     assert!(matches!(
         error,
         CoreError::StrictCaseMotiveCodomain { .. } | CoreError::TypeMismatch { .. }

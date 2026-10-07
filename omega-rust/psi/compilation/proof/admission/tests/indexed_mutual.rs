@@ -48,7 +48,6 @@
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level,
     Signature, TermArena, TermHandle, check_signature, check_type, indexed_scheme,
-    infer_type,
 };
 use crate::common::*;
 
@@ -531,16 +530,14 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever
     // runs.
-    let mut strict = family.clone();
-    strict.children = {
+    let children = {
         let carrier = carrier(&mut arena);
         let unit = unit_position(&mut arena);
         let positions = two(&mut arena);
         strict_branching(&mut arena, carrier, unit, |_, _| positions)
     };
     let index = variable(&mut arena, 2);
-    let member = strict.indexed_w(&mut arena, index);
-    let error = infer_type(&mut arena, &context, member, &mut budget).unwrap_err();
+    let error = strict_children_error(&mut arena, &context, &family, children, index, &mut budget);
     assert!(matches!(
         error,
         CoreError::StrictCaseMotiveCodomain { .. } | CoreError::TypeMismatch { .. }

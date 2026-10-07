@@ -38,7 +38,7 @@
 
 use proof_admission::{
     Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, Sort, Term, TermArena, TermHandle, check_signature, convertible, indexed_scheme,
+    Signature, Sort, Term, TermArena, TermHandle, check_signature, convertible,
     infer_sort, infer_type, shift,
 };
 use crate::common::*;

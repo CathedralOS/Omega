@@ -984,8 +984,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
     // A branching family into `Strict` is an illegal strict elimination,
     // rejected by `caseTwo`'s own motive rule before `W` formation ever
     // runs.
-    let mut strict = family.clone();
-    strict.children = {
+    let children = {
         let carrier = carrier(&mut arena);
         let empty = empty_positions(&mut arena);
         let unit = unit_position(&mut arena);
@@ -1002,8 +1001,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
         let psi = variable(&mut arena, 5);
         judgment(&mut arena, gamma, psi)
     };
-    let malformed = strict.indexed_w(&mut arena, index);
-    let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
+    let error = strict_children_error(&mut arena, &context, &family, children, index, &mut budget);
     assert!(matches!(
         error,
         CoreError::StrictCaseMotiveCodomain { .. } | CoreError::TypeMismatch { .. }
