@@ -44,12 +44,11 @@ use optimization_unit::{
     canonicalize_ordinary_path, case_field_initializer, constant_definition,
     declared_structural_type, field_evidence, function_analysis, leaf_copy_source,
     matches_constant_kind, matches_observed_kind, observed_field_declaration,
-    recompute_psi_optimization_unit_identity, record_initializer, root_producer, structural_child,
+    descended_field_child, recompute_psi_optimization_unit_identity, record_initializer, root_producer,
     zeroed_fold,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -270,7 +269,7 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let (child, child_producer) = declared_field_child(
+                let (child, child_producer) = descended_field_child(
                     function,
                     operation,
                     place,
@@ -298,7 +297,7 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let (child, child_producer) = declared_field_child(
+                let (child, child_producer) = descended_field_child(
                     function,
                     operation,
                     place,
@@ -890,25 +889,3 @@ pub(super) fn validate(
     })
 }
 
-/// A record/case field descent's shared child resolution: the producer's
-/// structural child at `field`, its rostered declaration, the declared-type
-/// equality check, and the cycle guard. Returns the child place and its own
-/// producer for the next descent step.
-fn declared_field_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-    next: StructuralTypeId,
-    visiting: &mut BTreeSet<PlaceId>,
-) -> Option<(PlaceId, RootProducer)> {
-    let child = structural_child(function, producer, place, field)?;
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == child)?;
-    if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
-        return None;
-    }
-    Some((child, root_producer(function, declaration)))
-}

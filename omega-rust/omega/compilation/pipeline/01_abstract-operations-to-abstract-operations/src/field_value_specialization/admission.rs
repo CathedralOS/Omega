@@ -8,8 +8,8 @@
 //! matcher cannot attest to itself.
 
 use super::{
-    FieldValueResolution, FieldValueRow, NodeLocation, O, OperationId, PlaceId,
-    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType,
+    FieldValueResolution, FieldValueRow, NodeLocation, O, PsiOptimizationFunction,
+    PsiOptimizationUnit, ScalarType,
 };
 use crate::representation_specialization::admission::bound_place;
 use abstract_operations::StructuralCopyPath;
@@ -17,15 +17,14 @@ use optimization_unit::{
     EstablishmentScalar, FieldEvidence, ForwardedFieldValue, FunctionAnalysis, ObservedFieldKind,
     OptimizationBlock, OptimizationNode, Position, ProvenFieldValue, RootProducer, ValueDefinition,
     ValueDefinitionSite, bound_value, canonicalize_ordinary_path, case_field_initializer,
-    constant_definition, declared_structural_type, leaf_copy_source, matches_constant_kind,
-    matches_observed_kind, observed_field_declaration, record_initializer, root_producer,
-    structural_child, zeroed_fold,
+    constant_definition, declared_structural_type, descended_field_child, leaf_copy_source,
+    matches_constant_kind, matches_observed_kind, observed_field_declaration, record_initializer,
+    root_producer, zeroed_fold,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId, ValueId,
+    CanonicalStructuralPathSegment, StructuralFieldId, ValueId,
 };
 use std::collections::BTreeSet;
-use terminal_psi::StructuralPlaceDeclaration;
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
 /// `StructuralScalarFieldRead` observing the evidence's place whose stored
@@ -249,7 +248,7 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let (child, declaration) = descended_field_child(
+                let (child, child_producer) = descended_field_child(
                     function,
                     operation,
                     place,
@@ -258,7 +257,7 @@ fn establishment_scalar(
                     &mut visiting,
                 )?;
                 place = child;
-                producer = root_producer(function, declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..2);
             }
@@ -277,7 +276,7 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let (child, declaration) = descended_field_child(
+                let (child, child_producer) = descended_field_child(
                     function,
                     operation,
                     place,
@@ -286,7 +285,7 @@ fn establishment_scalar(
                     &mut visiting,
                 )?;
                 place = child;
-                producer = root_producer(function, declaration);
+                producer = child_producer;
                 declared = Some(next);
                 segments.drain(..1);
             }
@@ -480,26 +479,4 @@ fn forwarded_resolution(
     })
 }
 
-/// The placed child `identity` establishes for `place`, after confirming its
-/// declared type is `next` and admitting it to `visiting`.
-fn descended_field_child<'function>(
-    function: &'function PsiOptimizationFunction,
-    operation: OperationId,
-    place: PlaceId,
-    identity: StructuralFieldId,
-    next: StructuralTypeId,
-    visiting: &mut BTreeSet<PlaceId>,
-) -> Option<(PlaceId, &'function StructuralPlaceDeclaration)> {
-    let child = structural_child(function, operation, place, identity)?;
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == child)?;
-    if declared_structural_type(function, declaration) != Some(next) {
-        return None;
-    }
-    if !visiting.insert(child) {
-        return None;
-    }
-    Some((child, declaration))
-}
+
