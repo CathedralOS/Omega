@@ -213,8 +213,9 @@ pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+
 pass/build/selected_const_array_length_exit built 12069ms exit:0 @467bec194212
 pass/build/static_assumed_binding_spelling_exit built 3706ms exit:0 @9beb2be72f2d+wt
 pass/build/uefi_entry_schema_same_leaf built 1457ms @55a23102ccd1+wt
-pass/build/uefi_os_handoff_invocation rejected 1352ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
+pass/build/uefi_os_handoff_invocation rejected 3500ms @693920652f41
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1399ms exit:70 @48008365d839
 pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008365d839
@@ -222,8 +223,8 @@ pass/calls/borrowed_float_result_exit built 3689ms exit:70 @48008365d839
 pass/calls/borrowed_float_scalar_result_exit built 1177ms exit:70 @48008365d839
 pass/calls/borrowed_scalar_result_with_binding_exit built 1060ms exit:70 @48008365d839
 pass/calls/by_value_case_param_self_write_exit built 654ms exit:70
-pass/calls/callback_private_materialization rejected 479ms
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/callback_private_materialization rejected 3342ms @693920652f41
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
 pass/calls/caller_structural_result_indexed_borrow_exit built 746ms exit:171 @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg built 1139ms exit:70 @bb878591d2fc+wt
@@ -262,7 +263,7 @@ pass/calls/local_record_mutable_argument_exit built 1514ms exit:70 @48008365d839
 pass/calls/local_record_record_result_argument_exit built 2725ms exit:70 @48008365d839
 pass/calls/local_record_shared_argument_exit built 526ms exit:70 @f22b140301c7+wt
 pass/calls/local_records_mixed_record_result_arguments_exit built 2386ms exit:70 @48008365d839
-pass/calls/machine_self_call_recursion_compile built 353ms
+pass/calls/machine_self_call_recursion_compile built 3536ms exit:0 @693920652f41
 pass/calls/mixed_projection_sources_in_one_call built 2494ms exit:0 @9beb2be72f2d+wt
 pass/calls/mixed_value_forwarding_exit built 2637ms exit:70 @9beb2be72f2d+wt
 pass/calls/mutable_output_host_call built 3369ms exit:0 @bed5f45e9185+wt
@@ -363,7 +364,7 @@ pass/calls/runtime_owned_parameter_primitive_borrow_exit built 1164ms exit:0 @67
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
 pass/calls/runtime_qualified_terminal_result_exit built 4526ms exit:0 @9beb2be72f2d+wt
-pass/calls/runtime_reference_returned_slice_element_write_exit built 1055ms exit:181 interpreter-exit:181 interpreter:agrees @1ee38ae14295+wt
+pass/calls/runtime_reference_returned_slice_element_write_exit built 3268ms exit:181 @693920652f41
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1776ms exit:70 @48008365d839
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 725ms exit:70
 pass/calls/runtime_selected_local_owner_exit built 4679ms exit:0 @9beb2be72f2d+wt
@@ -402,12 +403,12 @@ pass/calls/static_context_forwarded_through_state_arms_exit built 1841ms exit:70
 pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/static_state_context_field_window_exit built 6453ms exit:70 @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument built 300ms @48008365d839
-pass/calls/structural_self_rooted_argument built 291ms @48008365d839
+pass/calls/structural_self_rooted_argument built 3452ms exit:0 @693920652f41
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
 pass/calls/transition_tail_call_to_machine built 1406ms exit:70 @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit built 530ms exit:70 @5c1d6f8344c7
 pass/calls/value_call_as_host_arg_exit built 1832ms exit:70 @fb2178def922
-pass/calls/value_call_element_view_arg_compile checked 169ms
+pass/calls/value_call_element_view_arg_compile built 3637ms exit:0 @693920652f41
 pass/calls/value_call_embedded_in_binary_exit built 794ms exit:70 @3da828ba5434+wt
 pass/calls/value_call_param_effect_arm built 652ms exit:1
 pass/calls/value_call_subexpression built 2815ms exit:70 @b09f66e07ebd+wt
@@ -600,11 +601,11 @@ pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e2
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
 pass/core/carry_permission_provider_adapter built 274ms
-pass/core/content_conservation_contract rejected 1084ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
+pass/core/content_conservation_contract rejected 1894ms @693920652f41
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: linear structural result`
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
-pass/core/extent_root_provider_adapter built 351ms
+pass/core/extent_root_provider_adapter built 3863ms exit:0 @693920652f41
 pass/core/interrupt_obligations_surface rejected 1747ms regressed-from:checked @835baa6033eb+wt
 	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
 	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
@@ -627,8 +628,8 @@ pass/core/numeric_widening_published_ranges built 1788ms exit:0 @5a7ed5b57d00+wt
 pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @48008365d839
 pass/core/runtime_natural_termination_exit built 405ms exit:0
 pass/core/self_read_only_receiver_compile checked 221ms
-pass/core/task_lifecycle_operations rejected 405ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/core/task_lifecycle_operations rejected 3657ms @693920652f41
+	terminal-artifact production failed: Lowering(Unsupported("suspension frontier has live claims without an exact Terminal ClaimId join"))
 pass/core/zii_default_composite_exit built 1810ms exit:70 @fb2178def922
 pass/data/case_first_payload_zero_established checked 220ms
 pass/data/case_membership_union_guard_exit built 599ms exit:70
@@ -723,19 +724,28 @@ pass/drops/core_drop_explicit_consume built 3305ms exit:0 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook built 3336ms exit:0 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook_body built 3228ms exit:0 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit built 2783ms exit:70 @9beb2be72f2d+wt
+pass/drops/runtime_abandoned_record_construction_prefix_exit rejected 3440ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(3) }))
+pass/drops/runtime_borrowed_nominal_replacement_exit built 3630ms exit:0 @693920652f41
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 1602ms exit:0 @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit built 1653ms exit:0 stdout:match @47ad8bb72cea
 pass/drops/runtime_composed_nominal_return_hook_exit built 1646ms exit:0 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit built 2808ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3588ms exit:0 @e28fa01a1e73+wt
+pass/drops/runtime_empty_array_owner_cleanup_exit rejected 3448ms @693920652f41
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("zeroed structural establishment has an invalid result shape")))
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit built 2042ms exit:0 stdout:match @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit built 1993ms exit:0 @65e8a0783b05
+pass/drops/runtime_generic_reserved_construction_exit rejected 3371ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(7) }))
 pass/drops/runtime_indexed_nominal_cleanup_exit built 3463ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit built 2005ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit built 2602ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_return_exit built 2535ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3583ms exit:0 @e28fa01a1e73+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 1780ms exit:0 @8611f9d5adf1+wt
+pass/drops/runtime_nested_cleanup_postcondition_exit rejected 3360ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(13) }))
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1503ms exit:0 @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1714ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1717ms exit:0 @4cc11cbadf31+wt
@@ -744,11 +754,15 @@ pass/drops/runtime_nominal_temporary_helper_closure_exit built 1701ms exit:0 @c8
 pass/drops/runtime_owned_nominal_replacement_exit built 2464ms exit:0 @04d0fbe9d97c+wt
 pass/drops/runtime_owned_record_replacement_exit built 2465ms exit:0 @04d0fbe9d97c+wt
 pass/drops/runtime_owned_replacement_composition_exit built 2502ms exit:0 @04d0fbe9d97c+wt
+pass/drops/runtime_owned_replacement_reestablishment_exit rejected 3513ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(12) }))
 pass/drops/runtime_projected_nominal_cleanup_exit built 2201ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit built 2198ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_projected_reference_siblings_exit built 1728ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_projected_reference_transition_cleanup_exit built 1613ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_projected_transition_cleanup_exit built 1546ms exit:0 @9beb2be72f2d+wt
+pass/drops/runtime_record_construction_cleanup_order_exit rejected 3225ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(2), block: BlockId(10) }))
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 2350ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 1702ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1782ms exit:0 @8611f9d5adf1+wt
@@ -757,6 +771,7 @@ pass/drops/runtime_temporary_nominal_integer_contract_exit built 1682ms exit:0 @
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1701ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_unit_temporary_nominal_continuation_exit built 1513ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_unobserved_owned_state_transfer_exit built 1858ms exit:0 @9beb2be72f2d+wt
+pass/drops/statically_skipped_claim_bearing_temporary checked 657ms @693920652f41
 pass/drops/transfer_cleanup_into_state checked 368ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839
@@ -901,7 +916,7 @@ pass/generics/generic_seq_consuming_map_filter checked 178ms
 pass/generics/machine_bound_satisfied_at_call checked 224ms
 pass/generics/machine_type_equations checked 190ms
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 156ms
-pass/generics/omitted_data_binder_range_equation checked 224ms
+pass/generics/omitted_data_binder_range_equation built 2561ms exit:92 @693920652f41
 pass/generics/open_computed_quantity_result built 2899ms @4ffed225fc45+wt
 pass/generics/ranged_const_parameter_attached_shape built 1152ms exit:70 @e8ed051cf626+wt
 pass/generics/runtime_const_container_methods_exit built 1455ms exit:70 @48008365d839
@@ -937,16 +952,19 @@ pass/inline_asm/asm_aarch64_system_registers_compile rejected 264ms @48008365d83
 pass/inline_asm/asm_block_jmp_state built 301ms
 pass/inline_asm/asm_machine_control_wrapper_reach checked 218ms
 pass/inline_asm/asm_memory_transfer_compile built 259ms
-pass/inline_asm/asm_port_out_final_validation rejected 249ms
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
+pass/inline_asm/asm_port_out_final_validation rejected 3190ms @693920652f41
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
 pass/inline_asm/asm_runtime_port_msr_final_validation rejected 208ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
 pass/inline_asm/asm_where_exact_clobbers_compile checked 225ms
 pass/layouts/access_plan_inaccessible_seed checked 263ms
+pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 547ms
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
+pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 3345ms @693920652f41
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 pass/layouts/runtime_callee_owned_local_origins_exit built 3838ms exit:0 @9beb2be72f2d+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70
 pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd7b+wt
@@ -970,10 +988,10 @@ pass/machines/static_namespace_constant_exit built 3677ms exit:0 @9beb2be72f2d+w
 pass/memory/address_translation_canary rejected 2012ms regressed-from:checked @835baa6033eb+wt
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary built 732ms
-pass/memory/interrupt_table_canary rejected 3883ms regressed-from:checked @835baa6033eb+wt
-	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
-pass/memory/secondary_processor_canary rejected 4403ms regressed-from:built @835baa6033eb+wt
-	direct call `confirm` names public boundary requirement `StartupEnvelope::confirm`, which has no selected provider; select an admitted provider whose checked machine `satisfies StartupEnvelope::confirm` before calling it
+pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
+	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/secondary_processor_canary rejected 998ms regressed-from:built @693920652f41
+	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms
 pass/modules/aggregate_machine_indices checked 213ms
 pass/modules/boolean_equality_indices checked 239ms
@@ -1031,15 +1049,15 @@ pass/operators/slice_index_bounds_from_operator_contract checked 209ms
 pass/operators/slice_range_bounds_from_operator_contract checked 210ms
 pass/operators/unary_negation_exit built 596ms exit:70
 pass/optimizer/address_offset_selection_exit built 3345ms exit:0 @9beb2be72f2d+wt
-pass/optimizer/constant_branch_selection_compile built 372ms
+pass/optimizer/constant_branch_selection_compile built 3338ms exit:0 @693920652f41
 pass/optimizer/copied_call_operand_selection_exit built 1250ms exit:70 @a02111f4530c+wt
-pass/optimizer/dead_compare_selection_compile built 371ms
-pass/optimizer/equivalent_compare_selection_compile built 352ms
+pass/optimizer/dead_compare_selection_compile built 3307ms exit:0 @693920652f41
+pass/optimizer/equivalent_compare_selection_compile built 3577ms exit:0 @693920652f41
 pass/optimizer/join_invariant_copy_transport_selected built 3588ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @9beb2be72f2d+wt
 pass/optimizer/join_invariant_dead_scalar_transport_selected built 3375ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] exit:0 @9beb2be72f2d+wt
 pass/optimizer/join_invariant_transport_control built 3338ms exit:0 @9beb2be72f2d+wt
 pass/optimizer/ordinary_copy_membership_selected built 3257ms exit:0 @9beb2be72f2d+wt
-pass/optimizer/redundant_compare_selection_compile built 389ms
+pass/optimizer/redundant_compare_selection_compile built 3337ms exit:0 @693920652f41
 pass/optimizer/rollback_composed_partial_control built 3282ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_composed_partial_selected built 3278ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_control_flow_cleanup_control built 3156ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] exit:0 @9beb2be72f2d+wt
@@ -1054,18 +1072,18 @@ pass/optimizer/rollback_proof_check_elision_control built 3095ms rollback:reques
 pass/optimizer/rollback_proof_check_elision_selected built 3111ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_sparse_conditional_constant_propagation_control built 3165ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] exit:0 @9beb2be72f2d+wt
 pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 3306ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] exit:0 @9beb2be72f2d+wt
-pass/optimizer/rollback_to_no_selection_empty_entry built 274ms
+pass/optimizer/rollback_to_no_selection_empty_entry built 3404ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @693920652f41
 pass/optimizer/stored_load_forwarding_selection_exit built 3222ms exit:0 @9beb2be72f2d+wt
 pass/ownership/conditional_linear_sum checked 210ms
-pass/ownership/linear_ambiguous_state_result_mapping rejected 48ms
-	entry machine `Main::main` returns a value, but `ProgramEntry` has no result
+pass/ownership/linear_ambiguous_state_result_mapping rejected 3464ms @693920652f41
+	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))
 pass/ownership/linear_assignment_establishes checked 161ms
 pass/ownership/linear_boundary_entry_handoff checked 206ms
 pass/ownership/linear_branch_reconciliation checked 213ms
 pass/ownership/linear_self_receiver_disposition checked 208ms
 pass/ownership/linear_transfer_and_consume built 3491ms exit:0 @e4c5f1527652+wt
-pass/ownership/linear_transparent_record_frontier rejected 1010ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
+pass/ownership/linear_transparent_record_frontier rejected 2310ms @693920652f41
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("record result custody is noncanonical")))
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
@@ -1109,11 +1127,9 @@ pass/proofs/proof_order_antisymmetry checked 198ms
 pass/proofs/proof_order_transitivity checked 180ms
 pass/proofs/proof_remainder_range checked 190ms
 pass/proofs/proposition_relation_hierarchy_compile checked 197ms
-pass/proofs/quotient_define_managed_compile rejected 396ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_define_managed_compile built 3301ms @693920652f41
 pass/proofs/quotient_equivalence_compile checked 196ms
-pass/proofs/quotient_lift_managed_compile rejected 270ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_lift_managed_compile built 3360ms @693920652f41
 pass/proofs/ring_full_polynomial_compile built 1179ms exit:70 @bed5f45e9185+wt
 pass/proofs/ring_law_conformance built 1166ms exit:70 @bed5f45e9185+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1294ms exit:70 @767b982de12c+wt
@@ -1187,8 +1203,7 @@ pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def92
 pass/recast/runtime_inline_shared_slice_record_read_exit built 1915ms exit:70 @3b624377ec31
 pass/recast/runtime_inline_slice_view_mutable_write_exit built 1715ms exit:70 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
-pass/recast/runtime_interior_slice_congruent_offset_exit built 1004ms exit:70 @57fc72937714+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_interior_slice_congruent_offset_exit built 2330ms exit:70 @693920652f41
 pass/recast/runtime_interior_slice_view_mutable_write_exit built 4067ms exit:70 @5a7ed5b57d00+wt
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1530ms exit:70 @fb2178def922
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @48008365d839
@@ -1255,8 +1270,8 @@ pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb21
 pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
 pass/slices/runtime_qualified_record_copy_local_exit built 1360ms exit:70 @8093eb34a6ed+wt
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
-pass/slices/runtime_shared_subslice_return_exit built 1249ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt
-pass/slices/runtime_shared_whole_view_return_exit built 1164ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt
+pass/slices/runtime_shared_subslice_return_exit built 2391ms exit:70 @693920652f41
+pass/slices/runtime_shared_whole_view_return_exit built 2374ms exit:70 @693920652f41
 pass/slices/runtime_slice_element_runtime_index_read_exit built 1557ms exit:1 @fb2178def922
 pass/slices/runtime_slice_fixed_index_guard_exit built 1162ms exit:121 @8a91f26a0b28+wt
 pass/slices/runtime_slice_index_copy_dispatch_exit built 1445ms exit:61 @fb2178def922
@@ -1285,10 +1300,10 @@ pass/storage/forwarded_context_byte_field_cross_state_store_exit built 847ms exi
 pass/storage/forwarded_context_byte_field_read_store_exit built 848ms exit:75 @2a7dbf752a77
 pass/storage/runtime_alias_field_binary checked 217ms
 pass/storage/runtime_alias_integer_write checked 190ms
-pass/storage/runtime_local_slice_forward_exit built 1077ms exit:70 interpreter-exit:70 interpreter:agrees @94e7af7e4175+wt
+pass/storage/runtime_local_slice_forward_exit built 2288ms exit:70 @693920652f41
 pass/storage/runtime_machine_owned_indexed_integer_write_exit built 1159ms exit:79 @8a91f26a0b28+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85 @fb2178def922
-pass/storage/runtime_parameter_slice_forward_exit built 1166ms exit:70 interpreter-exit:70 interpreter:agrees @94e7af7e4175+wt
+pass/storage/runtime_parameter_slice_forward_exit built 2309ms exit:70 @693920652f41
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 2180ms exit:70 @922ccf420927+wt
 pass/structs/affine_result_constructor built 1095ms exit:70 @4b33596b9ee1+wt
@@ -1445,8 +1460,8 @@ pass/text/runtime_later_arm_guard_reads_exit built 1892ms exit:70 @954364ed064e
 pass/text/runtime_local_struct_string_field_concat_exit rejected 932ms @42ea16c25de8+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
-pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
+pass/text/runtime_mutable_string_parameter_concat_write_line rejected 2079ms @693920652f41
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(1), block: BlockId(2), node: Some(6), reason: "borrowed reference source has no exact incoming storage" }))
 pass/text/runtime_number_to_decimal_exit built 4388ms exit:70 @d6b32df9b098
 pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
@@ -1496,10 +1511,10 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 814ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
 pass/traits/runtime_exact_requirement_edge_exit built 2028ms exit:1 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @c4e45d3dda38+wt
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 978ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
-pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1034ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
+pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1997ms @693920652f41
+	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
+pass/traits/runtime_local_named_dyn_pass_through_exit rejected 746ms @693920652f41
+	cleanup effect dependency in `Main::main` has no exact structural residual disposition
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
 pass/traits/runtime_trait_default_requirement_scope_exit built 3688ms exit:70 @c4e45d3dda38+wt

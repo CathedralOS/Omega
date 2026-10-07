@@ -150,8 +150,7 @@ fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected 
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8ed253669f
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/arithmetic/zii_range_excludes_zero_rejected rejected 81ms expected @3a2d2f7aa797+wt
-	reading `main.m` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/arithmetic/zii_range_excludes_zero_rejected rejected 283ms expected @693920652f41
 	reading `main.console` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 3ms expected @2d8ed253669f
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
@@ -177,6 +176,8 @@ fail/borrow/nested_aggregate_result_invalidated rejected 1118ms expected @c5d32a
 	statement 1 mutates `right` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/nested_borrow_carrying_local_escape rejected 919ms expected @2d8ed253669f
 	machine `bad` returns a view borrowing the local `envelope`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+fail/borrow/opaque_write_only_boundary rejected 213ms expected @693920652f41
+	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 746ms expected @2d8ed253669f
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Main::store`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/undeclared_lifetime_tag rejected 260ms expected @2d8ed253669f
@@ -1398,6 +1399,8 @@ fail/providers/checked_boundary_operator_missing_contract rejected 259ms expecte
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
 fail/providers/consuming_requirement_without_provider rejected 6663ms expected @e4c5f1527652+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/named_provider_wrong_requirement_owner rejected 18ms expected @693920652f41
+	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/provider_selection_fabricated_activation rejected 1230ms expected @944ee0efb38f+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/providers/provider_type_slot_ambiguous rejected 167ms expected @944ee0efb38f+wt
@@ -2598,7 +2601,7 @@ pass/filesystem/windows_wrapper_results_exit rejected 16580ms check-target:macos
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_lock_metadata_exit rejected 15645ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 15759ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/wrapper_open_with_exit rejected 22102ms check-target:macos_arm64 @693920652f41
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 343582ms check-target:windows_x86_64 @a32d1a54af2
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
@@ -2711,8 +2714,8 @@ pass/inline_asm/asm_aarch64_system_registers_compile rejected 763ms check-target
 pass/inline_asm/asm_block_jmp_state checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/inline_asm/asm_machine_control_wrapper_reach checked 365ms @2d8ed253669f
 pass/inline_asm/asm_memory_transfer_compile checked 397ms check-target:macos_arm64 @2d8ed253669f
-pass/inline_asm/asm_port_out_final_validation rejected 9444ms check-target:linux_x86_64 @22d7c734257c+wt
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
+pass/inline_asm/asm_port_out_final_validation rejected 1902ms check-target:linux_x86_64 @693920652f41
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
 pass/inline_asm/asm_runtime_port_msr_final_validation rejected 701ms check-target:linux_x86_64 @c47f8652484
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
 pass/inline_asm/asm_where_exact_clobbers_compile checked 353ms @4e4bfed13aee+wt
@@ -2747,8 +2750,8 @@ pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_a
 pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f
-pass/memory/interrupt_table_canary rejected 9751ms @9befc0d31f1a+wt
-	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(InterruptAcknowledgement\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/interrupt_table_canary rejected 952ms @693920652f41
+	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/secondary_processor_canary rejected 11424ms check-target:macos_arm64 @9befc0d31f1a+wt
 	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f
@@ -2812,26 +2815,26 @@ pass/optimizer/constant_branch_selection_compile checked 1749ms check-target:mac
 pass/optimizer/copied_call_operand_selection_exit checked 1691ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/dead_compare_selection_compile checked 1250ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/equivalent_compare_selection_compile checked 1278ms check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/join_invariant_copy_transport_selected checked 8000ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:0a001bbea59a1d4b rolled-back-semantic:22472024a791e414 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/join_invariant_dead_scalar_transport_selected checked 9444ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:0a001bbea59a1d4b rolled-back-semantic:05933b939bfb2450 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/join_invariant_copy_transport_selected checked 5955ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:4ded9d8c05d48f46 rolled-back-semantic:e4f89c29e3282a1d module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/join_invariant_dead_scalar_transport_selected checked 5955ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:4ded9d8c05d48f46 rolled-back-semantic:aec22f0c4847cb0f module:differs check-target:macos_arm64 @693920652f41
 pass/optimizer/join_invariant_transport_control checked 3561ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/ordinary_copy_membership_selected checked 3131ms check-target:macos_arm64 @7be03351b68c+wt
 pass/optimizer/redundant_compare_selection_compile checked 2367ms check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_composed_partial_control checked 5602ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:96de0abf361a2f2f rolled-back-semantic:96de0abf361a2f2f module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_composed_partial_selected checked 5766ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:3468ee543327d7e7 rolled-back-semantic:96de0abf361a2f2f module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_control_flow_cleanup_control checked 5801ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:a8414330bdd00fe8 rolled-back-semantic:a8414330bdd00fe8 module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_control_flow_cleanup_selected checked 8099ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:67a98ebb68555aa0 rolled-back-semantic:a8414330bdd00fe8 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_copy_propagation_control checked 8082ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2938c586b30291c8 rolled-back-semantic:2938c586b30291c8 module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_copy_propagation_selected checked 8029ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:4b503a833db6d310 rolled-back-semantic:2938c586b30291c8 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 5266ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:b0e687a57ca00317 rolled-back-semantic:b0e687a57ca00317 module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 4068ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:4781344ebba7c071 rolled-back-semantic:b0e687a57ca00317 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_global_value_numbering_control checked 3905ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:9074d54adbbba016 rolled-back-semantic:9074d54adbbba016 module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_global_value_numbering_selected checked 3517ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:adaaff37e576f0b7 rolled-back-semantic:9074d54adbbba016 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_proof_check_elision_control checked 3707ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:c75605627c6ef978 rolled-back-semantic:c75605627c6ef978 module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_proof_check_elision_selected checked 3749ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:b27bbf905961efe7 rolled-back-semantic:c75605627c6ef978 module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 3919ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:9850cbd2fd37618f rolled-back-semantic:9850cbd2fd37618f module:same check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 3715ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:3f084b257f9855c8 rolled-back-semantic:9850cbd2fd37618f module:differs check-target:macos_arm64 @7be03351b68c+wt
-pass/optimizer/rollback_to_no_selection_empty_entry checked 3665ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:7e535fbdabff72f0 rolled-back-semantic:7e535fbdabff72f0 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_composed_partial_control checked 5853ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:3944d609a7b30c1b rolled-back-semantic:3944d609a7b30c1b module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_composed_partial_selected checked 5802ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:c9c5c99bea81888d rolled-back-semantic:3944d609a7b30c1b module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_control_flow_cleanup_control checked 5705ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:af227c059f1bdb16 rolled-back-semantic:af227c059f1bdb16 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_control_flow_cleanup_selected checked 5678ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:5da47d6d44a47d72 rolled-back-semantic:af227c059f1bdb16 module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_copy_propagation_control checked 5694ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:f17356d9fc15dbe0 rolled-back-semantic:f17356d9fc15dbe0 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_copy_propagation_selected checked 5680ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:39108fa50f6e2319 rolled-back-semantic:f17356d9fc15dbe0 module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 8041ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:703fc729c25ad3b5 rolled-back-semantic:703fc729c25ad3b5 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 7859ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:daf008da715027bb rolled-back-semantic:703fc729c25ad3b5 module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_global_value_numbering_control checked 8472ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2c8f93e74f5dbfb5 rolled-back-semantic:2c8f93e74f5dbfb5 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_global_value_numbering_selected checked 8981ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:cf1b3896a3d73d42 rolled-back-semantic:2c8f93e74f5dbfb5 module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_proof_check_elision_control checked 8891ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:3973f766a6cc4f88 rolled-back-semantic:3973f766a6cc4f88 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_proof_check_elision_selected checked 8812ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:3973f766a6cc4f88 rolled-back-semantic:3973f766a6cc4f88 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 8838ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2fe10f7013052db2 rolled-back-semantic:2fe10f7013052db2 module:same check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 8927ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:69704a35db9b7073 rolled-back-semantic:2fe10f7013052db2 module:differs check-target:macos_arm64 @693920652f41
+pass/optimizer/rollback_to_no_selection_empty_entry checked 8620ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:437d35ca0161b4eb rolled-back-semantic:437d35ca0161b4eb module:same check-target:macos_arm64 @693920652f41
 pass/optimizer/stored_load_forwarding_selection_exit checked 1159ms check-target:macos_arm64 @7be03351b68c+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
 pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms check-target:linux_x86_64 @82ec69a91ce
@@ -3272,8 +3275,8 @@ pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:maco
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 2456ms check-target:macos_arm64 @e8239f945e8
 	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
-pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms check-target:macos_arm64 @58e4f6f8667
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
+pass/traits/runtime_local_named_dyn_pass_through_exit rejected 875ms check-target:macos_arm64 @693920652f41
+	cleanup effect dependency in `Main::main` has no exact structural residual disposition
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-target:macos_arm64 @c4e45d3dda38+wt
