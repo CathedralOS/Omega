@@ -169,6 +169,33 @@ fn push_queried_storage_assignment(
     }
 }
 
+/// Record a `LocalBindingReplacement` write target against the current
+/// prefix state; called only when the walk was told to record.
+fn record_local_replacement_assignment(
+    assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
+    statement_index: usize,
+    path: String,
+    isolated_local_roots: &[String],
+    local_alias_origins: &[(String, FramePlaceOrigin)],
+    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
+    stored: &[StoredLocalOrigins],
+) {
+    let target = AssignmentWriteTarget::LocalBindingReplacement { path };
+    let Some(record) = assignments.as_deref_mut() else {
+        unreachable!("assignments are recorded only into a roster")
+    };
+    record.push((
+        statement_index,
+        AssignmentPrefix {
+            isolated_locals: isolated_local_roots.to_vec(),
+            target,
+            aliases: local_alias_origins.to_vec(),
+            divergent: divergent_alias_origins.to_vec(),
+            stored: stored.to_vec(),
+        },
+    ));
+}
+
 pub(crate) fn walk_state_assignments(
     program: &TypedTrees,
     machine: &Machine,
@@ -667,21 +694,15 @@ fn walk_state_write_prefix_inner(
                             &stored,
                         )?;
                         if queried_assignment {
-                            let target =
-                                AssignmentWriteTarget::LocalBindingReplacement { path: relative };
-                            let Some(record) = assignments.as_deref_mut() else {
-                                unreachable!("assignments are recorded only into a roster")
-                            };
-                            record.push((
+                            record_local_replacement_assignment(
+                                &mut assignments,
                                 statement_index,
-                                AssignmentPrefix {
-                                    isolated_locals: isolated_local_roots.clone(),
-                                    target,
-                                    aliases: local_alias_origins.clone(),
-                                    divergent: divergent_alias_origins.clone(),
-                                    stored: stored.clone(),
-                                },
-                            ));
+                                relative,
+                                &isolated_local_roots,
+                                &local_alias_origins,
+                                &divergent_alias_origins,
+                                &stored,
+                            );
                         }
                         divergent_alias_origins[position].1 = origins;
                     } else {
@@ -885,22 +906,15 @@ fn walk_state_write_prefix_inner(
                     )?
                 {
                     if queried_assignment {
-                        let target = AssignmentWriteTarget::LocalBindingReplacement {
-                            path: relative.to_owned(),
-                        };
-                        let Some(record) = assignments.as_deref_mut() else {
-                            unreachable!("assignments are recorded only into a roster")
-                        };
-                        record.push((
+                        record_local_replacement_assignment(
+                            &mut assignments,
                             statement_index,
-                            AssignmentPrefix {
-                                isolated_locals: isolated_local_roots.clone(),
-                                target,
-                                aliases: local_alias_origins.clone(),
-                                divergent: divergent_alias_origins.clone(),
-                                stored: stored.clone(),
-                            },
-                        ));
+                            relative.to_owned(),
+                            &isolated_local_roots,
+                            &local_alias_origins,
+                            &divergent_alias_origins,
+                            &stored,
+                        );
                     }
                     continue;
                 }
