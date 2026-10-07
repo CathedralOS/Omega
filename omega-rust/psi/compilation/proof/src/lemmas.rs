@@ -18,98 +18,120 @@
 /// Each variant encodes a relationship the prover may *assume* once its
 /// premises are established, so individual check sites do not re-derive the
 /// arithmetic. Lemmas are intentionally side-effect free and comparable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProofLemma {
+///
+/// The rows are the lemma's whole declaration: variant, stable name, logical
+/// foundation, premises and conclusion. The classicality audit
+/// (`wiki/spec/proofs/classicality.md`) covers this lemma library beside the
+/// certificate rules: a new lemma does not compile until it names its
+/// foundation here, the same boundary the old exhaustive `match` enforced.
+/// Every lemma today decides a closed integer relation over exact collection
+/// bounds — `index < length`, `length >= 1`, or `start <= end <= length` —
+/// the same decidable fixed-integer fragment the certificate rules' checked
+/// witnesses use. A lemma generalized to an undecidable relation is a
+/// disguised classical step and must be reclassified before it lands.
+macro_rules! proof_lemmas {
+    ($( { $(#[$doc:meta])* $variant:ident => ($name:literal, $foundation:ident, $premises:expr, $conclusion:expr) } ),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum ProofLemma {
+            $( $(#[$doc])* $variant ),+
+        }
+
+        impl ProofLemma {
+            /// The logical foundation this lemma's justification stands on.
+            pub const fn foundation(self) -> proof_admission::ProofRuleFoundation {
+                match self {
+                    $( ProofLemma::$variant => proof_admission::ProofRuleFoundation::$foundation ),+
+                }
+            }
+
+            /// All lemmas, in a stable order, for registries and exhaustive iteration.
+            pub const ALL: [ProofLemma; proof_lemmas!(@count $( $variant )+)] = [
+                $( ProofLemma::$variant ),+
+            ];
+
+            /// Stable identifier used in diagnostics and registry records.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $( ProofLemma::$variant => $name ),+
+                }
+            }
+
+            /// The premises that must already hold before the lemma may be applied.
+            pub fn premises(self) -> &'static [LemmaFact] {
+                match self {
+                    $( ProofLemma::$variant => $premises ),+
+                }
+            }
+
+            /// The fact the lemma establishes once its premises hold.
+            pub fn conclusion(self) -> LemmaFact {
+                match self {
+                    $( ProofLemma::$variant => $conclusion ),+
+                }
+            }
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(proof_lemmas!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+proof_lemmas! {
+    {
     /// `index < length` implies `index` is a valid offset into the collection.
     ///
     /// The canonical bounds lemma: once a value is known to be strictly less
     /// than the collection length (and non-negative, which `usize` guarantees),
     /// indexing at that offset is in bounds.
-    IndexInBounds,
+        IndexInBounds => (
+            "index_in_bounds",
+            ConstructiveDecidable,
+            &[LemmaFact::IndexLessThanLength],
+            LemmaFact::InBounds
+        )
+    },
+    {
     /// A non-empty collection has `length >= 1`, so offset `0` is in bounds.
-    NonEmptyHasFirst,
+        NonEmptyHasFirst => (
+            "non_empty_has_first",
+            ConstructiveDecidable,
+            &[LemmaFact::NonEmpty],
+            LemmaFact::InBounds
+        )
+    },
+    {
     /// The length of a window `items[start..end]` is `end - start` whenever
     /// `start <= end <= length`.
-    WindowLength,
+        WindowLength => (
+            "window_length",
+            ConstructiveDecidable,
+            &[LemmaFact::WindowWithinLength],
+            LemmaFact::WindowLengthIsExtent
+        )
+    },
+    {
     /// A window `items[start..end]` is contained in `items` whenever
     /// `start <= end <= length`; every in-bounds offset of the window is an
     /// in-bounds offset of the parent.
-    WindowSubrange,
+        WindowSubrange => (
+            "window_subrange",
+            ConstructiveDecidable,
+            &[LemmaFact::WindowWithinLength],
+            LemmaFact::WindowWithinParent
+        )
+    },
+    {
     /// A tail window `items[1..]` is strictly shorter than `items` whenever
     /// `items` is non-empty. This is the well-founded measure that backs
     /// `terminates by items -> Slice::Length` ranking proofs.
-    TailLengthDecreases,
-}
-
-impl ProofLemma {
-    /// The logical foundation this lemma's justification stands on.
-    ///
-    /// The classicality audit (`wiki/spec/proofs/classicality.md`) covers the
-    /// obligation-side lemma library beside the certificate rules: an
-    /// exhaustive `match` keeps the boundary enforced at compile time, so a
-    /// new lemma does not compile until it is classified here.
-    ///
-    /// Every lemma today decides a closed integer relation over exact
-    /// collection bounds — `index < length`, `length >= 1`, or
-    /// `start <= end <= length` — the same decidable fixed-integer fragment
-    /// the certificate rules' checked witnesses use. A lemma generalized to
-    /// an undecidable relation is a disguised classical step and must be
-    /// reclassified before it lands.
-    pub const fn foundation(self) -> proof_admission::ProofRuleFoundation {
-        match self {
-            Self::IndexInBounds
-            | Self::NonEmptyHasFirst
-            | Self::WindowLength
-            | Self::WindowSubrange
-            | Self::TailLengthDecreases => {
-                proof_admission::ProofRuleFoundation::ConstructiveDecidable
-            }
-        }
-    }
-}
-
-impl ProofLemma {
-    /// All lemmas, in a stable order, for registries and exhaustive iteration.
-    pub const ALL: [ProofLemma; 5] = [
-        ProofLemma::IndexInBounds,
-        ProofLemma::NonEmptyHasFirst,
-        ProofLemma::WindowLength,
-        ProofLemma::WindowSubrange,
-        ProofLemma::TailLengthDecreases,
-    ];
-
-    /// Stable identifier used in diagnostics and registry records.
-    pub fn name(self) -> &'static str {
-        match self {
-            ProofLemma::IndexInBounds => "index_in_bounds",
-            ProofLemma::NonEmptyHasFirst => "non_empty_has_first",
-            ProofLemma::WindowLength => "window_length",
-            ProofLemma::WindowSubrange => "window_subrange",
-            ProofLemma::TailLengthDecreases => "tail_length_decreases",
-        }
-    }
-
-    /// The premises that must already hold before the lemma may be applied.
-    pub fn premises(self) -> &'static [LemmaFact] {
-        match self {
-            ProofLemma::IndexInBounds => &[LemmaFact::IndexLessThanLength],
-            ProofLemma::NonEmptyHasFirst => &[LemmaFact::NonEmpty],
-            ProofLemma::WindowLength | ProofLemma::WindowSubrange => {
-                &[LemmaFact::WindowWithinLength]
-            }
-            ProofLemma::TailLengthDecreases => &[LemmaFact::NonEmpty],
-        }
-    }
-
-    /// The fact the lemma establishes once its premises hold.
-    pub fn conclusion(self) -> LemmaFact {
-        match self {
-            ProofLemma::IndexInBounds | ProofLemma::NonEmptyHasFirst => LemmaFact::InBounds,
-            ProofLemma::WindowLength => LemmaFact::WindowLengthIsExtent,
-            ProofLemma::WindowSubrange => LemmaFact::WindowWithinParent,
-            ProofLemma::TailLengthDecreases => LemmaFact::TailStrictlyShorter,
-        }
-    }
+        TailLengthDecreases => (
+            "tail_length_decreases",
+            ConstructiveDecidable,
+            &[LemmaFact::NonEmpty],
+            LemmaFact::TailStrictlyShorter
+        )
+    },
 }
 
 impl ProofLemma {
