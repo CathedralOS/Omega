@@ -5,11 +5,12 @@
 //! parent codec.
 
 use semantic_vocabulary::{
-    IeeeFloatFormat, IeeeFloatValue, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
+    IeeeFloatValue, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
     ScalarType,
 };
 
 use super::CodecError;
+use super::structural_field_wire::{decode_ieee_float_format, encode_ieee_float_format};
 use super::wire::{Reader, Writer};
 
 pub(crate) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
@@ -39,12 +40,6 @@ pub(crate) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue
     }
 }
 
-pub(crate) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
-    writer.u8(match format {
-        IeeeFloatFormat::Binary32 => 1,
-        IeeeFloatFormat::Binary64 => 2,
-    });
-}
 
 pub(crate) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
     writer.u8(match (integer_type.carrier(), integer_type.sign()) {
@@ -90,15 +85,6 @@ pub(crate) fn decode_ieee_float_value(
     })
 }
 
-pub(crate) fn decode_ieee_float_format(
-    reader: &mut Reader<'_>,
-) -> Result<IeeeFloatFormat, CodecError> {
-    Ok(match reader.u8()? {
-        1 => IeeeFloatFormat::Binary32,
-        2 => IeeeFloatFormat::Binary64,
-        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-    })
-}
 
 pub(crate) fn decode_integer_type(reader: &mut Reader<'_>) -> Result<IntegerType, CodecError> {
     let tag = reader.u8()?;
