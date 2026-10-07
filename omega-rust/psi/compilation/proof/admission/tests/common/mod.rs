@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use proof_admission::{
-    Budget, DEFAULT_CONVERSION_STEPS, Level, Sort, Term, TermArena, TermHandle,
+    Budget, DEFAULT_CONVERSION_STEPS, IndexedFamily, Level, Sort, Term, TermArena, TermHandle,
 };
 use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
 
@@ -181,4 +181,61 @@ pub(crate) fn box_elim(
 
 pub(crate) fn value(identity: u64) -> ScalarTerm {
     ScalarTerm::value(ValueId::new(identity).unwrap(), ScalarType::Boolean)
+}
+
+/// The step case's proposition `Π(g : Π(a:A).Π(b:children a).Q(next a b)).
+/// Π(a:A).Π(b:children a).Q(next a b) → Q(out a).g a b` — `domain` is each
+/// family's own carrier.
+pub(crate) fn step_type(
+    arena: &mut TermArena,
+    family: &IndexedFamily,
+    domain: TermHandle,
+) -> TermHandle {
+    let g_type = {
+        // Under `a`: a = 0, Q = 1.
+        let bound = variable(arena, 0);
+        let b_domain = apply(arena, family.children, bound);
+        let codomain = {
+            // Under `b`: a = 1, Q = 2.
+            let bound_a = variable(arena, 1);
+            let next_a = apply(arena, family.next, bound_a);
+            let bound = variable(arena, 0);
+            let required = apply(arena, next_a, bound);
+            family.indexed_w(arena, required)
+        };
+        pi(arena, b_domain, codomain)
+    };
+    let hypothesis_type = {
+        // Under `g`, `a`: a = 1, g = 0, Q = 2.
+        let bound_a = variable(arena, 1);
+        let b_domain = apply(arena, family.children, bound_a);
+        let codomain = {
+            // Under `b`: a = 2, g = 1, Q = 3.
+            let bound_a = variable(arena, 2);
+            let next_a = apply(arena, family.next, bound_a);
+            let bound = variable(arena, 0);
+            let required = apply(arena, next_a, bound);
+            let motive = variable(arena, 3);
+            let at_index = apply(arena, motive, required);
+            let bound_g = variable(arena, 1);
+            let bound = variable(arena, 0);
+            let child = apply(arena, bound_g, bound);
+            apply(arena, at_index, child)
+        };
+        pi(arena, b_domain, codomain)
+    };
+    let result = {
+        // Under the hypothesis, `g`, `a`: a = 2, g = 1, Q = 3.
+        let bound_a = variable(arena, 2);
+        let produced = apply(arena, family.out, bound_a);
+        let bound_a = variable(arena, 2);
+        let bound_g = variable(arena, 1);
+        let node = family.sup(arena, bound_a, bound_g);
+        let motive = variable(arena, 3);
+        let at_index = apply(arena, motive, produced);
+        apply(arena, at_index, node)
+    };
+    let inner = pi(arena, hypothesis_type, result);
+    let middle = pi(arena, g_type, inner);
+    pi(arena, domain, middle)
 }

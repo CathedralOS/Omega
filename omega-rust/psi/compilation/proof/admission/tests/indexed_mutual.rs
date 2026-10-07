@@ -309,56 +309,6 @@ fn motive_type(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
 /// `Π(a : A). Π(g : Π(b : B a). IW (next a b)). Π(_ : Π(b : B a). Q
 /// (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
 /// written under the one-binding prefix `[Q]`.
-fn step_type(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
-    let g_type = {
-        // Under a: a = 0, Q = 1.
-        let bound = variable(arena, 0);
-        let b_domain = apply(arena, family.children, bound);
-        let codomain = {
-            // Under b: a = 1.
-            let bound_a = variable(arena, 1);
-            let next_a = apply(arena, family.next, bound_a);
-            let bound = variable(arena, 0);
-            let required = apply(arena, next_a, bound);
-            family.indexed_w(arena, required)
-        };
-        pi(arena, b_domain, codomain)
-    };
-    let hypothesis_type = {
-        // Under g, a: a = 1, g = 0, Q = 2.
-        let bound_a = variable(arena, 1);
-        let b_domain = apply(arena, family.children, bound_a);
-        let codomain = {
-            // Under b: a = 2, g = 1, Q = 3.
-            let bound_a = variable(arena, 2);
-            let next_a = apply(arena, family.next, bound_a);
-            let bound = variable(arena, 0);
-            let required = apply(arena, next_a, bound);
-            let motive = variable(arena, 3);
-            let at_index = apply(arena, motive, required);
-            let bound_g = variable(arena, 1);
-            let bound = variable(arena, 0);
-            let child = apply(arena, bound_g, bound);
-            apply(arena, at_index, child)
-        };
-        pi(arena, b_domain, codomain)
-    };
-    let result = {
-        // Under the hypothesis, g, a: a = 2, g = 1, Q = 3.
-        let bound_a = variable(arena, 2);
-        let produced = apply(arena, family.out, bound_a);
-        let bound_a = variable(arena, 2);
-        let bound_g = variable(arena, 1);
-        let node = family.sup(arena, bound_a, bound_g);
-        let motive = variable(arena, 3);
-        let at_index = apply(arena, motive, produced);
-        apply(arena, at_index, node)
-    };
-    let inner = pi(arena, hypothesis_type, result);
-    let middle = pi(arena, g_type, inner);
-    let domain = carrier(arena);
-    pi(arena, domain, middle)
-}
 
 /// The constructor-side context `e : Elem, t : Tree, f : Forest` —
 /// indices f = 0, t = 1, e = 2.
@@ -378,7 +328,8 @@ fn constructor_context(arena: &mut TermArena, family: &IndexedFamily) -> Context
 /// binding.
 fn eliminator_prefix(arena: &mut TermArena, family: &IndexedFamily) -> Context {
     let motive = motive_type(arena, family);
-    let step = step_type(arena, family);
+    let domain = carrier(arena);
+    let step = step_type(arena, family, domain);
     let element_type = elem(arena);
     Context::empty()
         .with_signature(mutual_signature(arena))
