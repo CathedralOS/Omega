@@ -49,6 +49,18 @@ pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Ite
     }
 }
 
+pub(super) fn decode_list<T>(
+    cursor: &mut Cursor<'_>,
+    mut decode: impl FnMut(&mut Cursor<'_>) -> Result<T, FixedViewCopyDecodeError>,
+) -> Result<Vec<T>, FixedViewCopyDecodeError> {
+    let count = cursor.length()?;
+    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        values.push(decode(cursor)?);
+    }
+    Ok(values)
+}
+
 pub(super) fn decode_ids<T>(
     cursor: &mut Cursor<'_>,
     constructor: fn(u64) -> Option<T>,

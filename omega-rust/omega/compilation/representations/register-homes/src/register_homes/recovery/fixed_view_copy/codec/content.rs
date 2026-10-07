@@ -9,7 +9,7 @@ use selected_instructions::LiveRangeIdentity;
 
 use super::{
     copy::{decode_copy, encode_copy},
-    primitives::{Cursor, length},
+    primitives::{Cursor, decode_list, length},
     selected::{decode_selected_plan, encode_selected_plan},
 };
 
@@ -87,11 +87,7 @@ fn decode_prefix(cursor: &mut Cursor<'_>) -> Result<DecodedPrefix, FixedViewCopy
         .map_err(|_| FixedViewCopyDecodeError::InvalidBudget)?;
     let usage = optimization_core::OptimizationWorkUsage::decode(cursor.take(40)?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidUsage)?;
-    let copy_count = cursor.length()?;
-    let mut copies = Vec::with_capacity(copy_count.min(cursor.remaining()));
-    for _ in 0..copy_count {
-        copies.push(decode_copy(cursor)?);
-    }
+    let copies = decode_list(cursor, decode_copy)?;
     let expected_transformed = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     Ok(DecodedPrefix {
         source_selected,

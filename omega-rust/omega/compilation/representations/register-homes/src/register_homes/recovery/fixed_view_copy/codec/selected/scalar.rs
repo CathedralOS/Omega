@@ -8,7 +8,7 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     super::{
-        primitives::{Cursor, decode_id, length},
+        primitives::{Cursor, decode_id, decode_list, length},
         values::{decode_target, encode_target},
     },
     function::{decode_function, encode_function},
@@ -42,11 +42,7 @@ pub(super) fn decode(
         .ok_or(FixedViewCopyDecodeError::InvalidFuelSchedule(fuel_raw))?;
     let target = decode_target(cursor)?;
     let entry = decode_id(cursor, MachineId::new)?;
-    let function_count = cursor.length()?;
-    let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
-    for _ in 0..function_count {
-        functions.push(decode_function(cursor)?);
-    }
+    let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
         psi: TerminalPsiIdentity {
             vocabulary_marker: marker,

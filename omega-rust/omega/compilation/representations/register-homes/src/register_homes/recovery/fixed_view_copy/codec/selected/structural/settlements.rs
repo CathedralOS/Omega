@@ -24,7 +24,7 @@ use super::declarations::{
 };
 use super::provider;
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, decode_ids, length},
+    primitives::{Cursor, decode_id, decode_ids, decode_list, length},
     selected::provenance::{decode_fuel, encode_fuel},
 };
 
@@ -166,21 +166,9 @@ pub(super) fn decode_boundary_settlement(
         1 => {}
         tag => return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag)),
     }
-    let argument_count = cursor.length()?;
-    let mut arguments = Vec::with_capacity(argument_count.min(cursor.remaining()));
-    for _ in 0..argument_count {
-        arguments.push(decode_semantic_argument(cursor)?);
-    }
-    let source_count = cursor.length()?;
-    let mut completion_claim_sources = Vec::with_capacity(source_count.min(cursor.remaining()));
-    for _ in 0..source_count {
-        completion_claim_sources.push(decode_completion_claim_source(cursor)?);
-    }
-    let receipt_count = cursor.length()?;
-    let mut completion_receipts = Vec::with_capacity(receipt_count.min(cursor.remaining()));
-    for _ in 0..receipt_count {
-        completion_receipts.push(decode_completion_receipt(cursor)?);
-    }
+    let arguments = decode_list(cursor, decode_semantic_argument)?;
+    let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
+    let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
     Ok(
         selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
             LegalizedBoundarySettlement {
@@ -242,11 +230,7 @@ pub(super) fn decode_call_source(
             for _ in 0..source_count {
                 completion_claim_sources.push(decode_completion_claim_source(cursor)?);
             }
-            let receipt_count = cursor.length()?;
-            let mut completion_receipts = Vec::with_capacity(receipt_count.min(cursor.remaining()));
-            for _ in 0..receipt_count {
-                completion_receipts.push(decode_completion_receipt(cursor)?);
-            }
+            let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
             Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
@@ -462,11 +446,7 @@ pub(super) fn decode_ownership(
             1 => OwnershipEvent::ClaimTransfer(decode_ids(cursor, ClaimId::new)?),
             2 => OwnershipEvent::ClaimCompletion(decode_ids(cursor, ClaimId::new)?),
             3 => {
-                let action_count = cursor.length()?;
-                let mut actions = Vec::with_capacity(action_count.min(cursor.remaining()));
-                for _ in 0..action_count {
-                    actions.push(decode_cleanup(cursor)?);
-                }
+                let actions = decode_list(cursor, decode_cleanup)?;
                 OwnershipEvent::Cleanup(actions)
             }
             4 => OwnershipEvent::StructuralReturn(decode_ids(cursor, ClaimId::new)?),

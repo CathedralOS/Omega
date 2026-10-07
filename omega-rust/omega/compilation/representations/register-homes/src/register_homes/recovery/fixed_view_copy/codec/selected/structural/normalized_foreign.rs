@@ -47,7 +47,7 @@ use super::{
 use legalized_operations::{encode_integer, encode_native_callback_argument};
 
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, length},
+    primitives::{Cursor, decode_id, decode_list, length},
     values::{decode_integer, decode_scalar, encode_scalar},
 };
 
@@ -142,16 +142,8 @@ pub(super) fn decode_normalized_foreign_call(
             placement: decode_placement(cursor)?,
         });
     }
-    let structural_count = cursor.length()?;
-    let mut structural_arguments = Vec::with_capacity(structural_count.min(cursor.remaining()));
-    for _ in 0..structural_count {
-        structural_arguments.push(decode_target_argument(cursor)?);
-    }
-    let indices_count = cursor.length()?;
-    let mut structural_indices = Vec::with_capacity(indices_count.min(cursor.remaining()));
-    for _ in 0..indices_count {
-        structural_indices.push(decode_runtime_indices(cursor)?);
-    }
+    let structural_arguments = decode_list(cursor, decode_target_argument)?;
+    let structural_indices = decode_list(cursor, decode_runtime_indices)?;
     let result = match cursor.byte()? {
         0 => target_operations::TargetBoundaryResult::Unit,
         1 => target_operations::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
@@ -182,11 +174,7 @@ pub(super) fn decode_normalized_foreign_call(
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
-    let callback_count = cursor.length()?;
-    let mut callbacks = Vec::with_capacity(callback_count.min(cursor.remaining()));
-    for _ in 0..callback_count {
-        callbacks.push(decode_native_callback_argument(cursor)?);
-    }
+    let callbacks = decode_list(cursor, decode_native_callback_argument)?;
     Ok(SelectedNormalizedForeignCall {
         instruction,
         invocation_site,

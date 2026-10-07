@@ -8,7 +8,8 @@ use super::{
     register::{decode_register, encode_register},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
+    Cursor, decode_id, decode_ids, decode_list, decode_option_u64, encode_ids, encode_option_u64,
+    length,
 };
 
 pub(super) fn encode_function(
@@ -64,16 +65,8 @@ pub(super) fn decode_function(
     let operations = decode_ids(cursor, OperationId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let entry_block = SelectedBlockId(cursor.u32()?);
-    let register_count = cursor.length()?;
-    let mut virtual_registers = Vec::with_capacity(register_count.min(cursor.remaining()));
-    for _ in 0..register_count {
-        virtual_registers.push(decode_register(cursor)?);
-    }
-    let block_count = cursor.length()?;
-    let mut blocks = Vec::with_capacity(block_count.min(cursor.remaining()));
-    for _ in 0..block_count {
-        blocks.push(decode_block(cursor)?);
-    }
+    let virtual_registers = decode_list(cursor, decode_register)?;
+    let blocks = decode_list(cursor, decode_block)?;
     let mut function = SelectedFunction {
         machine,
         attachment,
