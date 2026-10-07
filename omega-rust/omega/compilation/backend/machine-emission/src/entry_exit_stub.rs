@@ -1397,23 +1397,24 @@ mod tests {
         ])
     }
 
-    fn boundary() -> ValidatedBoundaryEntryPlan {
+    /// Every interrupt-return fixture shares this skeleton — only the
+    /// calling policy, the signature's parameter shapes, and the saved /
+    /// permitted register sets vary between sites.
+    fn interrupt_boundary(
+        policy: CallingPolicy,
+        parameters: Vec<calling_conventions::ValueShape>,
+        saved_state: MachineStateSet,
+        permitted_transitive_use: MachineStateSet,
+    ) -> ValidatedBoundaryEntryPlan {
         let signature = CallSignature {
-            parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+            parameters,
             result: None,
         };
         let ordinary =
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-                .expect("ordinary boundary");
+            evaluate_ordinary_boundary_entry_plan(policy, &signature).expect("ordinary boundary");
         let mut call = ordinary.plan().call.clone();
         call.ordinary_clobbers = gpr_clobbers();
         call.entry_control = EntryControl::InterruptReturn;
-        let saved_state = MachineStateSet::new([
-            MachineState::GeneralRegisters,
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-        ]);
         validate_boundary_entry_plan(
             BoundaryEntryPlan {
                 call,
@@ -1422,10 +1423,7 @@ mod tests {
                     interrupted_state: interrupted_state(),
                     saved_state,
                     restored_state: saved_state,
-                    permitted_transitive_use: MachineStateSet::new([
-                        MachineState::GeneralRegisters,
-                        MachineState::Flags,
-                    ]),
+                    permitted_transitive_use,
                     stack: EntryStack::Dedicated { class: 11 },
                     preemption: Preemption::Masked,
                 },
@@ -1433,6 +1431,28 @@ mod tests {
             &signature,
         )
         .expect("interrupt-return boundary")
+    }
+
+    fn gpr_saved_state() -> MachineStateSet {
+        MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ])
+    }
+
+    fn gpr_transitive_use() -> MachineStateSet {
+        MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags])
+    }
+
+    fn boundary() -> ValidatedBoundaryEntryPlan {
+        interrupt_boundary(
+            CallingPolicy::SystemVAMD64,
+            vec![calling_conventions::ValueShape::integer(8, 8)],
+            gpr_saved_state(),
+            gpr_transitive_use(),
+        )
     }
 
     fn stub(
@@ -1482,41 +1502,12 @@ mod tests {
     /// area — the carrier-sized shape the authored acknowledgement package
     /// declares for `InterruptEntry::enter`.
     fn stack_carrier_boundary() -> ValidatedBoundaryEntryPlan {
-        let signature = CallSignature {
-            parameters: vec![calling_conventions::ValueShape::integer(40, 8)],
-            result: None,
-        };
-        let ordinary =
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-                .expect("ordinary boundary");
-        let mut call = ordinary.plan().call.clone();
-        call.ordinary_clobbers = gpr_clobbers();
-        call.entry_control = EntryControl::InterruptReturn;
-        let saved_state = MachineStateSet::new([
-            MachineState::GeneralRegisters,
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-        ]);
-        validate_boundary_entry_plan(
-            BoundaryEntryPlan {
-                call,
-                state: StatePlan {
-                    initial_regime: MachineRegime::X86Long64,
-                    interrupted_state: interrupted_state(),
-                    saved_state,
-                    restored_state: saved_state,
-                    permitted_transitive_use: MachineStateSet::new([
-                        MachineState::GeneralRegisters,
-                        MachineState::Flags,
-                    ]),
-                    stack: EntryStack::Dedicated { class: 11 },
-                    preemption: Preemption::Masked,
-                },
-            },
-            &signature,
+        interrupt_boundary(
+            CallingPolicy::SystemVAMD64,
+            vec![calling_conventions::ValueShape::integer(40, 8)],
+            gpr_saved_state(),
+            gpr_transitive_use(),
         )
-        .expect("interrupt-return boundary")
     }
 
     #[test]
@@ -1554,41 +1545,12 @@ mod tests {
     /// last piece is seven bytes: the tail stages through dword, word and
     /// byte stores at the exact declared offsets rather than rejecting.
     fn tail_carrier_boundary() -> ValidatedBoundaryEntryPlan {
-        let signature = CallSignature {
-            parameters: vec![calling_conventions::ValueShape::integer(23, 8)],
-            result: None,
-        };
-        let ordinary =
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-                .expect("ordinary boundary");
-        let mut call = ordinary.plan().call.clone();
-        call.ordinary_clobbers = gpr_clobbers();
-        call.entry_control = EntryControl::InterruptReturn;
-        let saved_state = MachineStateSet::new([
-            MachineState::GeneralRegisters,
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-        ]);
-        validate_boundary_entry_plan(
-            BoundaryEntryPlan {
-                call,
-                state: StatePlan {
-                    initial_regime: MachineRegime::X86Long64,
-                    interrupted_state: interrupted_state(),
-                    saved_state,
-                    restored_state: saved_state,
-                    permitted_transitive_use: MachineStateSet::new([
-                        MachineState::GeneralRegisters,
-                        MachineState::Flags,
-                    ]),
-                    stack: EntryStack::Dedicated { class: 11 },
-                    preemption: Preemption::Masked,
-                },
-            },
-            &signature,
+        interrupt_boundary(
+            CallingPolicy::SystemVAMD64,
+            vec![calling_conventions::ValueShape::integer(23, 8)],
+            gpr_saved_state(),
+            gpr_transitive_use(),
         )
-        .expect("interrupt-return boundary")
     }
 
     #[test]
@@ -1694,43 +1656,22 @@ mod tests {
     /// sixteen XMM registers into the roster; the stub stages them through a
     /// `movdqu` slot area instead of rejecting the non-GPR saves.
     fn vector_saving_boundary() -> ValidatedBoundaryEntryPlan {
-        let signature = CallSignature {
-            parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
-            result: None,
-        };
-        let ordinary =
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-                .expect("ordinary boundary");
-        let mut call = ordinary.plan().call.clone();
-        call.ordinary_clobbers = gpr_clobbers();
-        call.entry_control = EntryControl::InterruptReturn;
-        let saved_state = MachineStateSet::new([
-            MachineState::GeneralRegisters,
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-            MachineState::VectorRegisters,
-        ]);
-        validate_boundary_entry_plan(
-            BoundaryEntryPlan {
-                call,
-                state: StatePlan {
-                    initial_regime: MachineRegime::X86Long64,
-                    interrupted_state: interrupted_state(),
-                    saved_state,
-                    restored_state: saved_state,
-                    permitted_transitive_use: MachineStateSet::new([
-                        MachineState::GeneralRegisters,
-                        MachineState::Flags,
-                        MachineState::VectorRegisters,
-                    ]),
-                    stack: EntryStack::Dedicated { class: 11 },
-                    preemption: Preemption::Masked,
-                },
-            },
-            &signature,
+        interrupt_boundary(
+            CallingPolicy::SystemVAMD64,
+            vec![calling_conventions::ValueShape::integer(8, 8)],
+            MachineStateSet::new([
+                MachineState::GeneralRegisters,
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+                MachineState::VectorRegisters,
+            ]),
+            MachineStateSet::new([
+                MachineState::GeneralRegisters,
+                MachineState::Flags,
+                MachineState::VectorRegisters,
+            ]),
         )
-        .expect("interrupt-return boundary")
     }
 
     #[test]
@@ -1884,41 +1825,12 @@ mod tests {
     /// ceiling through a caller-owned copy area plus a pointer slot —
     /// registers for the first four parameter slots, a stack slot beyond.
     fn indirect_boundary(shapes: &[calling_conventions::ValueShape]) -> ValidatedBoundaryEntryPlan {
-        let signature = CallSignature {
-            parameters: shapes.to_vec(),
-            result: None,
-        };
-        let ordinary =
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
-                .expect("ordinary boundary");
-        let mut call = ordinary.plan().call.clone();
-        call.ordinary_clobbers = gpr_clobbers();
-        call.entry_control = EntryControl::InterruptReturn;
-        let saved_state = MachineStateSet::new([
-            MachineState::GeneralRegisters,
-            MachineState::Flags,
-            MachineState::InstructionPointer,
-            MachineState::StackPointer,
-        ]);
-        validate_boundary_entry_plan(
-            BoundaryEntryPlan {
-                call,
-                state: StatePlan {
-                    initial_regime: MachineRegime::X86Long64,
-                    interrupted_state: interrupted_state(),
-                    saved_state,
-                    restored_state: saved_state,
-                    permitted_transitive_use: MachineStateSet::new([
-                        MachineState::GeneralRegisters,
-                        MachineState::Flags,
-                    ]),
-                    stack: EntryStack::Dedicated { class: 11 },
-                    preemption: Preemption::Masked,
-                },
-            },
-            &signature,
+        interrupt_boundary(
+            CallingPolicy::MicrosoftX64,
+            shapes.to_vec(),
+            gpr_saved_state(),
+            gpr_transitive_use(),
         )
-        .expect("interrupt-return boundary")
     }
 
     /// The expected `lea r64, [rsp+disp]` byte body for a pointer stage —
