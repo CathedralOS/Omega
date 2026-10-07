@@ -60,18 +60,10 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 pub mod console_acceptance;
 #[path = "dangerous_service_acceptance.rs"]
 pub mod dangerous_service_acceptance;
-#[path = "linux_entry_acceptance.rs"]
-pub mod linux_entry_acceptance;
-#[path = "macos_entry_acceptance.rs"]
-pub mod macos_entry_acceptance;
 #[path = "process_exit_acceptance.rs"]
 pub mod process_exit_acceptance;
 #[path = "sealed_fixture_staging.rs"]
 pub mod sealed_fixture_staging;
-#[path = "uefi_entry_acceptance.rs"]
-pub mod uefi_entry_acceptance;
-#[path = "windows_entry_acceptance.rs"]
-pub mod windows_entry_acceptance;
 
 pub fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -608,43 +600,69 @@ fn derive_program_entry_binding(
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(match profile {
-        TargetProfile::MacosArm64 => Some(macos_entry_acceptance::candidate_macos_entry_binding(
-            standard_library_root,
-            standard_library,
-        )?),
-        TargetProfile::LinuxX64 => Some(
-            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-                standard_library_root,
-                standard_library,
-            )?,
+    let (target_name, role, schema) = match profile {
+        TargetProfile::MacosArm64 => (
+            "macos_arm64",
+            AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
+            "MacosApplication",
         ),
-        TargetProfile::LinuxArm64 => {
-            Some(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-                standard_library_root,
-                standard_library,
-            )?)
-        }
-        TargetProfile::WindowsX64 => Some(
-            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
-                standard_library_root,
-                standard_library,
-            )?,
+        TargetProfile::LinuxX64 => (
+            "linux_x86_64",
+            AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
+            "LinuxX86_64Application",
         ),
-        TargetProfile::UefiX64 => Some(uefi_entry_acceptance::candidate_uefi_entry_binding(
-            standard_library_root,
-            standard_library,
-        )?),
-        TargetProfile::MacosX64 => Some(
-            macos_entry_acceptance::candidate_macos_x86_64_entry_binding(
-                standard_library_root,
-                standard_library,
-            )?,
+        TargetProfile::LinuxArm64 => (
+            "linux_arm64",
+            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
+            "LinuxArm64Application",
+        ),
+        TargetProfile::WindowsX64 => (
+            "windows_x86_64",
+            AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
+            "WindowsX86_64Application",
+        ),
+        TargetProfile::UefiX64 => (
+            "uefi_x86_64",
+            AcceptedSemanticBindingRole::UefiX64ProgramEntry,
+            "UefiApplication",
+        ),
+        TargetProfile::MacosX64 => (
+            "macos_x86_64",
+            AcceptedSemanticBindingRole::MacosX64ProgramEntry,
+            "MacosX64Application",
         ),
         TargetProfile::CrossPlatformCli
         | TargetProfile::LocalUnchecked
-        | TargetProfile::AlphaBootstrap => None,
-    })
+        | TargetProfile::AlphaBootstrap => return Ok(None),
+    };
+    // Check the package-owned target contract independently on every derivation;
+    // application discovery alone cannot authorize the program-entry role.
+    let inputs = PackageCompilationInputs::new_package(
+        standard_library,
+        vec![PackageSourceBinding::new(
+            standard_library,
+            "omega_language_std",
+            standard_library_root.to_path_buf(),
+        )],
+        Vec::new(),
+    )
+    .map_err(|errors| {
+        vec![Diagnostic::error(format!(
+            "entry fixture inputs: {errors:?}"
+        ))]
+    })?;
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(
+            &standard_library_root.join(format!("targets/{target_name}/entry.omg")),
+            Some(target_name),
+        )
+    })?;
+    checked
+        .execution()
+        .candidate_service_binding(role, standard_library, schema)
+        .map(Some)
+        .map_err(|diagnostic| vec![diagnostic])
 }
 
 /// One repository fixture prepared for compilation, the way a real build
