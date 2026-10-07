@@ -59,6 +59,94 @@ use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
 
+/// Trait-side tables both machine and trait assignment consult: which
+/// traits are transparent refinements, and each trait's per-parameter
+/// proposition/machine-identity kind slots keyed by its top-level symbol.
+pub(super) fn trait_parameter_tables(
+    symbols: &SymbolTable,
+    program: &SymbolResolvedTrees,
+) -> (
+    std::collections::HashSet<SymbolHandle>,
+    Vec<(SymbolHandle, Vec<bool>)>,
+    Vec<(SymbolHandle, Vec<bool>)>,
+) {
+    let refinement_symbols = program
+        .roots
+        .traits
+        .iter()
+        .filter(|definition| definition.refines.is_some())
+        .filter_map(|definition| {
+            let symbol = crate::symbols::lookup::top_level_symbol_for_source(
+                symbols,
+                SymbolKind::Trait,
+                &definition.name,
+            );
+            symbol.is_valid().then_some(symbol)
+        })
+        .collect();
+    let trait_proposition_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                crate::symbols::lookup::top_level_symbol_for_source(
+                    symbols,
+                    SymbolKind::Trait,
+                    &trait_definition.name,
+                ),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let trait_machine_identity_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|definition| {
+            (
+                crate::symbols::lookup::top_level_symbol_for_source(
+                    symbols,
+                    SymbolKind::Trait,
+                    &definition.name,
+                ),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            symbol_resolved_trees::data::TypeParameterKind::Machine {
+                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+                            }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    (
+        refinement_symbols,
+        trait_proposition_slots,
+        trait_machine_identity_slots,
+    )
+}
+
 pub(super) fn assign_top_level_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,

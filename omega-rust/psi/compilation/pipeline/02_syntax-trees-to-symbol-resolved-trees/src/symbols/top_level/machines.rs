@@ -1,12 +1,11 @@
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::scope::{LexicalRequirements, MachineScope};
-use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
+use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind, trait_parameter_tables};
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
     assign_proposition_family_argument_symbols,
@@ -49,64 +48,8 @@ pub(super) fn assign_machine_symbols(
     let mut diagnostics = Vec::new();
     // A transparent refinement (`trait R = Base`) bounds an existing base
     // conformance; it is never itself a `satisfies` target.
-    let refinement_symbols: HashSet<SymbolHandle> = program
-        .roots
-        .traits
-        .iter()
-        .filter(|definition| definition.refines.is_some())
-        .filter_map(|definition| {
-            let symbol = top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name);
-            symbol.is_valid().then_some(symbol)
-        })
-        .collect();
-    let trait_proposition_slots = program
-        .roots
-        .traits
-        .iter()
-        .map(|trait_definition| {
-            (
-                top_level_symbol_for_source(symbols, SymbolKind::Trait, &trait_definition.name),
-                program
-                    .tables
-                    .declarations
-                    .data_type_parameters
-                    .span_or_empty(trait_definition.type_parameters)
-                    .iter()
-                    .map(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let trait_machine_identity_slots = program
-        .roots
-        .traits
-        .iter()
-        .map(|definition| {
-            (
-                top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name),
-                program
-                    .tables
-                    .declarations
-                    .data_type_parameters
-                    .span_or_empty(definition.type_parameters)
-                    .iter()
-                    .map(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
-                            }
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let (refinement_symbols, trait_proposition_slots, trait_machine_identity_slots) =
+        trait_parameter_tables(symbols, program);
     // Resolve every attachment before visiting bodies: a method may be declared
     // after its caller or outside its carrier's module. Bodies borrow this exact
     // declaration cohort instead of rebuilding attachment identity from a name.
