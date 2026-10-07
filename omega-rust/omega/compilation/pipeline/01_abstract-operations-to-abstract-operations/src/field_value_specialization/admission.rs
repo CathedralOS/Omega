@@ -594,17 +594,14 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, identity)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == child)?;
-                if declared_structural_type(function, declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, declaration) = descended_field_child(
+                    function,
+                    operation,
+                    place,
+                    identity,
+                    next,
+                    &mut visiting,
+                )?;
                 place = child;
                 producer = root_producer(function, declaration);
                 declared = Some(next);
@@ -625,17 +622,14 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, identity)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == child)?;
-                if declared_structural_type(function, declaration) != Some(next) {
-                    return None;
-                }
-                if !visiting.insert(child) {
-                    return None;
-                }
+                let (child, declaration) = descended_field_child(
+                    function,
+                    operation,
+                    place,
+                    identity,
+                    next,
+                    &mut visiting,
+                )?;
                 place = child;
                 producer = root_producer(function, declaration);
                 declared = Some(next);
@@ -1030,4 +1024,28 @@ fn bound_value(
         producer: None,
         resolution: FieldValueResolution::Constant(FoldedFieldValue::Integer(bound.minimum())),
     })
+}
+
+/// The placed child `identity` establishes for `place`, after confirming its
+/// declared type is `next` and admitting it to `visiting`.
+fn descended_field_child<'function>(
+    function: &'function PsiOptimizationFunction,
+    operation: OperationId,
+    place: PlaceId,
+    identity: StructuralFieldId,
+    next: StructuralTypeId,
+    visiting: &mut BTreeSet<PlaceId>,
+) -> Option<(PlaceId, &'function StructuralPlaceDeclaration)> {
+    let child = structural_child(function, operation, place, identity)?;
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == child)?;
+    if declared_structural_type(function, declaration) != Some(next) {
+        return None;
+    }
+    if !visiting.insert(child) {
+        return None;
+    }
+    Some((child, declaration))
 }
