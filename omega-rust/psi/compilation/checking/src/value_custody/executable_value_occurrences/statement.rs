@@ -1,9 +1,9 @@
 use super::SymbolHandle;
-use crate::values::ValueFactBuilder;
+use super::ValueOccurrenceVisitor;
 use checked_trees::CheckedValueStatementRole;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-impl ValueFactBuilder<'_, '_> {
+impl ValueOccurrenceVisitor<'_, '_> {
     pub(super) fn collect_statement(
         &mut self,
         machine_symbol: SymbolHandle,

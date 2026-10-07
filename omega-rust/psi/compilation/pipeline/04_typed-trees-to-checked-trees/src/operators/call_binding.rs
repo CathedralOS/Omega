@@ -81,7 +81,7 @@ pub(crate) fn bind_selected_operator_calls(
         return Ok(0);
     }
     // Binding reads the operator uses and their candidates only.
-    let values = crate::values::build_value_origin_rows(program);
+    let values = validation::collect_executable_value_origins(program);
     let mut facts = crate::operators::build_operator_uses(program, &values);
     let named = super::requirement_uses::collect_named_requirement_uses(program, &values);
     let shorthand_count = super::float_shorthand_calls::bind(program, &facts, &named)?;

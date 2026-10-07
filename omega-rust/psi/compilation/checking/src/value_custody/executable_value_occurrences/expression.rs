@@ -1,8 +1,8 @@
 use super::ExpressionHandle;
-use crate::values::ValueFactBuilder;
+use super::ValueOccurrenceVisitor;
 use typed_trees::expression::ExpressionNode;
 
-impl ValueFactBuilder<'_, '_> {
+impl ValueOccurrenceVisitor<'_, '_> {
     pub(super) fn collect_expression_children(&mut self, expression: ExpressionHandle) {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {

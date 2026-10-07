@@ -118,7 +118,7 @@ pub fn derive_pre_flow_operator_selections(
     program: &dyn ::validation::CheckingInput,
 ) -> checked_trees::CheckedOperatorFacts {
     // Operator selection reads each value row's expression and origin only.
-    let values = values::build_value_origin_rows(program);
+    let values = validation::collect_executable_value_origins(program);
     operators::build_operator_facts(program, &values)
 }
 

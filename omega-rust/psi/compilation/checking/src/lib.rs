@@ -87,6 +87,7 @@ pub use value_custody::structural_identity::{
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
 pub use value_custody::wire::validate_wire_protocol;
+pub use value_custody::{collect_executable_value_origins, visit_executable_value_occurrences};
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;
