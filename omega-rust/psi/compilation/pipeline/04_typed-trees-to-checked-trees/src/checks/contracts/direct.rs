@@ -292,7 +292,7 @@ fn projected_formal_leaf_value(
     {
         return projected_collection_extent(program, parameters, member.receiver);
     }
-    let mut required = projected_leaf_place(program, leaf)?;
+    let mut required = crate::flow::projected_leaf_place(program, leaf)?;
     let facts::PlaceRoot::Symbol(formal) = required.root else {
         return None;
     };
@@ -360,7 +360,7 @@ fn projected_collection_extent(
     parameters: &[typed_trees::signature::StateParameter],
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
-    let required = projected_leaf_place(program, receiver)?;
+    let required = crate::flow::projected_leaf_place(program, receiver)?;
     let facts::PlaceRoot::Symbol(formal) = required.root else {
         return None;
     };
@@ -375,62 +375,4 @@ fn projected_collection_extent(
     Some(facts::ScalarValue::Integer(
         numerics::bignum::BigInt::from_u64(u64::try_from(length).ok()?),
     ))
-}
-
-/// `field_actuals::checked_place`'s contract for a requires leaf: the receiver
-/// chain must stay acyclic and every retained member selection must still be
-/// the member its expression resolves to, or the place it yields would read
-/// evidence the source did not name. Kept local because the sibling owner
-/// lives inside `prover`'s private module.
-fn projected_leaf_place(
-    program: &typed_trees::TypedTrees,
-    leaf: typed_trees::expression::ExpressionHandle,
-) -> Option<crate::flow::CanonicalPlace> {
-    use typed_trees::expression::ExpressionNode;
-
-    let mut current = leaf;
-    let mut visited = Vec::new();
-    loop {
-        if !program.expression_table.expression_is_valid(current) || visited.contains(&current) {
-            return None;
-        }
-        visited.push(current);
-        current = match program.expression_table.expression(current) {
-            ExpressionNode::Borrow(borrow) => borrow.target,
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Name(name) => {
-                if !name.symbol.is_valid()
-                    || !name.head_symbol.is_valid()
-                    || program
-                        .expression_table
-                        .name_path_member_symbols(name.member_symbols)
-                        .first()
-                        .is_some_and(|symbol| *symbol != name.head_symbol)
-                    || matches!(
-                        program.expression_table.name_path_members(name.members),
-                        [_]
-                    ) && name.symbol != name.head_symbol
-                {
-                    return None;
-                }
-                break;
-            }
-            _ => break,
-        };
-    }
-    for expression in visited.into_iter().rev() {
-        if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
-            && (!member.member_symbol.is_valid()
-                || crate::flow::effective_member_symbol(program, member.receiver, member)
-                    != member.member_symbol)
-        {
-            return None;
-        }
-    }
-    let place = crate::flow::canonical_place_from_expression(program, leaf)?;
-    (!place
-        .segments
-        .iter()
-        .any(|segment| crate::flow::place_segment_has_unresolved_identity(*segment)))
-    .then_some(place)
 }

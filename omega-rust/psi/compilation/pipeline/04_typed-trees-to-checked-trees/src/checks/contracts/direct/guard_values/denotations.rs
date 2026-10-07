@@ -63,12 +63,12 @@ impl Denotations<'_> {
             return self.compare(left, source, false, remaining, depth + 1);
         }
         if formal
-            && let Some(mut required) = super::super::projected_leaf_place(self.program, right)
+            && let Some(mut required) = crate::flow::projected_leaf_place(self.program, right)
             && let facts::PlaceRoot::Symbol(root) = required.root
             && let Some(position) = self.parameters.iter().position(|p| p.symbol == root)
             && let Some(actual) = self.arguments.get(position)
-            && let Some(mut actual) = super::super::projected_leaf_place(self.program, *actual)
-            && let Some(observed) = super::super::projected_leaf_place(self.program, left)
+            && let Some(mut actual) = crate::flow::projected_leaf_place(self.program, *actual)
+            && let Some(observed) = crate::flow::projected_leaf_place(self.program, left)
         {
             actual.segments.append(&mut required.segments);
             return actual == observed;
@@ -340,7 +340,7 @@ impl Denotations<'_> {
                 {
                     return None;
                 }
-                super::super::projected_leaf_place(self.program, expression)?;
+                crate::flow::projected_leaf_place(self.program, expression)?;
                 if !roots.contains(&path.head_symbol) {
                     roots.push(path.head_symbol);
                 }

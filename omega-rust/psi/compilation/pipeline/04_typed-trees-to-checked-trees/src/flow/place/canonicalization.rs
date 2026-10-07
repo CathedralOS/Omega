@@ -213,3 +213,58 @@ pub(crate) fn canonical_place_from_semantic_place(
     canonical.extend_segments(semantic.place_segments.span_or_empty(place.segments));
     Some(canonical)
 }
+
+/// The contract `field_actuals::checked_place` states for a requires leaf:
+/// the receiver chain must stay acyclic and every retained member selection
+/// must still be the member its expression resolves to, or the place it
+/// yields would read evidence the source did not name.
+pub(crate) fn projected_leaf_place(
+    program: &typed_trees::TypedTrees,
+    leaf: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    let mut current = leaf;
+    let mut visited = Vec::new();
+    loop {
+        if !program.expression_table.expression_is_valid(current) || visited.contains(&current) {
+            return None;
+        }
+        visited.push(current);
+        current = match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Name(name) => {
+                if !name.symbol.is_valid()
+                    || !name.head_symbol.is_valid()
+                    || program
+                        .expression_table
+                        .name_path_member_symbols(name.member_symbols)
+                        .first()
+                        .is_some_and(|symbol| *symbol != name.head_symbol)
+                    || matches!(
+                        program.expression_table.name_path_members(name.members),
+                        [_]
+                    ) && name.symbol != name.head_symbol
+                {
+                    return None;
+                }
+                break;
+            }
+            _ => break,
+        };
+    }
+    for expression in visited.into_iter().rev() {
+        if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+            && (!member.member_symbol.is_valid()
+                || effective_member_symbol(program, member.receiver, member)
+                    != member.member_symbol)
+        {
+            return None;
+        }
+    }
+    let place = canonical_place_from_expression(program, leaf)?;
+    (!place
+        .segments
+        .iter()
+        .any(|segment| super::comparison::place_segment_has_unresolved_identity(*segment)))
+    .then_some(place)
+}

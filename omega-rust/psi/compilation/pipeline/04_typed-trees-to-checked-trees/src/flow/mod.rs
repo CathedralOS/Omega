@@ -197,7 +197,7 @@ pub(crate) use place::{
     expression_type_symbol, index_place_segment, literal_argument_access_places,
     literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
     place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
-    place_segment_has_unresolved_identity, push_field_place_segments,
+    place_segment_has_unresolved_identity, projected_leaf_place, push_field_place_segments,
     resolve_member_symbol_from_type_symbol, static_place_segment_pair_equal, symbol_type_symbol,
 };
 pub(crate) use reach::attach_reach_summaries;
