@@ -120,18 +120,7 @@ pub(super) fn execute_selected_lowering_optimizations(
             );
         }
         let step = complete_attempt(attempt, &source)?;
-        let current_measure = step.legality.receipt().virtual_register_count();
-        let applied = step.fold.receipt().applied_count();
-        if previous_measure.checked_sub(applied) != Some(current_measure) {
-            return Err(
-                OptimizedLiteralFoldCustodyError::SelectedLoweringMeasureMismatch {
-                    previous: previous_measure,
-                    applied,
-                    current: current_measure,
-                },
-            );
-        }
-        previous_measure = current_measure;
+        previous_measure = charge_step_measure(previous_measure, &step)?;
         steps.push(step);
         let previous = steps.last().expect("applied selected-lowering step exists");
         attempt = build_attempt(
@@ -261,18 +250,7 @@ pub fn validate_selected_lowering_optimization_custody(
     }
     let mut previous_measure = run.source.legality().receipt().virtual_register_count();
     for step in &replayed {
-        let current_measure = step.legality.receipt().virtual_register_count();
-        let applied = step.fold.receipt().applied_count();
-        if previous_measure.checked_sub(applied) != Some(current_measure) {
-            return Err(
-                OptimizedLiteralFoldCustodyError::SelectedLoweringMeasureMismatch {
-                    previous: previous_measure,
-                    applied,
-                    current: current_measure,
-                },
-            );
-        }
-        previous_measure = current_measure;
+        previous_measure = charge_step_measure(previous_measure, &step)?;
     }
     let mut usage = OptimizationWorkUsage::default();
     for step in &replayed {
@@ -448,4 +426,24 @@ fn replay_step<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: step_index });
     }
     Ok(replayed)
+}
+
+/// Charge `step`'s applied count against the running virtual-register
+/// measure; the new measure, or the mismatch error.
+fn charge_step_measure(
+    previous_measure: usize,
+    step: &StagedOptimizedLiteralFoldStep,
+) -> Result<usize, OptimizedLiteralFoldCustodyError> {
+    let current_measure = step.legality.receipt().virtual_register_count();
+    let applied = step.fold.receipt().applied_count();
+    if previous_measure.checked_sub(applied) != Some(current_measure) {
+        return Err(
+            OptimizedLiteralFoldCustodyError::SelectedLoweringMeasureMismatch {
+                previous: previous_measure,
+                applied,
+                current: current_measure,
+            },
+        );
+    }
+    Ok(current_measure)
 }
