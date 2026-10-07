@@ -115,24 +115,15 @@ pub(super) fn capture_statement(
             },
         );
     }
-    // The selected plan has no form for every cast policy. A place or literal
-    // operand under authored conversions still resolves its own evidence.
-    let operand = selected_operand(
-        program,
-        context.exact_integer_casts,
-        state,
-        statement_index,
-        source,
-    )?;
-    let live = LiveValues {
+    selected_live_capture(
         program,
         semantic,
         context,
         state,
         active,
-    };
-    ScalarValue::operand(program, &live, statement_index, operand.operand)
-        .and_then(|value| operand.convert(value))
+        statement_index,
+        source,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -182,8 +173,29 @@ pub(super) fn capture_bounds(
             },
         );
     }
-    // The selected plan has no form for every cast policy. A place or literal
-    // operand under authored conversions still resolves its own evidence.
+    selected_live_capture(
+        program,
+        semantic,
+        context,
+        state,
+        active,
+        statement_index,
+        source,
+    )
+}
+
+/// The captured value one authored-conversion source yields: a literal or a
+/// caller place under the live snapshot, converted when the selection spelled
+/// conversions. The selected plan has no form for every cast policy.
+fn selected_live_capture<Value: CapturedValue>(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    context: &FlowBuildContext<'_>,
+    state: SymbolHandle,
+    active: HandleSpan<FlowSemanticContextRef>,
+    statement_index: usize,
+    source: ExpressionHandle,
+) -> Option<Value> {
     let operand = selected_operand(
         program,
         context.exact_integer_casts,
@@ -198,7 +210,7 @@ pub(super) fn capture_bounds(
         state,
         active,
     };
-    facts::IntegerRange::operand(program, &live, statement_index, operand.operand)
+    Value::operand(program, &live, statement_index, operand.operand)
         .and_then(|value| operand.convert(value))
 }
 
