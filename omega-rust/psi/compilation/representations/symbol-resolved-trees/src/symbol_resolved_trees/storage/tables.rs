@@ -226,6 +226,32 @@ impl SymbolResolvedTreeTables {
         }
     }
 
+    fn insert_parameter_and_return_types<'tree>(
+        &mut self,
+        parameters: impl Iterator<Item = &'tree StateParameter>,
+        return_type: &Option<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
+        source_expressions: &ExpressionTable,
+    ) {
+        for parameter in parameters {
+            self.insert_type_reference(
+                &parameter.type_reference,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+        if let Some(return_type) = return_type {
+            self.insert_type_reference(
+                return_type,
+                child_type_references,
+                type_constraints,
+                source_expressions,
+            );
+        }
+    }
+
     fn insert_operator(
         &mut self,
         operator: &crate::operator::OperatorDefinition,
@@ -234,22 +260,13 @@ impl SymbolResolvedTreeTables {
         type_constraints: &Arena<TypeConstraint>,
         source_expressions: &ExpressionTable,
     ) {
-        for parameter in state_parameters.span_or_empty(operator.parameters) {
-            self.insert_type_reference(
-                &parameter.type_reference,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
-        }
-        if let Some(return_type) = &operator.return_type {
-            self.insert_type_reference(
-                return_type,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
-        }
+        self.insert_parameter_and_return_types(
+            state_parameters.span_or_empty(operator.parameters).iter(),
+            &operator.return_type,
+            child_type_references,
+            type_constraints,
+            source_expressions,
+        );
     }
 
     fn insert_data_definition(
@@ -413,23 +430,13 @@ impl SymbolResolvedTreeTables {
         type_constraints: &Arena<TypeConstraint>,
         source_expressions: &ExpressionTable,
     ) {
-        for parameter in parameters {
-            self.insert_type_reference(
-                &parameter.type_reference,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
-        }
-
-        if let Some(return_type) = &signature.return_type {
-            self.insert_type_reference(
-                return_type,
-                child_type_references,
-                type_constraints,
-                source_expressions,
-            );
-        }
+        self.insert_parameter_and_return_types(
+            parameters.iter(),
+            &signature.return_type,
+            child_type_references,
+            type_constraints,
+            source_expressions,
+        );
     }
 
     fn insert_type_reference(
