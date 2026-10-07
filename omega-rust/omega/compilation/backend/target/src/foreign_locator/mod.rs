@@ -401,9 +401,13 @@ mod tests {
     }
 
     fn pe_ordinal() -> ForeignLocatorCandidate {
+        pe_ordinal_with(17)
+    }
+
+    fn pe_ordinal_with(ordinal: u16) -> ForeignLocatorCandidate {
         ForeignLocatorCandidate::PeByOrdinal {
             library: b"user32.dll".to_vec(),
-            ordinal: 17,
+            ordinal,
         }
     }
 
@@ -702,23 +706,11 @@ mod tests {
     #[test]
     fn pe_ordinal_zero_is_reserved_and_full_u16_range_is_otherwise_retained() {
         assert_eq!(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::PeByOrdinal {
-                    library: b"user32.dll".to_vec(),
-                    ordinal: 0,
-                },
-                TargetProfile::WindowsX64,
-            ),
+            normalize_foreign_locator(pe_ordinal_with(0), TargetProfile::WindowsX64,),
             Err(ForeignLocatorValidationError::ZeroPeOrdinal)
         );
-        normalize_foreign_locator(
-            ForeignLocatorCandidate::PeByOrdinal {
-                library: b"user32.dll".to_vec(),
-                ordinal: u16::MAX,
-            },
-            TargetProfile::WindowsX64,
-        )
-        .expect("the highest PE ordinal remains representable");
+        normalize_foreign_locator(pe_ordinal_with(u16::MAX), TargetProfile::WindowsX64)
+            .expect("the highest PE ordinal remains representable");
     }
 
     #[test]
@@ -758,13 +750,7 @@ mod tests {
             id(elf_versioned(), TargetProfile::LinuxArm64),
             id(pe_name(), TargetProfile::WindowsX64),
             id(pe_ordinal(), TargetProfile::WindowsX64),
-            id(
-                ForeignLocatorCandidate::PeByOrdinal {
-                    library: b"user32.dll".to_vec(),
-                    ordinal: 18,
-                },
-                TargetProfile::WindowsX64,
-            ),
+            id(pe_ordinal_with(18), TargetProfile::WindowsX64),
         ];
         for mutation in mutations {
             assert_ne!(baseline, mutation);
@@ -832,13 +818,7 @@ mod tests {
         );
         assert_ne!(
             pe_ordinal_baseline,
-            id(
-                ForeignLocatorCandidate::PeByOrdinal {
-                    library: b"user32.dll".to_vec(),
-                    ordinal: 18,
-                },
-                TargetProfile::WindowsX64,
-            ),
+            id(pe_ordinal_with(18), TargetProfile::WindowsX64,),
         );
     }
 
