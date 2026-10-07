@@ -1,59 +1,16 @@
 """Frame exact Gamma inputs and compare source-owned layout diagnostics."""
 
-import csv
-import hashlib
-import struct
-import subprocess
 import sys
-import time
 from pathlib import Path
 
 from fixtures import cases
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from derivation_gate import main as gate_main  # noqa: E402
+
 
 def main():
-    temporary = Path(sys.argv[1])
-    gate = Path(__file__).resolve().parent
-    source = (temporary / "diagnostic.gamma").read_bytes()
-    with (gate / "source.tsv").open(encoding="ascii", newline="") as stream:
-        reader = csv.DictReader(stream, delimiter="\t")
-        if reader.fieldnames != ["lines", "bytes", "sha256"]:
-            raise SystemExit("Derivation layout: wrong identity header")
-        identities = list(reader)
-    if len(identities) != 1:
-        raise SystemExit("Derivation layout: expected one diagnostic source identity")
-    identity = identities[0]
-    actual = (len(source.splitlines()), len(source), hashlib.sha256(source).hexdigest())
-    if actual != (int(identity["lines"]), int(identity["bytes"]), identity["sha256"]):
-        raise SystemExit(f"Derivation layout: source identity changed: {actual}")
-
-    names = set()
-    for name, request, expected, timeout in cases():
-        if name in names:
-            raise SystemExit(f"Derivation layout: duplicate fixture {name}")
-        names.add(name)
-        # Byte custody only; neither this check nor the host interprets records.
-        if 4 + len(source) + len(request) > 137363456:
-            raise SystemExit(f"Derivation layout {name}: outside evaluator request")
-        framed = struct.pack("<I", len(source)) + source + request
-        started = time.monotonic()
-        try:
-            result = subprocess.run(
-                [str(temporary / "evaluator")], input=framed,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
-            )
-        except subprocess.TimeoutExpired:
-            raise SystemExit(f"Derivation layout {name}: host timeout {timeout}s; no layout result")
-        elapsed = time.monotonic() - started
-        if (result.returncode, result.stdout, result.stderr) != (0, expected, b""):
-            raise SystemExit(
-                f"Derivation layout {name}: expected 0/{expected.hex()}, "
-                f"got {result.returncode}/{result.stdout.hex()}, "
-                f"stderr={result.stderr!r}, elapsed={elapsed:.3f}s"
-            )
-        if timeout > 60:
-            print(f"Derivation layout {name}: {len(request)} bytes, {elapsed:.3f}s, exact {expected.hex()}", flush=True)
-    print(f"Derivation layout: {len(names)} exact diagnostic vectors passed; no proof verdicts")
+    gate_main('Derivation layout', 'layout', 'no proof verdicts', cases, Path(__file__).resolve().parent)
 
 
 if __name__ == "__main__":
