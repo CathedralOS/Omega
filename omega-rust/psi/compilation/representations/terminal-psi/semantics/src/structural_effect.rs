@@ -21,6 +21,38 @@ pub use element_extent::{
 use super::OperationSemanticError;
 use crate::semantic_rows::OperationSemanticTag;
 
+/// The resolved canonical path of a `ByteSequenceOperand::Field`: project
+/// the source path, confirm the parent record exposes the named field live
+/// as a byte-sequence carrier, and append the field segment. `Whole`
+/// operands name no field and return `None`; callers accepting whole
+/// operands check that arm themselves.
+pub(crate) fn byte_sequence_field_path(
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+    root_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(
+    PlaceId,
+    Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+)> {
+    let terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } = operand
+    else {
+        return None;
+    };
+    let (mut path, parent) =
+        crate::canonical_static_projection(structural_types.iter(), root_type, &source.path)?;
+    let fields = match &parent.shape {
+        terminal_psi::StructuralTypeShape::Record { fields }
+        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+        _ => return None,
+    };
+    let selected = fields
+        .iter()
+        .find(|row| row.id == *field && !row.relevance.is_erased())?;
+    selected.field_type.byte_sequence_carrier()?;
+    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(*field));
+    Some((source.place, path))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectResultShape {
     Scalar,

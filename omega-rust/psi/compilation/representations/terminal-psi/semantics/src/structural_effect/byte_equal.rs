@@ -4,12 +4,9 @@
 
 use super::StructuralEffectObservation;
 use semantic_vocabulary::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, Proposition, ScalarTerm,
-    ScalarType, StructuralTypeId,
+    ByteSequenceStructuralField, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
 };
-use terminal_psi::{
-    StructuralTypeDeclaration, StructuralTypeShape, control_flow::ByteSequenceOperand,
-};
+use terminal_psi::{StructuralTypeDeclaration, control_flow::ByteSequenceOperand};
 
 /// Reconstruct the conditional denotation after independently validating both
 /// operands' access, establishment, and current same-source length witnesses.
@@ -56,25 +53,6 @@ fn operand_field(
     root_type: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Option<ByteSequenceStructuralField> {
-    match operand {
-        ByteSequenceOperand::Whole { .. } => None,
-        ByteSequenceOperand::Field { source, field, .. } => {
-            let (mut path, parent) = crate::canonical_static_projection(
-                structural_types.iter(),
-                root_type,
-                &source.path,
-            )?;
-            let fields = match &parent.shape {
-                StructuralTypeShape::Record { fields }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
-                _ => return None,
-            };
-            let selected = fields
-                .iter()
-                .find(|row| row.id == *field && !row.relevance.is_erased())?;
-            selected.field_type.byte_sequence_carrier()?;
-            path.push(CanonicalStructuralPathSegment::Field(*field));
-            ByteSequenceStructuralField::new(source.place, path).ok()
-        }
-    }
+    let (place, path) = super::byte_sequence_field_path(operand, root_type, structural_types)?;
+    ByteSequenceStructuralField::new(place, path).ok()
 }
