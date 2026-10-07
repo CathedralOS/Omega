@@ -41,7 +41,6 @@ pub(super) fn argument(
     {
         return Ok(None);
     }
-    let invalid = LegalizationError::custody;
     let after = caller
         .blocks
         .iter()
@@ -52,7 +51,7 @@ pub(super) fn argument(
             if *psi_operation == call_operation && structural_arguments.contains(actual)
         )).map(|position| (block.id, position))
         })
-        .ok_or_else(invalid)?;
+        .ok_or(LegalizationError::custody())?;
     let (root, source, result_custody) = if let Some(arrival) =
         caller.arrival_parameter(actual.place)
     {
@@ -60,7 +59,7 @@ pub(super) fn argument(
             .structural_places
             .iter()
             .find(|place| place.id == actual.place)
-            .ok_or_else(invalid)?;
+            .ok_or(LegalizationError::custody())?;
         let source = match place.kind {
             StructuralPlaceKind::Parameter { .. } => {
                 let parameter = native
@@ -73,13 +72,13 @@ pub(super) fn argument(
                             .iter()
                             .find(|parameter| parameter.place == actual.place)
                     })
-                    .ok_or_else(invalid)?;
+                    .ok_or(LegalizationError::custody())?;
                 if parameter.structural_type != arrival.structural_type
                     || parameter.access != arrival.access
                     || parameter.multiplicity != arrival.multiplicity
                     || parameter.projected_qualifications != arrival.projected_qualifications
                 {
-                    return Err(invalid());
+                    return Err(LegalizationError::custody());
                 }
                 parameter.placement.clone().into()
             }
@@ -89,14 +88,14 @@ pub(super) fn argument(
                         caller, block, after.0,
                     )
                 {
-                    return Err(invalid());
+                    return Err(LegalizationError::custody());
                 }
                 TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place: actual.place,
                 }
             }
-            _ => return Err(invalid()),
+            _ => return Err(LegalizationError::custody()),
         };
         (arrival.clone(), source, None)
     } else {
@@ -126,7 +125,7 @@ pub(super) fn argument(
                         }
             })
         {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
         (
             StructuralParameterDeclaration {
@@ -165,14 +164,17 @@ pub(super) fn argument(
         };
         offset
     };
-    let destination = call.parameters.get(ordinal).ok_or_else(invalid)?;
+    let destination = call
+        .parameters
+        .get(ordinal)
+        .ok_or(LegalizationError::custody())?;
     if result_custody.is_some_and(|result| {
         !result.claims.is_empty() || !result.qualification_establishments.is_empty()
     }) || formal.multiplicity != StructuralMultiplicity::Unrestricted
         || !formal.projected_qualifications.is_empty()
         || destination.shape != ValueShape::borrowed_reference(16, 8)
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     Ok(Some(TargetStructuralArgument {
         place: actual.place,

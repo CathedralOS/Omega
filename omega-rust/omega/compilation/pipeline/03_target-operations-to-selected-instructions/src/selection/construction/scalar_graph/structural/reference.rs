@@ -13,8 +13,7 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let address =
-        crate::selection::reference_input::establishment(source, row).ok_or_else(invalid)?;
+    let address = crate::selection::reference_input::establishment(source, row).ok_or(invalid())?;
     let LegalizedScalarInstructionKind::EstablishReference { result, .. } = &row.kind else {
         return Err(invalid());
     };
@@ -44,7 +43,7 @@ pub(super) fn establish(
         )?;
         builder.emit(
             SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            builder.constraints.keys.load64.ok_or(invalid())?,
             &[input, value],
             provenance(row),
         )?;
@@ -78,7 +77,7 @@ pub(super) fn establish(
             byte_offset: 0,
             byte_size: 8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or(invalid())?,
         &[home, value],
         provenance(row),
     )?;
@@ -107,7 +106,7 @@ pub(in crate::selection::construction::scalar_graph) fn load(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or(invalid())?,
         &[home, pointer],
         provenance(row),
     )?;
@@ -135,11 +134,7 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
             if offset == 0 {
                 builder.constraints.keys.copy_i64
             } else {
-                builder
-                    .constraints
-                    .keys
-                    .address_offset
-                    .ok_or_else(invalid)?
+                builder.constraints.keys.address_offset.ok_or(invalid())?
             },
             &[pointer, home],
             provenance(row),
@@ -155,7 +150,7 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
         )?;
         builder.emit(
             SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            builder.constraints.keys.load64.ok_or(invalid())?,
             &[home, pointer],
             provenance(row),
         )?;
@@ -173,11 +168,7 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
         if offset == 0 {
             builder.constraints.keys.copy_i64
         } else {
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(invalid)?
+            builder.constraints.keys.address_offset.ok_or(invalid())?
         },
         &[pointer, output],
         provenance(row),

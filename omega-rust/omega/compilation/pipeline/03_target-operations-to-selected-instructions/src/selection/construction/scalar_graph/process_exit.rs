@@ -102,7 +102,7 @@ pub(super) fn build(
                 .instructions
                 .last()
                 .cloned()
-                .ok_or_else(SelectedInstructionError::custody)?,
+                .ok_or(SelectedInstructionError::custody())?,
             completion_edge: *psi_edge,
         }));
     }

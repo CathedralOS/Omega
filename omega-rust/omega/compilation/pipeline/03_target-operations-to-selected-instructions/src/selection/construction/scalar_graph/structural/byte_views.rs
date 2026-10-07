@@ -528,7 +528,7 @@ fn measured_span_reads(
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
             crate::selection::byte_concatenation_input::field_offset(function, operand)
-                .ok_or_else(invalid)?
+                .ok_or(invalid())?
         }
         ByteSequenceOperand::Whole { source, .. } => {
             if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)

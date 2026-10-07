@@ -179,7 +179,7 @@ pub(super) fn place_pointer_at_site(
                 slot: selected_instructions::FrameStorageSlotId::Local(home.id),
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder.constraints.keys.frame_address.ok_or(invalid())?,
             &[pointer],
             provenance.clone(),
         )?;

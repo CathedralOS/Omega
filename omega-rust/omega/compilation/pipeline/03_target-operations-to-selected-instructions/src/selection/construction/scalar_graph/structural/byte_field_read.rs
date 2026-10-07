@@ -29,13 +29,13 @@ pub(in crate::selection) fn read_byte(
     else {
         return Err(invalid());
     };
-    let definition = row.result.ok_or_else(invalid)?;
+    let definition = row.result.ok_or(invalid())?;
     let geometry =
         crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, indices)
             .ok_or_else(|| invalid())?;
     let payload_offset = geometry.offset();
-    let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
-    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
+    let (_, index_register, _, index_type) = builder.resolve(*index).ok_or(invalid())?;
+    let (_, _, _, length_type) = builder.resolve(*length).ok_or(invalid())?;
     let count_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
     if index_type != count_type
@@ -68,7 +68,7 @@ pub(in crate::selection) fn read_byte(
     )?;
     builder.emit(
         SelectedInstructionKind::Load8Indexed,
-        builder.constraints.keys.load8_indexed.ok_or_else(invalid)?,
+        builder.constraints.keys.load8_indexed.ok_or(invalid())?,
         &[payload, index_register, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

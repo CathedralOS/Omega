@@ -72,7 +72,7 @@ pub(super) fn build(
                 source,
                 declaration,
             )
-            .ok_or_else(invalid)? =>
+            .ok_or(invalid())? =>
         {
             selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {

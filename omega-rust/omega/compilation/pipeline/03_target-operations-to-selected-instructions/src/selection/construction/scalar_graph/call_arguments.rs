@@ -260,11 +260,12 @@ fn argument_pointer(
     else {
         return Ok(Some(pointer));
     };
-    let invalid = || SelectedInstructionError::custody();
     let slot = selected_instructions::OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         invocation_site: operation.operation.into(),
-        argument_index: argument_index.try_into().map_err(|_| invalid())?,
+        argument_index: argument_index
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
     };
     builder
         .transport
@@ -284,7 +285,7 @@ fn argument_pointer(
                     .instructions
                     .len()
                     .try_into()
-                    .map_err(|_| invalid())?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
             origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
                 operation.operation,
@@ -299,7 +300,11 @@ fn argument_pointer(
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 0,
         },
-        builder.constraints.keys.store64.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .store64
+            .ok_or(SelectedInstructionError::custody())?,
         &[pointer],
         SelectedInstructionProvenance {
             operations: vec![operation.operation],

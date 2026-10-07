@@ -188,7 +188,7 @@ pub(super) fn emit_invocation(
         operands.extend(
             super::call_arguments::structural_argument(
                 source,
-                operation.ok_or_else(SelectedInstructionError::custody)?,
+                operation.ok_or(SelectedInstructionError::custody())?,
                 argument_index,
                 &semantic,
                 argument,

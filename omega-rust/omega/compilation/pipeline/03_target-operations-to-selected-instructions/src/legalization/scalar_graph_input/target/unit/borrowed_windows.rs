@@ -22,7 +22,6 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody;
     match (target, abstracted) {
         (
             TargetUnitOperation::StructuralLeafCopy {
@@ -57,7 +56,7 @@ pub(super) fn validate(
                     )?
                 || result_home.layout.shape() != extent.shape
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -96,7 +95,7 @@ pub(super) fn validate(
                 || !value.path.is_empty()
                 || *retained_value != value.place
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
             // The source's semantic place selects its real storage origin.
             // Incoming owned parameters need no invented producer/home; the
@@ -112,7 +111,7 @@ pub(super) fn validate(
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(LegalizationError::custody());
                 }
             } else {
                 let home = scalar_graph_input::aggregate_results::result_home(
@@ -127,11 +126,11 @@ pub(super) fn validate(
                     || !home.projected_qualifications().is_empty()
                     || home.layout.shape() != extent.shape
                 {
-                    return Err(invalid());
+                    return Err(LegalizationError::custody());
                 }
             }
         }
-        _ => return Err(invalid()),
+        _ => return Err(LegalizationError::custody()),
     }
     Ok(())
 }

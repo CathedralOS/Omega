@@ -22,12 +22,11 @@ pub(in crate::legalization) fn expected(
             let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
                 continue;
             };
-            let invalid = LegalizationError::custody;
             let callee = unit
                 .functions
                 .iter()
                 .find(|function| function.machine == cleanup.cleanup_machine)
-                .ok_or_else(invalid)?;
+                .ok_or(LegalizationError::custody())?;
             if callee.machine == caller.machine
                 || callee.attachment != Some(cleanup.structural_type)
                 || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
@@ -36,11 +35,13 @@ pub(in crate::legalization) fn expected(
                 || callee.structural_parameters.len() > 1
                 || !cleanup.requirement_obligations.is_empty()
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
             let owner = CallSiteOwner::CleanupAction {
                 edge,
-                action_ordinal: ordinal.try_into().map_err(|_| invalid())?,
+                action_ordinal: ordinal
+                    .try_into()
+                    .map_err(|_| LegalizationError::custody())?,
             };
             let shapes = callee
                 .structural_parameters
@@ -50,7 +51,7 @@ pub(in crate::legalization) fn expected(
                         parameter,
                         &plan.structural_types,
                     )
-                    .ok_or_else(invalid)
+                    .ok_or(LegalizationError::custody())
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let call_plan = evaluate_call_plan(
@@ -60,7 +61,7 @@ pub(in crate::legalization) fn expected(
                     result: None,
                 },
             )
-            .map_err(|_| invalid())?;
+            .map_err(|_| LegalizationError::custody())?;
             let mut arguments = Vec::new();
             for (position, parameter) in callee.structural_parameters.iter().enumerate() {
                 if position != 0
@@ -72,7 +73,7 @@ pub(in crate::legalization) fn expected(
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                     )
                 {
-                    return Err(invalid());
+                    return Err(LegalizationError::custody());
                 }
                 let semantic = StructuralArgument {
                     place: cleanup.place,
@@ -96,7 +97,7 @@ pub(in crate::legalization) fn expected(
                 });
             }
             if callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some() {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
             calls.push((
                 owner,

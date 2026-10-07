@@ -296,7 +296,7 @@ pub(super) fn establish(
                 // viewed bytes at `field_offset`, so the descriptor extent
                 // is the load of the u64 header.
                 terminal_semantics::CollectionExtent::LiveLength { .. } => {
-                    let header = field_offset.checked_sub(8).ok_or_else(invalid)?;
+                    let header = field_offset.checked_sub(8).ok_or(invalid())?;
                     let pointer = transport_register(builder, *destination, 0)?;
                     super::runtime_address::footprint(
                         builder,

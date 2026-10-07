@@ -27,7 +27,7 @@ pub(super) fn replace(
     else {
         return Err(invalid());
     };
-    let signature = function.structural.as_ref().ok_or_else(invalid)?;
+    let signature = function.structural.as_ref().ok_or(invalid())?;
     // A field slot resolves below its record root; the whole slot is a
     // declared descriptor home, owned by this activation.
     let root_type = match field {
@@ -70,14 +70,14 @@ pub(super) fn replace(
         return Err(invalid());
     }
     let descriptor_offset = geometry.descriptor_offset.ok_or_else(|| invalid())?;
-    let extent_offset = descriptor_offset.checked_add(8).ok_or_else(invalid)?;
+    let extent_offset = descriptor_offset.checked_add(8).ok_or(invalid())?;
     let descriptor = builder
         .transport
         .pointers
         .iter()
         .find(|(place, _)| place == source)
         .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .ok_or(invalid())?;
     let root = match field {
         Some(_) => super::runtime_address::projection_base(
             function,
@@ -117,7 +117,7 @@ pub(super) fn replace(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or(invalid())?,
         &[descriptor, backing],
         provenance(row),
     )?;
@@ -132,7 +132,7 @@ pub(super) fn replace(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 8 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or(invalid())?,
         &[descriptor, extent],
         provenance(row),
     )?;
@@ -150,7 +150,7 @@ pub(super) fn replace(
             byte_offset: descriptor_offset,
             byte_size: 8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or(invalid())?,
         &[root, backing],
         provenance(row),
     )?;
@@ -169,7 +169,7 @@ pub(super) fn replace(
             byte_offset: extent_offset,
             byte_size: 8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or(invalid())?,
         &[root, extent],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

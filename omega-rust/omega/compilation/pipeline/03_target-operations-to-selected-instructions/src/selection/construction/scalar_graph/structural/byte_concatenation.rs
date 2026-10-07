@@ -27,7 +27,7 @@ pub(super) fn establish(
         return Err(invalid());
     };
     let capacity =
-        crate::selection::byte_concatenation_input::capacity(function, row).ok_or_else(invalid)?;
+        crate::selection::byte_concatenation_input::capacity(function, row).ok_or(invalid())?;
     if builder
         .transport
         .pointers
@@ -38,8 +38,8 @@ pub(super) fn establish(
     }
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
-    let (_, left_length, _, left_type) = builder.resolve(left.length()).ok_or_else(invalid)?;
-    let (_, right_length, _, right_type) = builder.resolve(right.length()).ok_or_else(invalid)?;
+    let (_, left_length, _, left_type) = builder.resolve(left.length()).ok_or(invalid())?;
+    let (_, right_length, _, right_type) = builder.resolve(right.length()).ok_or(invalid())?;
     if left_type != integer || right_type != integer {
         return Err(invalid());
     }
@@ -54,18 +54,14 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: capacity.checked_add(8).ok_or_else(invalid)?,
+            byte_size: capacity.checked_add(8).ok_or(invalid())?,
             alignment: 8,
         });
     let owner = local_storage::address(builder, row, slot, 0, capacity + 8, false)?;
     let payload = transport_register(builder, result.place, 8)?;
     builder.emit(
         SelectedInstructionKind::AddressOffset { byte_offset: 8 },
-        builder
-            .constraints
-            .keys
-            .address_offset
-            .ok_or_else(invalid)?,
+        builder.constraints.keys.address_offset.ok_or(invalid())?,
         &[owner, payload],
         provenance(row),
     )?;
@@ -127,7 +123,7 @@ pub(super) fn establish(
             byte_offset: 0,
             byte_size: 8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or(invalid())?,
         &[owner, length],
         SelectedInstructionProvenance {
             fuel: row.fuel.clone(),
@@ -169,7 +165,7 @@ pub(super) fn operand_pointer(
         ByteSequenceOperand::Field { source, field, .. } => {
             let geometry =
                 crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, &[])
-                    .ok_or_else(invalid)?;
+                    .ok_or(invalid())?;
             super::byte_field_read::payload_pointer(
                 function,
                 builder,
@@ -207,7 +203,7 @@ fn copy(
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
             crate::selection::byte_concatenation_input::field_offset(function, operand)
-                .ok_or_else(invalid)?
+                .ok_or(invalid())?
         }
         ByteSequenceOperand::Whole { source, .. } => {
             if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
@@ -257,7 +253,7 @@ fn copy(
     )?;
     builder.emit(
         SelectedInstructionKind::CopyBytes,
-        builder.constraints.keys.copy_bytes.ok_or_else(invalid)?,
+        builder.constraints.keys.copy_bytes.ok_or(invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

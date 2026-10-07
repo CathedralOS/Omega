@@ -17,8 +17,7 @@ pub(super) fn emit(
     builder: &mut Builder<'_>,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = SelectedInstructionError::custody;
-    let edge = owner.edge().ok_or_else(invalid)?;
+    let edge = owner.edge().ok_or(SelectedInstructionError::custody())?;
     if call.source != NativeCallOrigin::Authored
         || call.result_placement.is_some()
         || call.structural_result.is_some()
@@ -27,7 +26,7 @@ pub(super) fn emit(
         || !call.crash_continuations.is_empty()
         || call.arguments.len() > 1
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let mut shapes = Vec::new();
     for argument in &call.arguments {
@@ -37,7 +36,7 @@ pub(super) fn emit(
             indices,
         } = argument
         else {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         };
         if !matches!(
             semantic.access,
@@ -49,7 +48,7 @@ pub(super) fn emit(
             || target.shape.class != ValueClass::BorrowedReference
             || target.destination.shape != target.shape
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         shapes.push(target.shape);
     }
@@ -60,7 +59,7 @@ pub(super) fn emit(
             result: None,
         },
     )
-    .map_err(|_| invalid())?;
+    .map_err(|_| SelectedInstructionError::custody())?;
     if expected != call.call_plan
         || call
             .arguments
@@ -68,9 +67,10 @@ pub(super) fn emit(
             .zip(&expected.parameters)
             .any(|(argument, placement)| argument.placement() != placement)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
-    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment)
+        .ok_or(SelectedInstructionError::custody())?;
     let provenance = SelectedInstructionProvenance {
         edges: vec![edge],
         ..Default::default()
@@ -81,7 +81,7 @@ pub(super) fn emit(
             semantic, target, ..
         } = argument
         else {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         };
         operands.push(super::structural::place_pointer_at_site(
             builder,
@@ -96,7 +96,7 @@ pub(super) fn emit(
                 .instructions
                 .len()
                 .try_into()
-                .map_err(|_| invalid())?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         ),
         owner,
         call: call.clone(),

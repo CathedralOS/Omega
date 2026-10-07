@@ -247,7 +247,7 @@ pub(super) fn cross_references(
     // each pointer load before applying the following region's offset or indices.
     let mut leaf_index = 0;
     for slot in pointer_slots {
-        let slot_indices = indices.get(slot.indices.clone()).ok_or_else(invalid)?;
+        let slot_indices = indices.get(slot.indices.clone()).ok_or(invalid())?;
         let address = scale(builder, row, place, slot.byte_offset, pointer, slot_indices)?;
         let (address, displacement) =
             super::memory_pointer(builder, row, place, address, slot.byte_offset, 8)?;
@@ -265,7 +265,7 @@ pub(super) fn cross_references(
             SelectedInstructionKind::Load64 {
                 byte_offset: displacement,
             },
-            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            builder.constraints.keys.load64.ok_or(invalid())?,
             &[address, loaded],
             super::provenance(row),
         )?;

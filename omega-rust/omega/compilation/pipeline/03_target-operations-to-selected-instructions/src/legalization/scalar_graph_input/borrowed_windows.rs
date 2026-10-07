@@ -50,11 +50,10 @@ pub(in crate::legalization) fn extent(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
-    let invalid = LegalizationError::custody;
     let referent = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root
         else {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         };
         let referent = super::reference_custody::writable_referent_destination(
             custody,
@@ -63,9 +62,9 @@ pub(in crate::legalization) fn extent(
             root.place(),
             path,
         )
-        .ok_or_else(invalid)?;
+        .ok_or(LegalizationError::custody())?;
         if referent.producer != *producer || referent.result != *result {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
         Some(referent)
     } else {
@@ -85,7 +84,7 @@ pub(in crate::legalization) fn extent(
                         )))
                 || !function.entry_claims.is_empty()
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
             root.structural_type
         }
@@ -99,7 +98,7 @@ pub(in crate::legalization) fn extent(
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
             result.structural_type
         }
@@ -117,20 +116,21 @@ pub(in crate::legalization) fn extent(
                 abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
             ))
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     let projection =
         terminal_semantics::structural_window_projection(types.iter(), root_type, path, field)
-            .ok_or_else(invalid)?;
+            .ok_or(LegalizationError::custody())?;
     let mut full = projection.path;
     let field_type = projection.structural_type;
     let (endpoint, byte_offset, elements) =
         structural_reference_input::runtime_projection(root_type, &full, types)
-            .ok_or_else(invalid)?;
+            .ok_or(LegalizationError::custody())?;
     if endpoint != field_type || super::reference_custody::contains_reference(types, field_type) {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
-    let shape = structural_reference_input::shape(field_type, types).ok_or_else(invalid)?;
+    let shape =
+        structural_reference_input::shape(field_type, types).ok_or(LegalizationError::custody())?;
     if referent.is_some() {
         full.insert(0, StructuralPathSegment::Referent);
     }

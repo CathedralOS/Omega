@@ -78,12 +78,12 @@ pub(super) fn copy(
             Some(terminal_psi::StructuralPathSegment::Referent)
         ) {
         crate::selection::reference_input::mutable_projection(function, *source, path)
-            .ok_or_else(invalid)?;
+            .ok_or(invalid())?;
         Some(super::reference::load(
             builder,
             row,
             *source,
-            input.ok_or_else(invalid)?,
+            input.ok_or(invalid())?,
         )?)
     } else {
         input
@@ -209,7 +209,7 @@ pub(super) fn reseat(
             return Err(invalid());
         }
         crate::selection::reference_input::mutable_projection(source, result.place, path)
-            .ok_or_else(invalid)?;
+            .ok_or(invalid())?;
         super::reference::load(builder, row, result.place, root)?
     } else {
         root

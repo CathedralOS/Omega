@@ -23,7 +23,6 @@ pub(super) fn call_reference_custody(
     types: &[StructuralTypeDeclaration],
     argument: &StructuralArgument,
 ) -> Result<CallReferenceCustody, LegalizationError> {
-    let invalid = || invalid();
     if argument.access == StructuralAccess::Owned {
         return Err(invalid());
     }
@@ -45,13 +44,13 @@ pub(super) fn call_reference_custody(
     {
         return Err(invalid());
     }
-    let mut current = source_contract(function, custody, argument.place).ok_or_else(invalid)?;
+    let mut current = source_contract(function, custody, argument.place).ok_or(invalid())?;
     let mut cursors = vec![(argument.place, Vec::new(), Vec::new())];
     let cursor_budget = custody
         .leaves
         .len()
         .checked_mul(argument.path.len())
-        .ok_or_else(invalid)?;
+        .ok_or(invalid())?;
     let mut dependencies = Vec::new();
     let mut prefix_start = 0;
     for (position, segment) in argument.path.iter().enumerate() {
@@ -59,11 +58,11 @@ pub(super) fn call_reference_custody(
             continue;
         }
         let prefix = &argument.path[prefix_start..position];
-        let reference_type = leaf_type(types, current, prefix).ok_or_else(invalid)?;
+        let reference_type = leaf_type(types, current, prefix).ok_or(invalid())?;
         let StructuralTypeShape::Reference { referent, access } = types
             .iter()
             .find(|declaration| declaration.id == reference_type)
-            .ok_or_else(invalid)?
+            .ok_or(invalid())?
             .shape
         else {
             return Err(invalid());
@@ -93,7 +92,7 @@ pub(super) fn call_reference_custody(
             let leaf = custody
                 .leaves
                 .get(&(place, path.clone()))
-                .ok_or_else(invalid)?;
+                .ok_or(invalid())?;
             if leaf.referent != referent
                 || custody.leaves.iter().any(|((carrier, path), child)| {
                     child.parent.as_ref() == Some(&leaf.identity)

@@ -1061,19 +1061,25 @@ fn instruction_scratch(
     operand: u16,
     sign: IntegerSign,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let id = VirtualRegisterId(
+        builder
+            .registers
+            .len()
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
+    );
     let instruction = SelectedInstructionId(
         builder
             .instructions
             .len()
             .try_into()
-            .map_err(|_| invalid())?,
+            .map_err(|_| SelectedInstructionError::custody())?,
     );
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(sign, 64).map_err(|_| invalid())?,
+            semantic_vocabulary::IntegerType::new(sign, 64)
+                .map_err(|_| SelectedInstructionError::custody())?,
         ),
         class: builder.class,
         origin: VirtualRegisterOrigin::InstructionScratch {
@@ -1090,20 +1096,25 @@ fn instruction_scratch(
 pub(super) fn division_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let id = VirtualRegisterId(
+        builder
+            .registers
+            .len()
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
+    );
     let instruction = SelectedInstructionId(
         builder
             .instructions
             .len()
             .try_into()
-            .map_err(|_| invalid())?,
+            .map_err(|_| SelectedInstructionError::custody())?,
     );
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                .map_err(|_| invalid())?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         ),
         class: builder.class,
         origin: VirtualRegisterOrigin::InstructionScratch {
