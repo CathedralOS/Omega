@@ -4,8 +4,8 @@
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
 use super::fields::{
-    collect_leaf_paths, declared_field, member_chain, nested_arrival_chain, record_referent,
-    rooted_carrier, unique_literal_field,
+    collect_leaf_paths, declared_field, member_chain, member_coordinate_parts,
+    nested_arrival_chain, record_referent, rooted_carrier, unique_literal_field,
 };
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
@@ -609,43 +609,33 @@ impl<'program> SliceCoordinate<'program> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
         // storage capability, not evidence the collection moved.
-        if parameter.is_const {
-            return None;
-        }
-        let (root, borrowed) = record_referent(program, parameter.type_reference)?;
-        let (last, step_symbols) = chain.split_last()?;
-        let mut owner = root;
-        let mut steps = Vec::with_capacity(step_symbols.len());
-        for symbol in step_symbols {
-            let (_, field) = declared_field(program, owner, *symbol)?;
-            // An intermediate step is an owned exact record; a reference
-            // boundary inside the chain needs its own load evidence.
-            let TypeReferenceNode::Named { symbol: next, .. } = program
-                .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
-            else {
-                return None;
-            };
-            steps.push(field);
-            owner = *next;
-        }
-        let (_, field) = declared_field(program, owner, *last)?;
-        // The produced coordinate is the collection's length; an integer or
-        // record leaf is a different produced value, not a slice length.
-        if !is_slice(program, field.type_reference) {
-            return None;
-        }
-        let mut identity = format!("\0ranking:length:{:?}", parameter.symbol);
-        for symbol in chain {
-            identity.push_str(&format!(":{symbol:?}"));
-        }
+        // An intermediate step is an owned exact record; a reference
+        // boundary inside the chain needs its own load evidence. The produced
+        // coordinate is the collection's length; an integer or record leaf
+        // is a different produced value, not a slice length.
+        let parts = member_coordinate_parts(
+            program,
+            parameter,
+            chain,
+            |program, field| {
+                let TypeReferenceNode::Named { symbol: next, .. } = program
+                    .type_reference_table
+                    .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                else {
+                    return None;
+                };
+                Some(*next)
+            },
+            |program, field| is_slice(program, field.type_reference),
+            "\0ranking:length:",
+        )?;
         Some(Self {
             parameter,
-            borrowed,
-            root,
-            steps,
-            field,
-            identity,
+            borrowed: parts.borrowed,
+            root: parts.root,
+            steps: parts.steps,
+            field: parts.field,
+            identity: parts.identity,
         })
     }
 

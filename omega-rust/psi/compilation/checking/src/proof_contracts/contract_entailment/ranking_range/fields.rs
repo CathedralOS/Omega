@@ -374,55 +374,45 @@ impl<'program> FieldCoordinate<'program> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
         // storage capability, not evidence the field moved.
-        if parameter.is_const {
-            return None;
-        }
-        let (root, borrowed) = record_referent(program, parameter.type_reference)?;
-        let (last, step_symbols) = chain.split_last()?;
-        let mut owner = root;
-        let mut steps = Vec::with_capacity(step_symbols.len());
-        for symbol in step_symbols {
-            let (_, field) = declared_field(program, owner, *symbol)?;
-            // The coordinate retains the complete declared chain, including
-            // stored readable references. Its edge owner separately proves
-            // that the carrier, reference bindings and pointee stay unwritten.
-            let (next, _) = record_referent(program, field.type_reference)?;
-            steps.push(field);
-            owner = next;
-        }
-        let (_, field) = declared_field(program, owner, *last)?;
+        // The coordinate retains the complete declared chain, including
+        // stored readable references. Its edge owner separately proves
+        // that the carrier, reference bindings and pointee stay unwritten.
         // The independently selected field view produces builtin u64.
         // Other carriers need their own view-application proof. An authored
         // member chain read directly as a natural coordinate admits any exact
         // unsigned leaf -- a signed field has no natural rank coordinate.
-        let leaf = exact_integer_parameter(program, field.type_reference);
-        let leaf_is_natural = if natural_leaf {
-            matches!(
-                leaf,
-                Some(
-                    PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                )
-            )
-        } else {
-            leaf == Some(PrimitiveType::U64)
-        };
-        if !leaf_is_natural {
-            return None;
-        }
-        let mut identity = format!("\0ranking:field:{:?}", parameter.symbol);
-        for symbol in chain {
-            identity.push_str(&format!(":{symbol:?}"));
-        }
+        let parts = member_coordinate_parts(
+            program,
+            parameter,
+            chain,
+            |program, field| {
+                record_referent(program, field.type_reference).map(|(next, _)| next)
+            },
+            |program, field| {
+                let leaf = exact_integer_parameter(program, field.type_reference);
+                if natural_leaf {
+                    matches!(
+                        leaf,
+                        Some(
+                            PrimitiveType::U8
+                                | PrimitiveType::U16
+                                | PrimitiveType::U32
+                                | PrimitiveType::U64
+                        )
+                    )
+                } else {
+                    leaf == Some(PrimitiveType::U64)
+                }
+            },
+            "\0ranking:field:",
+        )?;
         Some(Self {
             parameter,
-            borrowed,
-            root,
-            steps,
-            field,
-            identity,
+            borrowed: parts.borrowed,
+            root: parts.root,
+            steps: parts.steps,
+            field: parts.field,
+            identity: parts.identity,
         })
     }
 
@@ -779,6 +769,57 @@ pub(super) fn projected_type(
 
 /// The member chain of `expression` from its root formal outward, each step
 /// as `(resolved field symbol, spelling)`. Case projections are not fields.
+
+/// The parts both produced coordinates resolve identically: the formal's
+/// non-const record carrier, each intermediate chain step walked through
+/// `step_owner`, the leaf admitted by `leaf_admits`, and the atom identity
+/// `tag` + parameter symbol + chain. The coordinates differ only in what a
+/// step traverses, which leaf produces the rank, and the identity prefix.
+pub(super) struct MemberCoordinateParts<'program> {
+    pub borrowed: bool,
+    pub root: SymbolHandle,
+    pub steps: Vec<&'program DataField>,
+    pub field: &'program DataField,
+    pub identity: String,
+}
+
+pub(super) fn member_coordinate_parts<'program>(
+    program: &'program TypedTrees,
+    parameter: &'program StateParameter,
+    chain: &[SymbolHandle],
+    step_owner: impl Fn(&'program TypedTrees, &'program DataField) -> Option<SymbolHandle>,
+    leaf_admits: impl Fn(&'program TypedTrees, &'program DataField) -> bool,
+    tag: &str,
+) -> Option<MemberCoordinateParts<'program>> {
+    if parameter.is_const {
+        return None;
+    }
+    let (root, borrowed) = record_referent(program, parameter.type_reference)?;
+    let (last, step_symbols) = chain.split_last()?;
+    let mut owner = root;
+    let mut steps = Vec::with_capacity(step_symbols.len());
+    for symbol in step_symbols {
+        let (_, field) = declared_field(program, owner, *symbol)?;
+        steps.push(field);
+        owner = step_owner(program, field)?;
+    }
+    let (_, field) = declared_field(program, owner, *last)?;
+    if !leaf_admits(program, field) {
+        return None;
+    }
+    let mut identity = format!("{tag}{:?}", parameter.symbol);
+    for symbol in chain {
+        identity.push_str(&format!(":{symbol:?}"));
+    }
+    Some(MemberCoordinateParts {
+        borrowed,
+        root,
+        steps,
+        field,
+        identity,
+    })
+}
+
 pub(super) fn member_chain<'program>(
     program: &'program TypedTrees,
     state: &State,
