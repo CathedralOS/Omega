@@ -20,8 +20,8 @@ impl Emission<'_, '_, '_> {
     /// Establish one borrowed element view without a selection join: the op
     /// result is itself the checked value, so the fresh place publishes
     /// directly as this binding's completed operation result. A shared view
-    /// result is `Unrestricted`; an exclusive loan is affine custody, so a
-    /// mutable view result carries this binding's declared multiplicity.
+    /// result is `Unrestricted`; an exclusive loan is always affine custody,
+    /// whatever multiplicity the binding's carrier type declares.
     pub(super) fn direct_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -31,7 +31,7 @@ impl Emission<'_, '_, '_> {
     ) -> Result<PlaceId, LoweringError> {
         let multiplicity = match loan {
             LoanAccess::Shared => StructuralMultiplicity::Unrestricted,
-            LoanAccess::Mutable => self.multiplicity,
+            LoanAccess::Mutable => StructuralMultiplicity::Affine,
         };
         self.establish_element_view(source, region, expression, loan, multiplicity)
     }

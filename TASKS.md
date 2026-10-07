@@ -1032,12 +1032,11 @@ defines the complete product bar.
   exit 70. The program reads four bytes, completes a mutable call, then
   observes its writes in transition arguments.
 
-  Reproduce the Windows native `read_byte` realization rejection; interpreter
-  success before the Terminal cutover is not evidence for the current engine,
-  and native success with interpreter refusal does not close this.
-  Implement the input provider
-  in `source/library/std/targets/windows_x86_64/console_impl.omg` and supply
-  interpreter input operations from exact selected imports through
+  Native input runs: std's Windows `read_byte`/`write_byte` are checked
+  bodies over msvcrt `_read`/`_write` imports, and the fixture plus the five
+  `host/runtime_console_bounded_line*` controls build and exit with their
+  authored codes and stdout natively. Remaining: the Terminal interpreter
+  must supply input operations from those exact selected imports through
   `omega-rust/omega/compilation/realization/provider-planning/` and
   `omega-rust/psi/interpreter/terminal-interpreter/`, coordinated with
   **TERMINAL-RUNTIME-DRIVERS**. Execute the checked adapter;

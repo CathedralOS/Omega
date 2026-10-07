@@ -88,6 +88,7 @@ pass/calls/cyclic_scalar_query_reborrow_exit built 1329ms @0484de104502
 pass/calls/guard_call_scalar_argument_exit checked 409ms @0484de104502
 pass/calls/guarded_value_call_arm_exit built 1655ms exit:70 @0484de104502
 pass/calls/inline_record_scalar_call_arguments_exit built 4175ms exit:70 stdout:match @a23a13432354+wt
+pass/calls/local_fixed_byte_array_loan_exit built 3231ms exit:70 @f493df928d32+wt
 pass/calls/local_nested_record_call_then_state_exit built 3836ms exit:70 @e72f620f1da8+wt
 pass/calls/machine_self_call_recursion_compile built 668ms @0484de104502
 pass/calls/mutable_output_host_call rejected 2044ms @7fc7a3a06d34
@@ -129,8 +130,7 @@ pass/calls/runtime_loop_rotation_exit built 1681ms exit:1 @0484de104502
 pass/calls/runtime_measured_tail_recursion_exit built 1498ms exit:70 @0484de104502
 pass/calls/runtime_mut_ref_forward_exit rejected 1095ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 0)
-pass/calls/runtime_mutable_call_before_transition_args_exit rejected 2324ms @7fc7a3a06d34
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
+pass/calls/runtime_mutable_call_before_transition_args_exit built 3362ms exit:70 @f493df928d32+wt
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 1107ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
 pass/calls/runtime_nested_case_argument_exit built 4397ms exit:70 @0484de104502
@@ -161,6 +161,7 @@ pass/calls/serviceful_borrowed_scalar_exit built 4209ms exit:70 stdout:match @a2
 pass/calls/state_and_machine_names_exit built 646ms exit:0 @0484de104502
 pass/calls/statement_call_recursive_overload_compile checked 455ms @0484de104502
 pass/calls/static_arithmetic_name_callback_exit built 2495ms exit:7 @313d9f292579+wt
+pass/calls/static_state_context_field_window_exit built 3336ms exit:70 @f493df928d32+wt
 pass/calls/structural_mut_to_shared_argument built 517ms @0484de104502
 pass/calls/structural_self_rooted_argument built 482ms @0484de104502
 pass/calls/transition_arg_local_from_embedded_call_exit built 1471ms exit:70 @0484de104502
@@ -600,17 +601,11 @@ pass/generics/runtime_value_generic_subject_exit built 1279ms @7fc7a3a06d34
 pass/host/console_exit_process_exit built 3182ms exit:70 stdout:match @a23a13432354+wt
 pass/host/process_exit_i32_status_mapped built 955ms @0484de104502
 pass/host/process_exit_i32_status_ordered built 4071ms exit:70 stdout:match @a23a13432354+wt
-pass/host/runtime_console_bounded_line_exit rejected 2258ms @7fc7a3a06d34
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-pass/host/runtime_console_bounded_line_full_exit rejected 3224ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
-pass/host/runtime_console_bounded_line_lf_exit rejected 3264ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
-pass/host/runtime_console_bounded_line_middle_window_exit rejected 3198ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
-pass/host/runtime_console_bounded_line_partial_eof_exit rejected 3223ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/host/runtime_console_bounded_line_exit built 3258ms exit:20 @f493df928d32+wt
+pass/host/runtime_console_bounded_line_full_exit built 3184ms exit:34 stdout:match @f493df928d32+wt
+pass/host/runtime_console_bounded_line_lf_exit built 3283ms exit:13 stdout:match @f493df928d32+wt
+pass/host/runtime_console_bounded_line_middle_window_exit built 3156ms exit:70 stdout:match @f493df928d32+wt
+pass/host/runtime_console_bounded_line_partial_eof_exit built 3310ms exit:22 stdout:match @f493df928d32+wt
 pass/host/runtime_console_byte_echo_exit rejected 1169ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
@@ -832,6 +827,7 @@ pass/slices/guarded_slice_parameter_empty_false_index_compile checked 385ms @048
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 378ms @0484de104502
 pass/slices/guarded_slice_parameter_successor_index_compile checked 393ms @0484de104502
 pass/slices/inclusive_subslice_literal_bounds_compile checked 385ms @0484de104502
+pass/slices/local_array_element_view_exit built 3208ms exit:70 @f493df928d32+wt
 pass/slices/projected_array_call_exit rejected 3175ms @a23a13432354+wt
 	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
 pass/slices/recursive_subslice_element_accumulator_exit built 1363ms exit:70 @0484de104502
@@ -990,8 +986,7 @@ pass/text/runtime_slice_indexed_string_guard_exit rejected 1072ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/text/runtime_stdin_command_branch_exit rejected 3000ms @a23a13432354+wt
 	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
-pass/text/runtime_stdin_line_buffering_exit rejected 2855ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/text/runtime_stdin_line_buffering_exit built 3126ms exit:0 stdout:match @f493df928d32+wt
 pass/text/runtime_string_concat_two_fields_exit rejected 1474ms @7fc7a3a06d34
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/text/runtime_string_stored_suffix_exit rejected 1060ms @0484de104502

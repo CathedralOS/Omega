@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 16.98, "load1_start": 14.93, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2102,7 +2102,7 @@ pass/calls/indexed_self_root_call_arg checked 3326ms check-target:macos_arm64 @b
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms check-target:macos_arm64 @3a2233464b3b
 pass/calls/local_after_call_result_store_exit checked 1446ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms check-target:macos_arm64 @2d8ed253669f
-pass/calls/local_fixed_byte_array_loan_exit checked 8797ms check-target:macos_arm64 @dac9585f443
+pass/calls/local_fixed_byte_array_loan_exit checked 3329ms check-target:macos_arm64 @b1114d1269ad
 pass/calls/local_nested_record_call_then_state_exit checked 2608ms check-target:macos_arm64 @e72f620f1da8+wt
 pass/calls/local_projected_field_argument_exit checked 1231ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/local_projected_field_record_result_argument_exit checked 1980ms check-target:macos_arm64 @2d8ed253669f
@@ -2201,7 +2201,7 @@ pass/calls/runtime_local_scalar_array_element_loan_exit checked 868ms check-targ
 pass/calls/runtime_loop_rotation_exit checked 1398ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms check-target:macos_arm64 @8778c440081
-pass/calls/runtime_mutable_call_before_transition_args_exit checked 8001ms check-target:macos_arm64 @dac9585f443
+pass/calls/runtime_mutable_call_before_transition_args_exit checked 3379ms check-target:macos_arm64 @b1114d1269ad
 pass/calls/runtime_mutable_local_external_scalar_call_exit checked 1998ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms check-target:macos_arm64 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 2176ms check-target:macos_arm64 @b6846d69ce88+wt
@@ -2256,7 +2256,7 @@ pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
 pass/calls/static_arithmetic_name_callback_exit checked 2237ms check-target:macos_arm64 @313d9f292579+wt
 pass/calls/static_context_forwarded_through_state_arms_exit checked 1634ms check-target:macos_arm64 @a9f373809a48+wt
 pass/calls/static_context_forwarded_twice_exit checked 1319ms check-target:macos_arm64 @ca8c127c90c5
-pass/calls/static_state_context_field_window_exit checked 9360ms check-target:macos_arm64 @dac9585f443
+pass/calls/static_state_context_field_window_exit checked 3443ms check-target:macos_arm64 @b1114d1269ad
 pass/calls/structural_mut_to_shared_argument checked 378ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms check-target:macos_arm64 @2d8ed253669f
@@ -2814,11 +2814,11 @@ pass/generics/runtime_value_generic_subject_exit checked 1300ms check-target:mac
 pass/host/console_exit_process_exit checked 2187ms check-target:macos_arm64 @5c302dd6d305
 pass/host/process_exit_i32_status_mapped checked 1100ms check-target:macos_arm64 @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms check-target:macos_arm64 @2d8ed253669f
-pass/host/runtime_console_bounded_line_exit checked 6558ms check-target:macos_arm64 @dac9585f443
-pass/host/runtime_console_bounded_line_full_exit checked 6410ms check-target:macos_arm64 @dac9585f443
-pass/host/runtime_console_bounded_line_lf_exit checked 5138ms check-target:macos_arm64 @dac9585f443
-pass/host/runtime_console_bounded_line_middle_window_exit checked 5602ms check-target:macos_arm64 @dac9585f443
-pass/host/runtime_console_bounded_line_partial_eof_exit checked 4986ms check-target:macos_arm64 @dac9585f443
+pass/host/runtime_console_bounded_line_exit checked 3447ms check-target:macos_arm64 @b1114d1269ad
+pass/host/runtime_console_bounded_line_full_exit checked 3331ms check-target:macos_arm64 @b1114d1269ad
+pass/host/runtime_console_bounded_line_lf_exit checked 3373ms check-target:macos_arm64 @b1114d1269ad
+pass/host/runtime_console_bounded_line_middle_window_exit checked 3402ms check-target:macos_arm64 @b1114d1269ad
+pass/host/runtime_console_bounded_line_partial_eof_exit checked 3250ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_byte_echo_exit checked 3670ms check-target:macos_arm64 @dac9585f443
 pass/host/runtime_gui_foreground_window_exit rejected 1982ms check-target:macos_arm64 @c47f8652484
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
@@ -3115,7 +3115,7 @@ pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 319ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_successor_index_compile checked 322ms @2d8ed253669f
 pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669f
-pass/slices/local_array_element_view_exit checked 2015ms check-target:macos_arm64 @2d8ed253669f
+pass/slices/local_array_element_view_exit checked 3246ms check-target:macos_arm64 @b1114d1269ad
 pass/slices/local_record_array_state_view_exit checked 1337ms check-target:macos_arm64 @b33d826687a3
 pass/slices/mutable_byte_field_range_local_initializer_exit checked 686ms check-target:macos_arm64 @a39c093a0400+wt
 pass/slices/mutable_byte_field_range_scalar_initializer_exit checked 693ms check-target:macos_arm64 @a39c093a0400+wt
@@ -3350,7 +3350,7 @@ pass/text/runtime_param_domain_forward_exit checked 671ms check-target:macos_arm
 pass/text/runtime_param_domain_literal_read_exit checked 679ms check-target:macos_arm64 @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 5408ms check-target:macos_arm64 @40866b59e47
 pass/text/runtime_stdin_command_branch_exit checked 15897ms check-target:macos_arm64 @dac9585f443
-pass/text/runtime_stdin_line_buffering_exit checked 7984ms check-target:macos_arm64 @dac9585f443
+pass/text/runtime_stdin_line_buffering_exit checked 3451ms check-target:macos_arm64 @b1114d1269ad
 pass/text/runtime_string_concat_two_fields_exit checked 1760ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_string_stored_suffix_exit incomplete 945ms check-target:macos_arm64 @47d3b5bbd8c+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: borrowed view field: descriptor source)

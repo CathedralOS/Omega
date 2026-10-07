@@ -1504,6 +1504,39 @@ pub(crate) fn validate_consumer(
         {
             return unsupported("Unit structural result argument has invalid claim-free custody");
         }
+        // A slice view evaluated as this call's own argument lends its
+        // backing for the call, at a boundary as at an ordinary call: the
+        // descriptor crosses under the formal's exact access and slice type
+        // and transfers no claim.
+        if argument_construction
+            && argument.path.is_empty()
+            && result.multiplicity == Multiplicity::Unrestricted
+            && matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+            )
+            && argument.access == parameter.access
+            && argument.type_identity == result.type_identity
+            && parameter.type_identity == argument.type_identity
+            && parameter.multiplicity == Multiplicity::Unrestricted
+            && parameter.fused_service_erasure.is_none()
+            && signature
+                .parameters
+                .get(source_position as usize)
+                .is_some_and(|formal| {
+                    validation::slice_view_shell(&checked.typed, formal.type_reference, &[])
+                        .is_some()
+                })
+            && target_entry_claims
+                .iter()
+                .all(|claim| claim.parameter_index as usize != parameter_index)
+            && claim_transfers
+                .iter()
+                .all(|transfer| transfer.argument_index as usize != index)
+        {
+            continue;
+        }
         // Whole local arrays lend their backing without transferring ownership.
         // The source/ordinal join above identifies the declaration; this check
         // independently rejoins its loan and fixed-array/slice presentation.
@@ -2021,7 +2054,9 @@ fn validate_operand_producers(
                 return unsupported("constructed operand names another completed owner");
             }
             if names_result
-                && ((authored.boundary && !copied_array)
+                // A boundary takes owned contents only as a copied array; an
+                // evaluated view crosses as its borrowed descriptor.
+                && ((authored.boundary && !copied_array && descriptor_access.is_none())
                     || !access_matches
                     || !argument.path.is_empty()
                     || (!whole_owned_contents && descriptor_access.is_none())
