@@ -3,7 +3,7 @@ use crate::input::token_cursor::Input;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
+use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
 use tokens::{KeywordKind, PunctuationKind};
 
 /// The fact-list terminator shared by every signature contract clause: a
@@ -218,16 +218,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             let keyword_source_span = Some(input.current_source_span());
             let after_keyword = input.take_contextual("crashes")?;
             let (cause, after_cause) = after_keyword.take_identifier()?;
-            let cause = match cause.as_str() {
-                "Trap" => CrashCause::Trap,
-                "Abort" => CrashCause::Abort,
-                _ => {
-                    return Err(after_cause.error_here(format!(
-                        "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                        cause.as_str()
-                    )));
-                }
-            };
+            let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
             let after_header = after_cause;
             let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =

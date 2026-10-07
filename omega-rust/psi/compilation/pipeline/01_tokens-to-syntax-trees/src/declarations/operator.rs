@@ -6,7 +6,7 @@ use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optio
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, CrashCause, OperatorDefinition,
+    CapabilityContract, CapabilityContractKind, OperatorDefinition,
 };
 use syntax_trees::operator_spelling::OperatorSpelling;
 use tokens::PunctuationKind;
@@ -144,16 +144,7 @@ fn parse_operator_contract<'tokens, 'source>(
         let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("crashes")?;
         let (cause, after_cause) = input.take_identifier()?;
-        let cause = match cause.as_str() {
-            "Trap" => CrashCause::Trap,
-            "Abort" => CrashCause::Abort,
-            _ => {
-                return Err(after_cause.error_here(format!(
-                    "unknown crash cause `{}`; expected `Trap` or `Abort`",
-                    cause.as_str()
-                )));
-            }
-        };
+        let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
         let after_header = after_cause;
         let header_token_count = 2usize;
         *input = after_header;
