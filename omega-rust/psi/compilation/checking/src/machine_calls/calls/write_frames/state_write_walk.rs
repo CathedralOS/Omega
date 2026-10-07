@@ -138,6 +138,37 @@ pub(crate) struct AssignmentPrefix {
 /// result where that query would return and carries on as the plain walk. A
 /// statement without an entry has no target, exactly as its query returns
 /// `None`, including every statement after a point where the walk fails.
+/// Record a storage-target assignment under `statement_index` when the
+/// assignment query is armed, cloning the current prefix roots.
+fn push_queried_storage_assignment(
+    queried_assignment: bool,
+    assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
+    statement_index: usize,
+    isolated_local_roots: &[String],
+    paths: &[String],
+    local_alias_origins: &[(String, FramePlaceOrigin)],
+    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
+    stored: &[StoredLocalOrigins],
+) {
+    if queried_assignment {
+        let Some(record) = assignments.as_deref_mut() else {
+            unreachable!("assignments are recorded only into a roster")
+        };
+        record.push((
+            statement_index,
+            AssignmentPrefix {
+                isolated_locals: isolated_local_roots.to_vec(),
+                target: AssignmentWriteTarget::Storage {
+                    paths: paths.to_vec(),
+                },
+                aliases: local_alias_origins.to_vec(),
+                divergent: divergent_alias_origins.to_vec(),
+                stored: stored.to_vec(),
+            },
+        ));
+    }
+}
+
 pub(crate) fn walk_state_assignments(
     program: &TypedTrees,
     machine: &Machine,
@@ -696,23 +727,16 @@ fn walk_state_write_prefix_inner(
                                 }
                             }
                         }
-                        if queried_assignment {
-                            let Some(record) = assignments.as_deref_mut() else {
-                                unreachable!("assignments are recorded only into a roster")
-                            };
-                            record.push((
-                                statement_index,
-                                AssignmentPrefix {
-                                    isolated_locals: isolated_local_roots.clone(),
-                                    target: AssignmentWriteTarget::Storage {
-                                        paths: paths.clone(),
-                                    },
-                                    aliases: local_alias_origins.clone(),
-                                    divergent: divergent_alias_origins.clone(),
-                                    stored: stored.clone(),
-                                },
-                            ));
-                        }
+                        push_queried_storage_assignment(
+                            queried_assignment,
+                            &mut assignments,
+                            statement_index,
+                            &isolated_local_roots,
+                            &paths,
+                            &local_alias_origins,
+                            &divergent_alias_origins,
+                            &stored,
+                        );
                         for path in paths {
                             push_visible_frame_path(&mut written, path, parameters, &locals)?;
                         }
@@ -892,23 +916,16 @@ fn walk_state_write_prefix_inner(
                     symbols,
                 )?;
                 let paths = expand_write_path(&relative, &local_alias_origins, &stored)?;
-                if queried_assignment {
-                    let Some(record) = assignments.as_deref_mut() else {
-                        unreachable!("assignments are recorded only into a roster")
-                    };
-                    record.push((
-                        statement_index,
-                        AssignmentPrefix {
-                            isolated_locals: isolated_local_roots.clone(),
-                            target: AssignmentWriteTarget::Storage {
-                                paths: paths.clone(),
-                            },
-                            aliases: local_alias_origins.clone(),
-                            divergent: divergent_alias_origins.clone(),
-                            stored: stored.clone(),
-                        },
-                    ));
-                }
+                push_queried_storage_assignment(
+                    queried_assignment,
+                    &mut assignments,
+                    statement_index,
+                    &isolated_local_roots,
+                    &paths,
+                    &local_alias_origins,
+                    &divergent_alias_origins,
+                    &stored,
+                );
                 for path in paths {
                     push_visible_frame_path(&mut written, path, parameters, &locals)?;
                 }
