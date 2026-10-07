@@ -158,7 +158,8 @@ crashes Trap
 
 
     state dispatch_data(parser: &mut Parser, input: &TokenStream, is_public: bool) {
-        Parser::parse_data(parser, input, parser.item_start, is_public);
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_data(parser, input, item_start, is_public);
         transition parser.output.accepted {
             true -> next_root(parser, input)
             _ -> done()
@@ -322,7 +323,7 @@ crashes Trap
         let use_index: u64 in Trapping = parser.output.use_count as u64 in Trapping;
         parser.output.uses[parser.output.use_count] = UseItem {
             first_member: parser.use_first_member,
-            member_count: parser.output.member_count - parser.use_first_member,
+            member_count: (parser.output.member_count as u64 in Trapping) - parser.use_first_member,
             source_span: Parser::source_span(parser, parser.item_start, item_end)
         };
         parser.output.use_count = parser.output.use_count + 1;

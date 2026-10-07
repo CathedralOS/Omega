@@ -31,7 +31,10 @@ machine Parser::store_generic_parameter(
     param_end: u64 in Trapping,
     has_type_reference: bool,
     type_reference: u64 in Trapping
-) {
+)
+// Both callers enter only after their capacity guard selected a free slot.
+requires parser.output.generic_parameter_count < 256
+{
     parser.output.generic_parameters[parser.output.generic_parameter_count] = GenericParameter {
         kind: parser.generic_pending_kind,
         name: Parser::identifier_span(parser, parser.generic_name_start, parser.generic_name_end),
@@ -796,7 +799,8 @@ machine Parser::parse_data(
         parser.output.cases[parser.output.case_count] = DataCase {
             name: Parser::identifier_span(parser, parser.case_name_start, parser.case_name_end),
             first_payload_field: parser.case_first_payload_field,
-            payload_field_count: parser.output.payload_field_count - parser.case_first_payload_field,
+            payload_field_count: (parser.output.payload_field_count as u64 in Trapping)
+                - parser.case_first_payload_field,
             source_span: Parser::source_span(parser, parser.case_start, case_end)
         };
         parser.output.case_count = parser.output.case_count + 1;
@@ -1643,11 +1647,11 @@ machine Parser::parse_data(
     state generic_after_dup_load(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
         transition parser.generic_pending_kind {
-            GenericParameterKind::Lifetime -> generic_separator_loaded(parser, input)
-            GenericParameterKind::Machine -> generic_separator_loaded(parser, input)
+            GenericParameterKind::Lifetime -> generic_separator(parser, input)
+            GenericParameterKind::Machine -> generic_separator(parser, input)
             GenericParameterKind::Const -> generic_const_colon(parser, input)
             GenericParameterKind::Type -> generic_type_tail(parser, input)
-            GenericParameterKind::Value -> generic_separator_loaded(parser, input)
+            GenericParameterKind::Value -> generic_separator(parser, input)
         }
     }
 
@@ -1843,8 +1847,8 @@ machine Parser::parse_data(
     }
 
     state generic_retain_typed(parser: &mut Parser, input: &TokenStream, param_end: u64 in Trapping) {
-        Parser::store_generic_parameter(parser, param_end,
-                true, parser.generic_type_index);
+        let type_index: u64 in Trapping = parser.generic_type_index;
+        Parser::store_generic_parameter(parser, param_end, true, type_index);
         transition { _ -> generic_mark_runtime(parser, input) }
     }
 
@@ -1998,13 +2002,14 @@ machine Parser::parse_data(
         parser.output.data_items[parser.output.data_count] = DataItem {
             name: Parser::identifier_span(parser, parser.data_name_start, parser.data_name_end),
             first_generic_parameter: parser.data_first_generic,
-            generic_parameter_count: parser.output.generic_parameter_count - parser.data_first_generic,
+            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping)
+                - parser.data_first_generic,
             first_member: parser.data_first_member,
-            member_count: parser.output.data_member_count - parser.data_first_member,
+            member_count: (parser.output.data_member_count as u64 in Trapping) - parser.data_first_member,
             first_field: parser.data_first_field,
-            field_count: parser.output.field_count - parser.data_first_field,
+            field_count: (parser.output.field_count as u64 in Trapping) - parser.data_first_field,
             first_case: parser.data_first_case,
-            case_count: parser.output.case_count - parser.data_first_case,
+            case_count: (parser.output.case_count as u64 in Trapping) - parser.data_first_case,
             multiplicity: parser.data_multiplicity,
             is_public: parser.data_is_public,
             source_span: Parser::source_span(parser, parser.data_item_start, item_end)
