@@ -415,6 +415,55 @@ pub(crate) fn citation_call_in_statement<'program>(
     }
 }
 
+/// Run `arm` over every `kind` fact that is a binary equality between
+/// resolvable structural terms, already substituted through `map`. A fact
+/// outside that shape aborts a strict walk (false); the loose walk skips
+/// it.
+fn for_each_substituted_contract_fact(
+    program: &TypedTrees,
+    facts: &dyn Fn(typed_trees::signature::SignatureContractKind) -> Vec<ExpressionHandle>,
+    kind: typed_trees::signature::SignatureContractKind,
+    map: &[(String, StructuralTerm)],
+    strict: bool,
+    mut arm: impl FnMut(StructuralTerm, StructuralTerm) -> bool,
+) -> bool {
+    for fact in facts(kind) {
+        let resolved = (|| {
+            if super::structural_terms::is_case_observation(program, fact) {
+                return None;
+            }
+            let ExpressionNode::Binary(binary) =
+                program.expression_table.expression(fact)
+            else {
+                return None;
+            };
+            if binary.operator != BinaryOperator::Equal {
+                return None;
+            }
+            let (Some(left), Some(right)) = (
+                structural_term(program, binary.left),
+                structural_term(program, binary.right),
+            ) else {
+                return None;
+            };
+            Some((
+                StructuralJudge::substitute_term(&left, map),
+                StructuralJudge::substitute_term(&right, map),
+            ))
+        })();
+        let Some((left, right)) = resolved else {
+            if strict {
+                return false;
+            }
+            continue;
+        };
+        if !arm(left, right) {
+            return false;
+        }
+    }
+    true
+}
+
 /// One citation for the edge judge: the callee's requires must judge Proven
 /// under the CURRENT hypotheses (else the citation contributes nothing);
 /// its ensures intake with `result` mapped to the call term, and a `let`
@@ -475,63 +524,43 @@ pub(crate) fn intake_citation_for_edge(
             })
             .collect::<Vec<_>>()
     };
-    for fact in facts(typed_trees::signature::SignatureContractKind::Requires) {
-        if super::structural_terms::is_case_observation(program, fact) {
-            return;
-        }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
-            return;
-        };
-        if binary.operator != BinaryOperator::Equal {
-            return;
-        }
-        let (Some(left), Some(right)) = (
-            structural_term(program, binary.left),
-            structural_term(program, binary.right),
-        ) else {
-            return;
-        };
-        let left = StructuralJudge::substitute_term(&left, &map);
-        let right = StructuralJudge::substitute_term(&right, &map);
-        let verdict = judge.judge_equation(judge.resolve(left.clone()), judge.resolve(right), 0);
-        if std::env::var_os("OMEGA_EDGE_TRACE").is_some() {
-            eprintln!(
-                "EDGE citation {} requires resolved {:?} verdict {}",
-                call.target.as_str(),
-                judge.resolve(left),
-                match verdict {
-                    StructuralJudgment::Proven => "Proven",
-                    StructuralJudgment::Refuted => "Refuted",
-                    StructuralJudgment::Unknown => "Unknown",
-                }
-            );
-        }
-        if !matches!(verdict, StructuralJudgment::Proven) {
-            return;
-        }
+    let all_proven = for_each_substituted_contract_fact(
+        program,
+        &facts,
+        typed_trees::signature::SignatureContractKind::Requires,
+        &map,
+        true,
+        |left, right| {
+            let verdict = judge.judge_equation(judge.resolve(left.clone()), judge.resolve(right), 0);
+            if std::env::var_os("OMEGA_EDGE_TRACE").is_some() {
+                eprintln!(
+                    "EDGE citation {} requires resolved {:?} verdict {}",
+                    call.target.as_str(),
+                    judge.resolve(left),
+                    match verdict {
+                        StructuralJudgment::Proven => "Proven",
+                        StructuralJudgment::Refuted => "Refuted",
+                        StructuralJudgment::Unknown => "Unknown",
+                    }
+                );
+            }
+            matches!(verdict, StructuralJudgment::Proven)
+        },
+    );
+    if !all_proven {
+        return;
     }
-    for fact in facts(typed_trees::signature::SignatureContractKind::Ensures) {
-        if super::structural_terms::is_case_observation(program, fact) {
-            continue;
-        }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
-            continue;
-        };
-        if binary.operator != BinaryOperator::Equal {
-            continue;
-        }
-        let (Some(left), Some(right)) = (
-            structural_term(program, binary.left),
-            structural_term(program, binary.right),
-        ) else {
-            continue;
-        };
-        judge.intake_equation(
-            StructuralJudge::substitute_term(&left, &map),
-            StructuralJudge::substitute_term(&right, &map),
-            0,
-        );
-    }
+    for_each_substituted_contract_fact(
+        program,
+        &facts,
+        typed_trees::signature::SignatureContractKind::Ensures,
+        &map,
+        false,
+        |left, right| {
+            judge.intake_equation(left, right, 0);
+            true
+        },
+    );
     if let Some(binder) = binder {
         // A `let` binder EXPANDS to its call term (a substitution, not an
         // intake -- intake_equation orients application sides REDUCING,
