@@ -57,19 +57,27 @@ pub fn finalization_diagnostic(
     ))
 }
 
+/// `machine` is a specialization instance (template rewritten to a concrete
+/// copy), not a canonical template — template-check walks skip it.
+pub(crate) fn machine_is_template_instance(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> bool {
+    program
+        .machine_specializations
+        .iter()
+        .any(|specialization| {
+            specialization.instance == machine.symbol
+                && specialization.template != specialization.instance
+        })
+}
+
 pub fn collect_checked_transition_target_selections(
     program: &dyn crate::CheckingInput,
     resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
-        if program
-            .machine_specializations
-            .iter()
-            .any(|specialization| {
-                specialization.instance == machine.symbol
-                    && specialization.template != specialization.instance
-            })
-        {
+        if machine_is_template_instance(program, machine) {
             continue;
         }
         for state in program.machine_states(machine) {

@@ -161,14 +161,9 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
     if let Some(owner_index) = owner_index {
         for site in owner_index.executable_sites(expression) {
             let machine = &program.machines()[site.machine];
-            if program
-                .machine_specializations
-                .iter()
-                .any(|specialization| {
-                    specialization.instance == machine.symbol
-                        && specialization.template != specialization.instance
-                })
-            {
+            if crate::declarations::selection_resolution::machine_is_template_instance(
+                program, machine,
+            ) {
                 continue;
             }
             let state = &program.machine_states(machine)[site.state];
@@ -189,13 +184,7 @@ pub(super) fn checked_machine_call_target_from_executable_owner(
         return target;
     }
     for machine in program.machines() {
-        if program
-            .machine_specializations
-            .iter()
-            .any(|specialization| {
-                specialization.instance == machine.symbol
-                    && specialization.template != specialization.instance
-            })
+        if crate::declarations::selection_resolution::machine_is_template_instance(program, machine)
         {
             continue;
         }
@@ -356,13 +345,9 @@ pub(super) fn attached_machine_target(
         .machines()
         .iter()
         .filter(|machine| {
-            !program
-                .machine_specializations
-                .iter()
-                .any(|specialization| {
-                    specialization.instance == machine.symbol
-                        && specialization.template != specialization.instance
-                })
+            !crate::declarations::selection_resolution::machine_is_template_instance(
+                program, machine,
+            )
         })
         .filter(|machine| machine.attached_data_symbol == attached_data)
         .flat_map(|machine| program.machine_states(machine))
