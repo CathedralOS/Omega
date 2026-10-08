@@ -186,12 +186,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
             &uart_layout(),
             &[(
                 "status",
-                FieldAccess::Stable {
-                    transfer_width_bits: 32,
-                    read: true,
-                    write: false,
-                    exposure: AccessExposure::Exported,
-                },
+                super::stable_word32_read(AccessExposure::Exported),
             )],
         ),
         reach: uart_reach(),

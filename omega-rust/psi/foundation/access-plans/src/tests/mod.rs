@@ -70,6 +70,17 @@ fn word32_access(read: ExternalReadBehavior, write: bool) -> ExternalCapability 
     }
 }
 
+/// The read-only 32-bit stable access nearly every fixture pins — only the
+/// exposure posture varies between tests.
+fn stable_word32_read(exposure: AccessExposure) -> FieldAccess {
+    FieldAccess::Stable {
+        transfer_width_bits: 32,
+        read: true,
+        write: false,
+        exposure,
+    }
+}
+
 fn uart_reach() -> BoundaryReach {
     BoundaryReach::from_services([reach()])
 }

@@ -121,12 +121,7 @@ fn numbered_field_rename_does_not_change_access_identity() {
             &original_layout,
             &[(
                 "word",
-                FieldAccess::Stable {
-                    transfer_width_bits: 32,
-                    read: true,
-                    write: false,
-                    exposure: AccessExposure::Exported,
-                },
+                super::stable_word32_read(AccessExposure::Exported),
             )],
         ),
         &original_layout,
@@ -139,12 +134,7 @@ fn numbered_field_rename_does_not_change_access_identity() {
             &original_layout,
             &[(
                 "renamed_word",
-                FieldAccess::Stable {
-                    transfer_width_bits: 32,
-                    read: true,
-                    write: false,
-                    exposure: AccessExposure::Exported,
-                },
+                super::stable_word32_read(AccessExposure::Exported),
             )],
         ),
         &original_layout,
@@ -233,12 +223,7 @@ fn access_identity_covers_operation_width_and_exposure() {
             .expect("identity test plan")
             .identity()
     };
-    let stable_read = FieldAccess::Stable {
-        transfer_width_bits: 32,
-        read: true,
-        write: false,
-        exposure: AccessExposure::Exported,
-    };
+    let stable_read = super::stable_word32_read(AccessExposure::Exported);
     let mut stable_write = stable_read.clone();
     let FieldAccess::Stable { read, write, .. } = &mut stable_write else {
         unreachable!()
@@ -432,12 +417,7 @@ fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
             &layout,
             &[(
                 "status",
-                FieldAccess::Stable {
-                    transfer_width_bits: 32,
-                    read: true,
-                    write: false,
-                    exposure: AccessExposure::Exported,
-                },
+                super::stable_word32_read(AccessExposure::Exported),
             )],
         ),
         &layout,
@@ -537,12 +517,7 @@ fn destructive_access_requires_one_whole_snapshot_accessor() {
                 ),
                 (
                     "status",
-                    FieldAccess::Stable {
-                        transfer_width_bits: 32,
-                        read: true,
-                        write: false,
-                        exposure: AccessExposure::Exported,
-                    },
+                    super::stable_word32_read(AccessExposure::Exported),
                 ),
             ],
         ),
@@ -659,12 +634,7 @@ fn multi_container_fragments_are_not_one_access() {
             &layout,
             &[(
                 "entry",
-                FieldAccess::Stable {
-                    transfer_width_bits: 32,
-                    read: true,
-                    write: false,
-                    exposure: AccessExposure::Exported,
-                },
+                super::stable_word32_read(AccessExposure::Exported),
             )],
         ),
         &layout,
@@ -692,12 +662,7 @@ fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
     let error = plan
         .set(
             alternate.key_at(0).expect("alternate key"),
-            FieldAccess::Stable {
-                transfer_width_bits: 32,
-                read: true,
-                write: false,
-                exposure: AccessExposure::Exported,
-            },
+            super::stable_word32_read(AccessExposure::Exported),
         )
         .expect_err("cross-layout key must reject");
     assert!(error.0.contains("different validated layout"));
@@ -709,12 +674,7 @@ fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
                 layout_commitment: plan.layout_commitment,
                 slot: u32::MAX,
             },
-            FieldAccess::Stable {
-                transfer_width_bits: 32,
-                read: true,
-                write: false,
-                exposure: AccessExposure::Exported,
-            },
+            super::stable_word32_read(AccessExposure::Exported),
         )
         .expect_err("out-of-cardinality key must reject");
     assert!(error.0.contains("outside the schema cardinality"));
