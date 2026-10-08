@@ -84,6 +84,12 @@ pub(super) fn validate(
     let wide = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
     let signed_wide = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
     let scalar = ScalarType::Integer;
+    // clockid_t occupies one 32-bit native word. Its declared signedness is
+    // retained in the logical signature, not mistaken for a different ABI.
+    // Both reading operations normalize that exact word in the common owner;
+    // wider integers and address carriers are not equivalent declarations.
+    let selector_valid = matches!(signature.scalar_parameters.as_slice(),
+        [ScalarType::Integer(integer)] if integer.bits() == 32 && !integer.is_address());
     // The kernel returns signed-long status; the actual std declarations either
     // retain i64, retain i32 (poll's C-style status), or discard it as Unit.
     // All modeled statuses fit either signed carrier. Preserve that declaration
@@ -94,13 +100,13 @@ pub(super) fn validate(
             && signature.result.scalar() == Some(scalar(signed_wide)));
     let (shape_valid, parameter_order) = match implementation {
         ClockImplementation::Read => (
-            signature.scalar_parameters == [scalar(unsigned)]
+            selector_valid
                 && signature.result.scalar() == Some(scalar(wide))
                 && signature.structural_parameters.is_empty(),
             vec![BoundaryParameterKind::Scalar],
         ),
         ClockImplementation::ReadTimespec => (
-            signature.scalar_parameters == [scalar(unsigned)] && status_valid,
+            selector_valid && status_valid,
             vec![
                 BoundaryParameterKind::Scalar,
                 BoundaryParameterKind::Structural,

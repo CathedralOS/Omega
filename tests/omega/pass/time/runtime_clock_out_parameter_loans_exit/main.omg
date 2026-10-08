@@ -7,9 +7,9 @@ pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
 data Main { clock: Binding<ClockProbe>; holder: Holder; pair: [i64; 2]; request: Instant; }
 pub boundary trait ClockProbe {
-    machine read(selector: u32, instant: &mut Instant) -> i32;
+    machine read(selector: i32, instant: &mut Instant) -> i32;
     machine read_pair(selector: u32, pair: &mut [i64; 2]) -> i32;
-    machine nanoseconds(selector: u32) -> u64;
+    machine nanoseconds(selector: i32) -> u64;
     machine wait(pointer: u64, count: u32, milliseconds: i32) -> i32;
     machine sleep(request: &Instant, remainder: u64) -> i32;
     machine sleep_unit(request: &Instant, remainder: u64);
@@ -36,11 +36,11 @@ macos_arm64 machine nanosleep_binding() -> ForeignBinding<26, 10, 0> {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_nanosleep"
     } }
 }
-macos_arm64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i32
+macos_arm64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i32
     satisfies ClockProbe::read via timespec_binding();
 macos_arm64 machine ClockImports::read_pair(selector: u32, pair: &mut [i64; 2]) -> i32
     satisfies ClockProbe::read_pair via timespec_binding();
-macos_arm64 machine ClockImports::nanoseconds(selector: u32) -> u64
+macos_arm64 machine ClockImports::nanoseconds(selector: i32) -> u64
     satisfies ClockProbe::nanoseconds via nanoseconds_binding();
 macos_arm64 machine ClockImports::wait(pointer: u64, count: u32, milliseconds: i32) -> i32
     satisfies ClockProbe::wait via poll_binding();
@@ -49,7 +49,7 @@ macos_arm64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i3
 macos_arm64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
     satisfies ClockProbe::sleep_unit via nanosleep_binding();
 
-machine read(clock: &Binding<ClockProbe>, selector: u32, instant: &mut Instant) -> i32
+machine read(clock: &Binding<ClockProbe>, selector: i32, instant: &mut Instant) -> i32
     reaches ClockProbe { clock.read(selector, instant) }
 machine sleep(clock: &Binding<ClockProbe>, request: &Instant) -> i32
     reaches ClockProbe { clock.sleep(request, 1) }

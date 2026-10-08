@@ -7,15 +7,15 @@ pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
 data Holder { prefix: i64; instant: Instant; suffix: i64; }
 data Main { clock: Binding<ClockProbe>; holder: Holder; request: Instant; }
 pub boundary trait ClockProbe {
-    machine read(selector: u32, instant: &mut Instant) -> i64;
+    machine read(selector: i32, instant: &mut Instant) -> i64;
     machine sleep(request: &Instant, remainder: u64) -> i64;
     machine sleep_unit(request: &Instant, remainder: u64);
 }
 data ClockImports {}
 
-linux_x86_64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i64
+linux_x86_64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i64
     satisfies ClockProbe::read via ForeignBinding::Syscall(228);
-linux_arm64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i64
+linux_arm64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i64
     satisfies ClockProbe::read via ForeignBinding::Syscall(113);
 linux_x86_64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i64
     satisfies ClockProbe::sleep via ForeignBinding::Syscall(35);

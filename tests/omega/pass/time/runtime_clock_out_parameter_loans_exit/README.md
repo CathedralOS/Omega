@@ -7,7 +7,10 @@ omega run --both tests/omega/pass/time/runtime_clock_out_parameter_loans_exit/ma
 ```
 
 The exact libSystem `_clock_gettime` import writes two signed 64-bit timespec
-coordinates into the caller's original storage. Record names do not select
+coordinates into the caller's original storage. Signed clock IDs serve the
+record and nanosecond reads; unsigned clock IDs serve the array read. Each
+declaration keeps its logical carrier while supplying the same 32-bit native
+clock ID. Record names do not select
 semantics: the same physical write also fills a fixed array. A helper and a
 captured reference retain a nested record's backing; its unwritten suffix,
 siblings and separately copied readings remain unchanged. Scalar nanosecond

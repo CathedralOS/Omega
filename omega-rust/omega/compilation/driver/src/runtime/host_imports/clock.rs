@@ -5,6 +5,8 @@
 //! choice, not proof of foreign behavior. Checked calibration, wait splitting
 //! and retries stay in guest code. All selected slots share one supplied clock;
 //! reads do not advance it and finite waits advance both elapsed and Unix time.
+//! Signed and unsigned 32-bit clock IDs share native word interpretation without
+//! changing either declaration or admitting other widths.
 //! Native placement and authenticated loans select timespec storage, never
 //! record names or host pointers. Read-only requests receive no writeback.
 //!
@@ -158,6 +160,33 @@ impl ClockImport {
     }
 }
 
+/// Retain the authored logical carrier while interpreting its native 32-bit
+/// clock ID. Negative signed IDs retain their bits: Linux uses negative IDs
+/// for descriptor-backed clocks, which still need their unavailable custody
+/// model. Neither numerical normalization nor ABI compatibility licenses one.
+fn selector(
+    arguments: &[TerminalScalarValue],
+    signature: &TerminalImportSignature,
+) -> Result<u128, TerminalEffectRejection> {
+    let invalid =
+        || TerminalEffectRejection::new("clock selector differs from its installed carrier");
+    let [TerminalScalarValue::Integer { scalar_type, value }] = arguments else {
+        return Err(invalid());
+    };
+    if signature.scalar_parameters.as_slice() != [ScalarType::Integer(*scalar_type)]
+        || scalar_type.bits() != 32
+        || scalar_type.is_address()
+        || !scalar_type.admits(*value)
+    {
+        return Err(invalid());
+    }
+    let bits = match value {
+        IntegerValue::Signed(value) => *value as u128,
+        IntegerValue::Unsigned(value) => *value,
+    };
+    Ok(bits & u128::from(u32::MAX))
+}
+
 fn status_result(
     signature: &TerminalImportSignature,
     status: i128,
@@ -280,20 +309,12 @@ impl TerminalEffectHandler for ClockImport {
         }
         match &self.operation {
             ClockOperation::Read => {
-                let [
-                    TerminalScalarValue::Integer {
-                        value: IntegerValue::Unsigned(selector),
-                        ..
-                    },
-                ] = arguments.as_slice()
-                else {
-                    return Err(invalid());
-                };
+                let selector = selector(arguments, &self.signature)?;
                 let reading = self
                     .clock
                     .lock()
                     .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?
-                    .reading(self.namespace, *selector)?;
+                    .reading(self.namespace, selector)?;
                 let Some(ScalarType::Integer(scalar_type)) = self.signature.result.scalar() else {
                     return Err(invalid());
                 };

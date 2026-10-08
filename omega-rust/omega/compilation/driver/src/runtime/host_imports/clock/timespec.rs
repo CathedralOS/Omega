@@ -75,19 +75,8 @@ pub(super) fn read(
     else {
         return Err(invalid());
     };
-    let [
-        TerminalScalarValue::Integer {
-            scalar_type,
-            value: IntegerValue::Unsigned(selector),
-        },
-    ] = arguments.as_slice()
-    else {
-        return Err(invalid());
-    };
-    if signature.scalar_parameters.as_slice()
-        != [semantic_vocabulary::ScalarType::Integer(*scalar_type)]
-        || !scalar_type.admits(IntegerValue::Unsigned(*selector))
-        || structural_arguments.len() != 1
+    let selector = super::selector(arguments, signature)?;
+    if structural_arguments.len() != 1
         || structural_arguments[0].structural_type != layout.structural_type
         || !matches!(byte_sequence_arguments.as_slice(), [None])
     {
@@ -98,7 +87,7 @@ pub(super) fn read(
     let reading = clock
         .lock()
         .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?
-        .reading(namespace, *selector)?;
+        .reading(namespace, selector)?;
     let seconds = i64::try_from(reading / 1_000_000_000).map_err(|_| invalid())?;
     let nanoseconds = i64::try_from(reading % 1_000_000_000).map_err(|_| invalid())?;
     let result = super::status_result(signature, 0)?;

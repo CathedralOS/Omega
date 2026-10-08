@@ -1800,7 +1800,9 @@ then independent claimed restoration slices -> final closure.
   signatures. Remaining arrivals include scalar entry arguments, placed host
   loans, accesses into actual padding or reference bytes, atomic host buffers,
   non-hosted roots and required
-  receiver qualifications. Preserve
+  receiver qualifications. Foreign write-only loans depend on
+  **WRITE-ONLY-BORROW**'s admitted implementation-bound non-observation evidence;
+  widening runtime permission cannot bypass the source rejection. Preserve
   `host/runtime_descriptor_binding_{state_forwarding_input,record_result}_exit`
   and `fail/borrows/binding_state_mutable_from_shared`: scalar and structural
   completion must retain the original Binding occurrence without elevating
@@ -3791,6 +3793,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 - **WRITE-ONLY-BORROW.** Caller-visible `&write T` mutation is incomplete under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).
   Remaining:
+  - opaque foreign declarations and boundary-trait requirements need admitted
+    non-observation evidence bound to the selected implementation and receipt
+    before original-backing foreign output transport. Source checking rejects
+    them today; preserve `fail/borrow/opaque_write_only_boundary`. ABI shape and
+    a host output offer do not prove native non-observation;
   - general aggregate and `[copy]` sum replacement beyond scalar-field record
     literals, preserving displaced custody and whole-value validity;
   - runtime domain-qualified byte-field replacement with encoding evidence;

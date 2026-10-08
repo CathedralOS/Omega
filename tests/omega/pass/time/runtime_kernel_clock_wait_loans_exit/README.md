@@ -11,6 +11,10 @@ supplied invocation-private time model in Terminal execution. Native execution
 uses the actual kernel; neither simulation nor cross-target artifact generation
 qualifies native timing or interruption behavior.
 
+The signed 32-bit clock ID retains its declared carrier through the native
+syscall plan and Terminal dispatch. A negative descriptor-backed ID needs
+actual descriptor-clock custody, not reinterpretation as an ordinary clock.
+
 A helper and captured loans preserve the caller's original nested clock output
 and shared wait request. Clock writes leave the output suffix and siblings
 unchanged; waits do not modify the request. Both retained and discarded status
