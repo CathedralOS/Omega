@@ -90,16 +90,8 @@ fn uart_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "status".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "transmit".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 4 },
-            },
+            layout_field_entry("status".into(), LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("transmit".into(), LayoutPlacementReport::At { offset: 4 }),
             LayoutFieldEntryReport {
                 field: "control".into(),
                 member_identity: None,
@@ -378,11 +370,7 @@ fn stable_uart_resource_profile(
 fn destructive_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xe17e_7a4e,
-        entries: vec![LayoutFieldEntryReport {
-            field: "fifo".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("fifo".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,
@@ -455,11 +443,7 @@ fn atomic_word_placement_with_operations(
 ) -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint,
-        entries: vec![LayoutFieldEntryReport {
-            field: "head".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("head".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,

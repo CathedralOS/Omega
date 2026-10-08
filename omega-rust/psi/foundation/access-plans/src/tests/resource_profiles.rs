@@ -14,7 +14,7 @@ use crate::{
 };
 use language_core::atomic::MemoryOrdering;
 use layout_plans::test_support::layout_field_entry;
-use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 
 #[test]
 fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
@@ -223,11 +223,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
 
     let atomic_layout = LayoutPlanReport {
         schema_report_fingerprint: 93,
-        entries: vec![LayoutFieldEntryReport {
-            field: "head".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("head".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,
@@ -440,16 +436,8 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
     let conflicting_layout = LayoutPlanReport {
         schema_report_fingerprint: 91,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "left".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "right".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 2 },
-            },
+            layout_field_entry("left".into(), LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("right".into(), LayoutPlacementReport::At { offset: 2 }),
         ],
         offsets: Some(vec![0, 2]),
         size: Some(8),
