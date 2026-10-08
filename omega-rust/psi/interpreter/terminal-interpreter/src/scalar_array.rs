@@ -1,12 +1,15 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
+use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralTypeId;
 use semantic_vocabulary::ValueId;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
 mod loans;
@@ -26,16 +29,14 @@ pub struct TerminalScalarArrayResult {
 impl TerminalExecution<'_> {
     /// Copy a complete unrestricted actual into its exact callee parameter.
     /// Borrowed occurrences retain live storage through `loans`, not this copy.
+    /// A whole array value already holds its payload; an array kept in its
+    /// owner's storage (`buffer.values`, or a copied field) is read out of it.
     pub(crate) fn prepare_scalar_array_argument(
         &self,
         machine: &TerminalMachine,
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
-        let value = self
-            .scalar_array_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
             self.program.structural_types().values(),
             parameter.structural_type,
@@ -45,16 +46,9 @@ impl TerminalExecution<'_> {
         // activation home through loans.rs, for reads and writes alike.
         if parameter.access != StructuralAccess::Owned
             || argument.access != StructuralAccess::Owned
-            || !argument.path.is_empty()
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || value.structural_type != parameter.structural_type
-            || u64::try_from(value.elements.len()).ok() != Some(count)
-            || value
-                .elements
-                .iter()
-                .any(|value| value.scalar_type() != scalar_type)
             || machine
                 .entry_claims
                 .iter()
@@ -63,6 +57,23 @@ impl TerminalExecution<'_> {
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == parameter.place)
+        {
+            return Err(malformed());
+        }
+        let Some(value) = argument
+            .path
+            .is_empty()
+            .then(|| self.scalar_array_values.get(&argument.place))
+            .flatten()
+        else {
+            return self.stored_scalar_array_copy(argument, parameter.structural_type, scalar_type);
+        };
+        if value.structural_type != parameter.structural_type
+            || u64::try_from(value.elements.len()).ok() != Some(count)
+            || value
+                .elements
+                .iter()
+                .any(|value| value.scalar_type() != scalar_type)
             || self
                 .live_claims
                 .values()
@@ -72,6 +83,54 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         Ok(value.clone())
+    }
+
+    /// Read every leaf of the array `argument` selects, in row-major order,
+    /// through the same primitive storage an indexed read of it observes. The
+    /// owner keeps its storage; the copy is independent of later writes.
+    fn stored_scalar_array_copy(
+        &self,
+        argument: &StructuralArgument,
+        structural_type: StructuralTypeId,
+        scalar_type: ScalarType,
+    ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        let root_type = self.live_structural_type(argument.place)?;
+        if crate::custody::resolve_structural_path_type(&types, root_type, &argument.path)?
+            != structural_type
+        {
+            return Err(malformed());
+        }
+        let mut dimensions = Vec::new();
+        let mut current = structural_type;
+        while let Some(StructuralTypeShape::FixedArray { element, length }) =
+            types.get(&current).map(|declaration| &declaration.shape)
+        {
+            dimensions.push(*length);
+            current = *element;
+        }
+        let count = dimensions
+            .iter()
+            .try_fold(1_u64, |count, length| count.checked_mul(*length))
+            .ok_or_else(malformed)?;
+        let mut elements = Vec::with_capacity(usize::try_from(count).map_err(|_| malformed())?);
+        let mut path = argument.path.clone();
+        let prefix = path.len();
+        for leaf in 0..count {
+            path.truncate(prefix);
+            let mut remainder = leaf;
+            let mut stride = count;
+            for length in &dimensions {
+                stride /= length;
+                path.push(StructuralPathSegment::FixedIndex(remainder / stride));
+                remainder %= stride;
+            }
+            elements.push(self.read_primitive_place(argument.place, &path, scalar_type)?);
+        }
+        Ok(TerminalScalarArrayValue {
+            structural_type,
+            elements,
+        })
     }
 
     pub(crate) fn execute_scalar_array_establishment(
