@@ -30,8 +30,7 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedBoundarySettlementPayload,
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
-    SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
@@ -183,36 +182,6 @@ fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {
 
 /// The instruction the audit expects for one emitted row: the target row's
 /// complete operand/effect interface, not guessed ISA conventions.
-fn expected_instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 /// The expected address/load pair for one admitted use, built from the
 /// validator's own reconstruction: the victim's exact type, class, lineage
@@ -305,7 +274,7 @@ fn expected_reload(
             definition_site: reconstructed.victim.definition_site,
             entry_fixed_view: None,
         },
-        address: expected_instruction(
+        address: crate::rewrites::test_support::instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
                 slot: FrameStorageSlotId::Local(slot),
@@ -314,14 +283,14 @@ fn expected_reload(
             reconstructed.address,
             &[address_register],
         ),
-        load: expected_instruction(
+        load: crate::rewrites::test_support::instruction(
             load_instruction,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             reconstructed.load,
             &[address_register, loaded],
         ),
         convert: conversion.map(|conversion| {
-            expected_instruction(
+            crate::rewrites::test_support::instruction(
                 convert_instruction.unwrap_or(restating),
                 conversion.from_kind,
                 conversion.from_bits,
@@ -401,14 +370,14 @@ fn expected_store(
         }),
         address_scratch,
         convert: conversion.map(|conversion| {
-            expected_instruction(
+            crate::rewrites::test_support::instruction(
                 convert_instruction.unwrap_or(store_instruction),
                 conversion.to_kind,
                 conversion.to_bits,
                 &[stored, stored_register],
             )
         }),
-        store: expected_instruction(
+        store: crate::rewrites::test_support::instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
                 slot: FrameStorageSlotId::Local(slot),

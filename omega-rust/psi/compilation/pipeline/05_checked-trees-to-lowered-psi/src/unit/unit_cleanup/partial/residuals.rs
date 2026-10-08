@@ -4,8 +4,7 @@ use super::super::CheckedUnitStructuralTypeShape;
 use super::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, LoweringError, checked_partial_affine_field_type,
-};
+    CheckedUnitStructuralTypePlan, LoweringError, };
 fn validate_type(
     types: &[CheckedUnitStructuralTypePlan],
     current_type: &str,
@@ -27,7 +26,7 @@ fn validate_type(
             for (index, field) in fields.iter().enumerate() {
                 if field.identity.is_empty()
                     || field.relevance.is_erased()
-                    || !checked_partial_affine_field_type(&field.field_type)
+                    || !checked_trees::is_partial_affine_field_type(&field.field_type)
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)
@@ -95,7 +94,7 @@ fn visit(
             if fields.iter().enumerate().any(|(index, field)| {
                 field.identity.is_empty()
                     || field.relevance.is_erased()
-                    || !checked_partial_affine_field_type(&field.field_type)
+                    || !checked_trees::is_partial_affine_field_type(&field.field_type)
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)

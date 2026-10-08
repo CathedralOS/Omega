@@ -6,8 +6,7 @@ use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterOpe
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
-    SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
@@ -1630,7 +1629,7 @@ pub(super) fn reload(
             definition_site: admitted.victim.definition_site,
             entry_fixed_view: None,
         },
-        address: instruction(
+        address: crate::rewrites::test_support::instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
                 slot: frame(slot),
@@ -1639,14 +1638,14 @@ pub(super) fn reload(
             admitted.address,
             &[address_register],
         ),
-        load: instruction(
+        load: crate::rewrites::test_support::instruction(
             load_instruction,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             admitted.load,
             &[address_register, loaded],
         ),
         convert: conversion.map(|conversion| {
-            instruction(
+            crate::rewrites::test_support::instruction(
                 convert_instruction.unwrap_or(restating),
                 conversion.from_kind,
                 conversion.from_bits,
@@ -1756,14 +1755,14 @@ pub(super) fn store(
         }),
         address_scratch,
         convert: conversion.map(|conversion| {
-            instruction(
+            crate::rewrites::test_support::instruction(
                 convert_instruction.unwrap_or(store_instruction),
                 conversion.to_kind,
                 conversion.to_bits,
                 &[stored, stored_register],
             )
         }),
-        store: instruction(
+        store: crate::rewrites::test_support::instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
                 slot: frame(slot),
@@ -1776,36 +1775,6 @@ pub(super) fn store(
 }
 
 /// Target rows supply the complete operand/effect interface, not guessed ISA conventions.
-pub(super) fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 pub(super) fn frame(slot: LocalStorageSlotId) -> FrameStorageSlotId {
     FrameStorageSlotId::Local(slot)

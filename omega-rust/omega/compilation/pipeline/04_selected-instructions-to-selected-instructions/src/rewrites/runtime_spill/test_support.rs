@@ -1,7 +1,7 @@
 //! Raw selected-stage fixture shared by spill rewriting and allocation tests.
 //! This does not establish source or Terminal admission.
 
-use super::{RuntimeSpillReceipt, ValidatedRuntimeSpill, admission};
+use super::{RuntimeSpillReceipt, ValidatedRuntimeSpill};
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -54,7 +54,7 @@ pub fn runtime_spill_source(
             definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
             entry_fixed_view: None,
         });
-        instructions.push(admission::instruction(
+        instructions.push(crate::rewrites::test_support::instruction(
             instruction,
             SelectedInstructionKind::CopyI64,
             copy,
@@ -95,7 +95,7 @@ pub fn runtime_spill_source(
                 ),
                 instructions,
                 terminator: SelectedTerminator::Return {
-                    instruction: admission::instruction(
+                    instruction: crate::rewrites::test_support::instruction(
                         SelectedInstructionId(5),
                         SelectedInstructionKind::ReturnUnit,
                         terminal_row,

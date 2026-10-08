@@ -5,7 +5,7 @@ use super::super::{
 };
 use super::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, LoweringError, PrimitiveType, Terminator, lookup_type_id,
+    CheckedUnitStructuralFieldType, LoweringError, Terminator, lookup_type_id,
     unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
