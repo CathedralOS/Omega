@@ -200,13 +200,11 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             values.extend([*index, *value, *length]);
         }
         O::ByteSequenceStore { length, .. } | O::StructuralByteSequenceFieldStore { length, .. } => values.push(*length),
-        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+        O::EstablishByteSequenceConcatenation { left, right, .. }
+        | O::ByteSequenceEqual { left, right } => {
             values.extend([left.length(), right.length()]);
         }
         O::ByteSequencePredicate { operand, .. } => values.push(operand.length()),
-        O::ByteSequenceEqual { left, right } => {
-            values.extend([left.length(), right.length()]);
-        }
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => {
             values.extend([*index, *length])
