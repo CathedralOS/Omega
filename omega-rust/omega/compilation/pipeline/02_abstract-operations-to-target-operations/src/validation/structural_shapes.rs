@@ -17,10 +17,10 @@ use terminal_psi::{
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvalidStructuralShape;
 
-pub(super) fn reconstruct(
-    root: StructuralTypeId,
+/// Index declarations by id, rejecting a duplicate-id roster.
+fn index_declarations(
     declarations: &[StructuralTypeDeclaration],
-) -> Result<ValueShape, InvalidStructuralShape> {
+) -> Result<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>, InvalidStructuralShape> {
     let indexed = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
@@ -28,6 +28,14 @@ pub(super) fn reconstruct(
     if indexed.len() != declarations.len() {
         return Err(InvalidStructuralShape);
     }
+    Ok(indexed)
+}
+
+pub(super) fn reconstruct(
+    root: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<ValueShape, InvalidStructuralShape> {
+    let indexed = index_declarations(declarations)?;
     shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
 }
 
@@ -69,13 +77,7 @@ pub(super) fn project_static_path(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(StructuralTypeId, u32), InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     if !path.is_empty()
         && matches!(
             indexed.get(&structural_type).map(|row| &row.shape),
@@ -180,13 +182,7 @@ pub(super) fn project_runtime_path(
     ),
     InvalidStructuralShape,
 > {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     // A byte projection addresses payload storage, not the view descriptor.
     // Semantic endpoint admission owns access and dynamic index bounds.
     if !path.is_empty()
@@ -278,13 +274,7 @@ pub(super) fn projected_field(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let mut byte_offset = 0_u32;
@@ -312,13 +302,7 @@ pub(super) fn root_array_transport(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(Option<u64>, Option<u32>), InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let Some(declaration) = indexed.get(&root).copied() else {
         return Err(InvalidStructuralShape);
     };
@@ -344,13 +328,7 @@ pub(super) fn bounded_byte_field_geometry(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(u32, u64), InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let (field_offset, carrier) =
@@ -386,13 +364,7 @@ pub(super) fn borrowed_view_field_offset(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<u32, InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let (field_offset, carrier) =
@@ -510,13 +482,7 @@ pub fn classified_boundary_shape(
     declarations: &[StructuralTypeDeclaration],
     policy: CallingPolicy,
 ) -> Result<ValueShape, InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let declaration = indexed
         .get(&structural_type)
         .copied()
@@ -978,13 +944,7 @@ pub(super) fn boundary_result_home(
     result: &StructuralOperationResult,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<TargetStructuralHomeRequirement, InvalidStructuralShape> {
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     let declaration = indexed
         .get(&result.structural_type)
         .copied()
@@ -1019,13 +979,7 @@ fn result_home_layout(
 ) -> Result<TargetStructuralHomeLayout, InvalidStructuralShape> {
     // The complete claim and qualification rosters ride `origin.result`
     // verbatim; the independently reconstructed layout uses the carrier type.
-    let indexed = declarations
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect::<BTreeMap<_, _>>();
-    if indexed.len() != declarations.len() {
-        return Err(InvalidStructuralShape);
-    }
+    let indexed = index_declarations(declarations)?;
     match indexed
         .get(&result.structural_type)
         .map(|declaration| &declaration.shape)
