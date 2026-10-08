@@ -110,6 +110,16 @@ impl SelectedBlock {
         self.instructions.iter().find(|row| row.id == instruction)
     }
 
+    /// The position of the instruction keyed `instruction`.
+    pub fn instruction_index(
+        &self,
+        instruction: super::SelectedInstructionId,
+    ) -> Option<usize> {
+        self.instructions
+            .iter()
+            .position(|row| row.id == instruction)
+    }
+
     /// Semantic anchor; an implementation block anchors its destination.
     pub const fn source_block(&self) -> BlockId {
         match self.origin {

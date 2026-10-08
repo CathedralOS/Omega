@@ -38,6 +38,11 @@ impl LegalizedScalarFunction {
         self.blocks.iter().find(|row| row.id == block)
     }
 
+    /// The position of the block keyed `block`.
+    pub fn block_index(&self, block: BlockId) -> Option<usize> {
+        self.blocks.iter().position(|row| row.id == block)
+    }
+
     /// Whether a retained instruction, terminator or outgoing edge reads this value.
     pub fn references_value(&self, value: ValueId) -> bool {
         self.blocks.iter().any(|block| {
