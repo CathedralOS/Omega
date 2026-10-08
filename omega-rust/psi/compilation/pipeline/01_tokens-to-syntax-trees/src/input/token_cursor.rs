@@ -364,6 +364,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
+    /// True at any keyword that continues a machine signature contract —
+    /// `terminates`/`decreases`/`reaches`/`effects`/`invokes`/`suspends`/
+    /// `blocks`/`crashes`/`boundary`. Consumes nothing.
+    pub(crate) fn at_contract_continuation_keyword(&self) -> bool {
+        self.at_contextual("terminates")
+            || self.at_contextual("decreases")
+            || self.at_contextual("reaches")
+            || self.at_contextual("effects")
+            || self.at_contextual("invokes")
+            || self.at_contextual("suspends")
+            || self.at_contextual("blocks")
+            || self.at_contextual("crashes")
+            || self.at_contextual("boundary")
+    }
+
     /// The reference-access modifier after `&`: `mut` for Mutable, `write`
     /// for WriteOnly, otherwise Shared (consuming nothing).
     pub(crate) fn take_reference_access(
