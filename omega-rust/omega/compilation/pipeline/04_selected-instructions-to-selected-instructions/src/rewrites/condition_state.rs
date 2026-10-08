@@ -20,12 +20,12 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use crate::rewrites::block_edges::{
-    block_instructions, terminator_instruction, terminator_successors,
-};
+    block_instructions, terminator_successors};
 use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     VirtualRegisterId,
+    terminator_instruction
 };
 use semantic_vocabulary::IntegerValue;
 

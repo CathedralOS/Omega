@@ -13,13 +13,13 @@ use selected_instructions::{
 SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedCasePayloadTransport, SelectedInstructionKind, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedValueTransport, VirtualRegisterId, terminator_instruction
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoreMutationMotionError;
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, extent_intersects, extent_reached_by, packed_store_row_shape,
     place_store_row_shape, slot_is_subject_storage,

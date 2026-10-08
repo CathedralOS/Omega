@@ -64,10 +64,10 @@ use std::collections::{BTreeSet, VecDeque};
 use register_model::RegisterUnitId;
 use selected_instructions::{
     SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId, terminator_instruction
 };
 
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::window_hazards::{register_reads, register_writes};
 
 /// How the moved body occupies its landing position on the paths the

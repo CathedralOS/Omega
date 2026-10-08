@@ -8,11 +8,12 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     VirtualRegisterId,
+    terminator_instruction,
 };
 
 use crate::rewrites::block_edges::{
-    RelocationCrossing, edge_accounted, edge_surface, plain_edge, terminator_instruction,
-    terminator_successors, transport_conflict,
+    RelocationCrossing, edge_accounted, edge_surface, plain_edge, terminator_successors,
+    transport_conflict,
 };
 
 /// Register locations an operand reads or writes. `UseDef` participates in

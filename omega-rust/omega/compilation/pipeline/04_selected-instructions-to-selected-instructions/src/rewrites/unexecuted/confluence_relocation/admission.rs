@@ -19,14 +19,14 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
+    terminator_instruction
 };
 
 use super::ConfluenceRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
-    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, terminator_instruction,
-    terminator_successors,
-};
+    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, 
+    terminator_successors};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,

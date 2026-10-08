@@ -1,5 +1,6 @@
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
+use selected_instructions::{terminator_instruction
+};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
@@ -76,14 +77,3 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     Ok(())
 }
 
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}

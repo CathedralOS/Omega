@@ -89,7 +89,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     FrameStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedMemoryAccessRole,
+    SelectedInstructionKind, SelectedMemoryAccessRole, terminator_instruction
 };
 
 use super::StoreMutationMotionError;
@@ -98,7 +98,7 @@ use super::motion::{
     place_store_shape, reaches_visited, reconvergent_join, settlement_before, sole_predecessor,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,

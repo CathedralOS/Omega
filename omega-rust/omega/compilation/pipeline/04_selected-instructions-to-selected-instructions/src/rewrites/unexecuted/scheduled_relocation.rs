@@ -72,11 +72,12 @@ mod validation;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::window_hazards::RunRelocationRejection;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity, terminator_instruction
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::relocate_scheduled_run;

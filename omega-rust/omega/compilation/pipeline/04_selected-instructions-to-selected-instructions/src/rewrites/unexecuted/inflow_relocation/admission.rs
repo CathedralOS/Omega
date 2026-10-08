@@ -17,13 +17,14 @@
 //! it.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator,
+    terminator_instruction,
+};
 
 use super::InflowRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, all_edges, crossed_window, function_at, plain_edge, terminator_instruction,
-    terminator_successors,
+    CrossingDirection, all_edges, crossed_window, function_at, plain_edge, terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{

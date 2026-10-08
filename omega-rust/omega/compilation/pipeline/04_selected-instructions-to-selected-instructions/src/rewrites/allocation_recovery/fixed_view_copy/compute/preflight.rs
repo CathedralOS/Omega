@@ -1,11 +1,11 @@
 //! Source-custody preflight, work accounting, and insertion-site discovery.
+use selected_instructions::terminator_instruction;
 use super::{
     OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
     SelectedInstructionId, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-    ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity,
-};
+    ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity};
 use crate::FixedViewCopyError;
 use crate::FixedViewCopyPolicy;
 use crate::ValidatedAllocationLegality;
@@ -99,8 +99,7 @@ pub(super) fn work_usage(
         candidates: requirements,
         validation_steps: requirements,
         commits,
-        iterations: 1,
-    })
+        iterations: 1})
 }
 
 pub(super) fn next_instruction_id(
@@ -122,24 +121,20 @@ pub(super) fn next_instruction_id(
                     | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. }
                     | SelectedTerminator::Crash { instruction, .. }
-                    | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
-                }))
+                    | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0}))
         })
         .collect::<Vec<_>>();
     ids.sort_unstable();
     if ids
         != (0..u32::try_from(ids.len()).map_err(|_| FixedViewCopyError::IdentifierOverflow {
-            function: function_index,
-        })?)
+            function: function_index})?)
             .collect::<Vec<_>>()
     {
         return Err(FixedViewCopyError::FunctionMismatch {
-            function: function_index,
-        });
+            function: function_index});
     }
     u32::try_from(ids.len()).map_err(|_| FixedViewCopyError::IdentifierOverflow {
-        function: function_index,
-    })
+        function: function_index})
 }
 
 pub(super) fn next_register_id(
@@ -153,13 +148,11 @@ pub(super) fn next_register_id(
         .any(|(index, register)| usize::try_from(register.id.0) != Ok(index))
     {
         return Err(FixedViewCopyError::FunctionMismatch {
-            function: function_index,
-        });
+            function: function_index});
     }
     u32::try_from(function.virtual_registers.len()).map_err(|_| {
         FixedViewCopyError::IdentifierOverflow {
-            function: function_index,
-        }
+            function: function_index}
     })
 }
 
@@ -185,8 +178,7 @@ pub(super) fn find_leaf_block(
         if block.id == function.entry_block {
             return Err(FixedViewCopyError::NonLeafDestination {
                 function: function_index,
-                instruction: instruction.0,
-            });
+                instruction: instruction.0});
         }
         let Some(destination_operand) = destination
             .operands
@@ -195,8 +187,7 @@ pub(super) fn find_leaf_block(
         else {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
-                instruction: instruction.0,
-            });
+                instruction: instruction.0});
         };
         if destination_operand.virtual_register != source
             || destination_operand.access != RegisterOperandAccess::Use
@@ -204,15 +195,13 @@ pub(super) fn find_leaf_block(
         {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
-                instruction: instruction.0,
-            });
+                instruction: instruction.0});
         }
         return Ok(block.id);
     }
     Err(FixedViewCopyError::MissingDestination {
         function: function_index,
-        instruction: instruction.0,
-    })
+        instruction: instruction.0})
 }
 
 /// The block owning the fixed-use site — the instruction may be an ordinary
@@ -245,8 +234,7 @@ pub(super) fn find_site_block(
         else {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
-                instruction: instruction.0,
-            });
+                instruction: instruction.0});
         };
         if site_operand.virtual_register != source
             || site_operand.access != RegisterOperandAccess::Use
@@ -254,27 +242,12 @@ pub(super) fn find_site_block(
         {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
-                instruction: instruction.0,
-            });
+                instruction: instruction.0});
         }
         return Ok(block.id);
     }
     Err(FixedViewCopyError::MissingDestination {
         function: function_index,
-        instruction: instruction.0,
-    })
+        instruction: instruction.0})
 }
 
-fn terminator_instruction(
-    terminator: &SelectedTerminator,
-) -> &selected_instructions::SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}

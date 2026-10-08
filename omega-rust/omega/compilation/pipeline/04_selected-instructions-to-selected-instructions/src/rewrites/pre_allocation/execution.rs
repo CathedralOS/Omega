@@ -44,7 +44,7 @@ use crate::analyze_allocation_legality;
 use crate::analyze_live_ranges;
 use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
-use crate::rewrites::block_edges::terminator_instruction;
+use selected_instructions::terminator_instruction;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
     address_fold_measured_steps, constant_boolean_measured_steps, constant_boolean_surface_sizes,

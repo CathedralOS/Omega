@@ -11,14 +11,15 @@ use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId,
+    terminator_instruction
+};
 
 use super::MemberRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface,
-    terminator_instruction, terminator_successors,
-};
+    terminator_successors};
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
 pub(super) struct Admission {

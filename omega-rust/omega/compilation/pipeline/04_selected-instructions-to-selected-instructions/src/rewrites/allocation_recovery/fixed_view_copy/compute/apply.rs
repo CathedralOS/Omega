@@ -1,4 +1,5 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
+use selected_instructions::terminator_instruction_mut;
 use super::{
     RegisterInstructionConstraint, ScalarType, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
@@ -148,17 +149,6 @@ fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstruc
     }
 }
 
-fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}
 
 /// `CopyI64` is a raw 64-bit register move: it preserves the source
 /// bit-pattern without interpreting sign, so a fixed-view copy admits any

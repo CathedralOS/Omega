@@ -91,14 +91,14 @@ use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_successors};
 use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,

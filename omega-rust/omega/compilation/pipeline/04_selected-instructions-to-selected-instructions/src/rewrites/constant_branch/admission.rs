@@ -17,7 +17,7 @@ use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-    ValidatedMachineEffectCatalog,
+    ValidatedMachineEffectCatalog, terminator_instruction
 };
 
 use super::ConstantBranchError;
@@ -27,7 +27,7 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::{terminator_instruction, function_at};
+use crate::rewrites::block_edges::{function_at};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,

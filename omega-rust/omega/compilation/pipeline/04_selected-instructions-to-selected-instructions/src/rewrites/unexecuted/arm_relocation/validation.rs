@@ -25,15 +25,15 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
     SelectedSuccessor, SelectedTerminator,
+    terminator_instruction
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ArmRelocationError, ArmRelocationReceipt, ValidatedArmRelocation};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
-    CrossingDirection, all_edges, crossed_window, edge_surface, terminator_instruction,
-    terminator_successors,
-};
+    CrossingDirection, all_edges, crossed_window, edge_surface, 
+    terminator_successors};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,

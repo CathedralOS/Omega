@@ -15,6 +15,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedTerminator,
+    terminator_instruction
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -23,9 +24,8 @@ use super::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
-    all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
-    transport_conflict,
-};
+    all_edges, edge_surface, plain_edge, terminator_successors,
+    transport_conflict};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_writes, schedulable, speculatable, surface,

@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
+use selected_instructions::{terminator_instruction
+};
 
 use super::{
     super::AllocatedCalleeSavedRequirementError,
     state::{ReplayTraversal, add},
-    writes::{index_homes, scan_instruction},
-};
+    writes::{index_homes, scan_instruction}};
 
 pub(super) fn reconstruct(
     traversal: &mut ReplayTraversal<'_>,
@@ -46,14 +46,3 @@ pub(super) fn reconstruct(
     Ok(())
 }
 
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}

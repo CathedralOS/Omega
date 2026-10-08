@@ -1,5 +1,6 @@
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
+use selected_instructions::{terminator_instruction
+};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
@@ -7,8 +8,7 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
-    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-};
+    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState};
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -82,8 +82,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         rows,
         encoded,
         frame: frame.cloned(),
-        counts,
-    };
+        counts};
     program.identity = program.recomputed_identity();
     Ok(program)
 }
@@ -128,14 +127,3 @@ fn encoding_counts(
     Ok(counts)
 }
 
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}

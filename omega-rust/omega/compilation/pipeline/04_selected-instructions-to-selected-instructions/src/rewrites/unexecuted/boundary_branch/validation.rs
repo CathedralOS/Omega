@@ -24,13 +24,13 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator,
+    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator, terminator_instruction
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_instruction, function_at};
+use crate::rewrites::block_edges::{function_at};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,

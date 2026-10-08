@@ -230,3 +230,31 @@ pub enum SelectedValueTransport {
         parameter: VirtualRegisterId,
     },
 }
+
+/// The instruction record every terminator carries.
+pub fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
+    match terminator {
+        SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
+    }
+}
+
+/// The mutable instruction record every terminator carries.
+pub fn terminator_instruction_mut(
+    terminator: &mut SelectedTerminator,
+) -> &mut SelectedInstruction {
+    match terminator {
+        SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
+    }
+}

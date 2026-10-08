@@ -15,8 +15,7 @@ use super::{ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedSched
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
-    terminator_successors,
-};
+    terminator_successors};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     admit_run_relocation, register_writes, schedulable, speculatable,

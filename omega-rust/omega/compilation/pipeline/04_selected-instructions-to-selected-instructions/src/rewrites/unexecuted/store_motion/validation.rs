@@ -21,7 +21,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     FrameStorageSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedMemoryAccessRole,
+    SelectedMemoryAccessRole, terminator_instruction
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -31,7 +31,7 @@ use super::motion::{
     place_store_shape, reaches_visited, reconvergent_join, settlement_before, sole_predecessor,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,

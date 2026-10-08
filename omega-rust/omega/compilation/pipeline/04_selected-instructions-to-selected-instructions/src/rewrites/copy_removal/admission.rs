@@ -19,7 +19,7 @@ use selected_instructions::{
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedMemoryAccessRole, SelectedStructuralTransport,
     SelectedSuccessor, SelectedTerminator, SelectedValueTransport, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    VirtualRegisterOrigin, terminator_instruction_mut
 };
 
 use super::CopyRemovalError;
@@ -48,17 +48,6 @@ pub(super) struct CopyUse {
     pub operand: usize,
 }
 
-fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
-    match terminator {
-        SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
 
 /// The instruction at a source-ordinal position: a body index, or the
 /// terminator's carried instruction at the position equal to the body length.

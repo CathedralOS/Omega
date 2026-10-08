@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use selected_instructions::{SelectedInstruction, SelectedTerminator};
+use selected_instructions::{terminator_instruction
+};
 
 use super::{
     super::{AllocatedCalleeSavedRequirementError, FunctionAllocatedCalleeSavedRequirements},
-    state::{DirectTraversal, HomeIndex, add, finish_units},
-};
+    state::{DirectTraversal, HomeIndex, add, finish_units}};
 
 pub(super) fn derive(
     traversal: &mut DirectTraversal<'_>,
@@ -44,20 +44,8 @@ pub(super) fn derive(
             .functions
             .push(FunctionAllocatedCalleeSavedRequirements {
                 machine: function.machine,
-                modified_units: finish_units(units),
-            });
+                modified_units: finish_units(units)});
     }
     Ok(())
 }
 
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}

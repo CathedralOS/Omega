@@ -57,6 +57,7 @@ pub use control_flow::{
     SelectedAddressBase, SelectedBlock, SelectedBlockOrigin, SelectedFunction,
     SelectedScalarReferenceSource, SelectedStructuralBinding, SelectedStructuralTransport,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+    terminator_instruction, terminator_instruction_mut,
     SelectedValueTransport,
 };
 pub use effects::{

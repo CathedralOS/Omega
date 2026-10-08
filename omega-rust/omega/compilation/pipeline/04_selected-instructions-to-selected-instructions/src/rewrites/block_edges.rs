@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, terminator_instruction
 };
 
 use crate::rewrites::window_hazards::{has_memory_rows, register_reads, register_writes};
@@ -30,17 +30,6 @@ pub(super) fn function_at<'p, E>(
 /// The instruction a terminator carries — a position every traversal of
 /// its block observes, and the body-end landing position a destination can
 /// name.
-pub(super) fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
-    }
-}
 
 /// Every successor edge a terminator names, in its physical record order;
 /// `HostedExitProcess` and `Return` name none.
