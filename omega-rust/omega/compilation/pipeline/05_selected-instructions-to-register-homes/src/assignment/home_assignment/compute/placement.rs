@@ -1,10 +1,10 @@
 //! Most-constrained-first domain placement and canonical home assembly.
 
 use std::cmp::Reverse;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-use selected_instructions::VirtualRegisterId;
+use selected_instructions::{LiveRangePoint, VirtualRegisterId};
 
 use super::domain::{AllocationDomain, build_domains};
 use super::prepared_affinities::PreparedAffinities;
@@ -31,9 +31,8 @@ pub(crate) fn compute_function(
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
     let conflicts = PreparedConflicts::new(&domains, &domain_of, ranges, physical);
-    let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
-    // Keep selection's canonical roster, but give neighbor and affinity queries
-    // direct membership instead of searching every unrelated domain again.
+    // Give neighbor and affinity queries direct membership instead of
+    // searching every unrelated domain again.
     let mut active = vec![true; domains.len()];
     let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
     // Preserve the original first selection's domain/candidate validation order.
@@ -55,13 +54,13 @@ pub(crate) fn compute_function(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut degrees = unassigned
-        .iter()
-        .map(|domain_index| conflicts.get_constrained_neighbors(*domain_index).len())
+    let mut degrees = (0..domains.len())
+        .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).len())
         .collect::<Vec<_>>();
-    while !unassigned.is_empty() {
-        let position = select_domain(&unassigned, &viable, &degrees, &domains);
-        let domain_index = unassigned.remove(position);
+    let mut unassigned = (0..domains.len())
+        .map(|domain_index| selection_key(domain_index, &viable, &degrees, &domains))
+        .collect::<BTreeSet<_>>();
+    while let Some(SelectionKey { domain_index, .. }) = unassigned.pop_first() {
         active[domain_index] = false;
         // Affinity and neighbor feasibility only reorder among already-legal
         // candidates: aliases, liveness, and interference facts are untouched,
@@ -87,6 +86,7 @@ pub(crate) fn compute_function(
             if !active[remaining] {
                 continue;
             }
+            unassigned.remove(&selection_key(remaining, &viable, &degrees, &domains));
             degrees[remaining] -= 1;
             let candidates = &mut viable[remaining];
             let mut retained = 0;
@@ -104,6 +104,7 @@ pub(crate) fn compute_function(
                 }
             }
             candidates.truncate(retained);
+            unassigned.insert(selection_key(remaining, &viable, &degrees, &domains));
         }
     }
     Ok(FunctionRegisterHomes {
@@ -352,24 +353,35 @@ fn strands_neighbor(
     Ok(false)
 }
 
-fn select_domain(
-    unassigned: &[usize],
+/// The most-constrained-first order: fewest viable views, then most
+/// constrained neighbors still unassigned, then earliest first point, then
+/// leader, then roster position. The unassigned domains stay ordered by this
+/// key, and a placement re-keys only the neighbors whose viable views or
+/// degree it changed, so each selection is logarithmic in the function's
+/// domains rather than a scan of every unassigned one. A function that needed
+/// hundreds of spill steps rescanned thousands of domains per selection on
+/// every step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SelectionKey {
+    viable: usize,
+    degree: Reverse<usize>,
+    first_point: LiveRangePoint,
+    leader: VirtualRegisterId,
+    domain_index: usize,
+}
+
+fn selection_key(
+    domain_index: usize,
     viable: &[Vec<RegisterViewId>],
     degrees: &[usize],
     domains: &[AllocationDomain<'_>],
-) -> usize {
-    unassigned
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, domain_index)| {
-            let domain = &domains[**domain_index];
-            (
-                viable[**domain_index].len(),
-                Reverse(degrees[**domain_index]),
-                domain.first_point,
-                domain.leader(),
-            )
-        })
-        .map(|(position, _)| position)
-        .expect("nonempty unassigned roster")
+) -> SelectionKey {
+    let domain = &domains[domain_index];
+    SelectionKey {
+        viable: viable[domain_index].len(),
+        degree: Reverse(degrees[domain_index]),
+        first_point: domain.first_point,
+        leader: domain.leader(),
+        domain_index,
+    }
 }

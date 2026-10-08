@@ -39,14 +39,21 @@ pub(super) fn build_domains<'a>(
         .into_iter()
         .filter(|members| members.iter().any(|member| !member.points.is_empty()))
         .map(|members| {
-            let edge = ranges.edge_transfers.iter().find(|edge| {
-                members
-                    .iter()
-                    .any(|member| member.virtual_register == edge.parameter)
-            });
+            // A failed component reports the edge transfer naming one of its
+            // members. The search runs only on that error path: searching
+            // every transfer for every component made domain building
+            // quadratic in a large function.
+            let component = members.clone();
             build_domain(function, members).map_err(|error| {
-                if let Some(edge) = edge
-                    && matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
+                let edge = || {
+                    ranges.edge_transfers.iter().find(|edge| {
+                        component
+                            .iter()
+                            .any(|member| member.virtual_register == edge.parameter)
+                    })
+                };
+                if matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
+                    && let Some(edge) = edge()
                 {
                     RegisterHomeError::UnsupportedEdgeTransfer {
                         function,

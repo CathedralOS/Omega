@@ -16,7 +16,12 @@ struct DomainPair {
 }
 
 pub(super) struct PreparedConflicts<'a> {
-    pairs: Vec<Vec<DomainPair>>,
+    /// Per domain, every domain it is constrained against, in ascending
+    /// order, with the relationship the pair carries. Only related pairs are
+    /// stored: a dense matrix of every domain pair was quadratic in the
+    /// function's domains and exhausted memory on a function with hundreds of
+    /// thousands of them.
+    pairs: Vec<Vec<(usize, DomainPair)>>,
     neighbors: Vec<Vec<usize>>,
     views: Vec<Vec<(RegisterViewId, Option<&'a RegisterView>)>>,
 }
@@ -28,9 +33,9 @@ impl<'a> PreparedConflicts<'a> {
         ranges: &FunctionLiveRanges,
         physical: &'a ValidatedPhysicalRegisterModel,
     ) -> Self {
-        let mut pairs = vec![vec![DomainPair::default(); domains.len()]; domains.len()];
+        let mut related = vec![BTreeMap::<usize, DomainPair>::new(); domains.len()];
         // The live-range representation already stores these relationships sparsely.
-        // Populate the domain matrix from each authored fact once instead of rescanning
+        // Record each authored fact once on both of its domains instead of rescanning
         // every fact and every domain member for every ordered domain pair.
         for interference in &ranges.interference {
             let (Some(&left), Some(&right)) = (
@@ -39,8 +44,8 @@ impl<'a> PreparedConflicts<'a> {
             ) else {
                 continue;
             };
-            pairs[left][right].interferes = true;
-            pairs[right][left].interferes = true;
+            related[left].entry(right).or_default().interferes = true;
+            related[right].entry(left).or_default().interferes = true;
         }
         for early_clobber in &ranges.early_clobbers {
             let Some(&definition) = domain_of.get(&early_clobber.def_virtual_register) else {
@@ -50,10 +55,20 @@ impl<'a> PreparedConflicts<'a> {
                 let Some(&used_domain) = domain_of.get(&used.virtual_register) else {
                     continue;
                 };
-                pairs[definition][used_domain].left_defines = true;
-                pairs[used_domain][definition].right_defines = true;
+                related[definition]
+                    .entry(used_domain)
+                    .or_default()
+                    .left_defines = true;
+                related[used_domain]
+                    .entry(definition)
+                    .or_default()
+                    .right_defines = true;
             }
         }
+        let pairs = related
+            .into_iter()
+            .map(|row| row.into_iter().collect::<Vec<_>>())
+            .collect::<Vec<_>>();
         // Ascending domain order matches the remaining-domain roster during placement.
         // The chosen domain is never its own neighbor, including tied self-constraints.
         let neighbors = pairs
@@ -61,12 +76,7 @@ impl<'a> PreparedConflicts<'a> {
             .enumerate()
             .map(|(domain, row)| {
                 row.iter()
-                    .enumerate()
-                    .filter_map(|(other, pair)| {
-                        (other != domain
-                            && (pair.interferes || pair.left_defines || pair.right_defines))
-                            .then_some(other)
-                    })
+                    .filter_map(|&(other, _)| (other != domain).then_some(other))
                     .collect()
             })
             .collect();
@@ -97,8 +107,18 @@ impl<'a> PreparedConflicts<'a> {
     }
 
     pub(super) fn constrained(&self, left: usize, right: usize) -> bool {
-        let pair = self.pairs[left][right];
+        let pair = self.pair(left, right);
         pair.interferes || pair.left_defines || pair.right_defines
+    }
+
+    /// The relationship between two domains; an unrelated pair carries none.
+    fn pair(&self, left: usize, right: usize) -> DomainPair {
+        self.pairs[left]
+            .binary_search_by_key(&right, |&(other, _)| other)
+            .map_or_else(
+                |_| DomainPair::default(),
+                |position| self.pairs[left][position].1,
+            )
     }
 
     pub(super) fn candidate_conflicts(
@@ -112,7 +132,7 @@ impl<'a> PreparedConflicts<'a> {
         let candidate_view = self.checked_view(function, domain_index, candidate, domains)?;
         for &(other_index, other_view_id) in assigned {
             let other_view = self.checked_view(function, other_index, other_view_id, domains)?;
-            let pair = self.pairs[domain_index][other_index];
+            let pair = self.pair(domain_index, other_index);
             if (pair.interferes && symmetric_footprints_overlap(candidate_view, other_view))
                 || (pair.left_defines && definition_overwrites_use(candidate_view, other_view))
                 || (pair.right_defines && definition_overwrites_use(other_view, candidate_view))
