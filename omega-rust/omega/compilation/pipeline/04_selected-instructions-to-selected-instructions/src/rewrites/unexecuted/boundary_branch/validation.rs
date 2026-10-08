@@ -17,7 +17,6 @@
 //! therefore fails validation even when the proposal is exactly what that
 //! producer emitted.
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

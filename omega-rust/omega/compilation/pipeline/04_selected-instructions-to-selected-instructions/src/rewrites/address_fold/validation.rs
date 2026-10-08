@@ -1,5 +1,4 @@
 use crate::rewrites::sealed;
-use std::sync::Arc;
 
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 

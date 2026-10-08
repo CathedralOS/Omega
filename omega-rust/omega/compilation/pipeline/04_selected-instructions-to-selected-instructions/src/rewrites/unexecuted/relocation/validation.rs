@@ -13,7 +13,6 @@
 //! source by content — every crossed instruction, every other block and
 //! instruction, register, roster row, call, settlement, and edge
 //! included.
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

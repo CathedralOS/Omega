@@ -6,7 +6,6 @@
 //! content — splicing the source window back and writing the source
 //! order's rows back into the window's roster positions must reproduce the
 //! complete selected program bit-for-bit.
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

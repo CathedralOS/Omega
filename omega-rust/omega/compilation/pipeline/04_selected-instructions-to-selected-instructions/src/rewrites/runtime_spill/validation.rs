@@ -19,7 +19,6 @@
 //! `stored_transport_size`, `next_chunk` and `surviving_home_exists` helpers
 //! stay shared: the audit reads the same contract, not the producer's record.
 
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

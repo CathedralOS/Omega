@@ -13,7 +13,6 @@
 //! therefore fails here even when the proposal is exactly what that producer
 //! emitted.
 
-use std::sync::Arc;
 
 use selected_instructions::SelectedInstructionPlan;
 

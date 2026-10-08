@@ -1,5 +1,4 @@
 use crate::rewrites::sealed;
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

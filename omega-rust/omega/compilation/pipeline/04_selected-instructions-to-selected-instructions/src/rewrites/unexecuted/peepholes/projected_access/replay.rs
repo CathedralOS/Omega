@@ -14,7 +14,6 @@
 use super::retained_access;
 use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
 use crate::rewrites::sealed;
-use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;

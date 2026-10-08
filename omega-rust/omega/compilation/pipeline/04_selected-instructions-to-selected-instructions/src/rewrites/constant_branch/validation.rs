@@ -21,7 +21,6 @@
 //! validation even when the proposal is exactly what that producer
 //! emitted.
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterUnitId;
