@@ -168,3 +168,15 @@ pub use symbols::{
     final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
 };
 pub use x86_64_relocations::apply_x86_64_relocations;
+
+/// Round `value` up to a multiple of `alignment` (a zero alignment is one).
+pub fn align_to(value: usize, alignment: usize) -> usize {
+    let alignment = alignment.max(1);
+    value.div_ceil(alignment) * alignment
+}
+
+/// The `u64` spelling of [`align_to`].
+pub fn align_to_u64(value: u64, alignment: u64) -> u64 {
+    let alignment = alignment.max(1);
+    value.div_ceil(alignment) * alignment
+}
