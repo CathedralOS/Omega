@@ -1,5 +1,6 @@
 //! Positional function traversal and unsupported-domain indexes.
 
+use super::super::early_clobber_uses;
 use std::collections::BTreeSet;
 
 use selected_instructions::VirtualRegisterId;
@@ -91,14 +92,3 @@ fn tied_registers(ranges: &FunctionLiveRanges) -> BTreeSet<VirtualRegisterId> {
 // The hazard itself is re-derived on the transformed plan and enforced by
 // physical write-unit/use-unit conflicts at post-copy assignment. The use
 // count still prices the constraint rows the function carries.
-fn early_clobber_uses(
-    ranges: &FunctionLiveRanges,
-) -> Result<usize, FixedPrecoloredSplitRequirementError> {
-    let mut use_count = 0usize;
-    for row in &ranges.early_clobbers {
-        use_count = use_count
-            .checked_add(row.uses.len())
-            .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
-    }
-    Ok(use_count)
-}

@@ -122,3 +122,53 @@ impl ValidatedFixedPrecoloredSplitRequirements {
         self.receipt
     }
 }
+
+/// Sort key for a virtual fixed-constraint site — the total order both the
+/// compute pass and the replay checker build their cut tables on.
+pub(super) type SiteKey = (u8, u32, u32, u32, u16, u8);
+
+pub(super) fn site_key(site: selected_instructions::VirtualFixedConstraintSite) -> SiteKey {
+    match site {
+        selected_instructions::VirtualFixedConstraintSite::Entry => (0, 0, 0, 0, 0, 0),
+        selected_instructions::VirtualFixedConstraintSite::Operand {
+            position,
+            point,
+            instruction,
+            operand,
+            access,
+        } => (
+            1,
+            position.0,
+            point.0,
+            instruction.0,
+            operand,
+            match access {
+                register_model::RegisterOperandAccess::Use => 0,
+                register_model::RegisterOperandAccess::Def => 1,
+                register_model::RegisterOperandAccess::UseDef => 2,
+            },
+        ),
+    }
+}
+
+/// The live point a virtual fixed-constraint site names.
+pub(super) fn site_point(site: selected_instructions::VirtualFixedConstraintSite) -> u32 {
+    match site {
+        selected_instructions::VirtualFixedConstraintSite::Entry => 0,
+        selected_instructions::VirtualFixedConstraintSite::Operand { point, .. } => point.0,
+    }
+}
+
+/// Total early-clobber uses across a function's live ranges — the work
+/// accounting both passes charge identically.
+pub(super) fn early_clobber_uses(
+    ranges: &selected_instructions::FunctionLiveRanges,
+) -> Result<usize, FixedPrecoloredSplitRequirementError> {
+    let mut use_count = 0usize;
+    for row in &ranges.early_clobbers {
+        use_count = use_count
+            .checked_add(row.uses.len())
+            .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
+    }
+    Ok(use_count)
+}

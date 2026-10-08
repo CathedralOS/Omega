@@ -1,5 +1,6 @@
 //! Sorted fixed-use and transition rows used only by canonical replay.
 
+use super::super::{site_key, site_point, SiteKey};
 use std::collections::BTreeSet;
 
 use register_model::{RegisterOperandAccess, RegisterViewId};
@@ -8,7 +9,6 @@ use crate::FixedPrecoloredSplitRequirementError;
 use register_homes::{EntryFixedViewTransition, FixedPrecoloredInterval, VirtualPointLegality};
 use selected_instructions::VirtualFixedConstraintSite;
 
-type SiteKey = (u8, u32, u32, u32, u16, u8);
 type TransitionKey = (SiteKey, u16, u16);
 
 pub(super) struct CutRows<'a> {
@@ -164,33 +164,4 @@ fn unauthenticated<T>(
     )
 }
 
-fn site_key(site: VirtualFixedConstraintSite) -> SiteKey {
-    match site {
-        VirtualFixedConstraintSite::Entry => (0, 0, 0, 0, 0, 0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => (
-            1,
-            position.0,
-            point.0,
-            instruction.0,
-            operand,
-            match access {
-                RegisterOperandAccess::Use => 0,
-                RegisterOperandAccess::Def => 1,
-                RegisterOperandAccess::UseDef => 2,
-            },
-        ),
-    }
-}
 
-fn site_point(site: VirtualFixedConstraintSite) -> u32 {
-    match site {
-        VirtualFixedConstraintSite::Entry => 0,
-        VirtualFixedConstraintSite::Operand { point, .. } => point.0,
-    }
-}
