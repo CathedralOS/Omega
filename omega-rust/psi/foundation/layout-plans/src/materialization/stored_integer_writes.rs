@@ -19,13 +19,34 @@ pub(crate) fn scalar_fragment(
     entry: &LayoutFieldEntryReport,
     source_width_bits: u16,
 ) -> Result<ScalarFragment, MaterializationDiagnostic> {
-    let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
+    let (container, container_width, destination_lsb, source_lsb, width) =
+        materializer_scalar_window(entry.placement, source_width_bits, "scalar", &entry.field)?;
+    Ok(ScalarFragment {
+        container_byte_offset: container,
+        container_width_bits: container_width,
+        destination_lsb,
+        source_lsb,
+        width,
+    })
+}
+
+/// The scalar write window of one placement report: bit positions resolved
+/// against the value's own width, then validated to fit a materializer's
+/// single-container fragment. `field_kind` and `field_display` name the
+/// checked field in each diagnostic.
+pub(crate) fn materializer_scalar_window(
+    placement: LayoutPlacementReport,
+    placed_width_bits: u16,
+    field_kind: &str,
+    field_display: &str,
+) -> Result<(u64, u16, u16, u16, u16), MaterializationDiagnostic> {
+    let (container, container_width, destination_lsb, source_lsb, width) = match placement {
         LayoutPlacementReport::At { offset } => (
             offset,
-            u64::from(source_width_bits),
+            u64::from(placed_width_bits),
             0,
             0,
-            u64::from(source_width_bits),
+            u64::from(placed_width_bits),
         ),
         LayoutPlacementReport::IntegerAt {
             offset,
@@ -48,42 +69,36 @@ pub(crate) fn scalar_fragment(
     };
     if container_width == 0 || container_width > 64 || container_width % 8 != 0 || width == 0 {
         return Err(MaterializationDiagnostic(format!(
-            "scalar field `{}` uses a materializer-incompatible placement",
-            entry.field
+            "{field_kind} field `{field_display}` uses a materializer-incompatible placement"
         )));
     }
-    let source_end = source_lsb
-        .checked_add(width)
-        .ok_or_else(|| MaterializationDiagnostic("scalar source bit range overflows".into()))?;
-    if source_end > u64::from(source_width_bits) {
+    let source_end = source_lsb.checked_add(width).ok_or_else(|| {
+        MaterializationDiagnostic(format!("{field_kind} source bit range overflows"))
+    })?;
+    if source_end > u64::from(placed_width_bits) {
         return Err(MaterializationDiagnostic(format!(
-            "scalar field `{}` placement reads through bit {source_end}, past its {}-bit source",
-            entry.field, source_width_bits
+            "{field_kind} field `{field_display}` placement reads through bit {source_end}, past its {placed_width_bits}-bit source"
         )));
     }
     let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {
-        MaterializationDiagnostic("scalar destination bit range overflows".into())
+        MaterializationDiagnostic(format!("{field_kind} destination bit range overflows"))
     })?;
     if destination_end > container_width {
         return Err(MaterializationDiagnostic(format!(
-            "scalar field `{}` placement writes through bit {destination_end}, past its {container_width}-bit container",
-            entry.field
+            "{field_kind} field `{field_display}` placement writes through bit {destination_end}, past its {container_width}-bit container"
         )));
     }
-
-    Ok(ScalarFragment {
-        container_byte_offset: container,
-        container_width_bits: u16::try_from(container_width)
-            .expect("validated materializer container width"),
-        destination_lsb: u16::try_from(destination_lsb).expect("validated destination bit index"),
-        source_lsb: u16::try_from(source_lsb).expect("validated source bit index"),
-        width: u16::try_from(width).map_err(|_| {
+    Ok((
+        container,
+        u16::try_from(container_width).expect("validated materializer container width"),
+        u16::try_from(destination_lsb).expect("validated destination bit index"),
+        u16::try_from(source_lsb).expect("validated source bit index"),
+        u16::try_from(width).map_err(|_| {
             MaterializationDiagnostic(format!(
-                "scalar field `{}` fragment width {width} is too large",
-                entry.field
+                "{field_kind} field `{field_display}` fragment width {width} is too large"
             ))
         })?,
-    })
+    ))
 }
 
 pub(crate) fn validate_stored_integer_value(

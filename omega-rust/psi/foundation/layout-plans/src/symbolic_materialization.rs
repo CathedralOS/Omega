@@ -14,8 +14,8 @@ use crate::materialization::field_identities::{
 };
 use crate::materialization::field_values::ScalarFieldValue;
 use crate::materialization::stored_integer_writes::{
-    apply_fragment, scalar_fragment, validate_fragment, validate_stored_integer_value,
-    validate_write, validate_write_source_value,
+    apply_fragment, materializer_scalar_window, scalar_fragment, validate_fragment,
+    validate_stored_integer_value, validate_write, validate_write_source_value,
 };
 use crate::materialization::{MaterializationDiagnostic, SymbolicMaterializationPlan};
 use crate::placement::{
@@ -1095,68 +1095,21 @@ fn write_from_entry(
     symbolic: &SymbolicFieldValue,
     field_display: &str,
 ) -> Result<MaterializationWrite, MaterializationDiagnostic> {
-    let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
-        LayoutPlacementReport::At { offset } => (
-            offset,
-            u64::from(symbolic.width_bits),
-            0,
-            0,
-            u64::from(symbolic.width_bits),
-        ),
-        LayoutPlacementReport::IntegerAt {
-            offset,
-            stored_width,
-            ..
-        } => (offset, stored_width, 0, 0, stored_width),
-        LayoutPlacementReport::Bits {
-            container,
-            container_width,
-            destination_lsb,
-            source_lsb,
-            width,
-        } => (
-            container,
-            container_width,
-            destination_lsb,
-            source_lsb,
-            width,
-        ),
-    };
-    if container_width == 0 || container_width > 64 || container_width % 8 != 0 || width == 0 {
-        return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{field_display}` uses a materializer-incompatible placement"
-        )));
-    }
-    let source_end = source_lsb
-        .checked_add(width)
-        .ok_or_else(|| MaterializationDiagnostic("symbolic source bit range overflows".into()))?;
-    if source_end > u64::from(symbolic.width_bits) {
-        return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{field_display}` placement reads through bit {source_end}, past its {}-bit source",
-            symbolic.width_bits
-        )));
-    }
-    let destination_end = destination_lsb.checked_add(width).ok_or_else(|| {
-        MaterializationDiagnostic("symbolic destination bit range overflows".into())
-    })?;
-    if destination_end > container_width {
-        return Err(MaterializationDiagnostic(format!(
-            "symbolic field `{field_display}` placement writes through bit {destination_end}, past its {container_width}-bit container"
-        )));
-    }
+    let (container, container_width, destination_lsb, source_lsb, width) =
+        materializer_scalar_window(
+            entry.placement,
+            symbolic.width_bits,
+            "symbolic",
+            field_display,
+        )?;
     Ok(MaterializationWrite {
         field: field_display.to_owned(),
         target: symbolic.target,
         container_byte_offset: container,
-        container_width_bits: u16::try_from(container_width)
-            .expect("validated materializer container width"),
-        destination_lsb: u16::try_from(destination_lsb).expect("validated destination bit index"),
-        source_lsb: u16::try_from(source_lsb).expect("validated source bit index"),
-        width: u16::try_from(width).map_err(|_| {
-            MaterializationDiagnostic(format!(
-                "symbolic field `{field_display}` fragment width {width} is too large"
-            ))
-        })?,
+        container_width_bits: container_width,
+        destination_lsb,
+        source_lsb,
+        width,
         stored_integer_fit: match entry.placement {
             LayoutPlacementReport::IntegerAt {
                 stored_width,
