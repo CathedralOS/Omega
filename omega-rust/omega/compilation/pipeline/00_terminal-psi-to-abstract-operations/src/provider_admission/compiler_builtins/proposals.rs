@@ -219,6 +219,33 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
 }
 
+/// One directed binary rounding mode on one IEEE format realized as the
+/// nearest-neighbor arithmetic builtin.
+fn nearest_directed_binary(
+    operation: target_operations::IeeeFloatBinaryOperation,
+    rounding: target_operations::IeeeFloatRoundingDirection,
+    format: semantic_vocabulary::IeeeFloatFormat,
+) -> target_operations::CompilerBuiltinExecution {
+    nearest_arithmetic(
+        target_operations::IeeeFloatArithmeticOperation::DirectedBinary {
+            operation,
+            rounding,
+        },
+        format,
+    )
+}
+
+/// One non-decomposed float arithmetic builtin on one IEEE format.
+fn nearest_arithmetic(
+    operation: target_operations::IeeeFloatArithmeticOperation,
+    format: semantic_vocabulary::IeeeFloatFormat,
+) -> target_operations::CompilerBuiltinExecution {
+    target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+        operation,
+        format,
+    }
+}
+
 /// The native realization of one selected intrinsic identity, if the local
 /// catalog has one. `boundary_format` is the called boundary's IEEE
 /// format, which the format-free builtin identities need; admission rejoins
@@ -266,244 +293,196 @@ fn compiler_builtin_execution(
             // result format. Complete signature admission below remains required.
             match function {
                 symbols::BuiltinFunction::FloatAddTowardZeroF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatAddTowardZeroF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatAddTowardPositiveF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatAddTowardPositiveF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatAddTowardNegativeF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatAddTowardNegativeF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Add,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Add,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardZeroF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardZeroF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardPositiveF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardPositiveF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardNegativeF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatSubtractTowardNegativeF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Subtract,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Subtract,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardZeroF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardZeroF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardPositiveF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardPositiveF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardNegativeF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyTowardNegativeF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Multiply,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Multiply,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardZeroF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardZeroF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardZero,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardZero,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardPositiveF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardPositiveF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardPositive,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardPositive,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardNegativeF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatDivideTowardNegativeF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::DirectedBinary {
-                            operation: target_operations::IeeeFloatBinaryOperation::Divide,
-                            rounding: target_operations::IeeeFloatRoundingDirection::TowardNegative,
-                        },
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_directed_binary(
+                        target_operations::IeeeFloatBinaryOperation::Divide,
+                        target_operations::IeeeFloatRoundingDirection::TowardNegative,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatFusedMultiplyAddF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::FusedMultiplyAdd,
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_arithmetic(
+                        Arithmetic::FusedMultiplyAdd,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatFusedMultiplyAddF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::FusedMultiplyAdd,
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_arithmetic(
+                        Arithmetic::FusedMultiplyAdd,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyThenAddF32 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::MultiplyThenAdd,
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    });
+                    return Some(nearest_arithmetic(
+                        Arithmetic::MultiplyThenAdd,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
                 }
                 symbols::BuiltinFunction::FloatMultiplyThenAddF64 => {
-                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                        operation: Arithmetic::MultiplyThenAdd,
-                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    });
+                    return Some(nearest_arithmetic(
+                        Arithmetic::MultiplyThenAdd,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
                 }
                 _ => {}
             }
