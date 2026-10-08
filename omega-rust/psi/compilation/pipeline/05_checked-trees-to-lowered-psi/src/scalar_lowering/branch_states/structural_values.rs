@@ -556,12 +556,11 @@ impl Preparation<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "aggregate selected a foreign case",
                     ))?;
-                let selected = cases
-                    .iter()
-                    .find(|candidate| candidate.identity == variant.path_identity())
-                    .ok_or(LoweringError::Unsupported(
-                        "aggregate case declaration is absent",
-                    ))?;
+                let selected =
+                    terminal_psi::structural_case_by_identity(cases, &variant.path_identity())
+                        .ok_or(LoweringError::Unsupported(
+                            "aggregate case declaration is absent",
+                        ))?;
                 (
                     AggregateKind::Case(selected.id),
                     common,

@@ -68,7 +68,6 @@ impl Default for ReferenceCustodyRow {
 }
 
 impl ReferenceCustodyRow {
-
     /// The one stored carrier leaf, as `(referent, access)`.
     pub fn stored_loan_parts(&self) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
         self.stored_loan_referent
@@ -83,7 +82,6 @@ impl ReferenceCustodyRow {
             CheckedStructuralAccess::MutableBorrow,
         ))
     }
-
 }
 
 /// Every type reference's custody row, dense by arena index.

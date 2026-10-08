@@ -65,20 +65,17 @@ pub(super) fn promote_shared_handoffs(
     // Terminal declares a mutable block parameter only over a plain record or
     // fixed array; any other referent keeps its authored shared view.
     let block_loan_referent = |parameter: &CheckedUnitStructuralParameterPlan| {
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .find(|shape| shape.identity == parameter.type_identity)
-            .is_some_and(|shape| {
-                matches!(
-                    shape.shape,
-                    CheckedUnitStructuralTypeShape::Record { .. }
-                        | CheckedUnitStructuralTypeShape::FixedArray { .. }
-                )
-            })
+        checked_trees::checked_structural_type_by_identity(
+            &checked.facts.flow.terminal_unit_effects.structural_types,
+            &parameter.type_identity,
+        )
+        .is_some_and(|shape| {
+            matches!(
+                shape.shape,
+                CheckedUnitStructuralTypeShape::Record { .. }
+                    | CheckedUnitStructuralTypeShape::FixedArray { .. }
+            )
+        })
     };
     let plain_loan = |parameter: &CheckedUnitStructuralParameterPlan| {
         parameter.multiplicity == Multiplicity::Unrestricted

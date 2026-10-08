@@ -40,12 +40,9 @@ pub(super) fn emit(
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("Unit graph case-payload subject is not a sum"),
     };
-    let selected = cases
-        .iter()
-        .find(|case| case.identity == case_identity)
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph case-payload case is absent",
-        ))?;
+    let selected = terminal_psi::structural_case_by_identity(cases, case_identity).ok_or(
+        LoweringError::Unsupported("Unit graph case-payload case is absent"),
+    )?;
     canonical.push(CanonicalStructuralPathSegment::Case(selected.id));
     let payload = terminal_psi::live_field_by_identity(&selected.fields, field_identity).ok_or(
         LoweringError::Unsupported("Unit graph case-payload field is absent"),

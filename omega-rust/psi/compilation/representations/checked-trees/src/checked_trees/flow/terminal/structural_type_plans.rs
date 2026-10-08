@@ -506,3 +506,11 @@ pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType)
             )
     )
 }
+
+/// The type plan carrying `identity` on a plan roster.
+pub fn checked_structural_type_by_identity<'plans>(
+    plans: &'plans [CheckedUnitStructuralTypePlan],
+    identity: &str,
+) -> Option<&'plans CheckedUnitStructuralTypePlan> {
+    plans.iter().find(|plan| plan.identity == identity)
+}

@@ -491,6 +491,24 @@ pub fn find_structural_type<'types>(
     types.iter().find(|declaration| declaration.id == id)
 }
 
+/// The case declaration carrying `identity` on a declaration roster.
+pub fn structural_case_by_identity<'cases>(
+    cases: &'cases [StructuralCaseDeclaration],
+    identity: &str,
+) -> Option<&'cases StructuralCaseDeclaration> {
+    cases.iter().find(|case| case.identity == identity)
+}
+
+/// The type declaration carrying `identity` on a declaration roster.
+pub fn structural_type_by_identity<'types>(
+    types: &'types [StructuralTypeDeclaration],
+    identity: &str,
+) -> Option<&'types StructuralTypeDeclaration> {
+    types
+        .iter()
+        .find(|declaration| declaration.identity == identity)
+}
+
 /// The field keyed `id` on a declaration roster, when it is not erased.
 pub fn live_field_by_id<'fields>(
     fields: &'fields [StructuralFieldDeclaration],

@@ -55,9 +55,7 @@ pub fn state_position(
     states: &[CheckedComposedUnitControlStatePlan],
     state: SymbolHandle,
 ) -> Option<usize> {
-    states
-        .iter()
-        .position(|candidate| candidate.state == state)
+    states.iter().position(|candidate| candidate.state == state)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -279,13 +279,10 @@ impl Preparation<'_> {
         &self,
         binding: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<super::super::super::StructuralOperationResult, LoweringError> {
-        let declaration = self
-            .types
-            .iter()
-            .find(|declaration| declaration.identity == binding.type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "structural operand result lost its carrier",
-            ))?;
+        let declaration =
+            terminal_psi::structural_type_by_identity(self.types, &binding.type_identity).ok_or(
+                LoweringError::Unsupported("structural operand result lost its carrier"),
+            )?;
         let multiplicity = match binding.multiplicity {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,

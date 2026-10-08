@@ -71,9 +71,7 @@ impl emission::Emission<'_, '_, '_> {
             };
             let identity = variant.path_identity();
             if variant.symbol == case_symbol {
-                let case = cases
-                    .iter()
-                    .find(|case| case.identity == identity)
+                let case = terminal_psi::structural_case_by_identity(&cases, &identity)
                     .ok_or(LoweringError::Unsupported("case declaration is absent"))?;
                 selected = Some((variant, case.clone()));
             }

@@ -63,12 +63,9 @@ pub(crate) fn prepare(
                 .map_err(LoweringError::Unsupported)?;
             let identity =
                 validation::structural_type_identity(&checked.typed, root.type_reference, &[], &[]);
-            let declaration = types
-                .iter()
-                .find(|declaration| declaration.identity == identity)
-                .ok_or(LoweringError::Unsupported(
-                    "computed producer has no structural type namespace",
-                ))?;
+            let declaration = terminal_psi::structural_type_by_identity(types, &identity).ok_or(
+                LoweringError::Unsupported("computed producer has no structural type namespace"),
+            )?;
             if let Some(existing) = slots.iter().find(|slot| {
                 slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
             }) {

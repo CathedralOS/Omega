@@ -46,9 +46,7 @@ pub(crate) enum StoreRoot<'a> {
 pub(crate) fn existing_literal_view_type(
     types: &[StructuralTypeDeclaration],
 ) -> Result<StructuralTypeId, LoweringError> {
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.identity == LITERAL_VIEW_IDENTITY)
+    let declaration = terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
         .ok_or(LoweringError::Unsupported(
             "composed callable produced a type absent from the shared catalog",
         ))?;
@@ -104,10 +102,7 @@ pub(crate) fn prepare_types(
                     capacity: *capacity,
                 },
             );
-            if let Some(existing) = types
-                .iter()
-                .find(|candidate| candidate.identity == identity)
-            {
+            if let Some(existing) = terminal_psi::structural_type_by_identity(types, &identity) {
                 if existing.shape != shape {
                     return unsupported("generated owned byte carrier has a different shape");
                 }
@@ -140,9 +135,8 @@ pub(crate) fn literal_view_type(
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
         });
-    if let Some(declaration) = types
-        .iter()
-        .find(|declaration| declaration.identity == LITERAL_VIEW_IDENTITY)
+    if let Some(declaration) =
+        terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
     {
         return if declaration.shape == shape {
             Ok(declaration.id)

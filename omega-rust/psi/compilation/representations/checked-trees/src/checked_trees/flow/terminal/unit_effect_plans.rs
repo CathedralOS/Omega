@@ -102,11 +102,10 @@ impl CheckedUnitEffectPlans {
             if shape.identity.is_empty() {
                 return Err(shape.identity);
             }
-            match self
-                .structural_types
-                .iter()
-                .find(|existing| existing.identity == shape.identity)
-            {
+            match crate::checked_structural_type_by_identity(
+                &self.structural_types,
+                &shape.identity,
+            ) {
                 Some(existing) if *existing != shape => return Err(shape.identity),
                 Some(_) => {}
                 None => self.structural_types.push(shape),
@@ -831,8 +830,13 @@ impl CheckedUnitEffectMachinePlan {
 
 impl CheckedComposedUnitControlMachinePlan {
     /// The state plan keyed `state`.
-    pub fn state(&self, state: SymbolHandle) -> Option<&super::CheckedComposedUnitControlStatePlan> {
-        self.states.iter().find(|candidate| candidate.state == state)
+    pub fn state(
+        &self,
+        state: SymbolHandle,
+    ) -> Option<&super::CheckedComposedUnitControlStatePlan> {
+        self.states
+            .iter()
+            .find(|candidate| candidate.state == state)
     }
 
     pub fn callable_entry(&self) -> Option<CheckedUnitCallableEntry<'_>> {

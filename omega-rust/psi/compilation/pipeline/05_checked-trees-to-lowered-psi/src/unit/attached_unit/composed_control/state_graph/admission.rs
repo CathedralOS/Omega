@@ -338,11 +338,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             super::cases::validate(checked, plan, source, state)?;
         } else {
             for successor in state.successors() {
-                let target = plan
-                    .state(successor.target_state)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph successor target is missing",
-                    ))?;
+                let target =
+                    plan.state(successor.target_state)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph successor target is missing",
+                        ))?;
                 edges::admit_transfers(state, successor, target)?;
             }
         }
@@ -518,14 +518,11 @@ fn forwards_qualified_parameter(
         target_index,
         parameter_index,
         |identity| {
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.identity == identity)
-                .map(|declaration| &declaration.shape)
+            checked_trees::checked_structural_type_by_identity(
+                &checked.facts.flow.terminal_unit_effects.structural_types,
+                identity,
+            )
+            .map(|declaration| &declaration.shape)
         },
         |qualification, identity| {
             checked

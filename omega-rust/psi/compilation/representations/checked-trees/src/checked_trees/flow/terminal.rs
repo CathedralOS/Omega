@@ -86,8 +86,9 @@ pub use structural_type_plans::{
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_borrowed_view,
-    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    checked_structural_type_by_identity, is_borrowed_view, is_bounded_nominal_cleanup_record,
+    is_partial_affine_field_type,
 };
 pub use terminal_selections::{
     CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,

@@ -687,14 +687,14 @@ impl Expansion<'_> {
                     action.path(), slot.structural_type, self.structural_types,
                     None, &mut std::iter::empty(), None,
                 )?;
-                let structural_type = self
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.identity == action.type_identity())
-                    .map(|declaration| declaration.id)
-                    .ok_or(LoweringError::Unsupported(
-                        "temporary cleanup has no structural type",
-                    ))?;
+                let structural_type = terminal_psi::structural_type_by_identity(
+                    self.structural_types,
+                    action.type_identity(),
+                )
+                .map(|declaration| declaration.id)
+                .ok_or(LoweringError::Unsupported(
+                    "temporary cleanup has no structural type",
+                ))?;
                 actions.push(match action {
                     checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
                         PreparedNormalCleanupAction::Resolved(

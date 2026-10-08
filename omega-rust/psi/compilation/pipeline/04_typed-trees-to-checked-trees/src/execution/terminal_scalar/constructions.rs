@@ -216,9 +216,8 @@ fn retain_declarations(
     declarations: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
     for declaration in declarations {
-        if let Some(existing) = shapes
-            .iter()
-            .find(|existing| existing.identity == declaration.identity)
+        if let Some(existing) =
+            checked_trees::checked_structural_type_by_identity(shapes, &declaration.identity)
         {
             if existing != &declaration {
                 return None;

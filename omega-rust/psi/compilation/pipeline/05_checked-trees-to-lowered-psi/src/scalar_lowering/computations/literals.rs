@@ -61,12 +61,10 @@ pub(crate) fn prepare(
             let Some(bytes) = source_bytes(argument) else {
                 continue;
             };
-            let declaration = types
-                .iter()
-                .find(|declaration| declaration.identity == argument.type_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "computed literal has no structural type namespace",
-                ))?;
+            let declaration =
+                terminal_psi::structural_type_by_identity(types, &argument.type_identity).ok_or(
+                    LoweringError::Unsupported("computed literal has no structural type namespace"),
+                )?;
             if !matches!(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })

@@ -122,12 +122,9 @@ pub(crate) fn reserve(
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
     let identity = checked.normalized_type_identity(source.type_reference);
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.identity == identity.as_str())
-        .ok_or(LoweringError::Unsupported(
-            "computed case has no structural type namespace",
-        ))?;
+    let declaration = terminal_psi::structural_type_by_identity(types, identity.as_str()).ok_or(
+        LoweringError::Unsupported("computed case has no structural type namespace"),
+    )?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return unsupported("computed case requires a plain sum");
     };
@@ -147,7 +144,7 @@ pub(crate) fn reserve(
             continue;
         };
         let identity = variant.path_identity();
-        let case = cases.iter().find(|case| case.identity == identity).ok_or(
+        let case = terminal_psi::structural_case_by_identity(cases, &identity).ok_or(
             LoweringError::Unsupported("computed case declaration is absent"),
         )?;
         case_bindings.push((variant.symbol, case.id));
@@ -172,13 +169,9 @@ pub(crate) fn reserve(
                 "computed case field has a foreign owner",
             ))?;
         let identity = authored.path_identity();
-        let declaration = case
-            .fields
-            .iter()
-            .find(|candidate| candidate.identity == identity)
-            .ok_or(LoweringError::Unsupported(
-                "computed case field declaration is absent",
-            ))?;
+        let declaration = terminal_psi::field_by_identity(&case.fields, &identity).ok_or(
+            LoweringError::Unsupported("computed case field declaration is absent"),
+        )?;
         let primitive = checked
             .primitive_type_reference(authored.type_reference)
             .ok_or(LoweringError::Unsupported(

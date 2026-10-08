@@ -50,12 +50,9 @@ pub(crate) fn lower_structural_member_path(
                     return unsupported("structural scalar contract case receiver is not a sum");
                 }
             };
-            let case = cases
-                .iter()
-                .find(|candidate| candidate.identity == *identity)
-                .ok_or(LoweringError::Unsupported(
-                    "structural scalar contract case is absent",
-                ))?;
+            let case = terminal_psi::structural_case_by_identity(cases, identity).ok_or(
+                LoweringError::Unsupported("structural scalar contract case is absent"),
+            )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
             selected_case_fields = Some(&case.fields);
             continue;
@@ -113,9 +110,7 @@ pub(crate) fn lower_structural_member_path(
                 }
             }
         };
-        let field = fields
-            .iter()
-            .find(|candidate| candidate.identity == *identity)
+        let field = terminal_psi::field_by_identity(fields, identity)
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path field is absent or erased",
@@ -238,12 +233,9 @@ fn lower_sum_path(
                 }
                 _ => return unsupported("structural sum predicate case receiver is not a sum"),
             };
-            let case = cases
-                .iter()
-                .find(|candidate| candidate.identity == *identity)
-                .ok_or(LoweringError::Unsupported(
-                    "structural sum predicate case is absent",
-                ))?;
+            let case = terminal_psi::structural_case_by_identity(cases, identity).ok_or(
+                LoweringError::Unsupported("structural sum predicate case is absent"),
+            )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
             selected_case_fields = Some(&case.fields);
             continue;
@@ -280,9 +272,7 @@ fn lower_sum_path(
                 }
             }
         };
-        let field = fields
-            .iter()
-            .find(|candidate| candidate.identity == *identity)
+        let field = terminal_psi::field_by_identity(fields, identity)
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path field is absent or erased",

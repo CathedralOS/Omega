@@ -151,8 +151,9 @@ pub use flow::{
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
     FlowOwnedSelectionTransfer, FlowOwnershipFacts, FlowPermissionEvaluation,
     FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact, FlowStateOutgoingFact,
-    FlowStatementFact, RetiredFlowCall, forwards_qualified_parameter, is_borrowed_view,
-    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
+    FlowStatementFact, RetiredFlowCall, checked_structural_type_by_identity,
+    forwards_qualified_parameter, is_borrowed_view, is_bounded_nominal_cleanup_record,
+    is_partial_affine_field_type,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

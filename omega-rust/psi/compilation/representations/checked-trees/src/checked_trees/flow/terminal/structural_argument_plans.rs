@@ -176,9 +176,7 @@ impl CheckedUnitStructuralArgumentPlan {
         access: CheckedStructuralAccess,
     ) -> Self {
         Self {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            },
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
             path: Vec::new(),
             type_identity,
             access,

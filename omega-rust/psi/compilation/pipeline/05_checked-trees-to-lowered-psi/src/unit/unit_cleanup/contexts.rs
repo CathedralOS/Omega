@@ -68,16 +68,13 @@ pub(super) fn validate_requirements(
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal cleanup caller requirement root is absent",
             ))?;
-        let shape = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .find(|shape| shape.identity == parameter.type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal cleanup receiver shape is absent",
-            ))?;
+        let shape = checked_trees::checked_structural_type_by_identity(
+            &checked.facts.flow.terminal_unit_effects.structural_types,
+            &parameter.type_identity,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "contextual nominal cleanup receiver shape is absent",
+        ))?;
         let valid = matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields, .. }
             if fields.iter().any(|field| field.identity == identity
                 && !field.relevance.is_erased()

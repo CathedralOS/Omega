@@ -375,12 +375,9 @@ fn captured_place_subject(
         }
     };
     let root_identity = carrier_identity(checked, owner, loan.root_type)?;
-    let mut declaration = types
-        .iter()
-        .find(|declaration| declaration.identity == root_identity)
-        .ok_or(LoweringError::Unsupported(
-            "record loan's captured root has no structural namespace",
-        ))?;
+    let mut declaration = terminal_psi::structural_type_by_identity(types, &root_identity).ok_or(
+        LoweringError::Unsupported("record loan's captured root has no structural namespace"),
+    )?;
     let mut path = Vec::new();
     let mut carrier_path = Vec::new();
     let mut runtime_index = None;

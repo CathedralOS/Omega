@@ -1118,9 +1118,10 @@ impl OperationFrame<'_, '_> {
             ),
             _ => return unsupported("case literal field store has a non-sum shape"),
         };
-        let case = cases
-            .iter()
-            .find(|case| case.identity == literal.case_identity)
+        let case = terminal_psi::structural_case_by_identity(
+            &cases,
+            &literal.case_identity,
+        )
             .ok_or(LoweringError::Unsupported(
                 "case literal field store case declaration missing",
             ))?;

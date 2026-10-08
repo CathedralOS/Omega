@@ -60,10 +60,9 @@ pub(crate) fn prepare(
                 let bytes = range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
-                    let declaration = types
-                        .iter()
-                        .find(|declaration| declaration.identity == argument.type_identity)
-                        .ok_or(LoweringError::Unsupported(
+                    let declaration =
+                        terminal_psi::structural_type_by_identity(types, &argument.type_identity)
+                            .ok_or(LoweringError::Unsupported(
                             "computed range has no structural type namespace",
                         ))?;
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
@@ -97,9 +96,7 @@ fn reserve(
         range(argument).ok_or(LoweringError::Unsupported("computed range lost its source"))?;
     let bytes =
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.identity == argument.type_identity)
+    let declaration = terminal_psi::structural_type_by_identity(types, &argument.type_identity)
         .ok_or(LoweringError::Unsupported(
             "computed range has no structural type namespace",
         ))?;
