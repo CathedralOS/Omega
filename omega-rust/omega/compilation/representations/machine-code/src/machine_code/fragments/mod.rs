@@ -44,6 +44,18 @@ pub struct FunctionFragmentEmissionPlan {
 }
 
 impl FunctionFragmentEmissionPlan {
+    /// Every fragment's block spans, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &FunctionFragmentBlockSpan> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+
+    /// Every fragment's instruction spans, in function then block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &FunctionFragmentInstructionSpan> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| function.instructions())
+    }
+
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionIdentity {
         function_fragment_emission_identity(self)
     }

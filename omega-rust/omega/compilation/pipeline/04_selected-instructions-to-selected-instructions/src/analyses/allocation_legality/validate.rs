@@ -159,35 +159,25 @@ pub(crate) fn admit(
             .map(|function| function.virtual_registers.len())
             .sum(),
         point_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.virtual_registers)
+            .virtual_registers()
             .map(|register| register.points.len())
             .sum(),
         candidate_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.virtual_registers)
+            .virtual_registers()
             .flat_map(|register| &register.points)
             .map(|point| point.candidates.len())
             .sum(),
         early_clobber_point_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.virtual_registers)
+            .virtual_registers()
             .map(|register| register.early_clobber_points.len())
             .sum(),
         early_clobber_candidate_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.virtual_registers)
+            .virtual_registers()
             .flat_map(|register| &register.early_clobber_points)
             .map(|point| point.candidates.len())
             .sum(),
         entry_transition_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.virtual_registers)
+            .virtual_registers()
             .map(|register| register.entry_transitions.len())
             .sum(),
     };

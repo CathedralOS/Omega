@@ -91,9 +91,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     // A selected plan or available target instruction alone cannot supply
     // the missing occurrence-bound execution evidence.
     if let Some(operation) = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
+        .operations()
         .filter_map(|operation| match operation {
             AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => {
                 Some(*psi_operation)

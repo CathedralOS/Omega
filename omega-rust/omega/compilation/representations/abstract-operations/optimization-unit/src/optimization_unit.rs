@@ -151,6 +151,19 @@ impl PsiOptimizationUnit {
             .find(|declaration| declaration.id == id)
     }
 
+
+    /// Every function's blocks, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &OptimizationBlock> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+
+    /// Every function's nodes, in function then block order.
+    pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| function.block_nodes())
+    }
+
     /// Possible invoked machines, separate from rows retained as table data.
     /// Formation does not invoke a machine, and a dynamic call invokes only
     /// its requirement slot across the interface's complete table alternatives.

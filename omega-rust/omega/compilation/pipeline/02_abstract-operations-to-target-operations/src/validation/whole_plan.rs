@@ -17,9 +17,7 @@ pub(crate) fn reject_raw_ieee_float_fma(
     source: &AbstractOperationPlan,
 ) -> Result<(), AbstractToTargetTranslationValidationError> {
     match source
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
+        .operations()
         .filter_map(|operation| match operation {
             AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => {
                 Some(*psi_operation)

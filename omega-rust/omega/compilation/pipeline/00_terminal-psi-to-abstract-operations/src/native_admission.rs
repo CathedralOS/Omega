@@ -123,7 +123,7 @@ pub fn admit_native_realization<'request>(
         .native_callbacks
         .iter()
         .filter(|callback| {
-            input.plan().functions.iter().flat_map(|function| &function.operations).any(|operation|
+            input.plan().operations().any(|operation|
                 matches!(operation, abstract_operations::AbstractOperation::BoundaryCall { psi_operation, .. } if *psi_operation == callback.terminal_operation))
                 || !input
                     .context()

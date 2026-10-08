@@ -198,10 +198,7 @@ pub(crate) fn post_allocation_receipt(
     })?;
     let block_count = ordinary_block_count;
     let (ordinary_instruction_count, operand_count, ordinary_unit_action_count) = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .try_fold((0_usize, 0_usize, 0_usize), |counts, instruction| {
             Ok::<_, PostAllocationMachineError>((
                 counts

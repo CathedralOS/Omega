@@ -38,9 +38,7 @@ pub(crate) fn bind_native_callback_arguments(
             ));
         }
         let matching_calls = plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.operations)
+            .operations()
             .filter(|operation| {
                 matches!(operation,
                     AbstractOperation::BoundaryCall { psi_operation, .. }

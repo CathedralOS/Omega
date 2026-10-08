@@ -6,8 +6,8 @@ use super::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineId, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, ObligationId, OperationId,
     PreAllocationMachineEffectDecodeError, PsiProvenance, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_constraint_key,
-    decode_accepted_fact, decode_ids, decode_obligation, decode_units,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_accepted_fact,
+    decode_constraint_key, decode_ids, decode_obligation, decode_units,
 };
 use crate::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,

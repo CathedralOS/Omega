@@ -422,9 +422,7 @@ pub(super) fn lower(
                     .iter()
                     .chain(
                         function
-                            .block_entries
-                            .iter()
-                            .flat_map(|entry| &entry.structural_parameters)
+                            .block_structural_parameters()
                             .filter(|parameter| live.address_joins.contains(&parameter.place)),
                     )
                     .find(|parameter| parameter.place == place)
@@ -672,16 +670,10 @@ pub(super) fn lower(
                 function
                     .structural_parameters
                     .iter()
-                    .chain(
-                        function
-                            .block_entries
-                            .iter()
-                            .flat_map(|entry| &entry.structural_parameters)
-                            .filter(|parameter| {
-                                live.address_joins.contains(&parameter.place)
-                                    || live.block_views.contains(&parameter.place)
-                            }),
-                    )
+                    .chain(function.block_structural_parameters().filter(|parameter| {
+                        live.address_joins.contains(&parameter.place)
+                            || live.block_views.contains(&parameter.place)
+                    }))
                     .find(|parameter| {
                         parameter.place == *source
                             && parameter.multiplicity != StructuralMultiplicity::Linear

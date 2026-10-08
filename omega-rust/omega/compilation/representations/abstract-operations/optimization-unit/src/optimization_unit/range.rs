@@ -1,11 +1,11 @@
 //! Revision-bound integer range carriers and canonical identities.
 
-use super::integer_intervals::{encode_integer_type, encode_integer_value, integer_value_cmp};
 use super::super::{
-    AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerType,
-    IntegerValue, OperationId, ProofQuestionIdentity, ScalarConstantFactIdentity, ValueId,
+    AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerType, IntegerValue,
+    OperationId, ProofQuestionIdentity, ScalarConstantFactIdentity, ValueId,
     ValueRangeFactIdentity,
 };
+use super::integer_intervals::{encode_integer_type, encode_integer_value, integer_value_cmp};
 use super::{MachineId, OptimizationUnitIdentity};
 /// Exact authority consumed by one derived current-revision integer range.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -142,6 +142,3 @@ pub fn value_range_fact_identity(
     }
     Some(ValueRangeFactIdentity::from_canonical_bytes(&canonical))
 }
-
-
-

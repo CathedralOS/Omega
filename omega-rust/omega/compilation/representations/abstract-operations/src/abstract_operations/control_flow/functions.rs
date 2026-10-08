@@ -28,6 +28,15 @@ pub struct AbstractFunction {
 }
 
 impl AbstractFunction {
+    /// Every block entry's structural parameters, in block order.
+    pub fn block_structural_parameters(
+        &self,
+    ) -> impl Iterator<Item = &StructuralParameterDeclaration> + '_ {
+        self.block_entries
+            .iter()
+            .flat_map(|entry| &entry.structural_parameters)
+    }
+
     /// The one exact declaration whose storage arrives at `place` through the
     /// function entrance or a block edge. Terminal-to-abstract lowering has
     /// already authenticated each place kind; this representation retains the

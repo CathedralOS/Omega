@@ -207,11 +207,7 @@ fn join_import_coverage_rows<'input>(
         .iter()
         .map(|callback| (callback.terminal_operation, None))
         .collect::<BTreeMap<_, _>>();
-    for operation in plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
-    {
+    for operation in plan.operations() {
         let (boundary, site) = match operation {
             abstract_operations::AbstractOperation::BoundaryCall {
                 boundary,

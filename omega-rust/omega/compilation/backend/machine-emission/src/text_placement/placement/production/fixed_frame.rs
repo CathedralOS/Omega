@@ -173,31 +173,19 @@ pub(in crate::text_placement::placement) fn place(
     }
 
     let source_fixups = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
         .count();
     let source_foreign = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.normalized_foreign_call_fixup.is_some())
         .count();
     let source_literals = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.byte_literal_address_fixup.is_some())
         .count();
     let source_tables = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.implementation_table_address_fixup.is_some())
         .count();
     if resolved.len() != source_fixups

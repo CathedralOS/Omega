@@ -62,9 +62,7 @@ pub fn conservative_syscall_terminal_mechanism(
     }
 
     let calls = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
+        .operations()
         .filter_map(|operation| {
             let abstract_operations::AbstractOperation::BoundaryCall {
                 boundary: called,

@@ -111,6 +111,12 @@ pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
+impl SelectedInstructionPlan {
+    /// Every function's blocks, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &SelectedBlock> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstructionPlan {

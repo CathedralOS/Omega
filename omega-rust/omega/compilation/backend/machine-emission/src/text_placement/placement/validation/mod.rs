@@ -66,13 +66,7 @@ pub(super) fn check(
 fn expected_requirements(
     fragments: &machine_code::FunctionFragmentEmissionPlan,
 ) -> TextSectionRelocationRequirements {
-    let rows = || {
-        fragments
-            .functions
-            .iter()
-            .flat_map(|function| &function.blocks)
-            .flat_map(|block| &block.instructions)
-    };
+    let rows = || fragments.instructions();
     let has_foreign = rows().any(|row| row.normalized_foreign_call_fixup.is_some());
     let has_literals = rows().any(|row| {
         row.byte_literal_address_fixup.is_some() || row.implementation_table_address_fixup.is_some()

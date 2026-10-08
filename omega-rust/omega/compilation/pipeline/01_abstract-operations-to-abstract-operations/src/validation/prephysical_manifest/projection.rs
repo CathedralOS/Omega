@@ -62,13 +62,7 @@ fn structural_statistics(
                 .map(|function| function.blocks.len())
                 .sum(),
         )?,
-        nodes: count(
-            unit.functions
-                .iter()
-                .flat_map(|function| &function.blocks)
-                .map(|block| block.nodes.len())
-                .sum(),
-        )?,
+        nodes: count(unit.blocks().map(|block| block.nodes.len()).sum())?,
         scalar_definitions: count(
             unit.functions
                 .iter()
@@ -89,13 +83,8 @@ fn structural_statistics(
                 })
                 .sum(),
         )?,
-        scalar_uses: count(
-            unit.functions
-                .iter()
-                .flat_map(|function| function.block_nodes())
-                .map(|node| node.uses.len())
-                .sum(),
-        )?,
+
+        scalar_uses: count(unit.block_nodes().map(|node| node.uses.len()).sum())?,
         optimization_facts: count(
             unit.functions
                 .iter()

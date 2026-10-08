@@ -134,9 +134,7 @@ fn readable(
     // storage, so a whole-place read loads it exactly like a borrowed
     // function parameter's referent.
     if let Some(parameter) = function
-        .block_entries
-        .iter()
-        .flat_map(|entry| &entry.structural_parameters)
+        .block_structural_parameters()
         .find(|parameter| parameter.place == place)
     {
         return matches!(

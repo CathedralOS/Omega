@@ -200,7 +200,6 @@ fn decision_counts(manifests: &[OptimizationPassManifestRecord]) -> (usize, usiz
         )
 }
 
-
 fn render_fact(fact: OptimizationFactReference) -> String {
     match fact {
         OptimizationFactReference::ScalarConstant(identity) => {

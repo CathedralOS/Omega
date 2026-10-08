@@ -10,20 +10,24 @@ use super::{
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction};
+    TerminalAffineCleanupAction,
+};
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
     encode_optional, encode_scalar_type, encode_structural_parameter,
-    encode_structural_path_segment};
+    encode_structural_path_segment,
+};
 use crate::optimization_unit::identity::proposition_encoding::{
-    encode_content_term, encode_float_format, encode_proposition};
+    encode_content_term, encode_float_format, encode_proposition,
+};
 use terminal_psi::BoundaryMachineResult;
 
 mod contract;
 
 pub(super) use contract::{
     encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-    encode_evidence_contract_lane, encode_machine_contract, encode_outcome_specific_call_evidence};
+    encode_evidence_contract_lane, encode_machine_contract, encode_outcome_specific_call_evidence,
+};
 
 pub(super) fn encode_place_declaration(
     bytes: &mut CanonicalBytes,
@@ -43,14 +47,16 @@ pub(super) fn encode_place_declaration(
         StructuralPlaceKind::Result => bytes.u8(2),
         StructuralPlaceKind::OperationResult {
             producer,
-            structural_type} => {
+            structural_type,
+        } => {
             bytes.u8(3);
             bytes.id(producer);
             bytes.id(structural_type);
         }
         StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal,
-            structural_type} => {
+            structural_type,
+        } => {
             bytes.u8(4);
             bytes.u32(declaration_ordinal);
             bytes.id(structural_type);
@@ -58,7 +64,8 @@ pub(super) fn encode_place_declaration(
         StructuralPlaceKind::ProviderAttachment {
             attachment,
             field,
-            boundary} => {
+            boundary,
+        } => {
             bytes.u8(5);
             bytes.id(attachment);
             bytes.id(field);
@@ -67,7 +74,8 @@ pub(super) fn encode_place_declaration(
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
-            construction} => {
+            construction,
+        } => {
             bytes.u8(if construction.is_some() { 7 } else { 6 });
             bytes.u32(declaration_ordinal);
             bytes.id(structural_type);
@@ -88,12 +96,14 @@ pub(super) fn encode_boundary_machine(
     bytes.u8(match declaration.kind {
         terminal_psi::BoundaryRequirementKind::Machine => 0,
         terminal_psi::BoundaryRequirementKind::Trait => 1,
-        terminal_psi::BoundaryRequirementKind::Operator => 2});
+        terminal_psi::BoundaryRequirementKind::Operator => 2,
+    });
     bytes.u8(match declaration.completion {
         terminal_psi::BoundaryCompletion::NormalReturn => 0,
         terminal_psi::BoundaryCompletion::External(
             terminal_psi::ExternalCompletionKind::ProcessExit,
-        ) => 1});
+        ) => 1,
+    });
     bytes.boolean(declaration.unconditional_termination);
     encode_optional(
         bytes,
@@ -106,7 +116,8 @@ pub(super) fn encode_boundary_machine(
     bytes.slice(&declaration.parameter_order, |bytes, kind| {
         bytes.u8(match kind {
             terminal_psi::BoundaryParameterKind::Scalar => 0,
-            terminal_psi::BoundaryParameterKind::Structural => 1});
+            terminal_psi::BoundaryParameterKind::Structural => 1,
+        });
     });
     bytes.slice(
         &declaration.structural_parameters,
@@ -124,7 +135,8 @@ pub(super) fn encode_boundary_machine(
             bytes.u8(match result.multiplicity {
                 StructuralMultiplicity::Unrestricted => 1,
                 StructuralMultiplicity::Affine => 2,
-                StructuralMultiplicity::Linear => 3});
+                StructuralMultiplicity::Linear => 3,
+            });
             encode_ids(bytes, &result.qualifications);
         }
     }
@@ -160,14 +172,16 @@ fn encode_boundary_content_guarantee(
 fn encode_retained_borrow_place(bytes: &mut CanonicalBytes, place: &RetainedBorrowPlace) {
     bytes.u8(match place.version {
         ContentPlaceVersion::Entry => 1,
-        ContentPlaceVersion::Current => 2});
+        ContentPlaceVersion::Current => 2,
+    });
     match &place.root {
         RetainedBorrowPlaceRoot::Parameter { position, identity } => {
             bytes.u8(1);
             bytes.u32(*position);
             bytes.string(identity);
         }
-        RetainedBorrowPlaceRoot::Result => bytes.u8(2)}
+        RetainedBorrowPlaceRoot::Result => bytes.u8(2),
+    }
     bytes.slice(&place.segments, |bytes, segment| match segment {
         ContentPlaceSegment::Case(identity) => {
             bytes.u8(1);
@@ -295,7 +309,8 @@ pub(super) fn encode_content_projection_scalar(
                     ContentProjectionScalar::Add(_, _) => 5,
                     ContentProjectionScalar::Subtract(_, _) => 6,
                     ContentProjectionScalar::Multiply(_, _) => 7,
-                    _ => unreachable!()});
+                    _ => unreachable!(),
+                });
                 pending.push(right);
                 pending.push(left);
             }
@@ -433,7 +448,8 @@ fn encode_authored_field_storage(
         None => bytes.u8(0),
         Some(AuthoredFieldStorage::Scalar {
             byte_offset,
-            stored_scalar}) => {
+            stored_scalar,
+        }) => {
             bytes.u8(if stored_scalar.is_some() { 2 } else { 1 });
             bytes.u64(*byte_offset);
             if let Some(scalar) = stored_scalar {
@@ -442,7 +458,8 @@ fn encode_authored_field_storage(
         }
         Some(AuthoredFieldStorage::Repeated {
             byte_offset,
-            element_stride}) => {
+            element_stride,
+        }) => {
             bytes.u8(3);
             bytes.u64(*byte_offset);
             bytes.u64(*element_stride);
@@ -496,7 +513,8 @@ pub(super) fn encode_structural_field(
     bytes.string(&field.identity);
     bytes.u8(match field.relevance {
         BindingRelevance::Relevant => 1,
-        BindingRelevance::Erased => 2});
+        BindingRelevance::Erased => 2,
+    });
     match &field.field_type {
         StructuralFieldType::RefinedScalar(refinement) => {
             bytes.u8(9);
@@ -523,7 +541,8 @@ pub(super) fn encode_structural_field(
         }
         StructuralFieldType::PredicateByteSequence {
             carrier,
-            predicates} => {
+            predicates,
+        } => {
             bytes.u8(7);
             encode_byte_carrier(bytes, *carrier);
             bytes.u8(predicates.bits());
@@ -554,13 +573,15 @@ pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSeque
             bytes.u8(1);
             match access {
                 Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0)}
+                None => bytes.u8(0),
+            }
         }
         ByteSequenceCarrier::BoundedView { access, capacity } => {
             bytes.u8(3);
             match access {
                 Some(access) => super::carrier_encoding::encode_access(bytes, access),
-                None => bytes.u8(0)}
+                None => bytes.u8(0),
+            }
             bytes.u64(capacity);
         }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
@@ -632,14 +653,16 @@ pub(super) fn encode_claim_projection(
 pub(super) fn encode_content_algebra(bytes: &mut CanonicalBytes, algebra: &ContentAlgebra) {
     bytes.u8(match algebra.kind {
         ContentAlgebraKind::IntervalSet => 1,
-        ContentAlgebraKind::CountedQuantity => 2});
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
     bytes.string(&algebra.parameter);
 }
 
 pub(super) fn encode_content_place(bytes: &mut CanonicalBytes, place: &ContentStructuralPlace) {
     bytes.u8(match place.version {
         ContentPlaceVersion::Entry => 1,
-        ContentPlaceVersion::Current => 2});
+        ContentPlaceVersion::Current => 2,
+    });
     bytes.id(place.root);
     bytes.len(place.segments.len());
     for segment in &place.segments {
@@ -722,7 +745,8 @@ mod tests {
                 cleanup_machine: MachineId::new(3).unwrap(),
                 consumed_claims: Vec::new(),
                 cleanup_receiver: None,
-                requirement_obligations: Vec::new()});
+                requirement_obligations: Vec::new(),
+            });
             let mut bytes = CanonicalBytes::collect();
             encode_cleanup(&mut bytes, &action);
             let encoded = bytes.finish();

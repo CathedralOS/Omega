@@ -21,15 +21,11 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(count(function.blocks.len())?)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
-    let instructions = layout
-        .functions()
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .try_fold(0_u64, |total, block| {
-            total
-                .checked_add(count(block.instructions.len())?)
-                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-        })?;
+    let instructions = layout.blocks().try_fold(0_u64, |total, block| {
+        total
+            .checked_add(count(block.instructions.len())?)
+            .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+    })?;
     let bytes = layout
         .functions()
         .iter()
@@ -39,10 +35,7 @@ pub(crate) fn function_relative_statistics(
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
     let resolved_conditional_branches = layout
-        .functions()
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| {
             instruction
                 .branch
@@ -56,10 +49,7 @@ pub(crate) fn function_relative_statistics(
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
     let ordinary_internal_machine_fixups = layout
-        .functions()
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
         .try_fold(0_u64, |total, _| {
             total

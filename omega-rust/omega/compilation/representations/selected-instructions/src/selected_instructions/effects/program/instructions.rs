@@ -6,6 +6,12 @@ use crate::{
 };
 use register_model::{RegisterConstraintKey, RegisterUnitId};
 use semantic_vocabulary::MachineId;
+impl FunctionMachineEffects {
+    /// Every block's effect rows, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &InstructionMachineEffects> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionMachineEffects {

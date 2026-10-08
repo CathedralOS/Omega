@@ -34,10 +34,7 @@ pub fn text_section_statistics(
         }
     }
     result.source_internal_machine_fixups = fragments
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.internal_machine_fixup.is_some())
         .count()
         .try_into()

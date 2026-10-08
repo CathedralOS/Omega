@@ -25,9 +25,7 @@ pub(super) fn usage(
         checked_add(total, count(function.modified_units.len())?)
     })?;
     let w = source
-        .functions
-        .iter()
-        .flat_map(|function| &function.modified_units)
+        .modified_units()
         .try_fold(0_u64, |total, requirement| {
             checked_add(total, count(requirement.witnesses.len())?)
         })?;

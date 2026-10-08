@@ -71,6 +71,20 @@ pub struct OperandPosition {
     pub early_clobber: bool,
 }
 
+impl LivenessPlan {
+    /// Every function's blocks, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &BlockLiveness> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+
+    /// Every function's instruction liveness rows, in function then block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &InstructionLiveness> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| function.instructions())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockLiveness {
     pub block: SelectedBlockId,

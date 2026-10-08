@@ -6,9 +6,8 @@
 
 use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathQualification, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathQualification, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
 };
 
 use crate::AbstractFunction;

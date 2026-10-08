@@ -19,9 +19,7 @@ pub(super) fn receipt(
         .map(|function| function.virtual_registers.len())
         .sum();
     let instruction_count = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
+        .blocks()
         .map(|block| block.instructions.len() + 1)
         .sum::<usize>();
     SelectedInstructionValidationReceipt {

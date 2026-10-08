@@ -109,7 +109,6 @@ pub fn is_shared_byte_view_in(
     })
 }
 
-
 /// An unrestricted bounded byte payload arriving by value. Qualifications
 /// remain declaration-owned obligations; layout does not erase or establish
 /// them. Consumers independently replay the signature and its aggregate ABI.

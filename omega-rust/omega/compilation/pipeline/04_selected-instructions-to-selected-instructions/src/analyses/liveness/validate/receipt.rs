@@ -20,18 +20,8 @@ pub(crate) fn admit_validated_liveness(
         .iter()
         .map(|function| function.blocks.len())
         .sum();
-    let instruction_count = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .map(|block| block.instructions.len())
-        .sum();
-    let successor_count = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .map(|block| block.successors.len())
-        .sum();
+    let instruction_count = plan.blocks().map(|block| block.instructions.len()).sum();
+    let successor_count = plan.blocks().map(|block| block.successors.len()).sum();
     let tied_pair_count = plan
         .functions
         .iter()

@@ -3,9 +3,8 @@ use optimization_core::{
     OptimizationWorkBudget, OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity,
 };
 use register_model::{
-    write_semantics_tag,
     PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId, RegisterWriteSemantics,
-    TargetRegisterEnvironmentIdentity,
+    TargetRegisterEnvironmentIdentity, write_semantics_tag,
 };
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
@@ -138,4 +137,15 @@ pub struct AllocatedCalleeSavedRequirementPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionAllocatedCalleeSavedRequirements>,
+}
+
+impl AllocatedCalleeSavedRequirementPlan {
+    /// Every function's allocated unit requirements, in function order.
+    pub fn modified_units(
+        &self,
+    ) -> impl Iterator<Item = &AllocatedCalleeSavedUnitRequirement> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| &function.modified_units)
+    }
 }

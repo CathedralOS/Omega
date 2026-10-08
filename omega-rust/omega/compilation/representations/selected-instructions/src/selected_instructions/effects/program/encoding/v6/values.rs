@@ -85,11 +85,7 @@ pub(super) fn decode_obligation(
 }
 pub(super) fn decode_accepted_fact(
     cursor: &mut Cursor<'_>,
-) -> Result<
-    optimization_core::AcceptedObligationFactIdentity,
-    PreAllocationMachineEffectDecodeError,
-> {
-    Ok(optimization_core::AcceptedObligationFactIdentity::from_bytes(
-        cursor.array()?,
-    ))
+) -> Result<optimization_core::AcceptedObligationFactIdentity, PreAllocationMachineEffectDecodeError>
+{
+    Ok(optimization_core::AcceptedObligationFactIdentity::from_bytes(cursor.array()?))
 }

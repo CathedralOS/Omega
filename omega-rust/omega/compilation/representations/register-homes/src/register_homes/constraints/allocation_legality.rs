@@ -40,6 +40,17 @@ pub struct AllocationLegalityPlan {
     pub functions: Vec<std::sync::Arc<FunctionAllocationLegality>>,
 }
 
+impl AllocationLegalityPlan {
+    /// Every function's register legality rows, in function order.
+    pub fn virtual_registers(
+        &self,
+    ) -> impl Iterator<Item = &VirtualRegisterAllocationLegality> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| &function.virtual_registers)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionAllocationLegality {
     pub machine: MachineId,

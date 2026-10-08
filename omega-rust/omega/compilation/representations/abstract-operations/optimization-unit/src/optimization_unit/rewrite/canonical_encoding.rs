@@ -3,9 +3,7 @@ pub(super) use crate::optimization_unit::integer_intervals::{
     encode_integer_type, encode_integer_value,
 };
 
-use super::{
-    ScalarType, ValueDefinitionSite,
-};
+use super::{ScalarType, ValueDefinitionSite};
 /// The rewrite-candidate definition-site table, which is **not** the canonical
 /// [`super::ValueDefinitionSite`] identity encoding.
 ///
@@ -60,5 +58,3 @@ pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
         }
     }
 }
-
-

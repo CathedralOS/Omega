@@ -163,12 +163,7 @@ fn address_join_argument(
             .chain(
                 live.address_joins
                     .contains(&argument.place)
-                    .then(|| {
-                        function
-                            .block_entries
-                            .iter()
-                            .flat_map(|entry| &entry.structural_parameters)
-                    })
+                    .then(|| function.block_structural_parameters())
                     .into_iter()
                     .flatten(),
             )
@@ -203,9 +198,7 @@ fn address_join_argument(
         .then_some(source.structural_type)
     } else if live.address_joins.contains(&argument.place) {
         function
-            .block_entries
-            .iter()
-            .flat_map(|entry| &entry.structural_parameters)
+            .block_structural_parameters()
             .find(|source| source.place == argument.place)
             .filter(|source| loan_access_permitted(source.access, parameter.access))
             .map(|source| source.structural_type)
@@ -313,9 +306,7 @@ pub(super) fn validate_successors(
                         (live.block_views.contains(&place) || live.owned_arrivals.contains(&place))
                             .then(|| {
                                 function
-                                    .block_entries
-                                    .iter()
-                                    .flat_map(|entry| &entry.structural_parameters)
+                                    .block_structural_parameters()
                                     .find(|source| source.place == place)
                                     .map(|source| source.structural_type)
                             })
@@ -341,12 +332,7 @@ pub(super) fn validate_successors(
                         function
                             .structural_parameters
                             .iter()
-                            .chain(
-                                function
-                                    .block_entries
-                                    .iter()
-                                    .flat_map(|entry| &entry.structural_parameters),
-                            )
+                            .chain(function.block_structural_parameters())
                             .find(|source| source.place == place)
                             .map(|source| {
                                 source.access == parameter.access
@@ -384,9 +370,7 @@ pub(super) fn validate_successors(
                                     .map(|root| root.structural_type)
                                     .or_else(|| {
                                         function
-                                            .block_entries
-                                            .iter()
-                                            .flat_map(|entry| &entry.structural_parameters)
+                                            .block_structural_parameters()
                                             .find(|source| source.place == *backing)
                                             .map(|source| source.structural_type)
                                     });

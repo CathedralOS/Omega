@@ -39,6 +39,16 @@ impl AbstractOperationPlan {
     }
 }
 
+
+impl AbstractOperationPlan {
+    /// Every function's operations, in function order.
+    pub fn operations(&self) -> impl Iterator<Item = &AbstractOperation> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| &function.operations)
+    }
+}
+
 pub mod ownership;
 mod structural_type_catalog;
 pub use ownership::CompletionClaimSource;

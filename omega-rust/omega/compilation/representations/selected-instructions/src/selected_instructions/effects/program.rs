@@ -30,6 +30,19 @@ impl PreAllocationMachineEffectIdentity {
         self.0
     }
 }
+impl PreAllocationMachineEffectPlan {
+    /// Every function's blocks, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &BlockMachineEffects> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+
+    /// Every function's instruction effect rows, in function then block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &InstructionMachineEffects> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| function.instructions())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreAllocationMachineEffectPlan {

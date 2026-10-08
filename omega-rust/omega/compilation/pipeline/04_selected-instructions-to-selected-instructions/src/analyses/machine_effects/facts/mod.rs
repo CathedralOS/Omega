@@ -159,21 +159,14 @@ fn receipt(
             .ok_or(MachineEffectError::CountOverflow)
     })?;
     let block_count = ordinary_block_count;
-    let ordinary_instruction_count = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .try_fold(0usize, |count, block| {
-            count
-                .checked_add(block.instructions.len())
-                .ok_or(MachineEffectError::CountOverflow)
-        })?;
+    let ordinary_instruction_count = plan.blocks().try_fold(0usize, |count, block| {
+        count
+            .checked_add(block.instructions.len())
+            .ok_or(MachineEffectError::CountOverflow)
+    })?;
     let instruction_count = ordinary_instruction_count;
     let (alternative_count, unit_action_count, fuel_settlement_count) = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .try_fold((0usize, 0usize, 0usize), |counts, instruction| {
             Ok::<_, MachineEffectError>((
                 counts

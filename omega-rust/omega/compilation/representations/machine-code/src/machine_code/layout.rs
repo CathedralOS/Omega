@@ -131,6 +131,18 @@ impl ResolvedMachineLayout {
         &self.functions
     }
 
+    /// Every function's block layouts, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &ResolvedSelectedBlockLayout> + '_ {
+        self.functions()
+            .iter()
+            .flat_map(|function| &function.blocks)
+    }
+
+    /// Every function's resolved instructions, in function then block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &ResolvedSelectedFormRow> + '_ {
+        self.blocks().flat_map(|block| &block.instructions)
+    }
+
     pub fn recomputed_identity(&self) -> ResolvedSelectedFormLayoutIdentity {
         resolved_machine_layout_identity(
             self.selected,

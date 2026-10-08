@@ -501,4 +501,3 @@ fn candidate_identity(
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
 }
-

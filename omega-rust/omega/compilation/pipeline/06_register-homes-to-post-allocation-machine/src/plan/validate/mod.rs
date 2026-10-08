@@ -5,7 +5,6 @@
 //! Each child reconstructs from validated inputs and never calls production
 //! construction.
 
-
 use super::post_allocation_receipt;
 use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 use physical_instructions::PostAllocationMachinePlan;

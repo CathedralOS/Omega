@@ -89,9 +89,7 @@ pub(super) fn expected_record(
     }
     let transition_count = legality
         .plan()
-        .functions
-        .iter()
-        .flat_map(|function| &function.virtual_registers)
+        .virtual_registers()
         .map(|register| register.entry_transitions.len())
         .sum::<usize>();
     if transition_count != 0 {

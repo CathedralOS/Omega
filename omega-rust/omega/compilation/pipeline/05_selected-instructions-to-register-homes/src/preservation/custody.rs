@@ -29,9 +29,7 @@ pub(super) fn seal(
             .map(|function| function.modified_units.len())
             .sum(),
         witness_count: plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.modified_units)
+            .modified_units()
             .map(|requirement| requirement.witnesses.len())
             .sum(),
     }

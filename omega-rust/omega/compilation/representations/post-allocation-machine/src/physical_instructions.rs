@@ -60,6 +60,18 @@ pub struct PostAllocationMachinePlan {
 }
 
 impl PostAllocationMachinePlan {
+    /// Every function's blocks, in function order.
+    pub fn blocks(&self) -> impl Iterator<Item = &PostAllocationMachineBlock> + '_ {
+        self.functions.iter().flat_map(|function| &function.blocks)
+    }
+
+    /// Every function's physical instructions, in function then block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &PostAllocationMachineInstruction> + '_ {
+        self.functions
+            .iter()
+            .flat_map(|function| function.instructions())
+    }
+
     /// Encodes this unchecked plan in the strict, self-authenticating artifact
     /// envelope. This does not grant validation or emission authority.
     pub fn encode(&self) -> Vec<u8> {

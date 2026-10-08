@@ -16,9 +16,8 @@ use optimization_core::{
     OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerType,
-    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
-    ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, ValueId,
 };
 
 use crate::{
@@ -52,7 +51,8 @@ pub use contracts::{
 };
 pub use declarations::PsiCandidateDeclaration;
 pub use foundations::{
-    NodeLocation, encode_location, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
+    encode_location,
 };
 pub use loop_invariant_scalar_motion::{
     LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode,

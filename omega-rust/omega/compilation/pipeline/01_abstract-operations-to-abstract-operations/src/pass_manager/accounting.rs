@@ -107,9 +107,7 @@ pub(super) fn add_usage(
 }
 
 fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
-    unit.functions
-        .iter()
-        .flat_map(|function| function.block_nodes())
+    unit.block_nodes()
         .filter(|node| {
             matches!(
                 node.operation,
@@ -134,17 +132,13 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 }
 
 fn block_parameter_count(unit: &PsiOptimizationUnit) -> u64 {
-    unit.functions
-        .iter()
-        .flat_map(|function| &function.blocks)
+    unit.blocks()
         .map(|block| u64::try_from(block.parameters.len()).expect("parameter count fits u64"))
         .sum()
 }
 
 fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
-    unit.functions
-        .iter()
-        .flat_map(|function| function.block_nodes())
+    unit.block_nodes()
         .filter(|node| match &node.operation {
             // Integer arithmetic is total exactly when it carries no
             // obligation.
@@ -177,9 +171,7 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 }
 
 fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
-    unit.functions
-        .iter()
-        .flat_map(|function| function.block_nodes())
+    unit.block_nodes()
         .filter(|node| match &node.operation {
             abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
                 arithmetic.obligation().is_some()
@@ -259,11 +251,7 @@ pub(super) fn convergence_measure(
     } else if registry.pass() == Some(proof_elision_pass) {
         proof_certified_scalar_operation_count(unit)
     } else if registry.pass() == Some(global_value_numbering_pass) {
-        unit.functions
-            .iter()
-            .flat_map(|function| &function.blocks)
-            .map(|block| block.nodes.len() as u64)
-            .sum()
+        unit.blocks().map(|block| block.nodes.len() as u64).sum()
     } else if registry.pass() == Some(state_specialization_pass) {
         dispatch_chain_depth_measure(unit)
     } else if registry.pass() == Some(representation_specialization_pass) {
@@ -280,9 +268,7 @@ pub(super) fn convergence_measure(
 /// observation into a constant, so a commit strictly lowers the measure and a
 /// fixed point is reached when no proven observation remains.
 fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
-    unit.functions
-        .iter()
-        .flat_map(|function| function.block_nodes())
+    unit.block_nodes()
         .filter(|node| {
             matches!(
                 node.operation,

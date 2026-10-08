@@ -24,7 +24,6 @@ impl StructuralTypeCatalog {
     pub fn make_mut(&mut self) -> &mut Vec<StructuralTypeDeclaration> {
         Arc::make_mut(&mut self.0)
     }
-
 }
 
 impl From<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {

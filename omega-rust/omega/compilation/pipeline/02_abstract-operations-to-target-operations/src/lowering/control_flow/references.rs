@@ -36,11 +36,7 @@ pub(in crate::lowering) fn borrowed_source_catalog(
     let mut rosters = BTreeMap::new();
     for function in functions.values() {
         let mut sources = BTreeMap::new();
-        for parameter in function
-            .block_entries
-            .iter()
-            .flat_map(|entry| &entry.structural_parameters)
-        {
+        for parameter in function.block_structural_parameters() {
             if parameter.access != StructuralAccess::Owned
                 && !terminal_semantics::descriptor_results::is_shared_descriptor(
                     types.values().copied(),

@@ -196,4 +196,3 @@ fn decode_target(
         pointer_alignment,
     })
 }
-
