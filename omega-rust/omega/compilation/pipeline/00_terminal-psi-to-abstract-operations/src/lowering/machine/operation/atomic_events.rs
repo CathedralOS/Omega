@@ -159,7 +159,9 @@ pub(super) fn lower(
     })
 }
 
-/// The plain scalar field `field` of the record `path` selects from `root`.
+/// The atomic member `field` of the carrier `path` selects from `root`.
+/// Record fields and mixed-case common fields share this namespace; a case
+/// payload still needs its independently checked selected-case coordinates.
 fn field_type(
     structural_types: &[StructuralTypeDeclaration],
     root: semantic_vocabulary::StructuralTypeId,
@@ -174,10 +176,8 @@ fn field_type(
     let mut carrier = root;
     for segment in path {
         carrier = match (segment, &declaration(carrier)?.shape) {
-            (
-                terminal_psi::StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. },
-            ) => match fields
+            (terminal_psi::StructuralPathSegment::Field(identity), shape) => match shape
+                .direct_fields()?
                 .iter()
                 .find(|candidate| {
                     candidate.identity == *identity && !candidate.relevance.is_erased()
@@ -194,17 +194,12 @@ fn field_type(
             _ => return None,
         };
     }
-    let StructuralTypeShape::Record { fields, .. } = &declaration(carrier)?.shape else {
-        return None;
-    };
-    match fields
+    let fields = declaration(carrier)?.shape.direct_fields()?;
+    fields
         .iter()
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
         .field_type
-    {
-        StructuralFieldType::Atomic(scalar_type) => Some(scalar_type),
-        _ => None,
-    }
+        .atomic_scalar_type()
 }
 
 /// One fact about the latest write to a location on some execution path.

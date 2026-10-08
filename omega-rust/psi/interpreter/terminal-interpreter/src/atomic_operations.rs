@@ -7,11 +7,13 @@
 //! resolution a `StructuralScalarFieldStore` uses, under the root parameter's
 //! own access. Orderings constrain concurrent observation only; a serial run
 //! has no second participant, so they select no different behavior here.
+//! Direct members include a mixed case's common fields: their cells live in
+//! the member namespace regardless of the active payload or physical tag size.
 
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
 };
 
 use crate::custody::resolve_structural_arguments;
@@ -82,13 +84,13 @@ impl TerminalExecution {
             .program
             .structural_types
             .get(&parent.structural_type)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. } => fields
+            .and_then(|declaration| declaration.shape.direct_fields())
+            .and_then(|fields| {
+                fields
                     .iter()
                     .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-                    .and_then(|field| field.field_type.atomic_scalar_type()),
-                _ => None,
             })
+            .and_then(|field| field.field_type.atomic_scalar_type())
             .ok_or_else(malformed)?;
         let cell =
             StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field);

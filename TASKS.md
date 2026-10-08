@@ -1748,6 +1748,10 @@ then independent claimed restoration slices -> final closure.
   `terminal-interpreter` dependencies from the application. Add a production
   command/API that executes an owned Terminal artifact without compiling
   source, beside the source route that asks only the Psi driver.
+  Facade/target-aware adapter placement is **OWNER-BLOCKED** on
+  **Q2: hosted-interpreter-abi-library-dependency** in `OWNER_QUESTIONS.md`:
+  existing exact locator/ABI checks need independent Omega backend libraries,
+  which the current Psi dependency rule forbids. Other runtime work is unblocked.
   Acceptance: `omega run --both` for
   `pass/float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`
   returns native/interpreter 70; restore **WINDOWS-CONSOLE-INPUT**'s Loader and
@@ -1771,11 +1775,16 @@ then independent claimed restoration slices -> final closure.
   `calls/runtime_heterogeneous_case_argument_exit` together with
   `structs/runtime_mixed_common_field_store_exit` while completing host
   arrivals: physical backing prefixes are not logical partial ownership,
-  packed case transport validates selected contents, not inactive variants,
+  case transport validates selected contents, not inactive variants,
   and common mixed fields use the member namespace, never a case payload.
-  Active atomic case formation still declines at computed-field lowering
-  (`computed case field requires its exact scalar carrier`); shared atomic
-  payloads then need original-cell backing, never a scalar snapshot.
+  Preserve `calls/runtime_atomic_case_shared_argument_exit` and
+  `atomics/runtime_mixed_common_atomic_cell_exit`: completed scalar initializers
+  establish owned case cells, and shared helper events mutate their original
+  member backing at the exact post-tag offset. Direct atomic payload access
+  still needs selected-case coordinates and atomic-event lowering; observing
+  such a payload currently declines with
+  `case payload observation requires a scalar payload`. Do not replace that
+  missing event with a scalar dispatch snapshot.
   Qualify the ordinary `omega run --both` route for
   `borrows/indexed_record_field_replacement_exit` and
   `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their

@@ -136,3 +136,43 @@ Fused provider for boundary `FilesystemHost`" or its reachable-requirement
 twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
+
+### Q2 - May hosted interpreter adapters use independent Omega ABI libraries?
+
+Named decision: `hosted-interpreter-abi-library-dependency`.
+
+**Customer:** execute a produced Terminal artifact through the shipped
+interpreter API without compiling source again. Native/reference comparison
+must bind the exact selected foreign implementations, including descriptor
+input/output and clocks, without duplicating target locator or ABI rules.
+
+**Existing rules:** [the facade contract](omega-rust/pipeline.md#two-drivers-one-pass-per-target-realization)
+assigns Terminal loading, entry establishment, provider/import installation,
+host bindings and observations to the interpreter facade. **TERMINAL-RUNTIME-DRIVERS**
+places that facade and its host adapters under `psi/interpreter/`.
+[Subsystem ownership](omega-rust/pipeline.md#subsystem-entrances-and-supporting-packages)
+assigns target/ABI descriptions and retained realization evidence to Omega
+backend libraries and also says "Psi must not depend on Omega."
+
+The current `omega/compilation/driver/src/runtime/host_imports/{descriptor_io,clock}.rs`
+adapters compare complete normalized foreign locators and independently validate
+the evaluated boundary ABI before effects. Moving those adapters into Psi
+unchanged would violate the dependency rule. Removing their checks or copying
+the target/ABI catalog would violate their existing contract. The provision
+model also needs a source-free runtime projection instead of retaining the
+source-checking-dependent `program-entry-plan` package; that projection and
+producer-owned exact plan/schema join are ordinary implementation, not this
+question.
+
+**Decision needed:** allow a narrow dependency from hosted interpreter adapters
+to independent Omega target/ABI and mechanism libraries (recommended), while
+keeping Psi compilation and the Terminal execution core independent of Omega;
+or place target-aware host adapters outside Psi and keep the facade portable
+through explicit host bindings. The latter changes the task's adapter placement,
+not Terminal semantics. Neither option permits stage IRs, compiler products,
+source rechecking or native realization to enter the interpreter.
+
+**Implementation customer:** descriptor input/output and clock programs exercised
+through `omega run --both`, plus direct Terminal-artifact embedding. Only facade
+and target-aware adapter placement in **TERMINAL-RUNTIME-DRIVERS** waits on this
+decision; its remaining storage, input and import families can proceed.

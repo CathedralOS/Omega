@@ -7,7 +7,7 @@ use legalized_operations::{
 };
 use selected_instructions::AtomicForm;
 use semantic_vocabulary::ScalarType;
-use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape};
+use terminal_psi::{StructuralAccess, StructuralFieldType};
 
 pub(super) fn form(
     source: &LegalizedScalarFunction,
@@ -46,14 +46,12 @@ pub(super) fn form(
     if !indices.is_empty() {
         return None;
     }
-    let StructuralTypeShape::Record { fields, .. } = &signature
+    let fields = signature
         .structural_types
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
-    else {
-        return None;
-    };
+        .direct_fields()?;
     let declaration = fields
         .iter()
         .find(|declaration| declaration.id == *field && !declaration.relevance.is_erased())?;

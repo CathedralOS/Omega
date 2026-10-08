@@ -15,7 +15,6 @@ use target_operations::{
 };
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralFieldType,
-    StructuralTypeShape,
 };
 
 pub(super) fn lower(
@@ -119,13 +118,12 @@ pub(super) fn lower(
     if !indices.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let StructuralTypeShape::Record { fields, .. } = &types
+    let fields = types
         .get(&carrier)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
+        .direct_fields()
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let field = fields
         .iter()
         .find(|field| field.id == location.field && !field.relevance.is_erased())

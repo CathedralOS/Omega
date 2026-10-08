@@ -7,7 +7,7 @@ use abstract_operations::{AbstractAtomicEvent, AbstractAtomicReadModifyWrite, Ab
 use semantic_vocabulary::{IntegerType, ScalarType, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralArgument,
-    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralTypeDeclaration,
 };
 
 pub(in crate::legalization) struct Access {
@@ -119,13 +119,11 @@ pub(in crate::legalization) fn access(
     if !indices.is_empty() {
         return None;
     }
-    let StructuralTypeShape::Record { fields, .. } = &types
+    let fields = types
         .iter()
         .find(|declaration| declaration.id == carrier)?
         .shape
-    else {
-        return None;
-    };
+        .direct_fields()?;
     let field = fields
         .iter()
         .find(|field| field.id == location.field && !field.relevance.is_erased())?;

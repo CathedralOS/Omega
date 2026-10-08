@@ -788,7 +788,8 @@ impl TerminalExecution {
         };
         // The committed record descriptor retains its runtime referent. This
         // recognizes its exact producer, not a fresh payload or a copied loan.
-        // Case payloads use their existing distinct runtime representation.
+        // Storage-backed cases share record subtree custody; packed immutable
+        // cases retain their distinct carrier below.
         declared == structural_type
             && (scalar_case || self.plain_aggregate_type(structural_type))
             && machine
@@ -811,6 +812,7 @@ impl TerminalExecution {
                             // storage exactly as construction does; its
                             // fields are written by later stores.
                             terminal_psi::OperationKind::EstablishStructuralArray { .. }
+                            | terminal_psi::OperationKind::EstablishStructuralCase { .. }
                             | terminal_psi::OperationKind::EstablishRecord { .. }
                             | terminal_psi::OperationKind::EstablishZeroedStructural {}
                             | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => {

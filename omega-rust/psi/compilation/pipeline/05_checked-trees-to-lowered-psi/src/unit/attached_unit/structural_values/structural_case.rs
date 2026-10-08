@@ -147,14 +147,7 @@ impl emission::Emission<'_, '_, '_> {
                         value,
                         source_count,
                     )?;
-                    if !matches!(
-                        target.field_type,
-                        StructuralFieldType::Scalar(_)
-                            | StructuralFieldType::IeeeFloat(_)
-                            | StructuralFieldType::BoundedInteger(_)
-                            | StructuralFieldType::RefinedScalar(_)
-                    ) || target.field_type.scalar_type() != Some(evaluated.scalar_type)
-                    {
+                    if target.field_type.scalar_type() != Some(evaluated.scalar_type) {
                         return unsupported(
                             "case operand requires its exact scalar carrier and range evidence",
                         );

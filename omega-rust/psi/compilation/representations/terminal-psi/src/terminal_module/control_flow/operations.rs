@@ -404,8 +404,9 @@ pub enum OperationKind {
         result_case: StructuralCaseId,
         fields: Vec<crate::ScalarCaseField>,
     },
-    /// Atomically establish one exact case of a declared sum whose payload
-    /// fields are not all scalar. The structural operation result supplies the
+    /// Atomically establish one exact storage-backed case of a declared sum.
+    /// Scalar operands initialize cells; owned children retain their subtrees.
+    /// The structural operation result supplies the
     /// destination and type; `result_case` selects the discriminated tag, and
     /// the declaration-ordered field roster holds exact scalar values or
     /// completed whole owned children, already evaluated in authored order.

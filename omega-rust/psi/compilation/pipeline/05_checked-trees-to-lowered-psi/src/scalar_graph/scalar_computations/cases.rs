@@ -1,11 +1,14 @@
 //! Case construction keeps its structural place outside the scalar prefix.
 //! Fields finish in authored order; observation precedes the temporary's
 //! normal-edge disposal, including when only one selective path constructs it.
+//! Completed scalar operands initialize the same owned case storage as nested
+//! payloads. A carrier word is an initializer, not an immutable replacement for
+//! a cell: atomic payloads must retain their backing through subsequent loans.
 use super::super::{
-    Multiplicity, Operation, OperationKind, OperationResult, PlaceId, StructuralFieldType,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, allocate_dense, emit_direct_expression, place_id, terminal_scalar_type,
+    Multiplicity, Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
+    allocate_dense, emit_direct_expression, place_id, terminal_scalar_type,
 };
 use super::{
     Argument, CheckedScalarComputationKind, CheckedTrees, Computation, Expansion, LoweringError,
@@ -192,13 +195,7 @@ pub(crate) fn reserve(
         let scalar_type = terminal_scalar_type(primitive)?;
         // A bounded payload shares its plain carrier; the declared range is
         // not assumed of the operand but requested as an establishment proof.
-        if !matches!(
-            declaration.field_type,
-            StructuralFieldType::Scalar(_)
-                | StructuralFieldType::IeeeFloat(_)
-                | StructuralFieldType::BoundedInteger(_)
-                | StructuralFieldType::RefinedScalar(_)
-        ) || declaration.field_type.scalar_type() != Some(scalar_type)
+        if declaration.field_type.scalar_type() != Some(scalar_type)
             || declaration.relevance != language_core::BindingRelevance::Relevant
         {
             return unsupported("computed case field requires its exact scalar carrier");
@@ -515,10 +512,12 @@ pub(crate) fn emit(
         } else {
             None
         };
-        fields.push(terminal_psi::ScalarCaseField {
+        fields.push(terminal_psi::RecordFieldInitializer {
             field: field.field,
-            value,
-            range_obligation,
+            value: terminal_psi::RecordFieldValue::Scalar {
+                value,
+                range_obligation,
+            },
         });
     }
     // Canonical publication orders identities only after every expression has
@@ -541,9 +540,18 @@ pub(crate) fn emit(
                 &mut calls.claims,
             )?,
         }),
-        kind: OperationKind::EstablishScalarCase {
-            result_case: effect.case,
-            fields,
+        kind: if fields.is_empty() {
+            // Payloadless cases remain pure tag establishments. Guarded exit
+            // receipts independently recognize this exact empty operation.
+            OperationKind::EstablishScalarCase {
+                result_case: effect.case,
+                fields: Vec::new(),
+            }
+        } else {
+            OperationKind::EstablishStructuralCase {
+                result_case: effect.case,
+                fields,
+            }
         },
     });
     Ok(())
@@ -553,7 +561,11 @@ pub(crate) fn declarations(
     operations: &[Operation],
 ) -> impl Iterator<Item = StructuralPlaceDeclaration> + '_ {
     operations.iter().filter_map(|operation| {
-        if !matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
+        if !matches!(
+            operation.kind,
+            OperationKind::EstablishScalarCase { .. }
+                | OperationKind::EstablishStructuralCase { .. }
+        ) {
             return None;
         }
         let OperationResult::Structural(result) = &operation.result else {

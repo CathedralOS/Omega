@@ -333,7 +333,9 @@ valid selected scalar-case construction or supported exact internal transfers.
 typed scalar values, including independently proved restricted integers. The
 interpreter carries its exact case and field identities through structural
 return and internal-call suspension; case inspection stages the selected scalar
-parameters before whole-result disposal. Empty payloads share this representation.
+parameters before whole-result disposal. Computed empty payloads retain this
+representation for exact guarded-exit receipts; computed nonempty payloads use
+owned case storage instead, including when every initializer is scalar.
 Affine case results support ordinary whole-root cleanup on returns and edges.
 Opaque host values still cannot supply case observations. Ordinary calls pass
 complete internally established scalar cases through the same prepared payload
@@ -343,14 +345,21 @@ projected case arguments remain unsupported; this scalar-only representation has
 no case-payload mutation route. Scalar and borrowed-view inputs with a scalar-case
 result use the existing call path.
 
-`EstablishStructuralCase` builds a case with a non-scalar payload member, or a
-mixed shape's case beside its common fields, as runtime cells under a fresh
+`EstablishStructuralCase` builds scalar or structural payloads, or a mixed
+shape's case beside its common fields, as runtime cells under a fresh
 root: the discriminator in the root's case contents, common fields as member
 cells, and scalar payload members as case-payload cells. Terminal numbers common
 and payload fields in separate namespaces (verification matches the roster by
 position), so a cell key carries its namespace and every subtree copy or move
 keeps it. A `StructuralCase` dispatch over such a root reads the stored
 discriminator and binds the selected payload's scalars from those cells.
+An atomic field's completed scalar initializer establishes its original cell,
+not an atomic event or an immutable snapshot. Shared calls retain that backing.
+Atomic accesses to record members and mixed common members use the same member
+namespace, preserving the checked event's observed prior and exact location;
+native realization independently checks the common member's post-tag offset
+and alignment. Direct atomic payload access still needs its selected-case
+location and atomic-event lowering; scalar-carrier equality does not grant it.
 
 Host response validation is not allocation or freshness verification. The host
 must return a legitimate owned value. Rejection preserves interpreter bookkeeping,
