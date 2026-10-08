@@ -14,10 +14,8 @@ pub(crate) fn scalar_storage_type(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ScalarType> {
-    let StructuralTypeShape::PrimitiveScalar(scalar) = declarations
-        .iter()
-        .find(|declaration| declaration.id == root)?
-        .shape
+    let StructuralTypeShape::PrimitiveScalar(scalar) =
+        find_structural_type(declarations, root)?.shape
     else {
         return None;
     };
@@ -346,10 +344,8 @@ pub(crate) fn primitive_geometry(
     }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
         let (carrier, _, _) = runtime_projection(root, carrier_path, declarations)?;
-        if let StructuralTypeShape::Record { fields, .. } = &declarations
-            .iter()
-            .find(|declaration| declaration.id == carrier)?
-            .shape
+        if let StructuralTypeShape::Record { fields, .. } =
+            &find_structural_type(declarations, carrier)?.shape
         {
             let field = fields
                 .iter()
@@ -421,10 +417,8 @@ fn contiguous_primitive_read_geometry(
         return None;
     };
     let (carrier_type, _, _) = runtime_projection(root, carrier, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier_type)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier_type)?.shape
     else {
         return None;
     };
@@ -516,9 +510,7 @@ pub(crate) fn plain_record_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
-    declarations
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
+    find_structural_type(declarations, structural_type)
         .filter(|declaration| matches!(declaration.shape, StructuralTypeShape::Record { .. }))?;
     // Borrowing needs the complete referent footprint, including untouched byte
     // siblings. It does not need permission to construct or copy that payload.
@@ -551,13 +543,9 @@ pub(crate) fn owned_storage_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
-    declarations
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
-        .filter(|declaration| {
-            declaration.shape.is_composite_shape()
-                || declaration.shape.is_bounded_owned_byte_sequence()
-        })?;
+    find_structural_type(declarations, structural_type).filter(|declaration| {
+        declaration.shape.is_composite_shape() || declaration.shape.is_bounded_owned_byte_sequence()
+    })?;
     stored_value_shape(structural_type, declarations)
 }
 
@@ -858,11 +846,7 @@ pub(crate) fn collection_view_region_geometry(
         ),
         _ => (&argument.path[..], None),
     };
-    let view_element = match &declarations
-        .iter()
-        .find(|declaration| declaration.id == view_type)?
-        .shape
-    {
+    let view_element = match &find_structural_type(declarations, view_type)?.shape {
         StructuralTypeShape::ElementView {
             element: view_element,
         } => Some(*view_element),
@@ -1151,10 +1135,8 @@ fn bounded_byte_field_borrow(
     } else {
         project(source.structural_type, prefix, declarations)?
     };
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };
@@ -1222,9 +1204,7 @@ fn shape_inner(
         return None;
     }
     active.push(root);
-    let declaration = declarations
-        .iter()
-        .find(|declaration| declaration.id == root)?;
+    let declaration = find_structural_type(declarations, root)?;
     let result = match &declaration.shape {
         // Borrowing preserves a pointer to the established occurrence even
         // though the service marker itself contributes no payload bytes.
@@ -1354,10 +1334,8 @@ pub(crate) fn projected_scalar_codec(
     let (root, path) = referent_projection(root, path, declarations)?;
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-        let StructuralTypeShape::Record { fields, .. } = &declarations
-            .iter()
-            .find(|declaration| declaration.id == parent)?
-            .shape
+        let StructuralTypeShape::Record { fields, .. } =
+            &find_structural_type(declarations, parent)?.shape
         else {
             return None;
         };
@@ -1381,10 +1359,8 @@ pub(crate) fn projected_scalar_fragments<'declarations>(
         return None;
     };
     let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == parent)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, parent)?.shape
     else {
         return None;
     };
@@ -1459,11 +1435,7 @@ fn scalar_field_declaration<'declarations>(
 ) -> Option<&'declarations terminal_psi::StructuralFieldDeclaration> {
     let (root, path) = referent_projection(root, path, declarations)?;
     let (record, _, _) = runtime_projection(root, path, declarations)?;
-    let fields = match &declarations
-        .iter()
-        .find(|declaration| declaration.id == record)?
-        .shape
-    {
+    let fields = match &find_structural_type(declarations, record)?.shape {
         StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
             fields
         }
@@ -1523,9 +1495,7 @@ pub(crate) fn case_projection(
     let mut offset = 0u32;
     let mut segments = path.iter();
     while let Some(segment) = segments.next() {
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.id == current)?;
+        let declaration = find_structural_type(declarations, current)?;
         let (next, displacement) = match segment {
             Segment::Case(identity) => {
                 let cases = declaration.shape.sum_cases()?;
@@ -1601,9 +1571,7 @@ pub(crate) fn case_layout(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<calling_conventions::ConventionalSumLayout> {
-    let declaration = declarations
-        .iter()
-        .find(|declaration| declaration.id == root)?;
+    let declaration = find_structural_type(declarations, root)?;
     let (common, cases) = match &declaration.shape {
         StructuralTypeShape::Sum { cases } => (&[][..], cases),
         StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
@@ -1670,10 +1638,7 @@ pub(crate) fn reference_projection(
         let StructuralTypeShape::Reference {
             referent,
             access: granted,
-        } = declarations
-            .iter()
-            .find(|declaration| declaration.id == carrier)?
-            .shape
+        } = find_structural_type(declarations, carrier)?.shape
         else {
             return None;
         };
@@ -1789,9 +1754,7 @@ fn project_inner<'a>(
     shape(root, declarations)?;
     let mut path = path;
     while let Some(segment) = path.next() {
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.id == carrier)?;
+        let declaration = find_structural_type(declarations, carrier)?;
         match (segment, &declaration.shape) {
             (
                 Projection::Case(case),
@@ -2035,10 +1998,7 @@ pub(crate) fn store(
         let StructuralTypeShape::Reference {
             referent,
             access: terminal_psi::StructuralAccess::MutableBorrow,
-        } = declarations
-            .iter()
-            .find(|declaration| declaration.id == root)?
-            .shape
+        } = find_structural_type(declarations, root)?.shape
         else {
             return None;
         };
@@ -2096,10 +2056,8 @@ pub(crate) fn element_leaf_projection(
     }
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, _, _) = runtime_projection(element, prefix, declarations)?;
-        let StructuralTypeShape::Record { fields, .. } = &declarations
-            .iter()
-            .find(|declaration| declaration.id == parent)?
-            .shape
+        let StructuralTypeShape::Record { fields, .. } =
+            &find_structural_type(declarations, parent)?.shape
         else {
             return None;
         };
@@ -2122,10 +2080,8 @@ fn scalar_field_geometry(
     observes_byte_length: bool,
 ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
     let (carrier, carrier_offset, elements) = runtime_projection(root, path, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };
@@ -2191,22 +2147,17 @@ fn scalar_field_geometry(
                             semantic_vocabulary::IntegerSign::Unsigned, 64))
                 }
                 StructuralFieldType::Structural(child)
-                    if declarations
-                        .iter()
-                        .find(|declaration| declaration.id == child)
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ElementView { .. }
-                                    | StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                            access: Some(
-                                                terminal_psi::StructuralAccess::SharedBorrow,
-                                            ),
-                                        },
-                                    )
-                            )
-                        }) =>
+                    if find_structural_type(declarations, child).is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { .. }
+                                | StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: Some(terminal_psi::StructuralAccess::SharedBorrow,),
+                                    },
+                                )
+                        )
+                    }) =>
                 {
                     // An element-view member spells its shared loan through
                     // its structural type: same two-word descriptor, extent
@@ -2270,10 +2221,7 @@ fn scalar_access_within_storage(
     declarations: &[StructuralTypeDeclaration],
 ) -> bool {
     let descriptor_frame = matches!(
-        declarations
-            .iter()
-            .find(|declaration| declaration.id == root)
-            .map(|declaration| &declaration.shape),
+        find_structural_type(declarations, root).map(|declaration| &declaration.shape),
         Some(
             StructuralTypeShape::ElementView { .. }
                 | StructuralTypeShape::ByteSequence(
@@ -2318,10 +2266,7 @@ pub(crate) fn field_read(
     // carrier uses its declared layout, including a mixed shape's common
     // fields beside its tag. Requiring a record here would reject that layout
     // before the exact field projection below can even identify the leaf.
-    let root_shape = &declarations
-        .iter()
-        .find(|declaration| declaration.id == structural_type)?
-        .shape;
+    let root_shape = &find_structural_type(declarations, structural_type)?.shape;
     let root = match root_shape {
         StructuralTypeShape::ElementView { .. } => None,
         _ => Some(shape(structural_type, declarations)?),
@@ -2362,10 +2307,8 @@ fn mixed_common_field_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32)> {
-    let StructuralTypeShape::Mixed { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Mixed { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };
@@ -2417,10 +2360,7 @@ pub(crate) fn case_field_read(
     let root = shape(structural_type, declarations)?;
     let (sum, sum_offset) = project(structural_type, path, declarations)?;
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-        &declarations
-            .iter()
-            .find(|declaration| declaration.id == sum)?
-            .shape
+        &find_structural_type(declarations, sum)?.shape
     else {
         return None;
     };
@@ -2479,10 +2419,8 @@ pub(crate) fn projected_byte_field(
         return None;
     }
     let carrier = geometry.selected;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };
@@ -2524,9 +2462,7 @@ pub(crate) fn projected_view_slot(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ProjectedByteField> {
     let Some(field) = field else {
-        let declaration = declarations
-            .iter()
-            .find(|declaration| declaration.id == root)?;
+        let declaration = find_structural_type(declarations, root)?;
         return (path.is_empty()
             && matches!(
                 declaration.shape,
@@ -2580,10 +2516,8 @@ pub(crate) fn byte_field_storage(
     );
     let (offset, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };
@@ -2617,10 +2551,8 @@ pub(crate) fn byte_view_field_descriptor(
     );
     let (length_word, _) = byte_field_length(structural_type, path, field, scalar, declarations)?;
     let (carrier, _) = project(structural_type, path, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
+    let StructuralTypeShape::Record { fields, .. } =
+        &find_structural_type(declarations, carrier)?.shape
     else {
         return None;
     };

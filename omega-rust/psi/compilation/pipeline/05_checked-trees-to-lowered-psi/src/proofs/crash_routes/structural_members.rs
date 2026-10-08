@@ -34,9 +34,7 @@ pub(crate) fn lower_structural_member_path(
     let mut terminal_path = Vec::with_capacity(path.len());
     let mut selected_case_fields = None;
     for (index, segment) in path.iter().enumerate() {
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
+        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path type is absent",
             ))?;
@@ -83,10 +81,9 @@ pub(crate) fn lower_structural_member_path(
             terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
             structural_type = *element;
             if index + 1 == path.len() {
-                let element_shape = structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == structural_type)
-                    .map(|declaration| &declaration.shape);
+                let element_shape =
+                    terminal_psi::find_structural_type(structural_types, structural_type)
+                        .map(|declaration| &declaration.shape);
                 let Some(StructuralTypeShape::PrimitiveScalar(scalar)) = element_shape else {
                     return unsupported(
                         "structural scalar contract element leaf is not a primitive scalar",
@@ -227,9 +224,7 @@ fn lower_sum_path(
     let mut terminal_path = Vec::with_capacity(path.len());
     let mut selected_case_fields = None;
     for segment in path {
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
+        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path type is absent",
             ))?;
@@ -302,9 +297,7 @@ fn lower_sum_path(
         return unsupported("structural sum predicate case selection has no payload field");
     }
     if !matches!(
-        structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
+        terminal_psi::find_structural_type(structural_types, structural_type)
             .map(|declaration| &declaration.shape),
         Some(StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. })
     ) {
@@ -346,12 +339,9 @@ pub(crate) fn lower_structural_case_membership(
     };
     let (subject, structural_type) =
         lower_sum_path(root, structural_type, &subject.path, structural_types)?;
-    let declaration = structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "case membership declaration is absent",
-        ))?;
+    let declaration = terminal_psi::find_structural_type(structural_types, structural_type).ok_or(
+        LoweringError::Unsupported("case membership declaration is absent"),
+    )?;
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
         &declaration.shape
     else {

@@ -436,12 +436,9 @@ fn captured_place_subject(
                     selected.identity.clone(),
                 ));
                 literal_index_tail = false;
-                declaration = types
-                    .iter()
-                    .find(|declaration| declaration.id == nested)
-                    .ok_or(LoweringError::Unsupported(
-                        "record loan's captured type is absent",
-                    ))?;
+                declaration = terminal_psi::find_structural_type(types, nested).ok_or(
+                    LoweringError::Unsupported("record loan's captured type is absent"),
+                )?;
             }
             checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 let index = *index;
@@ -468,12 +465,9 @@ fn captured_place_subject(
                 };
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
                 carrier_path.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
-                declaration = types
-                    .iter()
-                    .find(|declaration| declaration.id == element)
-                    .ok_or(LoweringError::Unsupported(
-                        "record loan's captured element type is absent",
-                    ))?;
+                declaration = terminal_psi::find_structural_type(types, element).ok_or(
+                    LoweringError::Unsupported("record loan's captured element type is absent"),
+                )?;
             }
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
                 if runtime_index.is_some() {
@@ -498,12 +492,9 @@ fn captured_place_subject(
                 runtime_index = Some(selector.clone());
                 runtime_split = Some(path.len());
                 literal_index_tail = false;
-                declaration = types
-                    .iter()
-                    .find(|declaration| declaration.id == element)
-                    .ok_or(LoweringError::Unsupported(
-                        "record loan's captured element type is absent",
-                    ))?;
+                declaration = terminal_psi::find_structural_type(types, element).ok_or(
+                    LoweringError::Unsupported("record loan's captured element type is absent"),
+                )?;
             }
             _ => {
                 return unsupported(
@@ -860,12 +851,9 @@ pub(crate) fn prepare(
                                 "record read referent has no reference declaration",
                             );
                         };
-                        declaration = types
-                            .iter()
-                            .find(|declaration| declaration.id == referent)
-                            .ok_or(LoweringError::Unsupported(
-                                "record read referent type is absent",
-                            ))?;
+                        declaration = terminal_psi::find_structural_type(types, referent).ok_or(
+                            LoweringError::Unsupported("record read referent type is absent"),
+                        )?;
                         primitive_path.push(terminal_psi::StructuralPathSegment::Referent);
                         continue;
                     }
@@ -884,12 +872,9 @@ pub(crate) fn prepare(
                         );
                         primitive_path
                             .push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                        declaration = types
-                            .iter()
-                            .find(|declaration| declaration.id == element)
-                            .ok_or(LoweringError::Unsupported(
-                                "record read element type is absent",
-                            ))?;
+                        declaration = terminal_psi::find_structural_type(types, element).ok_or(
+                            LoweringError::Unsupported("record read element type is absent"),
+                        )?;
                         continue;
                     }
                     _ => {
@@ -923,12 +908,9 @@ pub(crate) fn prepare(
                 primitive_path.push(terminal_psi::StructuralPathSegment::Field(
                     selected.identity.clone(),
                 ));
-                declaration = types
-                    .iter()
-                    .find(|declaration| declaration.id == nested)
-                    .ok_or(LoweringError::Unsupported(
-                        "record read carrier type is absent",
-                    ))?;
+                declaration = terminal_psi::find_structural_type(types, nested).ok_or(
+                    LoweringError::Unsupported("record read carrier type is absent"),
+                )?;
             }
             // A mixed carrier's common field reads like a record's; its
             // payload fields arrive through the `Case` step above.

@@ -20,9 +20,9 @@ use abstract_operations::call_source;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    find_structural_type,    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
+    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, structural_children,
+    StructuralTypeShape, find_structural_type, structural_children,
 };
 
 /// One outstanding loan: the referent roots and immediate parent leaves it
@@ -399,9 +399,7 @@ fn referent(
     types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)?;
+    let declaration = find_structural_type(types, structural_type)?;
     match declaration.shape {
         StructuralTypeShape::Reference {
             referent,
@@ -414,10 +412,7 @@ fn referent(
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow,
         } if matches!(
-            types
-                .iter()
-                .find(|declaration| declaration.id == referent)
-                .map(|declaration| &declaration.shape),
+            find_structural_type(types, referent).map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::PrimitiveScalar(_))
         ) =>
         {
@@ -440,10 +435,7 @@ fn plain_record_referent(
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow,
-    } = &types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)?
-        .shape
+    } = &find_structural_type(types, structural_type)?.shape
     else {
         return None;
     };
@@ -472,11 +464,7 @@ fn leaf_referent(
     if let Some(referent) = referent(types, leaf) {
         return Some(referent);
     }
-    match &types
-        .iter()
-        .find(|declaration| declaration.id == leaf)?
-        .shape
-    {
+    match &find_structural_type(types, leaf)?.shape {
         StructuralTypeShape::Reference { .. } => plain_record_referent(types, leaf),
         _ => Some(leaf),
     }
@@ -511,10 +499,7 @@ fn leaf_type(
             segment,
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
         ) && matches!(
-            types
-                .iter()
-                .find(|declaration| declaration.id == current)?
-                .shape,
+            find_structural_type(types, current)?.shape,
             StructuralTypeShape::ByteSequence(_)
         ) {
             current = terminal_semantics::primitive_projection_declaration(
@@ -525,11 +510,7 @@ fn leaf_type(
             continue;
         }
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            current = match &types
-                .iter()
-                .find(|declaration| declaration.id == current)?
-                .shape
-            {
+            current = match &find_structural_type(types, current)?.shape {
                 StructuralTypeShape::FixedArray { element, .. }
                 | StructuralTypeShape::ElementView { element } => *element,
                 _ => return None,
@@ -537,10 +518,8 @@ fn leaf_type(
             continue;
         }
         if *segment == StructuralPathSegment::Referent {
-            let StructuralTypeShape::Reference { referent, .. } = &types
-                .iter()
-                .find(|declaration| declaration.id == current)?
-                .shape
+            let StructuralTypeShape::Reference { referent, .. } =
+                &find_structural_type(types, current)?.shape
             else {
                 return None;
             };
@@ -686,10 +665,8 @@ fn reference_source_type(
                 continue;
             }
             current = leaf_type(types, current, &source.path[start..position])?;
-            let StructuralTypeShape::Reference { referent, access } = &types
-                .iter()
-                .find(|declaration| declaration.id == current)?
-                .shape
+            let StructuralTypeShape::Reference { referent, access } =
+                &find_structural_type(types, current)?.shape
             else {
                 return (position + 1 == source.path.len()).then_some(current);
             };
@@ -810,14 +787,11 @@ fn normalized_direct_source(
             let carrier =
                 source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
             return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
-                types
-                    .iter()
-                    .find(|declaration| declaration.id == leaf)
-                    .and_then(|declaration| match declaration.shape {
-                        StructuralTypeShape::Reference { .. } => None,
-                        _ if suffix.is_empty() => Some(()),
-                        _ => None,
-                    })
+                find_structural_type(types, leaf).and_then(|declaration| match declaration.shape {
+                    StructuralTypeShape::Reference { .. } => None,
+                    _ if suffix.is_empty() => Some(()),
+                    _ => None,
+                })
             }) {
                 Some(()) => {
                     let root = Root::Ingress(source.place, carrier_path.to_vec());
@@ -1044,10 +1018,7 @@ fn call_arguments(
             for path in paths {
                 let permission = leaf_type(types, selected, &path)
                     .and_then(|leaf| {
-                        types
-                            .iter()
-                            .find(|declaration| declaration.id == leaf)
-                            .map(|declaration| &declaration.shape)
+                        find_structural_type(types, leaf).map(|declaration| &declaration.shape)
                     })
                     .and_then(|shape| match shape {
                         StructuralTypeShape::Reference { access, .. } => Some(*access),
@@ -1226,9 +1197,7 @@ fn call_results(
                             leaf_type(types, parameter.structural_type, &path)
                         })
                         .and_then(|leaf| {
-                            types
-                                .iter()
-                                .find(|declaration| declaration.id == leaf)
+                            find_structural_type(types, leaf)
                         })
                         .is_some_and(|declaration| {
                             matches!(
@@ -2424,11 +2393,10 @@ pub(in crate::legalization) fn referent_argument(
         types,
     )
     .ok_or(invalid())?;
-    let StructuralTypeShape::Reference { referent, access } = types
-        .iter()
-        .find(|declaration| declaration.id == reference_type)
-        .ok_or(invalid())?
-        .shape
+    let StructuralTypeShape::Reference { referent, access } =
+        find_structural_type(types, reference_type)
+            .ok_or(invalid())?
+            .shape
     else {
         return Err(invalid());
     };
