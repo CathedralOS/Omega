@@ -138,7 +138,9 @@ impl BorrowedRegions {
         if let Some(graph) = &graph {
             let mut analysis = DescriptorAnalysis::new(&declarations, graph);
             flow = analysis.flow(function.machine);
-            if let Some(current) = graph.iter().find(|machine| machine.id == function.machine) {
+            if let Some(current) =
+                terminal_semantics::descriptor_results::descriptor_machine(graph, function.machine)
+            {
                 for block in &function.blocks {
                     for parameter in &block.structural_parameters {
                         if !reference_sources.contains_key(&parameter.place) {

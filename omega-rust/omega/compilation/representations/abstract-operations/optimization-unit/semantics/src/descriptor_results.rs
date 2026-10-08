@@ -89,9 +89,7 @@ pub(crate) fn owned_aggregate_descriptor_returns<'function, 'boundary>(
     let Some(graph) = optimized_catalog_graph(functions, boundaries, types) else {
         return false;
     };
-    let Some(returns) = graph
-        .iter()
-        .find(|machine| machine.id == function.machine)
+    let Some(returns) = kernel::descriptor_machine(&graph, function.machine)
         .and_then(|machine| machine.returns.as_ref())
     else {
         return false;
