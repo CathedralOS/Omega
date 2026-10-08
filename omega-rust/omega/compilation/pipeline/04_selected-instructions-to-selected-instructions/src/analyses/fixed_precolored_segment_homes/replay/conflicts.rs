@@ -6,7 +6,8 @@ use crate::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredHomeDomainId;
 use selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
-use super::{domains::Domain, work::Work};
+use super::super::domains::Domain;
+use super::super::work::Work;
 
 type DomainPair = (FixedPrecoloredHomeDomainId, FixedPrecoloredHomeDomainId);
 type ViewConflict = (

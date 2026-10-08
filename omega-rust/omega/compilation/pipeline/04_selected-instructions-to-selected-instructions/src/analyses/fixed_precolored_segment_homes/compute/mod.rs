@@ -1,11 +1,11 @@
 //! Optimizer module role: stage group. Positional segmented-home production.
 
 mod conflicts;
-mod domains;
+
 mod functions;
 mod placement;
 mod roots;
-mod work;
+
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::{
@@ -49,7 +49,7 @@ pub(super) fn compute(
     match policy {
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => {}
     }
-    let mut work = work::Work::new();
+    let mut work = super::work::Work::new();
     let functions = functions::derive(
         &requirements.plan().functions,
         &ranges.plan().functions,

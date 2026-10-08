@@ -6,7 +6,14 @@
 
 mod compute;
 mod error;
+mod domains;
+use domains::Domain;
+use work::Work;
+use std::collections::BTreeMap;
+use register_model::RegisterOperandAccess;
+use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, SelectedBlockId, VirtualLiveRange, VirtualRegisterId};
 mod replay;
+mod work;
 mod validation;
 
 pub use error::FixedPrecoloredSegmentHomeError;
@@ -138,4 +145,92 @@ impl ValidatedFixedPrecoloredSegmentHomes {
     pub const fn receipt(&self) -> FixedPrecoloredSegmentHomeValidationReceipt {
         self.receipt
     }
+}
+
+pub(super) fn affinity_edges(
+    domains: &[Domain],
+    ranges: &FunctionLiveRanges,
+    work: &mut Work,
+) -> Result<BTreeMap<usize, Vec<(usize, usize)>>, FixedPrecoloredSegmentHomeError> {
+    let mut members = BTreeMap::<VirtualRegisterId, Vec<usize>>::new();
+    for (index, domain) in domains.iter().enumerate() {
+        members
+            .entry(domain.virtual_register)
+            .or_default()
+            .push(index);
+    }
+    let mut by_register = BTreeMap::<VirtualRegisterId, &VirtualLiveRange>::new();
+    for range in &ranges.virtual_registers {
+        by_register.insert(range.virtual_register, range);
+    }
+    let mut edges = Vec::new();
+    for affinity in &ranges.copy_affinities {
+        work.pair()?;
+        let (Some(source), Some(destination)) = (
+            by_register.get(&affinity.source).copied(),
+            by_register.get(&affinity.destination).copied(),
+        ) else {
+            continue;
+        };
+        let (Some(source_point), Some(destination_point)) = (
+            occurrence_point(source, affinity, RegisterOperandAccess::Use),
+            occurrence_point(destination, affinity, RegisterOperandAccess::Def),
+        ) else {
+            continue;
+        };
+        let (Some(source_domain), Some(destination_domain)) = (
+            members.get(&affinity.source).and_then(|member| {
+                containing_domain(member, domains, affinity.block, source_point)
+            }),
+            members.get(&affinity.destination).and_then(|member| {
+                containing_domain(member, domains, affinity.block, destination_point)
+            }),
+        ) else {
+            continue;
+        };
+        if source_domain != destination_domain {
+            edges.push((
+                source_domain.min(destination_domain),
+                source_domain.max(destination_domain),
+            ));
+        }
+    }
+    edges.sort_unstable();
+    // Every ranking scan only needs the edges touching the domains it asks
+    // about, so index them by member once rather than rescanning the full
+    // edge list for each question.
+    let mut incident = BTreeMap::<usize, Vec<(usize, usize)>>::new();
+    for &edge in &edges {
+        incident.entry(edge.0).or_default().push(edge);
+        incident.entry(edge.1).or_default().push(edge);
+    }
+    Ok(incident)
+}
+
+pub(super) fn occurrence_point(
+    range: &VirtualLiveRange,
+    affinity: &CopyAffinity,
+    access: RegisterOperandAccess,
+) -> Option<LiveRangePoint> {
+    range
+        .occurrences
+        .iter()
+        .find(|occurrence| {
+            occurrence.instruction == affinity.instruction && occurrence.access == access
+        })
+        .map(|occurrence| occurrence.point)
+}
+
+pub(super) fn containing_domain(
+    members: &[usize],
+    domains: &[Domain],
+    block: SelectedBlockId,
+    point: LiveRangePoint,
+) -> Option<usize> {
+    members.iter().copied().find(|&index| {
+        domains[index]
+            .segments
+            .iter()
+            .any(|segment| segment.block == block && segment.start <= point && point < segment.end)
+    })
 }
