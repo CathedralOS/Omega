@@ -318,56 +318,7 @@ fn byte_span_row(
     function: &SelectedFunction,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
-    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 5
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || row.operands[2].operand != 2
-        || row.operands[2].access != RegisterOperandAccess::Use
-        || row.operands[3].operand != 3
-        || row.operands[3].access != RegisterOperandAccess::Def
-        || !row.operands[3].early_clobber
-        || row.operands[4].operand != 4
-        || row.operands[4].access != RegisterOperandAccess::Def
-        || !row.operands[4].early_clobber
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    if instruction.operands.len() != 5
-        || instruction.operands[3].operand != 3
-        || instruction.operands[3].access != RegisterOperandAccess::Def
-        || instruction.operands[4].operand != 4
-        || instruction.operands[4].access != RegisterOperandAccess::Def
-        || !scratch_dies(function, instruction.operands[3].virtual_register)
-        || !scratch_dies(function, instruction.operands[4].virtual_register)
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let SelectedMemoryAccessRole::WriteByteSpan { length, .. } = write.role else {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    };
-    let count = instruction
-        .operands
-        .iter()
-        .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?
-        .virtual_register;
-    let register = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == count)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if !super::origin_carries(register.origin, length) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    Ok(())
+    super::byte_span_row_shape(instruction, write, function, environment)
 }
 
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
@@ -380,63 +331,7 @@ fn scratch_dies(
     function: &SelectedFunction,
     register: selected_instructions::VirtualRegisterId,
 ) -> bool {
-    let mut occurrences = 0_usize;
-    for block in &function.blocks {
-        for instruction in block
-            .instructions
-            .iter()
-            .chain(std::iter::once(terminator_instruction(&block.terminator)))
-        {
-            occurrences += instruction
-                .operands
-                .iter()
-                .filter(|operand| operand.virtual_register == register)
-                .count();
-        }
-        for successor in terminator_successors(&block.terminator) {
-            occurrences += successor
-                .structural_bindings
-                .iter()
-                .filter(|binding| {
-                    matches!(
-                        binding.transport,
-                        SelectedStructuralTransport::WholeValue { argument, .. }
-                        | SelectedStructuralTransport::ScalarReference { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
-                        | SelectedStructuralTransport::Address { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
-                            if argument == register
-                    )
-                })
-                .count();
-            if let Some(case) = &successor.structural_case {
-                occurrences += case
-                    .payloads
-                    .iter()
-                    .filter(|payload| match &payload.transport {
-                        SelectedCasePayloadTransport::Unused => false,
-                        SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                            *parameter == register
-                        }
-                        SelectedCasePayloadTransport::Registers {
-                            argument,
-                            parameter,
-                        } => *argument == register || *parameter == register,
-                    })
-                    .count();
-            }
-            occurrences += successor
-                .bindings
-                .iter()
-                .filter(|binding| match &binding.transport {
-                    SelectedValueTransport::Unused => false,
-                    SelectedValueTransport::Registers {
-                        argument,
-                        parameter,
-                    } => *argument == register || *parameter == register,
-                })
-                .count();
-        }
-    }
-    occurrences == 1
+    super::scratch_dies(function, register)
 }
 
 /// The found access must be a write of the dead bytes' storage whose single

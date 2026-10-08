@@ -321,3 +321,139 @@ pub(super) fn settlement_clear(
     }
     Ok(())
 }
+
+/// Whether `register`'s only occurrence in `function` is one `Def` operand —
+/// the custody a dropped early-clobber scratch requires. The operand itself
+/// is that one occurrence: any other operand position, terminator operand,
+/// or successor transport naming the register would leave the elimination
+/// removing a definition a surviving read or second definition still
+/// observes.
+pub(super) fn scratch_dies(
+    function: &selected_instructions::SelectedFunction,
+    register: selected_instructions::VirtualRegisterId,
+) -> bool {
+    use crate::rewrites::block_edges::terminator_successors;
+    use selected_instructions::{SelectedStructuralTransport, terminator_instruction};
+
+    let mut occurrences = 0_usize;
+    for block in &function.blocks {
+        for instruction in block
+            .instructions
+            .iter()
+            .chain(std::iter::once(terminator_instruction(&block.terminator)))
+        {
+            occurrences += instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.virtual_register == register)
+                .count();
+        }
+        for successor in terminator_successors(&block.terminator) {
+            occurrences += successor
+                .structural_bindings
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        SelectedStructuralTransport::WholeValue { argument, .. }
+                        | SelectedStructuralTransport::ScalarReference { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
+                        | SelectedStructuralTransport::Address { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
+                            if argument == register
+                    )
+                })
+                .count();
+            if let Some(case) = &successor.structural_case {
+                occurrences += case
+                    .payloads
+                    .iter()
+                    .filter(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == register,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == register || *parameter == register,
+                    })
+                    .count();
+            }
+            occurrences += successor
+                .bindings
+                .iter()
+                .filter(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == register || *parameter == register,
+                })
+                .count();
+        }
+    }
+    occurrences == 1
+}
+
+/// The copy-bytes store shape both sides prove the same way: the target's
+/// declared row, the instruction's own operand contract, and the scratch
+/// registers' sole-definition custody.
+pub(super) fn byte_span_row_shape(
+    instruction: &selected_instructions::SelectedInstruction,
+    write: &selected_instructions::SelectedMemoryAccess,
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<(), DeadStoreEliminationError> {
+    use register_model::RegisterOperandAccess;
+    use selected_instructions::SelectedMemoryAccessRole;
+
+    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if row.operands.len() != 5
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Use
+        || row.operands[2].operand != 2
+        || row.operands[2].access != RegisterOperandAccess::Use
+        || row.operands[3].operand != 3
+        || row.operands[3].access != RegisterOperandAccess::Def
+        || !row.operands[3].early_clobber
+        || row.operands[4].operand != 4
+        || row.operands[4].access != RegisterOperandAccess::Def
+        || !row.operands[4].early_clobber
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    if instruction.operands.len() != 5
+        || instruction.operands[3].operand != 3
+        || instruction.operands[3].access != RegisterOperandAccess::Def
+        || instruction.operands[4].operand != 4
+        || instruction.operands[4].access != RegisterOperandAccess::Def
+        || !scratch_dies(function, instruction.operands[3].virtual_register)
+        || !scratch_dies(function, instruction.operands[4].virtual_register)
+    {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let SelectedMemoryAccessRole::WriteByteSpan { length, .. } = write.role else {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    };
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?
+        .virtual_register;
+    let register = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == count)
+        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
+    if !origin_carries(register.origin, length) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    Ok(())
+}
