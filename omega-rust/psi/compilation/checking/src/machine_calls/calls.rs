@@ -7,7 +7,7 @@
 //! requirements, inline assembly, recursion, result use, Unit returns and
 //! write frames).
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::declared_reference_access;
 use crate::value_custody::expression_types::{
@@ -90,7 +90,6 @@ pub(super) struct CallScope<'a> {
     pub(super) current_machine: &'a Machine,
     pub(super) state_name: &'a str,
     pub(super) current_state: Option<&'a State>,
-    pub(super) machine_symbols: &'a MachineSymbols<'a>,
     pub(super) symbols: &'a TopLevelSymbols<'a>,
     pub(super) writable_roots: &'a WritableRoots<'a, 'a>,
     pub(super) value_environment: &'a ValueEnvironment,
@@ -107,7 +106,6 @@ pub(crate) fn validate_call_node(
     current_machine: &typed_trees::machine::Machine,
     state_name: &str,
     current_state: Option<&typed_trees::state::State>,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -119,7 +117,6 @@ pub(crate) fn validate_call_node(
         current_machine,
         state_name,
         current_state,
-        machine_symbols,
         symbols,
         writable_roots,
         value_environment,

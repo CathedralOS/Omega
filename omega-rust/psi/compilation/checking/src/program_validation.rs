@@ -572,7 +572,6 @@ fn validate(
                         machine,
                         state,
                         statement,
-                        &machine_symbols,
                         &symbols,
                         &writable_roots,
                         &value_environment,

@@ -721,8 +721,8 @@ fn resolved_dynamic_requirement_symbol(
                 .all(|(candidate, _)| candidate.symbol == declaring_trait)
             {
                 // Same-trait result overloads use the first declaration only
-                // as a provisional family key. The ordinary overload pass runs
-                // immediately afterward and selects the exact result identity.
+                // as a provisional family key. Ordinary overload binding selects
+                // the exact result identity after destinations settle.
                 return Some(many[0].1.symbol);
             }
             let declarations = many

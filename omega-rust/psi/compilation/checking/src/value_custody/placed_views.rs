@@ -298,14 +298,14 @@ pub(crate) fn statement_call_target(
     state: &State,
     call: &typed_trees::statement::TableCall,
 ) -> Option<symbols::SymbolHandle> {
-    if call.target_symbol.is_valid() {
-        return Some(call.target_symbol);
-    }
     let (_, field) = placed_view_field_for_statement_call(program, machine, state, call)?;
     field
         .accessor_targets
         .iter()
         .find(|target| target.operation == call.target.as_str())
+        .filter(|target| {
+            !call.target_symbol.is_valid() || call.target_symbol == target.state_symbol
+        })
         .map(|target| target.state_symbol)
 }
 

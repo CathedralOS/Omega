@@ -10,11 +10,10 @@ use super::{
     validate_asm_operand_constraint, validate_call_arguments_with_environments,
     validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
 };
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
-use language_core::is_self_receiver;
 use symbols::BuiltinFunction;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -38,13 +37,7 @@ pub(crate) use target_resolution::declared_receiver_type_reference;
 use target_resolution::{named_type_reference_name, report_unresolved_value_call};
 pub(crate) use traversal::validate_value_position_calls;
 
-/// Enforce machine-call type-parameter bounds for a single VALUE-position
-/// `ExpressionNode::Call`.  The receiver name path is extracted from the
-/// receiver expression (must be a `Name` node with identifier segments).
-/// Other receiver shapes (member chains, indexed, etc.) are beyond this
-/// scope and stand down silently, consistent with the statement-path's
-/// handling of unrecognised receivers.
-/// A VALUE-position call from emitted concrete code may not retain a GENERIC
+/// A value-position call from emitted concrete code may not retain a generic
 /// callee: its result slot has no concrete layout. Uninstantiated generic
 /// templates are different—they are checked modularly but never emitted, and
 /// their symbolic calls are resolved by fixed-point specialization once a
@@ -209,7 +202,6 @@ fn validate_expression_call_bounds(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     current_state: &State,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -393,21 +385,18 @@ fn validate_expression_call_bounds(
     }
 
     if let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call) {
-        let explicit_arguments = program.expression_table.expression_handles(call.arguments);
-        let parameters = program.operator_parameters(operator);
-        let mut arguments = Vec::with_capacity(explicit_arguments.len() + 1);
-        if call.receiver.is_valid() && parameters.len() == explicit_arguments.len() + 1 {
-            let receiver_type = crate::value_custody::places::declared_place_type(
-                program,
-                current_machine,
-                Some(current_state),
-                call.receiver,
-            );
-            if receiver_type.is_some() {
-                arguments.push(call.receiver);
-            }
+        if call.receiver.is_valid()
+            && !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(
+                program, call,
+            )
+        {
+            diagnostics.push(Diagnostic::error(
+                "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
+            ));
+            return;
         }
-        arguments.extend_from_slice(explicit_arguments);
+        let arguments = program.expression_table.expression_handles(call.arguments);
+        let parameters = program.operator_parameters(operator);
         let operand_types = arguments
             .iter()
             .map(|argument| {
@@ -469,7 +458,7 @@ fn validate_expression_call_bounds(
             current_machine,
             Some(current_state),
             value_environment,
-            &arguments,
+            arguments,
             call.target.as_str(),
             parameters,
             writable_roots,
@@ -483,20 +472,16 @@ fn validate_expression_call_bounds(
             current_state,
             value_environment,
             operator,
-            explicit_arguments,
+            arguments,
             diagnostics,
         );
         return;
     }
 
-    // Resolve the receiver: is this a self-call, and if not, the name of the
-    // receiver object (field/local). A self-call has no receiver (`call.receiver`
-    // invalid) or an explicit `self`. A `Name`-path receiver names the object via
-    // its last member; a `Member` receiver (`self.host.method(..)`, where
-    // `self.host` is a member access, NOT a name path) names it via that member —
-    // WITHOUT this, a member receiver fell through as an empty path and the call
-    // was misrouted into the self-call branch (resolving to a same-named sibling
-    // state instead of the field's boundary/machine type).
+    // Receiverless calls use lexical declaration scope. A qualified value is
+    // never permission to fall back to the current machine; its leaf spelling
+    // is diagnostic payload, not target identity. The static-machine grammar
+    // rejects authored self receivers before reaching this retained-tree query.
     let (call_is_self, external_receiver_name): (bool, Option<&str>) = if !call.receiver.is_valid()
     {
         (true, None)
@@ -511,7 +496,7 @@ fn validate_expression_call_bounds(
                 }
             }
             ExpressionNode::Member(member) => (false, Some(member.member.as_str())),
-            _ => (true, None),
+            _ => (false, None),
         }
     };
 
@@ -642,42 +627,12 @@ fn validate_expression_call_bounds(
     }
 
     let receiver_name = external_receiver_name.unwrap_or_default();
-    // Direct field/local receivers resolve by bare name. A NESTED self-rooted
-    // VALUE-position member chain (`self.p.a.get()`) resolves by walking the
-    // chain's declared field types to the leaf type (receiver-place staircase,
-    // rung 3). The full arc is now sound: symbol resolution stamps the nested
-    // symbols (rung 2b) so the state-call plan records the call; the backend
-    // storage walk descends plain-DATA intermediates (rung 2a/D1) so the
-    // callee's `self` base resolves; and the emission-planning
-    // contained-receiver blocker rejects an ambiguous nested receiver (a
-    // same-type sibling that the by-type walk would misresolve) loudly instead
-    // of binding 0. STATEMENT-position nested calls are validated separately
-    // (`validate_call_node`) and remain unsupported -- see TASKS D2.
-    let receiver_type_reference = crate::value_custody::places::declared_place_type(
+    let receiver_type_reference = crate::value_custody::places::declared_place_type_raw(
         program,
         current_machine,
         Some(current_state),
         call.receiver,
     );
-    let receiver_type = machine_symbols
-        .callable_field_type(receiver_name)
-        .or_else(|| {
-            let chain = receiver_member_chain(program, call.receiver)?;
-            if chain.len() < 3 || !chain.first().is_some_and(|root| is_self_receiver(root)) {
-                return None;
-            }
-            crate::value_custody::places::nested_receiver_type_name(
-                program,
-                current_machine,
-                Some(current_state),
-                &chain,
-            )
-        })
-        .or_else(|| {
-            receiver_type_reference
-                .and_then(|type_reference| named_type_reference_name(program, type_reference))
-        });
-
     if crate::declarations::traits::report_dynamic_receiver_call_error(
         program,
         receiver_type_reference,
@@ -687,33 +642,40 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    // Attached calls retain their selected state. Rejoin that declaration with
-    // the receiver's nominal type; a display name cannot select another module's
-    // same-leaf method or substitute an unrelated closed generic instance.
+    let namespace = traversal::is_declaration_namespace(program, call.receiver);
+    // A placed accessor is selected by its compiler-owned plan, not by methods
+    // on a data type. Preserve this memory operation without retaining general
+    // data-receiver dispatch or inferring an implicit operand.
+    let placed_accessor = receiver_type_reference
+        .and_then(|reference| program.placed_view_field_plan_for_type_reference(reference))
+        .is_some_and(|(_, field)| {
+            field.accessor_targets.iter().any(|target| {
+                target.state_symbol == call.target_symbol
+                    && target.operation == call.target.as_str()
+            })
+        });
+    if !namespace
+        && !placed_accessor
+        && machine_state_by_symbol(program, call.target_symbol).is_some()
+    {
+        diagnostics.push(Diagnostic::error(
+            "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
+        ));
+        return;
+    }
+    // Static qualification retains the exact owner; no data type or display
+    // name can supply a different declaration when the retained target is absent.
     if let Some((callee_machine, callee_state)) =
         machine_state_by_symbol(program, call.target_symbol)
-        && callee_machine.attached_data_symbol.is_valid()
     {
-        let receiver_symbol = receiver_type_reference
-            .map(|receiver| {
-                program
-                    .type_reference_table
-                    .type_head_symbol(receiver)
-                    .unwrap_or_else(symbols::SymbolHandle::invalid)
-            })
-            .or_else(|| {
-                // A static attached call names its carrier, rather than a
-                // runtime receiver place. Retain that selected Data symbol;
-                // a collection's element or a spelling is not a carrier home.
-                let Some(path) = program.expression_table.name_path_node(call.receiver)
-                else {
-                    return None;
-                };
-                (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Data)
-                    .then_some(path.symbol)
-            })
-            .unwrap_or_default();
-        if receiver_symbol != callee_machine.attached_data_symbol {
+        let qualifier = program
+            .expression_table
+            .name_path_node(call.receiver)
+            .map_or_else(symbols::SymbolHandle::invalid, |path| path.symbol);
+        if namespace
+            && callee_machine.attached_data_symbol.is_valid()
+            && qualifier != callee_machine.attached_data_symbol
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "selected attached call `{}` does not belong to the receiver's exact data type",
                 call.target,
@@ -728,32 +690,13 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    // External machine receiver.
-    if let Some(callee_machine) = receiver_type
-        .and_then(|type_name| symbols.machine(type_name))
-        .or_else(|| symbols.machine(receiver_name))
-    {
-        if let Some(callee_state) = program
-            .machine_states(callee_machine)
-            .first()
-            .filter(|state| state.name == call.target)
-        {
-            site.validate_callee(
-                symbols,
-                ValueCallee::declared(callee_machine, callee_state),
-                diagnostics,
-            );
-            return;
-        }
-    }
-
     report_unresolved_value_call(
         program,
         current_machine,
         current_state,
         symbols,
         Some(receiver_name),
-        receiver_type,
+        receiver_type_reference.and_then(|reference| named_type_reference_name(program, reference)),
         call,
         diagnostics,
     );

@@ -2766,21 +2766,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `build_borrow_facts` call per check, unchanged borrow check corpus and
   native restoration results (`--filter borrows/,borrow/,references/`).
 
-- **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
-  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  still repeats `resolve_projected_receiver_calls` (2).
-  The loop must specialize and bind only; run each remaining pass once at its
-  required point. Retire receiver elaboration with **STATIC-MACHINE-MIGRATION**,
-  not a new subsystem for the retired implicit-call syntax.
-  Immutable checking owns authored argument/callable formation, tuple bounds,
-  completed effects and template commitments, not the derivation loop. Private
-  compile-time graphs admit once before execution. Coordinate with
-  **TYPED-FROZEN-BEFORE-CHECKING**, which qualifies the immutable boundary.
-  Acceptance: each named pass runs once per check except the per-iteration
-  specialize/bind step; the generic-value-call fence and call-contract
-  diagnostics are unchanged; corpus `--filter generics,operators,traits/`
-  unchanged.
-
 - **CHECK-ONCE-ACROSS-TARGETS.** (new-scope) The driver re-checks the whole
   program for each selected target
   (`omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
@@ -2957,9 +2942,7 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Remaining: retire repeated receiver elaboration with
-  **SPECIALIZATION-LOOP-ONCE**, preserving authored
-  requirement identity and call-contract diagnostics. Preserve exact erased
+  Remaining: preserve exact erased
   applications, clone correspondence and lexical owners through folding and
   substitution;
   in `pass/generics/open_computed_quantity_result`, changing the forwarder's
@@ -3552,8 +3535,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
   Start from `tests/omega/pass/layouts/placed_view_source_access_compile`
   (checks only): its `inspect` writes `transmit` and reads `status`, but
-  `Main::main` is empty and `build.omg` declares only a package. Bind an
-  admitted backing, invoke the accessors and observe a runtime result.
+  `build.omg` declares only a package. `Main::main` lends its placed input to
+  `inspect`; supply executable entry and call-bound custody for that input.
+  Bind an admitted backing, invoke the accessors and observe a runtime result.
   - Checking admits the generated accessor attachment through its placement
     plan row (`add_placed_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`).

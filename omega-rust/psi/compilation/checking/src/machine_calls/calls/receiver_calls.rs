@@ -1,11 +1,10 @@
-//! Calls on a named receiver: the machine state, attached state or boundary
-//! trait signature the receiver's type resolves to.
+//! Qualified calls select exact declarations; service values select exact
+//! requirements. Data values never select attached machines or supply arguments.
 
 use super::{
     CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
     machine_state_by_symbol, validate_call_arguments_handles,
-    validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
-    validate_result_use,
+    validate_resolved_target_type_parameter_bounds, validate_result_use,
 };
 use diagnostics::Diagnostic;
 use typed_trees::data::TypeParameterKind;
@@ -13,23 +12,9 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateSignature;
 use typed_trees::statement::TableCall;
 
-/// A call on a named receiver targets, in order: a dynamic requirement (an
-/// error), a state of the receiver's machine,
-/// an attached machine's state, or a boundary trait signature; each
-/// validates the call's result use and arguments.
-///
-/// The name-based rungs below can only see a receiver that is a callable
-/// FIELD of the current machine (`machine_symbols.callable_field_type`), a
-/// bare type/trait/machine spelling, or a declared receiver named by the
-/// path's last member. A receiver that is a state parameter, a local
-/// binding, a nested value path (`outer.inner.inspect()`), a type name, or
-/// a boundary parameter matches none of them -- yet the call's
-/// `target_symbol` is still resolved to the exact state or signature the
-/// lowering invokes. Falling through admitted such calls with NO result-use,
-/// arity, or type-parameter-bound check at all, so a statement-position
-/// `carrier.context.increment_counter();` silently dropped its `u64`
-/// result. The final rung therefore rejoins the resolved target and applies
-/// the same ordinary validation every other rung runs.
+/// Rejoin the selected declaration rather than searching a value's type or
+/// the last spelling in its path. Generated placed accessors retain their
+/// independent plan authority; they are memory operations, not data methods.
 pub(super) fn validate_receiver_call(
     scope: &CallScope<'_>,
     receiver_members: &[typed_trees::name::Identifier],
@@ -37,8 +22,8 @@ pub(super) fn validate_receiver_call(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // A namespace supplies no runtime receiver. Rejoin its resolved target
-    // before the legacy place/name ladder, which can see a different local or
-    // declaration sharing the namespace's leaf spelling. Operator declarations
+    // without a place/name ladder that can see a different local or declaration
+    // sharing the namespace's leaf spelling. Operator declarations
     // keep their separate signature validator; absence of an ordinary selected
     // target is a rejection, never permission to search by name again.
     if call_gates::receiver_is_declaration_namespace(scope, receiver_members) {
@@ -70,17 +55,12 @@ pub(super) fn validate_receiver_call(
         call,
         current_machine,
         current_state,
-        machine_symbols,
-        symbols,
-        writable_roots,
-        value_environment,
         ..
     } = *scope;
     let receiver = receiver_members
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
-    let receiver_type = machine_symbols.callable_field_type(receiver);
     let receiver_type_reference = current_state.and_then(|state| {
         declared_receiver_type_reference(program, current_machine, state, receiver)
     });
@@ -94,128 +74,11 @@ pub(super) fn validate_receiver_call(
         return;
     }
 
-    if let Some(machine) = receiver_type
-        .and_then(|type_name| symbols.machine(type_name))
-        .or_else(|| symbols.machine(receiver))
-    {
-        if let Some(state) = program
-            .machine_states(machine)
-            .first()
-            .filter(|state| state.name == call.target)
-        {
-            validate_resolved_state_call(
-                program,
-                call,
-                symbols,
-                machine,
-                state,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                writable_roots,
-                diagnostics,
-            );
-            return;
-        };
-
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` has no state `{}`",
-            machine.name, call.target
-        )));
-        return;
+    if !validate_resolved_receiver_call(scope, arguments, false, diagnostics) {
+        diagnostics.push(Diagnostic::error(
+            "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
+        ));
     }
-
-    if let Some((callee_machine, state)) = receiver_type.and_then(|type_name| {
-        symbols.attached_machine_state(program, type_name, call.target.as_str())
-    }) {
-        validate_resolved_state_call(
-            program,
-            call,
-            symbols,
-            callee_machine,
-            state,
-            current_machine,
-            current_state,
-            value_environment,
-            arguments,
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
-    // Boundary/trait receivers (e.g. `self.console.exit_process(0)`) resolve to a
-    // trait machine signature. Strict result use plus argument validation apply
-    // here -- a boundary is still a typed call, and a cross-class argument
-    // (`exit_process(self.bool_field)`) would otherwise reach the host encoder as
-    // a raw byte and be read as garbage with no frontend error.
-    if let Some(signature) = receiver_type
-        .and_then(|type_name| symbols.trait_definition(type_name))
-        .and_then(|trait_definition| {
-            program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|signature| signature.name == call.target)
-        })
-    {
-        validate_signature_result_and_arguments(
-            program,
-            call,
-            signature,
-            current_machine,
-            current_state,
-            value_environment,
-            arguments,
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
-    validate_resolved_receiver_call(scope, arguments, false, diagnostics);
-}
-
-/// Result use, arguments, and machine type-parameter bounds for a call the
-/// receiver resolved to `state` of `machine`.
-#[allow(clippy::too_many_arguments)]
-fn validate_resolved_state_call(
-    program: &dyn crate::CheckingInput,
-    call: &TableCall,
-    symbols: &super::TopLevelSymbols<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    current_machine: &typed_trees::machine::Machine,
-    current_state: Option<&typed_trees::state::State>,
-    value_environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_result_use(program, call, &state.name, state.return_type, diagnostics);
-    validate_call_arguments_handles(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        arguments,
-        &state.name,
-        program.state_parameters(state),
-        Some(state),
-        writable_roots,
-        diagnostics,
-    );
-    validate_machine_call_type_parameter_bounds(
-        program,
-        symbols,
-        machine,
-        state,
-        state.name.as_str(),
-        arguments,
-        current_machine,
-        current_state,
-        diagnostics,
-    );
 }
 
 /// Result-use and argument validation every resolved receiver signature
@@ -255,8 +118,8 @@ fn validate_signature_result_and_arguments(
 }
 
 /// The exact target owns the call's signature. Namespace and runtime-place
-/// calls share these checks, but only a namespace supplies every parameter as
-/// an explicit argument while legacy instance calls bind their receiver.
+/// calls share explicit argument checks. The only value-qualified machine
+/// target is an accessor selected by its exact compiler-owned placement plan.
 fn validate_resolved_receiver_call(
     scope: &CallScope<'_>,
     arguments: &[ExpressionHandle],
@@ -273,15 +136,26 @@ fn validate_resolved_receiver_call(
         value_environment,
         ..
     } = *scope;
-    // Resolved-target rung (see the function doc): every receiver kind the
-    // name ladder misses still resolved `call.target_symbol`. An exact
-    // state target validates against its own machine and state; a boundary
-    // parameter target rejoins its selected trait signature through the
-    // write-frame owner's exact receiver/symbol join, which here also admits
-    // a requirement generic only over `machine` binders (a callback
-    // registrar). Return whether a declaration was found so namespace
-    // callers reject missing identity.
+    // The retained target owns the signature. Ordinary machines require a
+    // namespace; a service value rejoins its exact requirement through the
+    // write-frame owner's receiver/symbol join, including machine-generic
+    // callback registrars. Missing identity is not permission to reselect.
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol) {
+        if !namespace
+            && !current_state.is_some_and(|state| {
+                crate::value_custody::placed_views::statement_call_target(
+                    program,
+                    current_machine,
+                    state,
+                    call,
+                ) == Some(call.target_symbol)
+            })
+        {
+            diagnostics.push(Diagnostic::error(
+                "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
+            ));
+            return true;
+        }
         // A named implementation's row may be any machine, attached to any
         // data; the implementation, not the data, qualifies the call.
         let receiver_is_implementation =

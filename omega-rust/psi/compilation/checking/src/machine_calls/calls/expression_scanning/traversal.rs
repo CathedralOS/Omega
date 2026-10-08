@@ -5,7 +5,7 @@
 //! argument, and bound validation remains in the parent module.
 
 use super::validate_expression_call_bounds;
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
@@ -18,7 +18,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// A resolved declaration namespace selects a callee; it is not an evaluated
 /// receiver. This applies only to the namespace slot of a checked call, never
 /// to a module spelling supplied as a runtime argument or standalone value.
-fn is_declaration_namespace(
+pub(super) fn is_declaration_namespace(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
@@ -43,6 +43,9 @@ fn is_declaration_namespace(
                         | symbols::SymbolKind::Trait
                         | symbols::SymbolKind::Domain
                         | symbols::SymbolKind::BuiltinType
+                        | symbols::SymbolKind::Machine
+                        | symbols::SymbolKind::Conformance
+                        | symbols::SymbolKind::ConformanceParameter
                 )
         })
 }
@@ -70,7 +73,6 @@ pub(crate) fn validate_value_position_calls(
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -87,7 +89,6 @@ pub(crate) fn validate_value_position_calls(
                         program,
                         machine,
                         state,
-                        machine_symbols,
                         symbols,
                         writable_roots,
                         value_environment,
@@ -105,7 +106,6 @@ pub(crate) fn validate_value_position_calls(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -118,7 +118,6 @@ pub(crate) fn validate_value_position_calls(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -135,7 +134,6 @@ pub(crate) fn validate_value_position_calls(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -151,7 +149,6 @@ pub(crate) fn validate_value_position_calls(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -176,7 +173,6 @@ pub(crate) fn validate_value_position_calls(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -192,7 +188,6 @@ pub(crate) fn validate_value_position_calls(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -222,7 +217,6 @@ pub(crate) fn validate_value_position_calls(
                                 program,
                                 machine,
                                 state,
-                                machine_symbols,
                                 symbols,
                                 writable_roots,
                                 transition_values
@@ -241,7 +235,6 @@ pub(crate) fn validate_value_position_calls(
                             program,
                             machine,
                             state,
-                            machine_symbols,
                             symbols,
                             writable_roots,
                             transition_values
@@ -442,7 +435,6 @@ fn scan_expression_calls(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -455,7 +447,6 @@ fn scan_expression_calls(
         program,
         machine,
         state,
-        machine_symbols,
         symbols,
         writable_roots,
         value_environment,
@@ -478,7 +469,6 @@ fn scan_assignment_target_calls(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -492,7 +482,6 @@ fn scan_assignment_target_calls(
         program,
         machine,
         state,
-        machine_symbols,
         symbols,
         writable_roots,
         value_environment,
@@ -555,7 +544,6 @@ fn scan_expression_calls_at_position(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
@@ -762,7 +750,6 @@ fn scan_expression_calls_at_position(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     environment,
@@ -823,7 +810,6 @@ fn scan_expression_calls_at_position(
             program,
             machine,
             state,
-            machine_symbols,
             symbols,
             writable_roots,
             value_environment,
@@ -863,7 +849,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -889,7 +874,6 @@ fn scan_expression_calls_at_position(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -904,7 +888,6 @@ fn scan_expression_calls_at_position(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -931,7 +914,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -952,7 +934,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 right_environment.as_ref().unwrap_or(value_environment),
@@ -1003,7 +984,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1029,7 +1009,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1042,7 +1021,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1057,7 +1035,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1072,7 +1049,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1107,7 +1083,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1124,7 +1099,6 @@ fn scan_expression_calls_at_position(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -1142,7 +1116,6 @@ fn scan_expression_calls_at_position(
                     program,
                     machine,
                     state,
-                    machine_symbols,
                     symbols,
                     writable_roots,
                     value_environment,
@@ -1158,7 +1131,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,
@@ -1171,7 +1143,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 writable_roots,
                 value_environment,

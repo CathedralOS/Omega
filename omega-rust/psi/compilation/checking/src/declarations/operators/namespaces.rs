@@ -28,13 +28,29 @@ pub(crate) fn is_named_operator_namespace(
     }
     typed_trees::operator::resolve_named_call(
         program,
-        symbols::SymbolHandle::invalid(),
+        target_symbol,
         Some(namespace),
         target,
         argument_count,
         false,
     )
-    .is_some_and(|operator| !target_symbol.is_valid() || target_symbol == operator.symbol)
+    .is_some_and(|operator| {
+        // A settled result overload already owns its declaration. Authenticating
+        // its namespace must not reselect the overloaded family by spelling and
+        // mistake ordinary result dispatch for a data receiver.
+        program.operator_parameters(operator).len() == argument_count
+            && program
+                .operator_path_members(operator.name)
+                .split_last()
+                .is_some_and(|(member, prefix)| {
+                    member.as_str() == target
+                        && prefix.len() == namespace.len()
+                        && prefix
+                            .iter()
+                            .zip(namespace)
+                            .all(|(expected, actual)| expected.as_str() == *actual)
+                })
+    })
 }
 
 pub(crate) fn expression_call_has_operator_namespace(
