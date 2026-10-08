@@ -9,6 +9,7 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn exec_statement(
         &mut self,
         statement: &StatementNode,
+        statement_index: usize,
         frame: &mut Frame,
     ) -> EvalResult<()> {
         self.tick()?;
@@ -20,7 +21,7 @@ impl<'program> Evaluator<'program> {
                 "root binding requires its executed statement identity".to_owned(),
             )),
             StatementNode::Assignment(assignment) => {
-                self.assign(assignment.target, assignment.value, frame)
+                self.assign(statement_index, assignment.target, assignment.value, frame)
             }
             StatementNode::LocalData(local) => {
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so

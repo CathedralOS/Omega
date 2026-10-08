@@ -217,9 +217,20 @@ pub(super) fn plan(
                         boundary:
                             checked_trees::CheckedUnitCleanupBoundary::Replacement {
                                 statement_index: boundary_statement,
+                                old_value,
+                                ..
                             },
                         cleanup_actions,
                     } if *boundary_statement == statement_index => {
+                        if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        } = &mut old_value.source
+                        {
+                            if *binding_ordinal != old_displaced {
+                                return None;
+                            }
+                            *binding_ordinal = new_displaced;
+                        }
                         for action in cleanup_actions {
                             let source = match action {
                                 checked_trees::CheckedNormalCleanupAction::Discard(action) => {

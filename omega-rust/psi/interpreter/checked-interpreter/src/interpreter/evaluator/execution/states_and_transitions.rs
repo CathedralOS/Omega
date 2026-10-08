@@ -1092,7 +1092,7 @@ impl<'program> Evaluator<'program> {
                         self.eval_call_statement(statement_handle, call, &mut frame)?;
                     }
                     other => {
-                        self.exec_statement(other, &mut frame)?;
+                        self.exec_statement(other, statement_index, &mut frame)?;
                     }
                 }
             }

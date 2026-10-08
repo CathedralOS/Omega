@@ -637,11 +637,12 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: qualify remaining referent
-    windows and complete nominal old-value replacement in the checked-tree
-    interpreter: `runtime_borrowed_nominal_replacement_exit` currently declines
-    there, while its native and Terminal executions produce the authored 0.
-    Keep evaluation order, disjoint
+  - Missing: runtime-selected nominal replacement from a structural RHS call
+    (`tokens[index] = replacement(&mut index)`, whose RHS changes the selector)
+    has no executable stage-04 plan: owned-place `projected_argument_path`
+    rejects runtime selectors. Retain the captured destination through value
+    production, old-value cleanup and store; never replay the changed selector.
+    Qualify remaining referent windows and keep evaluation order, disjoint
     siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
     do not invent rollback. Qualify the remaining paths on supported hosts.
@@ -710,6 +711,8 @@ defines the complete product bar.
     construction controls. Keep `runtime_abandoned_record_construction_prefix_exit`
     as the reserved-home versus established-value control; unwritten fields owe
     no cleanup. Keep `runtime_borrowed_nominal_replacement_exit` with
+    `runtime_nominal_array_replacement_exit` for materialization before old
+    element hooks and stores, and
     `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
     prerequisite control. Preserve exact source-window call occurrences until
     cleanup effects finish; an incomplete effect table cannot decide whether

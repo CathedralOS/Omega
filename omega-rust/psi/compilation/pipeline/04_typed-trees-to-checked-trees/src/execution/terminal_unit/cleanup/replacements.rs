@@ -28,31 +28,18 @@ pub(super) fn actions(
     operation_index: usize,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
     let CheckedUnitEffectOperationPlan::ContinuationCleanup {
-        boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index },
-        cleanup_actions,
+        boundary:
+            checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                statement_index,
+                destination,
+                old_value,
+                ..
+            },
+        ..
     } = operations.get(operation_index)?
     else {
         return None;
     };
-    let [marker] = cleanup_actions.as_slice() else {
-        return None;
-    };
-    let (store_statement, destination) = match operations.get(operation_index.checked_add(1)?)? {
-        CheckedUnitEffectOperationPlan::StoreStructuralField {
-            statement_index,
-            destination,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-            statement_index,
-            destination,
-            ..
-        } => (statement_index, destination),
-        _ => return None,
-    };
-    if statement_index != store_statement {
-        return None;
-    }
     let source = &destination.source;
     let root = match *source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -70,24 +57,7 @@ pub(super) fn actions(
         }
         _ => return None,
     };
-    let displaced = marker.source() != source;
-    if displaced {
-        let CheckedUnitEffectOperationPlan::MoveStructuralField {
-            result,
-            source: moved,
-        } = operations.get(operation_index.checked_sub(1)?)?
-        else {
-            return None;
-        };
-        if moved != destination
-            || *marker.source()
-                != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                })
-        {
-            return None;
-        }
-    }
+    let displaced = old_value.source != *source;
     let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
         program
             .statement_table
@@ -203,7 +173,7 @@ pub(super) fn actions(
                     CheckedNormalCleanupAction::RetireHome { .. } => return None,
                 };
                 *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
-                *source = marker.source().clone();
+                *source = old_value.source.clone();
             }
             actions.push(action);
         }
@@ -220,7 +190,7 @@ pub(super) fn actions(
         super::actions::finish_home(
             &mut actions,
             CheckedNormalCleanupAction::RetireHome {
-                source: marker.source().clone(),
+                source: old_value.source.clone(),
                 type_identity: destination.type_identity.clone(),
             },
         );

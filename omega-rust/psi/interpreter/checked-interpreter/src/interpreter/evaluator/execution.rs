@@ -19,6 +19,7 @@ pub(in crate::interpreter::evaluator) mod host_dispatch;
 mod normal_cleanup;
 pub(in crate::interpreter::evaluator) mod numeric_landing;
 pub(in crate::interpreter::evaluator) mod operator_applications;
+mod replacement_cleanup;
 pub(in crate::interpreter::evaluator) mod scalar_operations;
 pub(in crate::interpreter::evaluator) mod statements_and_calls;
 pub(in crate::interpreter::evaluator) mod states_and_transitions;

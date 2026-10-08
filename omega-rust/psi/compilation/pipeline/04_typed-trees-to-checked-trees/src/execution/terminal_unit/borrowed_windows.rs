@@ -475,6 +475,15 @@ impl OpenWindows {
             type_identity: produced.type_identity.clone(),
             access: CheckedStructuralAccess::Owned,
         };
+        let old_value = if needs_displacement {
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                displaced_ordinal,
+                produced.type_identity.clone(),
+                CheckedStructuralAccess::Owned,
+            )
+        } else {
+            place.clone()
+        };
         Some(FieldReplacement {
             move_out: needs_displacement.then(|| {
                 CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -492,6 +501,13 @@ impl OpenWindows {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement {
                         statement_index,
+                        destination: place.clone(),
+                        old_value: old_value.clone(),
+                        receiver_path: indices
+                            .iter()
+                            .copied()
+                            .map(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex)
+                            .collect(),
                     },
                     // This storage marker is completed from the authoritative
                     // death disposition once the hook catalog exists. Owned
@@ -499,18 +515,8 @@ impl OpenWindows {
                     // separately displaced value and restoration debt.
                     cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
                         CheckedUnitPartialAffineDiscardPlan {
-                            source: if needs_displacement {
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                    binding_ordinal: displaced_ordinal,
-                                }
-                            } else {
-                                place.source.clone()
-                            },
-                            path: if needs_displacement {
-                                Vec::new()
-                            } else {
-                                place.path.clone()
-                            },
+                            source: old_value.source,
+                            path: old_value.path,
                             type_identity: produced.type_identity.clone(),
                         },
                     )],

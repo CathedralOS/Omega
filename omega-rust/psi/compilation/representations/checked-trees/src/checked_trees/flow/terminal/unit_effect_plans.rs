@@ -27,11 +27,24 @@ use typed_trees::types::PrimitiveType;
 /// Cleanup follows an evaluated call, retires an assignment's old value after
 /// its operands complete and before its store, or precedes an authored statement
 /// whose entry ends captured loans. Replacement is not a fabricated call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitCleanupBoundary {
     Call(CheckedUnitCallCoordinate),
-    Replacement { statement_index: u32 },
-    StatementEntry { statement_index: u32 },
+    Replacement {
+        statement_index: u32,
+        /// The original owner supplies death selection; the displaced home
+        /// supplies executable action coordinates. Neither is reconstructed
+        /// from neighboring move/store operations.
+        destination: CheckedUnitStructuralArgumentPlan,
+        old_value: CheckedUnitStructuralArgumentPlan,
+        /// Path below the assignment's captured destination. Whole-array
+        /// replacement retains each leaf's relative indices here, so an
+        /// interpreter never re-evaluates the authored destination selector.
+        receiver_path: Vec<CheckedUnitStructuralPathSegment>,
+    },
+    StatementEntry {
+        statement_index: u32,
+    },
 }
 
 /// Source-handle-free plans for the first general structural/Unit terminal

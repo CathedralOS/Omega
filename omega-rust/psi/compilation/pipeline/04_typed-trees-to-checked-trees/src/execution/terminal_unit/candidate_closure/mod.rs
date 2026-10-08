@@ -324,7 +324,7 @@ pub(super) fn retain_available(
                             caller_index,
                             cleanup.cleanup_machine,
                             cleanup.cleanup_state,
-                            cleanup_site(plan.state, *boundary),
+                            cleanup_site(plan.state, boundary),
                         );
                     }
                 }
@@ -446,7 +446,7 @@ pub(super) fn retain_available(
                                 caller_index,
                                 cleanup.cleanup_machine,
                                 cleanup.cleanup_state,
-                                cleanup_site(state.state, *boundary),
+                                cleanup_site(state.state, boundary),
                             );
                         }
                     }
@@ -498,11 +498,13 @@ pub(super) fn retain_available(
 
 /// The authored statement a continuation cleanup runs at, or its state when
 /// the cleanup follows a call by coordinate.
-fn cleanup_site(state: SymbolHandle, boundary: CheckedUnitCleanupBoundary) -> GapSite {
+fn cleanup_site(state: SymbolHandle, boundary: &CheckedUnitCleanupBoundary) -> GapSite {
     let index = match boundary {
         CheckedUnitCleanupBoundary::Call(coordinate) => coordinate.statement_index,
-        CheckedUnitCleanupBoundary::Replacement { statement_index }
-        | CheckedUnitCleanupBoundary::StatementEntry { statement_index } => statement_index,
+        CheckedUnitCleanupBoundary::Replacement {
+            statement_index, ..
+        }
+        | CheckedUnitCleanupBoundary::StatementEntry { statement_index } => *statement_index,
     };
     GapSite::Statement { state, index }
 }

@@ -115,9 +115,22 @@ impl<'program> Evaluator<'program> {
                                 && action.cleanup_state == dependency.target_state)
                         })
                 })
+                && !self
+                    .cleanup_operations(machine.symbol, state.symbol)
+                    .iter()
+                    .any(|operation| {
+                        matches!(operation,
+                        checked_trees::CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                            boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
+                            cleanup_actions,
+                        } if cleanup_actions.iter().any(|action| matches!(action,
+                            CheckedNormalCleanupAction::InvokeNominal(action)
+                                if action.cleanup_machine == dependency.target_machine
+                                    && action.cleanup_state == dependency.target_state)))
+                    })
             {
                 return unsupported(
-                    "selected normal cleanup dependency has no executable checked return plan",
+                    "selected normal cleanup dependency has no executable checked boundary plan",
                 );
             }
         }
@@ -187,7 +200,10 @@ impl<'program> Evaluator<'program> {
                             .filter_map(|operation| operation.structural_result_binding())
                             .find(|result| {
                                 result.binding_ordinal == *binding_ordinal
-                                    && result.type_identity == action.type_identity
+                                    // A projected action names the child type;
+                                    // the result binding names its whole owner.
+                                    && (!action.path.is_empty()
+                                        || result.type_identity == action.type_identity)
                             })
                             .ok_or_else(|| {
                                 Halt::Unsupported("normal cleanup result binding is absent".into())
@@ -236,6 +252,14 @@ impl<'program> Evaluator<'program> {
         source: Cell,
     ) -> EvalResult<()> {
         let source = self.normal_cleanup_cell(source, &action.path)?;
+        self.execute_nominal_cleanup_receiver(action, source)
+    }
+
+    pub(super) fn execute_nominal_cleanup_receiver(
+        &mut self,
+        action: &CheckedUnitNominalAffineCleanupPlan,
+        source: Cell,
+    ) -> EvalResult<()> {
         let checked = self
             .checked
             .expect("cleanup actions require checked custody");
@@ -284,7 +308,7 @@ impl<'program> Evaluator<'program> {
     /// Resolve the selected structural path to the existing runtime cell.
     /// Schema ordinals select declaration identity, not a runtime field spelling;
     /// the declaration then supplies the interpreter's field-name payload.
-    fn normal_cleanup_cell(
+    pub(super) fn normal_cleanup_cell(
         &self,
         mut source: Cell,
         path: &[checked_trees::CheckedUnitStructuralPathSegment],

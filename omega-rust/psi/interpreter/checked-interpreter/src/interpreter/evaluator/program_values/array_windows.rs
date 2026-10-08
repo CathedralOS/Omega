@@ -1,31 +1,25 @@
 use crate::interpreter::evaluator::{
-    EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, trap, unsupported,
+    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
+    TypeReferenceHandle, Value, trap, unsupported,
 };
 impl Evaluator<'_> {
-    /// Replace a window's exact element footprint without rebinding its backing
-    /// array or observing the previous element values. Source checking owns
+    /// Capture a window's exact element footprint without rebinding its backing
+    /// array. Assignment owns RHS evaluation, selected cleanup and commit, just
+    /// as for a single cell; this module owns only range geometry. Source checking owns
     /// write permission and admissible range shapes; execution checks bounds
     /// again and never clamps an invalid replacement into a different window.
-    pub(in crate::interpreter::evaluator) fn assign_array_window(
+    pub(in crate::interpreter::evaluator) fn capture_array_window(
         &mut self,
         target: ExpressionHandle,
-        value: ExpressionHandle,
         frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        let Some(indexed) = self.program.expression_table.indexed_node(target)
-        else {
-            return Ok(false);
+    ) -> EvalResult<Option<(Cell, usize, usize, TypeReferenceHandle)>> {
+        let Some(indexed) = self.program.expression_table.indexed_node(target) else {
+            return Ok(None);
         };
         let ExpressionNode::Range(range) = self.program.expression_table.expression(indexed.index)
         else {
-            return Ok(false);
+            return Ok(None);
         };
-        if !matches!(
-            self.program.expression_table.expression(value),
-            ExpressionNode::ArrayLiteral(_)
-        ) {
-            return Ok(false);
-        }
         let collection = indexed.collection;
         let range = *range;
         let element_type = self
@@ -60,20 +54,23 @@ impl Evaluator<'_> {
         if start > end || end > target_length {
             return trap("array window replacement is out of bounds");
         }
-        // Capture the window before the RHS changes its bound sources, but
-        // materialize every replacement before touching destination values.
-        let Value::Array(source) =
-            self.eval_array_literal_at_element_type(value, element_type, frame)?
-        else {
-            return unsupported("array window replacement lost its literal elements");
+        Ok(Some((target, start, end, element_type)))
+    }
+
+    pub(in crate::interpreter::evaluator) fn write_array_window(
+        &self,
+        target: Cell,
+        start: usize,
+        end: usize,
+        value: Value,
+    ) -> EvalResult<()> {
+        let Value::Array(source) = value else {
+            return unsupported("array window replacement is not an array value");
         };
         let replacements = source
             .iter()
-            .map(|cell| {
-                cell.borrow()
-                    .deep_clone_with(&|value| self.allocate_cell(value))
-            })
-            .collect::<EvalResult<Vec<_>>>()?;
+            .map(|cell| cell.borrow().clone())
+            .collect::<Vec<_>>();
         if replacements.len() != end - start {
             return trap("array window replacement has a different element count");
         }
@@ -103,6 +100,6 @@ impl Evaluator<'_> {
             }
             _ => return unsupported("array window lost its backing storage"),
         }
-        Ok(true)
+        Ok(())
     }
 }

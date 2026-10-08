@@ -4,6 +4,7 @@
 //! to replay after an RHS call changes a selector. Replacement values are fully
 //! materialized before touching the old value. Representation differences
 //! (packed bytes and recasts) affect the write, not the evaluation schedule.
+use super::replacement_cleanup::ReplacementStorage;
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
     MutableRecordRecastWrite, ReferenceStorage, Value, trap,
@@ -11,6 +12,12 @@ use crate::interpreter::evaluator::{
 
 enum AssignmentDestination {
     Cell(Cell),
+    ArrayWindow {
+        carrier: Cell,
+        start: usize,
+        end: usize,
+        element_type: typed_trees::types::TypeReferenceHandle,
+    },
     PackedByte {
         carrier: Cell,
         position: usize,
@@ -25,18 +32,34 @@ enum AssignmentDestination {
 impl Evaluator<'_> {
     pub(in crate::interpreter::evaluator) fn assign(
         &mut self,
+        statement_index: usize,
         target: ExpressionHandle,
         replacement: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<()> {
-        if self.assign_array_window(target, replacement, frame)? {
-            return Ok(());
-        }
         // Type queries must not execute a receiver or selector. Both coercion
         // and value-copy policy refer to the declared slot, not its old value.
         let declared_type = self.expression_type_reference(target, frame);
         let coercion = self.assignment_target_coercion(target, frame);
         let destination = self.capture_assignment_destination(target, frame)?;
+        let cleanup = self.capture_replacement_cleanup(
+            statement_index,
+            match &destination {
+                AssignmentDestination::Cell(cell) => Some(ReplacementStorage::Cell(cell.clone())),
+                AssignmentDestination::ArrayWindow {
+                    carrier,
+                    start,
+                    end,
+                    ..
+                } => Some(ReplacementStorage::ArrayWindow {
+                    carrier: carrier.clone(),
+                    start: *start,
+                    end: *end,
+                }),
+                _ => None,
+            },
+            frame,
+        )?;
         if let ExpressionNode::Atomic(atomic) = self
             .program
             .expression_table
@@ -64,17 +87,47 @@ impl Evaluator<'_> {
             .program
             .type_reference_table
             .peeled_type_reference(declared_type.unwrap_or_default());
-        let value = self.eval_expression_at_type(replacement, value_type, frame)?;
+        let value = match &destination {
+            AssignmentDestination::ArrayWindow { element_type, .. } => {
+                if matches!(
+                    self.program.expression_table.expression(replacement),
+                    ExpressionNode::ArrayLiteral(_)
+                ) {
+                    self.eval_array_literal_at_element_type(replacement, *element_type, frame)?
+                } else {
+                    self.eval_expression_at_type(replacement, value_type, frame)?
+                }
+            }
+            _ => self.eval_expression_at_type(replacement, value_type, frame)?,
+        };
         let copy_array = matches!(value, Value::Array(_))
             && declared_type
                 .map(|target| self.declared_type_is_fixed_array(target))
                 .unwrap_or(false);
-        let value = if matches!(value, Value::Struct { .. }) || copy_array {
+        let value = if matches!(value, Value::Struct { .. })
+            || copy_array
+            || matches!(destination, AssignmentDestination::ArrayWindow { .. })
+        {
             value.deep_clone_with(&|value| self.allocate_cell(value))?
         } else {
             value
         };
+        if let AssignmentDestination::ArrayWindow { start, end, .. } = &destination {
+            let Value::Array(elements) = &value else {
+                return trap("array window replacement is not an array value");
+            };
+            if elements.len() != end - start {
+                return trap("array window replacement has a different element count");
+            }
+        }
+        self.execute_replacement_cleanup(cleanup)?;
         match destination {
+            AssignmentDestination::ArrayWindow {
+                carrier,
+                start,
+                end,
+                ..
+            } => self.write_array_window(carrier, start, end, value),
             AssignmentDestination::RecordRecast(write) => {
                 self.write_mutable_record_recast_target(write, value)
             }
@@ -136,6 +189,16 @@ impl Evaluator<'_> {
         target: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<AssignmentDestination> {
+        if let Some((carrier, start, end, element_type)) =
+            self.capture_array_window(target, frame)?
+        {
+            return Ok(AssignmentDestination::ArrayWindow {
+                carrier,
+                start,
+                end,
+                element_type,
+            });
+        }
         if let Some(write) = self.prepare_mutable_record_recast_write(target, frame)? {
             return Ok(AssignmentDestination::RecordRecast(write));
         }

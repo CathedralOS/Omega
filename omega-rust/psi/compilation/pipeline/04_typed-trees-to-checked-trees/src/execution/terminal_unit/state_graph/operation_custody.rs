@@ -137,7 +137,7 @@ pub(super) fn admit(
                             .filter_map(CheckedUnitEffectOperationPlan::call)
                             .any(|call| call.coordinate == *coordinate),
                         checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index }
-                        | checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index } => statements.get(*statement_index as usize).is_some(),
+                        | checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index, .. } => statements.get(*statement_index as usize).is_some(),
                     } => {}
             _ => {
                 // Name the operation family whose custody the selected
