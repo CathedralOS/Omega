@@ -352,10 +352,7 @@ fn direct_machine_parameter_source(
     let (owner_machine, _) = direct_machine_contract_owner(carriers, fact)?;
     let machine = program.machine_by_symbol(owner_machine)?;
     let entry = program.machine_states(machine).first()?;
-    let parameter = program
-        .state_parameters(entry)
-        .iter()
-        .find(|parameter| parameter.symbol == path.symbol)?;
+    let parameter = program.state_parameter_by_symbol(entry, path.symbol)?;
     if parameter.is_const {
         return None;
     }
@@ -400,10 +397,7 @@ fn direct_block_parameter_source(
         return None;
     }
     let state = program.state_in_machine(machine, owner_state)?;
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == path.symbol)?;
+    let parameter = program.state_parameter_by_symbol(state, path.symbol)?;
     if parameter.is_const {
         return None;
     }

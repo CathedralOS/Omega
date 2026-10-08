@@ -277,10 +277,7 @@ fn assignment_borrow_loans(
         .state_local_declaration(state, target.root_symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)
         .map(|(_, local)| local);
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == target.root_symbol);
+    let parameter = program.state_parameter_by_symbol(state, target.root_symbol);
     let Some(owner_name) = local
         .map(|local| &local.name)
         .or_else(|| parameter.map(|parameter| &parameter.name))

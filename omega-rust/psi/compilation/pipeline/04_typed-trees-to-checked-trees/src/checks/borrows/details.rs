@@ -17,9 +17,7 @@ pub(super) fn binding_reference_access(
 ) -> Option<checked_trees::BorrowAccessKind> {
     let state = validation::find_state_in_machine(program, machine_symbol, state_symbol)?;
     let type_reference = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root_symbol)
+        .state_parameter_by_symbol(state, root_symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program

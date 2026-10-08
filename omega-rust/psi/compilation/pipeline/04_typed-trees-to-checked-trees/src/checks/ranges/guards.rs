@@ -157,10 +157,7 @@ fn immutable_parameter_endpoint(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)?;
+    let parameter = program.state_parameter_by_symbol(state, root)?;
     // The general declaration reader also accepts mutable self storage. That
     // is not invocation-fixed: its where clause may be temporarily broken.
     // Only an immutable non-receiver input can contribute declaration bounds

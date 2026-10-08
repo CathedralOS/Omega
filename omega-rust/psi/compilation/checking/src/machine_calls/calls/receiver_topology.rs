@@ -240,9 +240,7 @@ pub fn resolve_state_call_target(
     }
 
     let type_symbol = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == receiver_symbol)
+        .state_parameter_by_symbol(state, receiver_symbol)
         .map(|parameter| {
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
@@ -411,9 +409,7 @@ pub fn receiver_can_dispatch_to_machine(
     }
 
     let type_symbol = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == receiver_symbol)
+        .state_parameter_by_symbol(state, receiver_symbol)
         .map(|parameter| {
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })

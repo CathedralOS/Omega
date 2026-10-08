@@ -834,10 +834,7 @@ fn fresh_record_carrier(
         return None;
     }
     let root = program.machine_states(machine).first()?;
-    let subject = program
-        .state_parameters(root)
-        .iter()
-        .find(|parameter| parameter.symbol == rank_subject)?;
+    let subject = program.state_parameter_by_symbol(root, rank_subject)?;
     // The same referent the field coordinate resolves: a subject or formal
     // reached through one reference is still this record, and its literal
     // actual arrives under one borrow.

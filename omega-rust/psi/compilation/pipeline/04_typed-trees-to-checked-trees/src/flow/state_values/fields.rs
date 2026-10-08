@@ -211,10 +211,7 @@ fn root_data_definition<'program>(
             .iter()
             .find(|data| data.name.as_str() == attached.as_str());
     }
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)?;
+    let parameter = program.state_parameter_by_symbol(state, symbol)?;
     validation::field_domains::readable_nominal_definition(program, parameter.type_reference)
 }
 

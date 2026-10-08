@@ -371,9 +371,7 @@ where
                     .state_by_symbol(state.state_symbol)
                     .and_then(|typed_state| {
                         program
-                            .state_parameters(typed_state)
-                            .iter()
-                            .find(|parameter| parameter.symbol == root)
+                            .state_parameter_by_symbol(typed_state, root)
                             .map(|parameter| parameter.type_reference)
                     })
             })?;

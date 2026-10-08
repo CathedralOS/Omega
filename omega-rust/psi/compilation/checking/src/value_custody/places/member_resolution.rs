@@ -258,11 +258,7 @@ fn container_member_type_position(
             let Some(state) = program.state_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)
-            {
+            if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
                 return ContainerOutcome::Position(MemberPosition::Reference(
                     parameter.type_reference,
                 ));

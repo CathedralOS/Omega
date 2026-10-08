@@ -677,11 +677,7 @@ fn unit_scalar_store_assignment_is_supported(
     else {
         return false;
     };
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == target_symbol)
-    {
+    if let Some(parameter) = program.state_parameter_by_symbol(state, target_symbol) {
         // A bare `target = call(..)` writes through the whole borrowed place.
         // Only `&mut`/`&writeonly` primitives are whole-value store
         // destinations; shared borrows, plain scalars, and structural

@@ -115,11 +115,7 @@ pub(super) fn symbol_declared_type(
 ) -> Option<TypeReferenceHandle> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)
-            {
+            if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
                 return Some(parameter.type_reference);
             }
             for statement in program.statement_table.statements(state.statement_nodes) {

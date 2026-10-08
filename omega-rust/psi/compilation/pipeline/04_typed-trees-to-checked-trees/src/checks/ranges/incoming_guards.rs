@@ -747,11 +747,7 @@ fn immutable_integer_binding(
     if !symbol.is_valid() {
         return false;
     }
-    let type_reference = if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-    {
+    let type_reference = if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
         if parameter.is_mutable {
             return false;
         }
@@ -1179,11 +1175,7 @@ fn parameter_bound_identically(
     let Some(evaluation) = program.state_by_symbol(evaluation_state) else {
         return false;
     };
-    let Some(source_parameter) = program
-        .state_parameters(evaluation)
-        .iter()
-        .find(|parameter| parameter.symbol == source)
-    else {
+    let Some(source_parameter) = program.state_parameter_by_symbol(evaluation, source) else {
         return false;
     };
     let Some(target_parameter) = program

@@ -470,9 +470,7 @@ impl<'a> Admission<'a> {
         };
         let reference = self
             .program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == root)
+            .state_parameter_by_symbol(state, root)
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 self.program

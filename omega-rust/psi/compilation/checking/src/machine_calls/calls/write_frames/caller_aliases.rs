@@ -62,9 +62,7 @@ pub(super) fn caller_name_root_type(
     let reference = match declaration.kind {
         symbols::SymbolKind::Parameter => {
             program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == root)?
+                .state_parameter_by_symbol(state, root)?
                 .type_reference
         }
         symbols::SymbolKind::Local => {

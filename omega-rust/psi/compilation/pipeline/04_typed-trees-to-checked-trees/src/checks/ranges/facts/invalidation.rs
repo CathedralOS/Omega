@@ -102,8 +102,7 @@ impl RangeFacts<'_> {
         let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
             return None;
         };
-        let Some(name) = program.expression_table.name_path_node(indexed.collection)
-        else {
+        let Some(name) = program.expression_table.name_path_node(indexed.collection) else {
             return None;
         };
         ::validation::mutable_byte_slice_parameter_element(program, state, name.symbol)?;
@@ -237,9 +236,7 @@ impl RangeFacts<'_> {
                 };
             !covered || {
                 let reference = program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == *symbol)
+                    .state_parameter_by_symbol(state, *symbol)
                     .map(|parameter| parameter.type_reference)
                     .or_else(|| {
                         program

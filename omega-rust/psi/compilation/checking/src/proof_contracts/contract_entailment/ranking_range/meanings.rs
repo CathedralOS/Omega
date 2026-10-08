@@ -13,7 +13,9 @@ pub(super) fn builtin(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
         // This uses the existing anonymous-operator classifier and folds only
         // a wholly anonymous integral subtree, not typed integer division.
@@ -27,11 +29,7 @@ pub(super) fn builtin(
         ),
         ExpressionNode::Boolean(_) => Some(None),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == path.symbol)
-            {
+            if let Some(parameter) = program.state_parameter_by_symbol(state, path.symbol) {
                 // Meaning is independent of binding stability. State and call
                 // edge owners separately establish exact prefix preservation,
                 // including for mutable parameters.

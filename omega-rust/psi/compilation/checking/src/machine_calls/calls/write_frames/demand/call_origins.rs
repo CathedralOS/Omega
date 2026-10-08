@@ -320,9 +320,7 @@ impl<'program> CallFrameResolver<'program> {
         let members = program.statement_table.name_path_members(call.receiver);
         let root = call.receiver_root_symbol;
         let root_reference = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == root)
+            .state_parameter_by_symbol(state, root)
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 program

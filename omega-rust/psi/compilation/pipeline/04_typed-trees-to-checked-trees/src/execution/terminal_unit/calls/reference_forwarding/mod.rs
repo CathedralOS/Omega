@@ -273,11 +273,7 @@ fn preceding_reborrow_preserves_carrier(
     else {
         return false;
     };
-    let Some(source) = program
-        .state_parameters(source_state)
-        .iter()
-        .find(|parameter| parameter.symbol == source_symbol)
-    else {
+    let Some(source) = program.state_parameter_by_symbol(source_state, source_symbol) else {
         return false;
     };
     let Some(validation::CallSite::Statement(authored)) = validation::find_call_site(

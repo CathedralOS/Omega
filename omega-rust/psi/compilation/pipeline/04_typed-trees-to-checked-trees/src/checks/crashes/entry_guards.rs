@@ -29,7 +29,8 @@ pub(super) fn guard_eval_sites(
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
         for (ordinal, statement) in program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
         {
             if let StatementNode::Transition(transition) = statement
                 && let TransitionGuardNode::When(guard) = transition.guard
@@ -332,9 +333,7 @@ impl GuardContext<'_> {
             });
         }
         self.program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
+            .state_parameter_by_symbol(state, symbol)
             .map(|parameter| RootBinding {
                 sensitive: parameter.is_mutable
                     || self

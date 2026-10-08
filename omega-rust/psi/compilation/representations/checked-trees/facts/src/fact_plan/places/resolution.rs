@@ -217,9 +217,7 @@ fn symbol_type_reference(
             let (_machine, state) = program.machine_state(machine_symbol, state_symbol)?;
             if declaration.kind == symbols::SymbolKind::Parameter {
                 program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == symbol)
+                    .state_parameter_by_symbol(state, symbol)
                     .map(|parameter| parameter.type_reference)
             } else {
                 program

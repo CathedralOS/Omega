@@ -496,10 +496,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             .or_else(|| {
                                 // Storage destinations use the authored parameter roster;
                                 // dense scalar inputs deliberately exclude reference parameters.
-                                program
-                                    .state_parameters(state)
-                                    .iter()
-                                    .find(|parameter| parameter.symbol == name.symbol)
+                                program.state_parameter_by_symbol(state, name.symbol)
                                     .filter(|parameter| {
                                         (parameter.is_mutable)
                                             && !parameter.is_const

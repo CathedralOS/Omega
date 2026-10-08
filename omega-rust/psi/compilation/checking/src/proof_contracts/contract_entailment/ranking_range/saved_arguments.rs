@@ -128,8 +128,7 @@ fn plain_name(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    (program.expression_table.name_path_is_single_member(path))
-        .then_some(path.symbol)
+    (program.expression_table.name_path_is_single_member(path)).then_some(path.symbol)
 }
 
 /// The saved local `symbol` names in `state`: exactly one `let` binding
@@ -188,11 +187,7 @@ fn stable_references(
             return true;
         };
         let symbol = path.head_symbol;
-        if let Some(parameter) = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-        {
+        if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
             !exclusive_referent(program, parameter.type_reference)
                 && !lengths::binding_is_exclusively_exposed(program, state, symbol)
                 && !lengths::binding_is_written(program, state, symbol)

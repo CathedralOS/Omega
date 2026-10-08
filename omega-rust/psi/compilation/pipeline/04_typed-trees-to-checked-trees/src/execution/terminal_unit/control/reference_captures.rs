@@ -84,11 +84,7 @@ pub(in crate::execution::terminal_unit) fn plan(
         return None;
     }
 
-    let source = if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)
-    {
+    let source = if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
         if parameter.is_const || parameter.relevance.is_erased() {
             return None;
         }

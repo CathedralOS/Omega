@@ -101,21 +101,18 @@ pub fn direct_state_place_type_reference(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let (symbol, members) = state_place_path(program, state, expression)?;
-    let mut type_reference = if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-    {
-        parameter
-            .type_reference
-            .is_valid()
-            .then_some(parameter.type_reference)?
-    } else {
-        program
-            .state_local_declaration(state, symbol)
-            .map(|(_, local)| local.type_reference)
-            .filter(|type_reference| type_reference.is_valid())?
-    };
+    let mut type_reference =
+        if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
+            parameter
+                .type_reference
+                .is_valid()
+                .then_some(parameter.type_reference)?
+        } else {
+            program
+                .state_local_declaration(state, symbol)
+                .map(|(_, local)| local.type_reference)
+                .filter(|type_reference| type_reference.is_valid())?
+        };
 
     for member in members {
         let data = data_definition_for_field_type(program, type_reference)?;
@@ -317,16 +314,15 @@ pub fn data_field_type_reference_by_symbol_or_name(
         } => data_definition(program, *base_symbol, base_name).and_then(|data_definition| {
             data_field_type_by_symbol_or_name(program, data_definition, member_symbol, member_name)
         }),
-        TypeReferenceNode::Named { symbol, name } => {
-            data_definition(program, *symbol, name).and_then(|data_definition| {
+        TypeReferenceNode::Named { symbol, name } => data_definition(program, *symbol, name)
+            .and_then(|data_definition| {
                 data_field_type_by_symbol_or_name(
                     program,
                     data_definition,
                     member_symbol,
                     member_name,
                 )
-            })
-        }
+            }),
         TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -435,7 +431,9 @@ pub fn declared_result_field_domain_paths(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainIdentity> {
-    let reference = program.type_reference_table.unconstrained_type_reference(type_reference);
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
     if let Some(data) = owned_nominal_data_definition(program, reference) {
         return declared_field_domain_paths(program, data);
     }
@@ -533,7 +531,9 @@ fn declared_owned_field_domain_identities_uncached(
             language_semantics::SemanticDomainId,
         )>,
     ) {
-        let carrier = program.type_reference_table.unconstrained_type_reference(reference);
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         if matches!(
             program.type_reference_table.type_reference(carrier),
             TypeReferenceNode::Reference { .. }

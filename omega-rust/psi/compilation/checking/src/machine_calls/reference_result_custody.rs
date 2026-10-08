@@ -485,7 +485,6 @@ fn nominal_member_owner_type<'p>(
     }
 }
 
-
 /// Completion and call substitution share the complete normal-edge origin
 /// relation. Internal state ordinals are substituted through their actuals;
 /// a record result is not restricted to a single state's tail expression.
@@ -682,9 +681,7 @@ fn aggregate_projection(
             .map(|(_, local)| local.type_reference)
             .or_else(|| {
                 program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == name.symbol)
+                    .state_parameter_by_symbol(state, name.symbol)
                     .map(|parameter| parameter.type_reference)
             })?,
         ExpressionNode::Call(call) => {
@@ -2182,7 +2179,6 @@ pub fn mutable_borrowed_parts(
         .filter(|shell| shell.access == language_semantics::ReferenceAccess::Mutable)
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
-
 
 /// The named referee beneath a `&'a V` shared-borrowed view, with constraint
 /// shells peeled. The referent's storage lives in the caller's frame like

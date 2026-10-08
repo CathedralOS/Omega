@@ -179,12 +179,7 @@ fn local_provenance(
                             .iter()
                             .find(|source| source.symbol == state)
                     })
-                    .and_then(|source| {
-                        program
-                            .state_parameters(source)
-                            .iter()
-                            .find(|parameter| parameter.symbol == name.symbol)
-                    })
+                    .and_then(|source| program.state_parameter_by_symbol(source, name.symbol))
                     .ok_or("record origin has no source declaration")?;
                 let multiplicity = program.type_multiplicity(parameter.type_reference);
                 return if multiplicity == Multiplicity::Unrestricted

@@ -251,10 +251,7 @@ fn prove(
         )
     }));
     for binding in &caller_bindings {
-        let parameter = program
-            .state_parameters(caller_state)
-            .iter()
-            .find(|parameter| parameter.symbol == binding.symbol)?;
+        let parameter = program.state_parameter_by_symbol(caller_state, binding.symbol)?;
         if let Some((minimum, maximum)) =
             crate::enforced_integer_type_bounds(program, parameter.type_reference)
         {

@@ -127,9 +127,7 @@ fn assigned_stored_origins(
         )
     }) {
         let root_type = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == source.root)
+            .state_parameter_by_symbol(state, source.root)
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 program

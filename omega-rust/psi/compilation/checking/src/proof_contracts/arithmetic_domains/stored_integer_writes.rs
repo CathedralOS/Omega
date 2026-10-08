@@ -212,9 +212,7 @@ fn root_type(
     root: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)
+        .state_parameter_by_symbol(state, root)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program

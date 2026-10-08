@@ -216,7 +216,8 @@ fn solve_state_effects<'program>(
         let mut exits = Vec::new();
         let mut has_transition = false;
         for (ordinal, statement) in program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
         {
             let StatementNode::Transition(transition) = statement else {
                 continue;
@@ -429,10 +430,7 @@ fn collect_exit(
                 if !source.source.root.is_valid() {
                     return None;
                 }
-                let parameter = program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == source.source.root)?;
+                let parameter = program.state_parameter_by_symbol(state, source.source.root)?;
                 // Owned input storage dies in the callee. Only a reference
                 // boundary actually crossed by this source survives invocation.
                 if !super::type_reference_is_reference(program, parameter.type_reference) {

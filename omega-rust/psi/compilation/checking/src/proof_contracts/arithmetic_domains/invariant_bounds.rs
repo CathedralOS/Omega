@@ -403,10 +403,7 @@ fn bounds(
         ExpressionNode::Integer(_) => None,
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let state = state?;
-            let parameter = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == path.symbol)?;
+            let parameter = program.state_parameter_by_symbol(state, path.symbol)?;
             if parameter.is_const || (parameter.is_mutable && !declared_mutable_leaves) {
                 return None;
             }

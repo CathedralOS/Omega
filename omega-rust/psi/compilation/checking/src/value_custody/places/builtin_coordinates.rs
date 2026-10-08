@@ -193,10 +193,7 @@ pub fn mutable_byte_slice_parameter_element(
     symbol: symbols::SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     use typed_trees::types::TypeReferenceNode;
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)?;
+    let parameter = program.state_parameter_by_symbol(state, symbol)?;
     let TypeReferenceNode::Reference {
         referee,
         access: language_core::ReferenceAccess::Mutable,

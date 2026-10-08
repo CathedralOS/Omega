@@ -15,8 +15,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         let machine = self.program.machine_by_symbol(self.machine)?;
@@ -63,8 +62,7 @@ impl Builder<'_, '_> {
                 },
             ));
         }
-        let Some(selected) = self.program.expression_table.name_path_node(binary.right)
-        else {
+        let Some(selected) = self.program.expression_table.name_path_node(binary.right) else {
             return None;
         };
         let case = selected.symbol;

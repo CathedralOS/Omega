@@ -281,10 +281,7 @@ fn projected_read_retains_parent(
     // copies: a plain or shared-view leaf with no nominal drop is observable,
     // and only an unrestricted one leaves the parent's custody whole by
     // itself.
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)?;
+    let parameter = program.state_parameter_by_symbol(state, root)?;
     let payload = validation::project_type_reference_from_segments(
         program,
         parameter.type_reference,

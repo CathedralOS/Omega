@@ -70,10 +70,7 @@ pub(crate) fn stable_element_place_path(
         if !name.symbol.is_valid() || name.symbol != name.head_symbol {
             return None;
         }
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == name.symbol)
+        program.state_parameter_by_symbol(state, name.symbol)
     };
     let collection = parameter(indexed.collection)?;
     let index = parameter(indexed.index)?;
@@ -200,8 +197,7 @@ impl Substitution<'_> {
 
     /// The caller-side element path a callee-side `array[index]` denotes.
     fn element_path(&self, formal: ExpressionHandle) -> Option<String> {
-        let Some(indexed) = self.program.expression_table.indexed_node(formal)
-        else {
+        let Some(indexed) = self.program.expression_table.indexed_node(formal) else {
             return None;
         };
         let array = self.actual(indexed.collection)?;

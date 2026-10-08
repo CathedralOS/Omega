@@ -5,8 +5,8 @@
 //! parameters through checked helpers: `Parameter(n)` always denotes the
 //! nth non-`self` entry parameter of the machine whose summary carries it.
 
-use symbols::SymbolHandle;
 use crate::declarations::data_queries::data_definition_by_symbol;
+use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
@@ -678,7 +678,6 @@ fn type_reference_for_symbol(
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
 
-
 fn collect_expression_call(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -866,11 +865,7 @@ fn origin_for_symbol(
     if !symbol.is_valid() {
         return None;
     }
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-    {
+    if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
         let service = boundary_service_for_type(program, parameter.type_reference)?;
         if let Some(index) = machine_entry_parameters(program, machine)
             .iter()

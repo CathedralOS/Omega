@@ -715,9 +715,7 @@ fn normalize_write_only_range_place(
         return;
     };
     let root_is_write_only = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root_symbol)
+        .state_parameter_by_symbol(state, root_symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program

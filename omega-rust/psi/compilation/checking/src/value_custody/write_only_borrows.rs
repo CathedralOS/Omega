@@ -749,8 +749,7 @@ fn write_only_literal_indexed_record_field_assignment(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    let Some(final_member) = program.expression_table.member_node(expression)
-    else {
+    let Some(final_member) = program.expression_table.member_node(expression) else {
         return false;
     };
     if final_member.case_variant.is_some() {
@@ -1484,11 +1483,7 @@ fn binding_without_write_authority(
     {
         return None;
     }
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == path.head_symbol)
-    {
+    if let Some(parameter) = program.state_parameter_by_symbol(state, path.head_symbol) {
         return (!parameter.is_mutable
             && !matches!(
                 program

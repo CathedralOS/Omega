@@ -327,11 +327,7 @@ fn receiver_root_type(
     if !root.is_valid() {
         return None;
     }
-    if let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)
-    {
+    if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
         return Some(parameter.type_reference);
     }
     if let Some((_, local)) = program.state_local_declaration(state, root) {

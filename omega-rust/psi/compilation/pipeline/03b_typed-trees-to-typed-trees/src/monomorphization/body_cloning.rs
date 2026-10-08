@@ -1150,9 +1150,7 @@ fn realized_receiver_type(
                 return None;
             }
             program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)
+                .state_parameter_by_symbol(state, symbol)
                 .map(|parameter| parameter.type_reference)
         }
         ExpressionNode::Member(member) => {

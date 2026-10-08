@@ -160,9 +160,7 @@ fn type_reference_for_symbol(
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
+        .state_parameter_by_symbol(state, symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             // Value binders keep their declared carrier before specialization.

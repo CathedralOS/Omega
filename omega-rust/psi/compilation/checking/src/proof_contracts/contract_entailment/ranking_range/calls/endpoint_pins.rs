@@ -637,7 +637,9 @@ fn direct_input(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Atomic(atomic) => direct_input(program, atomic.value, depth + 1),
         ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
@@ -663,7 +665,9 @@ fn endpoint_inputs<'program>(
     length_dependencies: &mut Vec<LengthDependency<'program>>,
     depth: usize,
 ) -> Option<()> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(_) => Some(()),
         ExpressionNode::Atomic(atomic) => endpoint_inputs(
@@ -678,10 +682,7 @@ fn endpoint_inputs<'program>(
         ),
         ExpressionNode::Name(_) => {
             let symbol = direct_input(program, expression, 0)?;
-            let parameter = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)?;
+            let parameter = program.state_parameter_by_symbol(state, symbol)?;
             exact_integer_parameter(program, parameter.type_reference)?;
             let input = EndpointInput::Scalar(symbol);
             if !inputs.contains(&input) {

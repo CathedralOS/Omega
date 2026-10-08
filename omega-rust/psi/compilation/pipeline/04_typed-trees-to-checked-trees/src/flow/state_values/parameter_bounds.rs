@@ -72,9 +72,7 @@ impl ParameterBounds {
         self.growth = self.growth.saturating_add(1);
         if self.growth >= WIDENING_DELAY {
             let carrier = program
-                .state_parameters(destination)
-                .iter()
-                .find(|parameter| parameter.symbol == self.symbol)
+                .state_parameter_by_symbol(destination, self.symbol)
                 .and_then(|parameter| program.primitive_type_reference(parameter.type_reference))
                 .and_then(crate::values::bounds::primitive_range);
             let Some(carrier) = carrier.filter(|carrier| {

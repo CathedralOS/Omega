@@ -117,12 +117,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
         return None;
     }
     let parameter = (declaration.kind == SymbolKind::Parameter)
-        .then(|| {
-            program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == root)
-        })
+        .then(|| program.state_parameter_by_symbol(state, root))
         .flatten();
     let (source_name, source_reference) = if let Some(parameter) = parameter {
         (parameter.name.as_str(), parameter.type_reference)

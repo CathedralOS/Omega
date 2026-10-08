@@ -72,11 +72,7 @@ pub fn restates_structural_parameter_qualification(
     else {
         return false;
     };
-    let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-    else {
+    let Some(parameter) = program.state_parameter_by_symbol(state, symbol) else {
         return false;
     };
     let reference = program
@@ -177,10 +173,7 @@ pub fn structural_state_contract_scalar_predicates(
                     // restate the declared type exactly. A tag compares by its
                     // applied identity, which differs from its declaration's
                     // when the family takes arguments (`Indexed<A>`).
-                    let parameter = program
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.symbol == path.symbol);
+                    let parameter = program.state_parameter_by_symbol(state, path.symbol);
                     let tag = parameter.is_some_and(|parameter| {
                         program
                             .primitive_type_reference(parameter.type_reference)

@@ -49,9 +49,7 @@ fn stable_parameter(
     symbol: SymbolHandle,
 ) -> bool {
     program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
+        .state_parameter_by_symbol(state, symbol)
         .is_some_and(|parameter| {
             immutable_scalar(program, parameter)
                 || validation::state_reference_parameter_binding_is_stable(

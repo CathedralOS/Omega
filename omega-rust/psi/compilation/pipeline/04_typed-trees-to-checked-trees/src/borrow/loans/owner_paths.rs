@@ -22,9 +22,7 @@ pub(crate) fn store_destination_places<'loan>(
         .map(|(_, local)| local.type_reference)
         .or_else(|| {
             program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == target.root_symbol)
+                .state_parameter_by_symbol(state, target.root_symbol)
                 .map(|parameter| parameter.type_reference)
         });
     let mut destinations = Vec::new();

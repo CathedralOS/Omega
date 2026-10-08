@@ -207,8 +207,7 @@ impl ExitScalars<'_, '_> {
         if self.proves_bounds(expression) {
             return true;
         }
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return false;
         };
         let spelling = match binary.operator {
@@ -280,12 +279,7 @@ impl ExitScalars<'_, '_> {
                     parameter.symbol,
                 ));
         }
-        let Some(parameter) = self
-            .program
-            .state_parameters(entry)
-            .iter()
-            .find(|parameter| parameter.symbol == path.symbol)
-        else {
+        let Some(parameter) = self.program.state_parameter_by_symbol(entry, path.symbol) else {
             return false;
         };
         // Immutable identity proves Boolean equality without choosing true or
@@ -451,11 +445,8 @@ impl ExitScalars<'_, '_> {
             expression,
             &mut nodes,
         );
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            );
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol);
         self.program
             .expression_table
             .expression_is_valid(expression)
