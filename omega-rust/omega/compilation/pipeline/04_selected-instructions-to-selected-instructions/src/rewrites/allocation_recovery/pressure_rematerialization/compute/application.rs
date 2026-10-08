@@ -74,10 +74,7 @@ pub(super) fn apply(
             .ok_or(PressureRematerializationError::DecisionMismatch {
                 function: function_index,
             })?;
-    if let Some(index) = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == first.instruction)
+    if let Some(index) = block.instruction_index(first.instruction)
     {
         let insertion_index =
             u32::try_from(index).map_err(|_| PressureRematerializationError::WorkOverflow)?;

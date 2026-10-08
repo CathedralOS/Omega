@@ -55,10 +55,7 @@ pub(super) fn apply_actions(
     for block in &mut function.blocks {
         let mut positions = Vec::new();
         for action in actions.iter().filter(|action| action.block == block.id) {
-            let position = block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == action.literal_instruction)
+            let position = block.instruction_index(action.literal_instruction)
                 .ok_or(LiteralFoldError::DecisionMismatch {
                     function: function_index,
                 })?;

@@ -655,10 +655,7 @@ pub(super) fn derive_runtime_spill<'source>(
             block,
             parameter_index,
         } => {
-            let block_index = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == block)
+            let block_index = function.block_index(block)
                 .ok_or(RuntimeSpillError::UnsupportedValue)?;
             if block == function.entry_block
                 || !matches!(victim.definition_site,

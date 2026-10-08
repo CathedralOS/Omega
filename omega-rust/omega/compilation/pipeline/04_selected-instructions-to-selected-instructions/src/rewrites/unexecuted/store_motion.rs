@@ -551,10 +551,7 @@ fn reconstruct<'source>(
             start = 0;
             continue;
         }
-        let Some(next) = function
-            .blocks
-            .iter()
-            .position(|candidate| candidate.id == first.block)
+        let Some(next) = function.block_index(first.block)
         else {
             return Err(StoreMutationMotionError::SourceMismatch);
         };

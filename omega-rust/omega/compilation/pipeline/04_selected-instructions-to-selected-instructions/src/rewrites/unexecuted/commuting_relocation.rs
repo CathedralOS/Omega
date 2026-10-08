@@ -186,19 +186,13 @@ fn reconstruct<'source>(
     // block, in the named order; a repeated id or a last member that does
     // not follow the first names no multi-member run. A single member is
     // the one-instruction relocation the sibling family already proves.
-    let last_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == last_member)
+    let last_index = block.instruction_index(last_member)
         .filter(|position| *position >= first_index)
         .ok_or(CommutingRelocationError::UnsupportedPair)?;
     // The destination sits outside the run in the same block; inside the
     // run it would name a member's own position, and outside the block it
     // names no in-block window.
-    let destination_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
+    let destination_index = block.instruction_index(destination)
         .filter(|position| !(first_index..=last_index).contains(position))
         .ok_or(CommutingRelocationError::UnsupportedPair)?;
     let (first, last) = (

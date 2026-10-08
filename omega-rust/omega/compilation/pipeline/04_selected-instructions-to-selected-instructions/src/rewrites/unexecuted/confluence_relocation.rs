@@ -288,10 +288,7 @@ fn derive_confluence_span<'source>(
     // not follow the first names no multi-member run. A single member is
     // the one-instruction confluence relocation the sibling family
     // already proves.
-    let last_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == last_member)
+    let last_index = block.instruction_index(last_member)
         .filter(|position| *position >= first_index)
         .ok_or(ConfluenceRelocationError::UnsupportedPair)?;
     let run = &block.instructions[first_index..=last_index];
@@ -316,10 +313,7 @@ fn derive_confluence_span<'source>(
     if !plain_edge(successor) {
         return Err(ConfluenceRelocationError::UnsupportedPair);
     }
-    let target_index = function
-        .blocks
-        .iter()
-        .position(|candidate| candidate.id == successor.block)
+    let target_index = function.block_index(successor.block)
         .ok_or(ConfluenceRelocationError::SourceMismatch)?;
     let target = &function.blocks[target_index];
     // A self-edge is the in-block family's case with a back-edge

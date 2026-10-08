@@ -173,25 +173,16 @@ pub(super) fn derive_interchange<'source>(
     // Each run is the contiguous span its two named members bound in this
     // block, in the named order. Naming one member twice is the run of one,
     // which is the member granularity; an absent or reversed id names no run.
-    let earlier_last_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == earlier_last)
+    let earlier_last_index = block.instruction_index(earlier_last)
         .filter(|position| *position >= earlier_first_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
     // The later run follows the earlier run disjointly; the positions
     // between them form the interior, which keeps its relative order while
     // the runs trade places.
-    let later_first_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == later_first)
+    let later_first_index = block.instruction_index(later_first)
         .filter(|position| *position > earlier_last_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
-    let later_last_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == later_last)
+    let later_last_index = block.instruction_index(later_last)
         .filter(|position| *position >= later_first_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
     let window = &block.instructions[earlier_first_index..=later_last_index];

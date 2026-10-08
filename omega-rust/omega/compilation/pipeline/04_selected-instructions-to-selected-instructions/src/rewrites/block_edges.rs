@@ -33,10 +33,7 @@ pub(super) fn member_position(
         .iter()
         .enumerate()
         .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == member)
+            block.instruction_index(member)
                 .map(|member_index| (block_index, member_index))
         })
 }

@@ -867,10 +867,7 @@ pub fn structural_result_capture(
     let operands = instruction
         .operands
         .get(instruction.operands.len().checked_sub(result_operands)?..)?;
-    let call_position = block
-        .instructions
-        .iter()
-        .position(|candidate| candidate.id == instruction.id)?;
+    let call_position = block.instruction_index(instruction.id)?;
     let mut position = call_position.checked_add(1)?;
     if record.call.binding.import().is_some() {
         let restore = block.instructions.get(position)?;

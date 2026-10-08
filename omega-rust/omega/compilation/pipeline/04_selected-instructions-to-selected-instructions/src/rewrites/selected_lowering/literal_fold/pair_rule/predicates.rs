@@ -163,10 +163,7 @@ pub(super) fn swapped_unit_readers_equality_only(
             continue;
         }
         for successor in terminator_successors(&block.terminator) {
-            let Some(target) = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == successor.block)
+            let Some(target) = function.block_index(successor.block)
             else {
                 return false;
             };

@@ -240,10 +240,7 @@ pub(super) fn landing_position(
     block: &SelectedBlock,
     destination: SelectedInstructionId,
 ) -> Option<usize> {
-    block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
+    block.instruction_index(destination)
         .or_else(|| {
             (terminator_instruction(&block.terminator).id == destination)
                 .then_some(block.instructions.len())

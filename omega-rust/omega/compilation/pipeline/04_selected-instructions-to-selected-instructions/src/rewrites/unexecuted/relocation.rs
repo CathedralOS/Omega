@@ -193,10 +193,7 @@ fn reconstruct<'source>(
     // last member absent from the same body, or earlier than the first,
     // names no run.
     let block = &function.blocks[run_block];
-    let run_end = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == last_member)
+    let run_end = block.instruction_index(last_member)
         .filter(|position| *position >= run_start)
         .ok_or(MemberRunRelocationError::UnsupportedPair)?;
     // The destination names a body position in any block — the run lands

@@ -320,10 +320,7 @@ pub(super) fn reaches_visited(function: &SelectedFunction, start: usize, visited
         }
         seen[index] = true;
         for edge in terminator_successors(&function.blocks[index].terminator) {
-            if let Some(target) = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == edge.block)
+            if let Some(target) = function.block_index(edge.block)
             {
                 pending.push(target);
             }
@@ -459,20 +456,14 @@ pub(super) fn reconvergent_join(
         // target naming no real block leaves the frontier unnameable.
         let mut frontier: Vec<usize> = Vec::new();
         for edge in edges {
-            let target = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == edge.block)?;
+            let target = function.block_index(edge.block)?;
             if !member[target] {
                 frontier.push(target);
             }
         }
         for &block in &region {
             for edge in terminator_successors(&function.blocks[block].terminator) {
-                let target = function
-                    .blocks
-                    .iter()
-                    .position(|candidate| candidate.id == edge.block)?;
+                let target = function.block_index(edge.block)?;
                 if !member[target] {
                     frontier.push(target);
                 }

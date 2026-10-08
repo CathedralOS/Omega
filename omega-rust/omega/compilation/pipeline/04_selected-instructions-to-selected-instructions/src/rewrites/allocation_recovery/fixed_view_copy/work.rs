@@ -113,10 +113,7 @@ pub(super) fn apply_fixed_view_copy(
     {
         block.instructions.len()
     } else {
-        block
-            .instructions
-            .iter()
-            .position(|candidate| candidate.id == copy.before_instruction)
+        block.instruction_index(copy.before_instruction)
             .ok_or(FixedViewCopyError::InvalidInsertionSite {
                 function: function_index,
                 instruction: copy.before_instruction.0,

@@ -413,10 +413,7 @@ pub(super) fn crossed_successors(
         audit(edge)?;
     }
     for edge in edges {
-        let next = function
-            .blocks
-            .iter()
-            .position(|candidate| candidate.id == edge.block)
+        let next = function.block_index(edge.block)
             .ok_or(DeadStoreEliminationError::SourceMismatch)?;
         // An edge back into the dead store's own block re-executes the
         // removed store from its top — it can never be its own covering

@@ -114,14 +114,8 @@ pub(super) fn establishment(
             .iter()
             .any(|row| row.id == address.instruction)
     })?;
-    let address_position = block
-        .instructions
-        .iter()
-        .position(|row| row.id == address.instruction)?;
-    let store_position = block
-        .instructions
-        .iter()
-        .position(|row| row.id == store.instruction)?;
+    let address_position = block.instruction_index(address.instruction)?;
+    let store_position = block.instruction_index(store.instruction)?;
     let address_instruction = &block.instructions[address_position];
     let store_instruction = &block.instructions[store_position];
     let pointer = address_instruction.operands.first()?.virtual_register;
