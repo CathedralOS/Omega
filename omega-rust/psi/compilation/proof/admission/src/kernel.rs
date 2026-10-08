@@ -15,10 +15,7 @@ pub fn decide_primitive(
 ) -> Result<(), KernelError> {
     // Formation and derived equality still recurse through mathematical terms.
     // Bound their input before either traversal, not only before arithmetic.
-    if let Proposition::IntegerMathEqual(left, right)
-    | Proposition::IntegerMathLessThan(left, right)
-    | Proposition::IntegerMathLessOrEqual(left, right) = proposition
-    {
+    if let semantic_vocabulary::integer_math_comparison_operands!(left, right) = proposition {
         check_integer_math_term_size(left, right).map_err(KernelError::ClosedIntegerEvaluation)?;
     }
     context
@@ -164,9 +161,7 @@ fn compare_fixed_integer_relation(
     proposition: &Proposition,
 ) -> Result<Option<std::cmp::Ordering>, KernelError> {
     let (left, right) = match proposition {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => (left, right),
+        semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return Ok(None),
     };
     if let Some(ordering) = compare_integer_literals(left, right) {

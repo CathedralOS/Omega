@@ -224,15 +224,11 @@ impl PropositionContext {
         while let Some(proposition) = pending.pop() {
             match proposition {
                 Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
-                Proposition::Equal(left, right)
-                | Proposition::LessThan(left, right)
-                | Proposition::LessOrEqual(left, right) => {
+                crate::ordered_comparison_operands!(left, right) => {
                     self.validate_term(left)?;
                     self.validate_term(right)?;
                 }
-                Proposition::IntegerMathEqual(left, right)
-                | Proposition::IntegerMathLessThan(left, right)
-                | Proposition::IntegerMathLessOrEqual(left, right) => {
+                crate::integer_math_comparison_operands!(left, right) => {
                     self.validate_integer_math_term(left)?;
                     self.validate_integer_math_term(right)?;
                 }
@@ -426,6 +422,44 @@ fn require_same_integer_type(
         ));
     }
     Ok(())
+}
+
+/// Match-arm pattern for every scalar comparison (`=`, `<`, `<=`, and the
+/// scalar IEEE comparison), binding the ordered operand pair.
+#[macro_export]
+macro_rules! scalar_comparison_operands {
+    ($left:ident, $right:ident) => {
+        $crate::Proposition::Equal($left, $right)
+            | $crate::Proposition::LessThan($left, $right)
+            | $crate::Proposition::LessOrEqual($left, $right)
+            | $crate::Proposition::ScalarIeeeFloatComparison {
+                left: $left,
+                right: $right,
+                ..
+            }
+    };
+}
+
+/// Match-arm pattern for the ordered scalar comparisons (`=`, `<`, `<=`),
+/// binding the ordered operand pair.
+#[macro_export]
+macro_rules! ordered_comparison_operands {
+    ($left:ident, $right:ident) => {
+        $crate::Proposition::Equal($left, $right)
+            | $crate::Proposition::LessThan($left, $right)
+            | $crate::Proposition::LessOrEqual($left, $right)
+    };
+}
+
+/// Match-arm pattern for the integer-math comparisons, binding the ordered
+/// operand pair.
+#[macro_export]
+macro_rules! integer_math_comparison_operands {
+    ($left:ident, $right:ident) => {
+        $crate::Proposition::IntegerMathEqual($left, $right)
+            | $crate::Proposition::IntegerMathLessThan($left, $right)
+            | $crate::Proposition::IntegerMathLessOrEqual($left, $right)
+    };
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

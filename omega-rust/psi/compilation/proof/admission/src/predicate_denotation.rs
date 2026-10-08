@@ -261,9 +261,7 @@ fn normalize(
 
 fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     let (left, right) = match proposition {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => (left, right),
+        semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return None,
     };
     // integer_value(), used by the primitive comparator, can also evaluate

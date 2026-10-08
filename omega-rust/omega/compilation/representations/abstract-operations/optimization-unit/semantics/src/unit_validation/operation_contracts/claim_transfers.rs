@@ -158,10 +158,7 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
 
     fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
         match proposition {
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right)
-            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+            semantic_vocabulary::scalar_comparison_operands!(left, right) => {
                 scalar_term_roots(left, roots);
                 scalar_term_roots(right, roots);
             }

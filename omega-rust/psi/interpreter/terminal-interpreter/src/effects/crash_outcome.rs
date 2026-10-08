@@ -177,9 +177,7 @@ fn closed_guard(
             .boolean_value()
             .zip(right.boolean_value())
             .map(|(left, right)| left == right),
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
+        semantic_vocabulary::ordered_comparison_operands!(left, right) => {
             let Some(((left_type, left), (right_type, right))) =
                 left.integer_value().zip(right.integer_value())
             else {
@@ -196,17 +194,13 @@ fn closed_guard(
                     _ => !ordering.is_gt(),
                 })
         }
-        Proposition::IntegerMathEqual(left, right)
-        | Proposition::IntegerMathLessThan(left, right)
-        | Proposition::IntegerMathLessOrEqual(left, right) => {
-            integers
-                .compare(left, right)?
-                .map(|ordering| match proposition {
-                    Proposition::IntegerMathEqual(..) => ordering.is_eq(),
-                    Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
-                    _ => !ordering.is_gt(),
-                })
-        }
+        semantic_vocabulary::integer_math_comparison_operands!(left, right) => integers
+            .compare(left, right)?
+            .map(|ordering| match proposition {
+                Proposition::IntegerMathEqual(..) => ordering.is_eq(),
+                Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
+                _ => !ordering.is_gt(),
+            }),
         Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
             let conjunction = matches!(proposition, Proposition::Conjunction(_));
             let mut value = conjunction;

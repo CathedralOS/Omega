@@ -119,9 +119,7 @@ pub(crate) fn lift_exact_integer_relation(
     proposition: &Proposition,
 ) -> Option<(IntegerMathTerm, IntegerMathTerm)> {
     let (left, right) = match proposition {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => (left, right),
+        semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return None,
     };
     Some((

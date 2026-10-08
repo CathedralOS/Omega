@@ -33,16 +33,11 @@ impl Budget {
     ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
         match value {
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right)
-            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+            semantic_vocabulary::scalar_comparison_operands!(left, right) => {
                 self.scalar(left, depth + 1)?;
                 self.scalar(right, depth + 1)?;
             }
-            Proposition::IntegerMathEqual(left, right)
-            | Proposition::IntegerMathLessThan(left, right)
-            | Proposition::IntegerMathLessOrEqual(left, right) => {
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                 self.mathematical(left, depth + 1)?;
                 self.mathematical(right, depth + 1)?;
             }

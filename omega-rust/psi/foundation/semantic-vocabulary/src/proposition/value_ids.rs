@@ -91,16 +91,11 @@ fn walk(
                 | Proposition::ByteSequenceEqual { .. }
                 | Proposition::StructuralCaseMembership { .. }
                 | Proposition::ContentConservation(_) => complete = false,
-                Proposition::Equal(left, right)
-                | Proposition::LessThan(left, right)
-                | Proposition::LessOrEqual(left, right)
-                | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                crate::scalar_comparison_operands!(left, right) => {
                     pending.push(Pending::Scalar(right));
                     pending.push(Pending::Scalar(left));
                 }
-                Proposition::IntegerMathEqual(left, right)
-                | Proposition::IntegerMathLessThan(left, right)
-                | Proposition::IntegerMathLessOrEqual(left, right) => {
+                crate::integer_math_comparison_operands!(left, right) => {
                     pending.push(Pending::IntegerMath(right));
                     pending.push(Pending::IntegerMath(left));
                 }

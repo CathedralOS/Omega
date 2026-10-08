@@ -34,9 +34,7 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
             encode_scalar_term(bytes, left);
             encode_scalar_term(bytes, right);
         }
-        Proposition::IntegerMathEqual(left, right)
-        | Proposition::IntegerMathLessThan(left, right)
-        | Proposition::IntegerMathLessOrEqual(left, right) => {
+        semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
             bytes.u8(match proposition {
                 Proposition::IntegerMathEqual(_, _) => 14,
                 Proposition::IntegerMathLessThan(_, _) => 15,

@@ -49,9 +49,7 @@ pub(crate) fn encode_proposition(
             encode_scalar_term(writer, left, 0)?;
             encode_scalar_term(writer, right, 0)?;
         }
-        Proposition::IntegerMathEqual(left, right)
-        | Proposition::IntegerMathLessThan(left, right)
-        | Proposition::IntegerMathLessOrEqual(left, right) => {
+        semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
             writer.u8(match proposition {
                 Proposition::IntegerMathEqual(_, _) => 14,
                 Proposition::IntegerMathLessThan(_, _) => 15,

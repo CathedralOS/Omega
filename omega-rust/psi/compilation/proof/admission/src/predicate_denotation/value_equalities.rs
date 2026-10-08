@@ -62,9 +62,7 @@ impl<'input> ValueEqualities<'input> {
         budget.proposition(original, depth)?;
         let mut transported = original.clone();
         match &mut transported {
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            semantic_vocabulary::ordered_comparison_operands!(left, right) => {
                 *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
                 *right = self.scalar(right, budget, depth + 1, &mut Vec::new())?;
             }
@@ -89,9 +87,7 @@ impl<'input> ValueEqualities<'input> {
                 **premise = self.proposition(premise, budget, depth + 1)?;
                 **conclusion = self.proposition(conclusion, budget, depth + 1)?;
             }
-            Proposition::IntegerMathEqual(left, right)
-            | Proposition::IntegerMathLessThan(left, right)
-            | Proposition::IntegerMathLessOrEqual(left, right) => {
+            semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                 // A cited exact scalar definition can introduce mathematical
                 // constructors even when this comparison originally names only
                 // values. Use the same transport for both forms. Opaque policy

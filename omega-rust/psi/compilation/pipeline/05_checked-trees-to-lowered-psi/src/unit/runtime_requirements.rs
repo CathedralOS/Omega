@@ -391,9 +391,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
 
     match proposition {
         Proposition::Truth | Proposition::Falsehood => Ok(()),
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
+        semantic_vocabulary::ordered_comparison_operands!(left, right) => {
             let rebound_left = substitute_term(left, substitutions)?;
             let rebound_right = substitute_term(right, substitutions)?;
             *left = rebound_left;

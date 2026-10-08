@@ -726,11 +726,8 @@ impl Denotation {
         proposition: &Proposition,
     ) -> Result<TermHandle, BoundedDenotationError> {
         let key = lift_fixed_integer_relation(proposition).unwrap_or_else(|| proposition.clone());
-        let position = self.interned_keyed_assumption(
-            |this| &mut this.atoms,
-            key,
-            |this| Ok(this.type_zero),
-        )?;
+        let position =
+            self.interned_keyed_assumption(|this| &mut this.atoms, key, |this| Ok(this.type_zero))?;
         Ok(self.constant(position))
     }
 
@@ -1145,9 +1142,7 @@ impl Denotation {
         proposition: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let (left, right) = match proposition {
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => (left, right),
+            semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
             _ => return Ok(None),
         };
         let fixed_integer = |term: &ScalarTerm| matches!(term.scalar_type(), ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && !integer.is_address());
