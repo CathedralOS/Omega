@@ -91,3 +91,32 @@ impl<S> ResolvedPackageSource<S> {
         self.source
     }
 }
+
+/// Assemble the resolved-package-source record shared by local and
+/// workspace resolution: identical digest-derived materialization and
+/// root navigation/selection evidence; provenance (lineage + resolution)
+/// arrives already formed per source kind.
+pub(super) fn resolve_local_snapshot_source(
+    source: package_source::ResolvedLocalSnapshot,
+    declaration: super::projection::ProjectedPackageBuild,
+    lineage: package_source::SourceLineage,
+    resolution: ImmutableSourceResolution,
+    limits: LocalSourceLimits,
+) -> Result<
+    ResolvedPackageSource<package_source::ResolvedLocalSnapshot>,
+    crate::resolution::source::ResolvePackageSourceError,
+> {
+    let materialization = PackageSourceMaterialization::from_local(source.normalized());
+    Ok(ResolvedPackageSource::from_resolved_parts(
+        PackageKey::new(declaration.name, lineage),
+        declaration.role,
+        resolution,
+        materialization,
+        source.snapshot_root().to_path_buf(),
+        PackageSourceNavigation::Root,
+        PackageSourceSelectionEvidence::Root,
+        limits,
+        declaration.dependencies,
+        source,
+    ))
+}

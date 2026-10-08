@@ -1,6 +1,5 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
-use crate::declarations::PackageKey;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -141,20 +140,7 @@ fn bind_workspace_member_package_source(
     let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
         source.normalized().content_identity.as_bytes(),
     ));
-    let materialization = super::PackageSourceMaterialization::from_local(source.normalized());
-
-    Ok(ResolvedPackageSource::from_resolved_parts(
-        PackageKey::new(declaration.name, lineage),
-        declaration.role,
-        resolution,
-        materialization,
-        source.snapshot_root().to_path_buf(),
-        super::PackageSourceNavigation::Root,
-        super::PackageSourceSelectionEvidence::Root,
-        limits,
-        declaration.dependencies,
-        source,
-    ))
+    super::resolved::resolve_local_snapshot_source(source, declaration, lineage, resolution, limits)
 }
 
 fn canonical_workspace_path(path: &Path) -> Result<PathBuf, ResolvePackageSourceError> {
