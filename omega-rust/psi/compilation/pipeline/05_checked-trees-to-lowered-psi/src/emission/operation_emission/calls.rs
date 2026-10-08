@@ -182,13 +182,11 @@ fn emit_direct_call_operation(
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
-    let callee = call_emission
-        .machine_ids
-        .iter()
-        .find_map(|(source, terminal)| (*source == call.target_machine).then_some(*terminal))
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call target is absent from the terminal closure",
-        ))?;
+    let callee = crate::terminal_identities::lookup_machine_id_with(
+        call_emission.machine_ids,
+        call.target_machine,
+        "direct scalar call target is absent from the terminal closure",
+    )?;
     let crash_continuations = lower_checked_crash_route_buckets(crash_routes, crash_values)?;
     let requirement_count = call_emission
         .requirement_counts

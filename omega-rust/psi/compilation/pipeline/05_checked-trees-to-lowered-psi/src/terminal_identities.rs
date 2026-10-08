@@ -159,11 +159,21 @@ pub(crate) fn lookup_machine_id(
     ids: &[(symbols::SymbolHandle, MachineId)],
     source: symbols::SymbolHandle,
 ) -> Result<MachineId, LoweringError> {
+    lookup_machine_id_with(
+        ids,
+        source,
+        "Unit call target is absent from the lowered closure",
+    )
+}
+
+pub(crate) fn lookup_machine_id_with(
+    ids: &[(symbols::SymbolHandle, MachineId)],
+    source: symbols::SymbolHandle,
+    absent_message: &'static str,
+) -> Result<MachineId, LoweringError> {
     ids.iter()
         .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
-        .ok_or(LoweringError::Unsupported(
-            "Unit call target is absent from the lowered closure",
-        ))
+        .ok_or(LoweringError::Unsupported(absent_message))
 }
 
 pub(crate) fn lookup_claim_id(

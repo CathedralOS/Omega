@@ -93,13 +93,11 @@ pub(crate) fn emit_scalar_binding(
                         "comparison value identity overflow",
                     ))?;
             let operation = operations.allocate();
-            let terminal_machine = call_emission
-                .machine_ids
-                .iter()
-                .find_map(|(source, machine)| (*source == *source_machine).then_some(*machine))
-                .ok_or(LoweringError::Unsupported(
-                    "comparison source machine has no Terminal identity",
-                ))?;
+            let terminal_machine = crate::terminal_identities::lookup_machine_id_with(
+                call_emission.machine_ids,
+                *source_machine,
+                "comparison source machine has no Terminal identity",
+            )?;
             // The occurrence row is recorded beside the exact operation it
             // names: a selected use that reached emission without one would
             // be indistinguishable from a builtin comparison downstream.
