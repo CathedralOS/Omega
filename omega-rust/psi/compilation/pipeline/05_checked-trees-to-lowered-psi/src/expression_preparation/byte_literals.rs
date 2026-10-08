@@ -46,6 +46,28 @@ pub(crate) fn collect_operation_requirements(
     collect_domains(checked, *value, reference, domains)
 }
 
+/// Catalog the memberships a structural value tree establishes when a
+/// computed operand constructs it rather than an operation of the body
+/// (`observe(Envelope { line: main.line, .. })` as a scalar call argument).
+pub(crate) fn collect_value_requirements(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    value: checked_trees::CheckedStructuralValueHandle,
+    domains: &mut Vec<SemanticDomainId>,
+) -> Result<(), LoweringError> {
+    let reference = checked
+        .facts
+        .values
+        .structural_values
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .find(|root| root.machine == machine && root.root == value)
+        .map(|root| root.type_reference)
+        .unwrap_or_default();
+    collect_domains(checked, value, reference, domains).map(|_| ())
+}
+
 fn collect_domains(
     checked: &CheckedTrees,
     value: checked_trees::CheckedStructuralValueHandle,
@@ -78,6 +100,23 @@ fn collect_domains(
                     .span(node.qualification_decisions)
                     .ok_or(LoweringError::Unsupported(
                         "byte literal view membership decisions are stale",
+                    ))?
+                {
+                    if !domains.contains(&decision.semantic_domain) {
+                        domains.push(decision.semantic_domain);
+                    }
+                }
+            }
+            // A copied qualified place keeps the memberships checking decided
+            // for the copy; its theories join the catalog the same way.
+            CheckedStructuralValueKind::CopiedStructuralPlace { .. } => {
+                for decision in checked
+                    .facts
+                    .qualifications
+                    .value_formations
+                    .span(node.qualification_decisions)
+                    .ok_or(LoweringError::Unsupported(
+                        "copied membership decisions are stale",
                     ))?
                 {
                     if !domains.contains(&decision.semantic_domain) {

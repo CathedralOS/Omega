@@ -120,6 +120,26 @@ pub(crate) fn value_call_operations(
     Ok(operations)
 }
 
+/// The structural values a machine's retained scalar computations construct
+/// or observe: each computed call's produced operand and each field read's
+/// receiver value, in discovery order.
+pub(crate) fn reachable_structural_values(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<checked_trees::CheckedStructuralValueHandle>, LoweringError> {
+    let roots = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .collect::<Vec<_>>();
+    let mut values = Vec::new();
+    collect_reachable_nodes(checked, &roots, &mut values)?;
+    Ok(values)
+}
+
 fn value_calls(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

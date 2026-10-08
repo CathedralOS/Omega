@@ -782,6 +782,18 @@ pub(super) fn lower_unit_structural_domains(
                 &mut selected,
             )?;
         }
+        // Values the body's computed operands construct carry the
+        // memberships checking decided for them, as operation values do.
+        for value in crate::expression_preparation::computation_graph::reachable_structural_values(
+            checked, *symbol,
+        )? {
+            crate::expression_preparation::byte_literals::collect_value_requirements(
+                checked,
+                *symbol,
+                value,
+                &mut selected,
+            )?;
+        }
         for domain in body
             .structural_parameters()
             .flat_map(|parameter| {
