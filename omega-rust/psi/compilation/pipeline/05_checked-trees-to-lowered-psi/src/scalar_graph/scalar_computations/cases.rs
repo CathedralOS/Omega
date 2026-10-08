@@ -523,12 +523,8 @@ pub(crate) fn emit(
     // Canonical publication orders identities only after every expression has
     // completed; it never changes authored evaluation order.
     fields.sort_by_key(|field| field.field);
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Structural(StructuralOperationResult {
+    operations.push_leaf(
+        OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
             place: effect.place,
             structural_type: effect.structural_type,
@@ -540,7 +536,7 @@ pub(crate) fn emit(
                 &mut calls.claims,
             )?,
         }),
-        kind: if fields.is_empty() {
+        if fields.is_empty() {
             // Payloadless cases remain pure tag establishments. Guarded exit
             // receipts independently recognize this exact empty operation.
             OperationKind::EstablishScalarCase {
@@ -553,7 +549,7 @@ pub(crate) fn emit(
                 fields,
             }
         },
-    });
+    );
     Ok(())
 }
 

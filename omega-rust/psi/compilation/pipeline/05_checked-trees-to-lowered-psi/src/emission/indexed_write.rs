@@ -18,13 +18,12 @@
 //! `ElementViewLength`), its final operation, and its diagnostic wording.
 use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, PlaceId,
-    PrimitiveType, ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId,
-    allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
-    emit_u64_coordinate, obligation_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, PrimitiveType,
+    ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense,
+    direct_expression_contains_short_circuit, emit_direct_expression, emit_u64_coordinate,
+    obligation_id, terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -600,14 +599,10 @@ impl Destination {
             }
         };
         let length = value_id(allocate_dense(next_value)?);
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
+        operations.push_leaf(
+            scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
             kind,
-        });
+        );
         if let DestinationShape::ByteField { path, field } = &self.shape {
             operations
                 .field_byte_lengths

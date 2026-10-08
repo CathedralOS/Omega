@@ -792,18 +792,14 @@ pub(super) fn emit(
                                 structural_type,
                             },
                         });
-                        let id = operations.allocate();
-                        operations.push(Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id,
-                            result: terminal_psi::OperationResult::Unit,
-                            kind: OperationKind::EstablishByteSequenceLiteral {
+                        operations.push_leaf(
+                            terminal_psi::OperationResult::Unit,
+                            OperationKind::EstablishByteSequenceLiteral {
                                 destination: source,
                                 bytes: bytes.clone(),
                                 qualifications: Vec::new(),
                             },
-                        });
+                        );
                         source
                     }
                     _ => {

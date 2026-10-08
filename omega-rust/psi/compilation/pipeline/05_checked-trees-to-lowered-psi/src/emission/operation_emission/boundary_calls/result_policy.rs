@@ -16,8 +16,7 @@ use numerics::float_semantics::FloatFormat;
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, ValueId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    FloatResultPolicy, FloatSaturationRule, Operation, OperationKind, OperationResult,
-    ValueDeclaration,
+    FloatResultPolicy, FloatSaturationRule, OperationKind, OperationResult, ValueDeclaration,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,13 +172,9 @@ pub(crate) fn emit(
         id: value_id(allocate_dense(next_value)?),
         ..raw
     };
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Scalar(result),
-        kind: OperationKind::FloatResultPolicy { policy },
-    });
+    operations.push_leaf(
+        OperationResult::Scalar(result),
+        OperationKind::FloatResultPolicy { policy },
+    );
     Ok(result)
 }

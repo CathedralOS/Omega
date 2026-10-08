@@ -66,12 +66,8 @@ pub(crate) fn emit(
                 }
                 qualifications.sort();
                 qualifications.dedup();
-                let id = operations.allocate();
-                operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                operations.push_leaf(
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
                         qualification_establishments: Vec::new(),
                         place: *place,
                         structural_type: *structural_type,
@@ -80,12 +76,13 @@ pub(crate) fn emit(
                         projected_qualifications,
                         claims: Vec::new(),
                     }),
-                    kind: OperationKind::StructuralLeafCopy {
+                    OperationKind::StructuralLeafCopy {
                         source: source.place,
                         path,
                     },
-                });
+                );
             }
+
             LoweredScalarEffect::EstablishAggregate(aggregate) => {
                 crate::scalar_graph::scalar_graph_lowering::structural_values::emit(
                     aggregate, values, next_value, operations, calls,
@@ -97,12 +94,8 @@ pub(crate) fn emit(
                 multiplicity,
                 claims,
             } => {
-                let id = operations.allocate();
-                operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Structural(super::StructuralOperationResult {
+                operations.push_leaf(
+                    OperationResult::Structural(super::StructuralOperationResult {
                         qualification_establishments: Vec::new(),
                         place: *place,
                         structural_type: *structural_type,
@@ -114,8 +107,8 @@ pub(crate) fn emit(
                             &mut calls.claims,
                         )?,
                     }),
-                    kind: OperationKind::EstablishZeroedStructural {},
-                });
+                    OperationKind::EstablishZeroedStructural {},
+                );
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_graph::scalar_computations::cases::emit(
@@ -127,18 +120,14 @@ pub(crate) fn emit(
                 structural_type: _,
                 bytes,
             } => {
-                let id = operations.allocate();
-                operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Unit,
-                    kind: OperationKind::EstablishByteSequenceLiteral {
+                operations.push_leaf(
+                    OperationResult::Unit,
+                    OperationKind::EstablishByteSequenceLiteral {
                         destination: *place,
                         bytes: bytes.clone(),
                         qualifications: Vec::new(),
                     },
-                });
+                );
             }
             LoweredScalarEffect::EstablishScalarArray(array) => {
                 crate::scalar_graph::scalar_computations::arrays::emit(

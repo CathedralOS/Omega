@@ -40,8 +40,8 @@
 //! requires it closed before that sequence's exits.
 
 use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,
-    PlaceId, StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, OperationResult, PlaceId,
+    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeId, allocate_dense, place_id,
 };
@@ -169,12 +169,8 @@ impl BorrowedWindowLedger {
         }
         let moved_place = place_id(allocate_dense(next_place)?);
         operations.invalidate_field_lengths_under(place.source, &path);
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(StructuralOperationResult {
+        operations.push_leaf(
+            OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place: moved_place,
                 structural_type: place.hole_type,
@@ -183,12 +179,12 @@ impl BorrowedWindowLedger {
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),
-            kind: OperationKind::MoveStructuralField {
+            OperationKind::MoveStructuralField {
                 source: place.source,
                 path: path.clone(),
                 field: place.field,
             },
-        });
+        );
         self.open.push(OpenBorrowedWindow {
             source: place.source,
             path,
@@ -271,13 +267,9 @@ impl BorrowedWindowLedger {
         let path =
             runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
         operations.invalidate_field_lengths_under(place.source, &path);
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Unit,
-            kind: OperationKind::StoreStructuralField {
+        operations.push_leaf(
+            OperationResult::Unit,
+            OperationKind::StoreStructuralField {
                 destination: place.source,
                 path,
                 field: place.field,
@@ -287,7 +279,7 @@ impl BorrowedWindowLedger {
                     access: StructuralAccess::Owned,
                 },
             },
-        });
+        );
         if let Some(index) = index {
             self.open.remove(index);
         }

@@ -6,7 +6,7 @@ use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use semantic_vocabulary::{
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
 };
-use terminal_psi::{Operation, ValueDeclaration};
+use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceCallCoordinate {
@@ -254,6 +254,24 @@ impl OperationBuffer {
     /// Drop field-length observations a field subtree store or move makes
     /// stale: every cached carrier at or under `path` on `place` loses its
     /// dominating length (over-clears sibling fields on the same carrier).
+    /// Allocate and push an operation carrying no reach binding or
+    /// suspension demand.
+    pub(crate) fn push_leaf(
+        &mut self,
+        result: OperationResult,
+        kind: OperationKind,
+    ) -> OperationId {
+        let id = self.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result,
+            kind,
+        });
+        id
+    }
+
     pub(crate) fn invalidate_field_lengths_under(
         &mut self,
         place: PlaceId,

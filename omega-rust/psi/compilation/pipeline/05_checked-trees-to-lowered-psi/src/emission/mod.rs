@@ -106,13 +106,6 @@ pub(crate) fn emit_u64_coordinate(
         }
     };
     let coordinate = value_id(allocate_dense(next_value)?);
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: scalar_result_declaration(coordinate, coordinate_type),
-        kind,
-    });
+    operations.push_leaf(scalar_result_declaration(coordinate, coordinate_type), kind);
     Ok(coordinate)
 }

@@ -68,18 +68,14 @@ pub(crate) fn emit(
                 element, values, next_value, operations,
             ));
         }
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: structural_result_declaration(
+        operations.push_leaf(
+            structural_result_declaration(
                 effect.place,
                 effect.structural_type,
                 StructuralMultiplicity::Unrestricted,
             ),
-            kind: OperationKind::EstablishScalarArray { elements },
-        });
+            OperationKind::EstablishScalarArray { elements },
+        );
     }
     Ok(())
 }

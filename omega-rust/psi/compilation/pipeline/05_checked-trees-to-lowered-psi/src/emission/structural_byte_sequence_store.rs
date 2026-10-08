@@ -796,18 +796,14 @@ pub(crate) fn emit_call_literal(
                     structural_type,
                 },
             };
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind: OperationKind::EstablishByteSequenceLiteral {
+            operations.push_leaf(
+                OperationResult::Unit,
+                OperationKind::EstablishByteSequenceLiteral {
                     destination: declaration.id,
                     bytes: bytes.to_vec(),
                     qualifications,
                 },
-            });
+            );
             declaration
         }
         _ => return unsupported("literal call access differs from its storage carrier"),
