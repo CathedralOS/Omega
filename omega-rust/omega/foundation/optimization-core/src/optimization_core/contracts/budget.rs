@@ -43,20 +43,13 @@ impl OptimizationWorkBudget {
     }
 
     pub fn encode(self) -> [u8; 40] {
-        let mut encoded = [0; 40];
-        for (index, value) in [
+        crate::optimization_core::encode_work_counters([
             self.rule_evaluations,
             self.candidates,
             self.validation_steps,
             self.commits,
             self.iterations,
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            encoded[index * 8..index * 8 + 8].copy_from_slice(&value.to_le_bytes());
-        }
-        encoded
+        ])
     }
 
     pub const fn rule_evaluations(self) -> u64 {

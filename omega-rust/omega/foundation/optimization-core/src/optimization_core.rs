@@ -25,6 +25,16 @@ pub(crate) mod rollback;
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+/// The five-u64 work-counter row budget and usage encodings share:
+/// little-endian words in declaration order across a 40-byte wire row.
+pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
+    let mut encoded = [0; 40];
+    for (index, value) in fields.into_iter().enumerate() {
+        encoded[index * 8..index * 8 + 8].copy_from_slice(&value.to_le_bytes());
+    }
+    encoded
+}
+
 pub use post_terminal::{
     PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
     PreTerminalOptimizationSelection,
