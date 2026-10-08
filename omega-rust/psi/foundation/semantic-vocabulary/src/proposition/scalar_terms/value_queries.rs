@@ -2,7 +2,8 @@
 //! terms, extracted from `scalar_terms` so construction and traversal
 //! stay the file's headline.
 
-use super::{ScalarTerm, ScalarType};
+use super::{
+    Step,ScalarTerm, ScalarType};
 use crate::proposition::{IntegerType, IntegerValue};
 
 impl ScalarTerm {
@@ -63,10 +64,6 @@ impl ScalarTerm {
     /// exactly one slot; non-integer forms finalize to `None` without visiting
     /// their children, matching the old `_ => None` arm.
     pub fn integer_value(&self) -> Option<(IntegerType, IntegerValue)> {
-        enum Step<'a> {
-            Visit(&'a ScalarTerm),
-            Finalize(&'a ScalarTerm),
-        }
         let mut pending = vec![Step::Visit(self)];
         let mut values = Vec::new();
         while let Some(step) = pending.pop() {
@@ -326,10 +323,6 @@ impl ScalarTerm {
     /// stack too. Non-boolean forms finalize to `None` like the old
     /// `_ => None` arm.
     pub fn boolean_value(&self) -> Option<bool> {
-        enum Step<'a> {
-            Visit(&'a ScalarTerm),
-            Finalize(&'a ScalarTerm),
-        }
         let mut pending = vec![Step::Visit(self)];
         let mut values = Vec::new();
         while let Some(step) = pending.pop() {

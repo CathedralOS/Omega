@@ -3,6 +3,7 @@
 //! not buried under the rule bodies.
 
 use super::{
+    Step,
     ScalarTerm, ScalarType, integer_comparison_operands_match, validate_exact_subtract_operands,
     validate_integer_comparison_operands, validate_integer_operands,
     validate_integer_shift_operands,
@@ -17,10 +18,6 @@ impl ScalarTerm {
         // typing rule runs only after its operands validated — the same
         // post-order position the recursive validator gave it. Children push
         // in reverse so the left operand still validates first.
-        enum Step<'a> {
-            Visit(&'a ScalarTerm),
-            Finalize(&'a ScalarTerm),
-        }
         let mut pending = vec![Step::Visit(self)];
         while let Some(step) = pending.pop() {
             match step {

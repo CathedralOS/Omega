@@ -1063,3 +1063,10 @@ fn validate_integer_shift_operands(
     }
     Ok(())
 }
+
+/// Worklist step shared by the iterative scalar-term walks: `Visit` expands a
+/// node's operands, `Finalize` applies the node's own rule afterward.
+enum Step<'a> {
+    Visit(&'a ScalarTerm),
+    Finalize(&'a ScalarTerm),
+}
