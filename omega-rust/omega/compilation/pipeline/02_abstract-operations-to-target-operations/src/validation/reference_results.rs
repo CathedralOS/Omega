@@ -1677,9 +1677,7 @@ fn apply_terminator(
             let mut exit = custody.clone();
             if let Some((target, bindings)) = owned_transfer {
                 let destination = function
-                    .block_entries
-                    .iter()
-                    .find(|block| block.block == target)?;
+                    .block_entry(target)?;
                 let mut moved = Vec::new();
                 for (binding, parameter) in bindings.iter().zip(&destination.structural_parameters)
                 {

@@ -248,9 +248,7 @@ pub(super) fn lower(
     let mut reference_exits = Vec::with_capacity(cases.len());
     for (case_ordinal, (case, declared)) in cases.iter().zip(declared_cases).enumerate() {
         let target = function
-            .block_entries
-            .iter()
-            .find(|block| block.block == case.target)
+            .block_entry(case.target)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if case.case != declared.id
             || !target.structural_parameters.is_empty()

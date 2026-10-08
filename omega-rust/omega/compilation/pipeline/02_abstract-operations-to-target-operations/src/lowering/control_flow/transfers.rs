@@ -245,9 +245,7 @@ pub(super) fn validate_successors(
          bindings: &[ValueBinding],
          structural: &[abstract_operations::AbstractStructuralBinding]| {
             let block = function
-                .block_entries
-                .iter()
-                .find(|block| block.block == target)
+                .block_entry(target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if bindings.len() != block.parameters.len() {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

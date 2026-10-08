@@ -278,9 +278,7 @@ pub(super) fn lower_terminator(
                      edge: &abstract_operations::AbstractSuccessor|
      -> Result<TargetControlSuccessor, LoweringError> {
         let destination = function
-            .block_entries
-            .iter()
-            .find(|block| block.block == edge.target)
+            .block_entry(edge.target)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         super::transfers::re_home_bound_references(
             &edge.structural_bindings,
@@ -646,9 +644,7 @@ pub(super) fn lower_terminator(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let destination = function
-                .block_entries
-                .iter()
-                .find(|block| block.block == *target)
+                .block_entry(*target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             super::transfers::re_home_bound_references(
                 structural_bindings,

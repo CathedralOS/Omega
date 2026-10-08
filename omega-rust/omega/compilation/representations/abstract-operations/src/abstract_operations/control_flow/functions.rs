@@ -28,6 +28,11 @@ pub struct AbstractFunction {
 }
 
 impl AbstractFunction {
+    /// The block entry registered at `block`.
+    pub fn block_entry(&self, block: BlockId) -> Option<&AbstractBlockEntry> {
+        self.block_entries.iter().find(|entry| entry.block == block)
+    }
+
     /// Every block entry's structural parameters, in block order.
     pub fn block_structural_parameters(
         &self,
