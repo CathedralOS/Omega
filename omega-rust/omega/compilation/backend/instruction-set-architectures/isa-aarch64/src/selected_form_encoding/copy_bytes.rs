@@ -106,12 +106,7 @@ pub(super) fn validate(
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let flags = physical
-        .model()
-        .view_named("nzcv")
-        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-        .units
-        .clone();
+    let flags = super::nzcv_flag_units(physical)?;
     Ok(ValidatedAarch64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: Aarch64SelectedFormFootprint {

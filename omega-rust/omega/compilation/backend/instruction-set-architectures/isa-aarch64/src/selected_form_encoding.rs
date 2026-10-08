@@ -98,6 +98,18 @@ pub use selected_forms::{
     validate_aarch64_selected_form_encoding,
 };
 
+/// The nzcv flag register units every flag-consuming form references.
+fn nzcv_flag_units(
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<Vec<register_model::RegisterUnitId>, Aarch64SelectedFormEncodingError> {
+    Ok(physical
+        .model()
+        .view_named("nzcv")
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+        .units
+        .clone())
+}
+
 fn decode_all<D>(
     bytes: &[u8],
     decode_word: impl Fn(u32, usize) -> Result<D, Aarch64SelectedFormEncodingError>,
