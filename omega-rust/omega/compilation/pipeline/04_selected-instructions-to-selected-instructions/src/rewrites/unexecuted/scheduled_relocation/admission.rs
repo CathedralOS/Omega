@@ -7,12 +7,13 @@
 //! general admission: the sink/hoist once-per-traversal bounds
 //! (dominance, re-entry, continuations), the member's pure-work bound,
 //! and the skipped-edge dead-path audit a sink owes.
-use std::collections::{BTreeSet, VecDeque};
+use super::{block_index_of, continuations_reach, landing_position, reaches_avoiding, rejection};
+use std::collections::{BTreeSet};
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedSuccessor,
 };
 use semantic_vocabulary::EdgeId;
@@ -21,11 +22,11 @@ use super::ScheduledRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
-    terminator_instruction, terminator_successors,
+    terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    admit_run_relocation, register_writes, schedulable, speculatable,
     surface,
 };
 
@@ -52,97 +53,12 @@ pub(super) struct Admission {
 /// a cycle, would let a traversal pass `from` yet abandon or repeat the
 /// run's execution. The returned count is the depth-first walk's
 /// expansions for the work-budget fold.
-fn continuations_reach(
-    function: &SelectedFunction,
-    from: usize,
-    to: usize,
-) -> Result<(bool, usize), ScheduledRelocationError> {
-    const UNVISITED: u8 = 0;
-    const IN_STACK: u8 = 1;
-    const DONE: u8 = 2;
-    let mut marks = vec![UNVISITED; function.blocks.len()];
-    let mut expansions = 0usize;
-    let mut stack: Vec<(usize, usize)> = vec![(from, 0)];
-    marks[from] = IN_STACK;
-    while let Some((block, edge_index)) = stack.last_mut() {
-        let successors = terminator_successors(&function.blocks[*block].terminator);
-        if successors.is_empty() {
-            return Ok((false, expansions));
-        }
-        if *edge_index == successors.len() {
-            marks[*block] = DONE;
-            stack.pop();
-            continue;
-        }
-        let edge = successors[*edge_index];
-        *edge_index += 1;
-        let next =
-            block_index_of(function, edge.block).ok_or(ScheduledRelocationError::SourceMismatch)?;
-        if next == to {
-            continue;
-        }
-        match marks[next] {
-            IN_STACK => return Ok((false, expansions)),
-            DONE => continue,
-            _ => {
-                marks[next] = IN_STACK;
-                expansions += 1;
-                stack.push((next, 0));
-            }
-        }
-    }
-    Ok((true, expansions))
-}
-
 /// The position `destination` names inside `block`: a body instruction's
 /// own index, or the body end when it names the terminator-carried
 /// instruction.
-fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -> Option<usize> {
-    block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
-        .or_else(|| {
-            (terminator_instruction(&block.terminator).id == destination)
-                .then_some(block.instructions.len())
-        })
-}
-
-fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
-    function.blocks.iter().position(|block| block.id == id)
-}
-
 /// Whether `target` is reachable from `from` while `avoid` is never
 /// expanded — the dominator question asked concretely: `avoid` dominates
 /// `target` exactly when no such route exists. `None` expands every block.
-fn reaches_avoiding(
-    function: &SelectedFunction,
-    from: usize,
-    avoid: Option<usize>,
-    target: usize,
-) -> Result<bool, ScheduledRelocationError> {
-    let mut seen = vec![false; function.blocks.len()];
-    let mut pending = VecDeque::from([from]);
-    seen[from] = true;
-    while let Some(current) = pending.pop_front() {
-        if current == target {
-            return Ok(true);
-        }
-        if Some(current) == avoid {
-            continue;
-        }
-        for edge in terminator_successors(&function.blocks[current].terminator) {
-            let next = block_index_of(function, edge.block)
-                .ok_or(ScheduledRelocationError::SourceMismatch)?;
-            if !seen[next] {
-                seen[next] = true;
-                pending.push_back(next);
-            }
-        }
-    }
-    Ok(false)
-}
-
 /// The acyclic-path walk bound: this family's dominance bounds admit
 /// multi-path windows, so the derivation carries the cap the general
 /// `relocation` admission uses — a window whose path enumeration takes
@@ -195,18 +111,6 @@ fn skipped_edges<'function>(
 /// refusal and every window-level refusal — unreachable destination,
 /// coupling, memory ordering, transport conflict, non-plain edge,
 /// settlement — is the pair kind.
-fn rejection(rejection: RunRelocationRejection) -> ScheduledRelocationError {
-    match rejection {
-        RunRelocationRejection::Unschedulable => ScheduledRelocationError::UnsupportedInstruction,
-        RunRelocationRejection::UnreachableDestination
-        | RunRelocationRejection::Coupled
-        | RunRelocationRejection::MemoryOrdering
-        | RunRelocationRejection::TransportConflict
-        | RunRelocationRejection::NonPlainEdge
-        | RunRelocationRejection::Settlement => ScheduledRelocationError::UnsupportedPair,
-    }
-}
-
 /// Admit `members` — a contiguous run of body instructions named in their
 /// own order — to leave their block and land on `destination`'s position
 /// in a block their block dominates (a sink), or land on a position in a

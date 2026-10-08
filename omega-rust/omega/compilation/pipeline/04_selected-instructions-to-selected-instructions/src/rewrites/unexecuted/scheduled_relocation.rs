@@ -69,10 +69,14 @@ mod admission;
 mod rewrite;
 mod validation;
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
+use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::window_hazards::RunRelocationRejection;
+
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::relocate_scheduled_run;
@@ -136,3 +140,100 @@ impl std::fmt::Display for ScheduledRelocationError {
 }
 
 impl std::error::Error for ScheduledRelocationError {}
+
+pub(super) fn continuations_reach(
+    function: &SelectedFunction,
+    from: usize,
+    to: usize,
+) -> Result<(bool, usize), ScheduledRelocationError> {
+    const UNVISITED: u8 = 0;
+    const IN_STACK: u8 = 1;
+    const DONE: u8 = 2;
+    let mut marks = vec![UNVISITED; function.blocks.len()];
+    let mut expansions = 0usize;
+    let mut stack: Vec<(usize, usize)> = vec![(from, 0)];
+    marks[from] = IN_STACK;
+    while let Some((block, edge_index)) = stack.last_mut() {
+        let successors = terminator_successors(&function.blocks[*block].terminator);
+        if successors.is_empty() {
+            return Ok((false, expansions));
+        }
+        if *edge_index == successors.len() {
+            marks[*block] = DONE;
+            stack.pop();
+            continue;
+        }
+        let edge = successors[*edge_index];
+        *edge_index += 1;
+        let next =
+            block_index_of(function, edge.block).ok_or(ScheduledRelocationError::SourceMismatch)?;
+        if next == to {
+            continue;
+        }
+        match marks[next] {
+            IN_STACK => return Ok((false, expansions)),
+            DONE => continue,
+            _ => {
+                marks[next] = IN_STACK;
+                expansions += 1;
+                stack.push((next, 0));
+            }
+        }
+    }
+    Ok((true, expansions))
+}
+
+pub(super) fn reaches_avoiding(
+    function: &SelectedFunction,
+    from: usize,
+    avoid: Option<usize>,
+    target: usize,
+) -> Result<bool, ScheduledRelocationError> {
+    let mut seen = vec![false; function.blocks.len()];
+    let mut pending = VecDeque::from([from]);
+    seen[from] = true;
+    while let Some(current) = pending.pop_front() {
+        if current == target {
+            return Ok(true);
+        }
+        if Some(current) == avoid {
+            continue;
+        }
+        for edge in terminator_successors(&function.blocks[current].terminator) {
+            let next = block_index_of(function, edge.block)
+                .ok_or(ScheduledRelocationError::SourceMismatch)?;
+            if !seen[next] {
+                seen[next] = true;
+                pending.push_back(next);
+            }
+        }
+    }
+    Ok(false)
+}
+
+pub(super) fn rejection(rejection: RunRelocationRejection) -> ScheduledRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => ScheduledRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => ScheduledRelocationError::UnsupportedPair,
+    }
+}
+
+pub(super) fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -> Option<usize> {
+    block
+        .instructions
+        .iter()
+        .position(|instruction| instruction.id == destination)
+        .or_else(|| {
+            (terminator_instruction(&block.terminator).id == destination)
+                .then_some(block.instructions.len())
+        })
+}
+
+pub(super) fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
+    function.blocks.iter().position(|block| block.id == id)
+}

@@ -1,10 +1,11 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::BTreeSet;
+use super::{block_index_of, continuations_reach, landing_position, reaches_avoiding, rejection};
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionPlan, SelectedSuccessor,
 };
 use semantic_vocabulary::EdgeId;
@@ -14,11 +15,11 @@ use super::{ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedSched
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
-    terminator_instruction, terminator_successors,
+    terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    admit_run_relocation, register_writes, schedulable, speculatable,
     surface,
 };
 
@@ -37,91 +38,6 @@ struct Reconstructed<'source> {
 
 /// The validator's own continuation search: every simple continuation
 /// leaving `from` reaches `to` before it exits or revisits a block.
-fn continuations_reach(
-    function: &SelectedFunction,
-    from: usize,
-    to: usize,
-) -> Result<(bool, usize), ScheduledRelocationError> {
-    const UNVISITED: u8 = 0;
-    const IN_STACK: u8 = 1;
-    const DONE: u8 = 2;
-    let mut marks = vec![UNVISITED; function.blocks.len()];
-    let mut expansions = 0usize;
-    let mut stack: Vec<(usize, usize)> = vec![(from, 0)];
-    marks[from] = IN_STACK;
-    while let Some((block, edge_index)) = stack.last_mut() {
-        let successors = terminator_successors(&function.blocks[*block].terminator);
-        if successors.is_empty() {
-            return Ok((false, expansions));
-        }
-        if *edge_index == successors.len() {
-            marks[*block] = DONE;
-            stack.pop();
-            continue;
-        }
-        let edge = successors[*edge_index];
-        *edge_index += 1;
-        let next =
-            block_index_of(function, edge.block).ok_or(ScheduledRelocationError::SourceMismatch)?;
-        if next == to {
-            continue;
-        }
-        match marks[next] {
-            IN_STACK => return Ok((false, expansions)),
-            DONE => continue,
-            _ => {
-                marks[next] = IN_STACK;
-                expansions += 1;
-                stack.push((next, 0));
-            }
-        }
-    }
-    Ok((true, expansions))
-}
-
-fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -> Option<usize> {
-    block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
-        .or_else(|| {
-            (terminator_instruction(&block.terminator).id == destination)
-                .then_some(block.instructions.len())
-        })
-}
-
-fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
-    function.blocks.iter().position(|block| block.id == id)
-}
-
-fn reaches_avoiding(
-    function: &SelectedFunction,
-    from: usize,
-    avoid: Option<usize>,
-    target: usize,
-) -> Result<bool, ScheduledRelocationError> {
-    let mut seen = vec![false; function.blocks.len()];
-    let mut pending = VecDeque::from([from]);
-    seen[from] = true;
-    while let Some(current) = pending.pop_front() {
-        if current == target {
-            return Ok(true);
-        }
-        if Some(current) == avoid {
-            continue;
-        }
-        for edge in terminator_successors(&function.blocks[current].terminator) {
-            let next = block_index_of(function, edge.block)
-                .ok_or(ScheduledRelocationError::SourceMismatch)?;
-            if !seen[next] {
-                seen[next] = true;
-                pending.push_back(next);
-            }
-        }
-    }
-    Ok(false)
-}
-
 /// The acyclic-path walk bound, kept symmetric with the producer's so
 /// neither side of the contract derives a window the other refuses to
 /// measure — the cap the general `relocation` admission uses.
@@ -167,18 +83,6 @@ fn skipped_edges<'a>(
 /// surface: an unschedulable crossed instruction is the family's
 /// unsupported-instruction answer; every other rejection refuses the
 /// pair.
-fn rejection(rejection: RunRelocationRejection) -> ScheduledRelocationError {
-    match rejection {
-        RunRelocationRejection::Unschedulable => ScheduledRelocationError::UnsupportedInstruction,
-        RunRelocationRejection::UnreachableDestination
-        | RunRelocationRejection::Coupled
-        | RunRelocationRejection::MemoryOrdering
-        | RunRelocationRejection::TransportConflict
-        | RunRelocationRejection::NonPlainEdge
-        | RunRelocationRejection::Settlement => ScheduledRelocationError::UnsupportedPair,
-    }
-}
-
 /// Reconstruct the legality of moving the run `members` onto
 /// `destination` from the source records: locate the run and the
 /// destination position by identity, bind the sink/hoist direction from
