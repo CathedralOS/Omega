@@ -68,6 +68,17 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
     }
 }
 
+/// Consumes the statement-terminating `;` and inserts `node`, returning the
+/// parser's success tuple.
+fn finish_semicolon_statement<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    node: StatementNode,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    Ok((syntax_trees.statements.insert(node), input))
+}
+
 fn parse_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -154,13 +165,11 @@ fn parse_statement_handle<'tokens, 'source>(
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
 
     if let Some(binding) = root_binding_declaration(syntax_trees, expression)? {
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::RootBinding(binding)),
+        return finish_semicolon_statement(
+            syntax_trees,
+            StatementNode::RootBinding(binding),
             input,
-        ));
+        );
     }
 
     // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering);` is
@@ -169,28 +178,24 @@ fn parse_statement_handle<'tokens, 'source>(
     // The postfix parser has already rejected orderings that stores cannot
     // express. Exact target ordering strength remains a lowering obligation.
     if let Some(assignment) = try_desugar_atomic_store(syntax_trees, expression) {
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Assignment(assignment)),
+        return finish_semicolon_statement(
+            syntax_trees,
+            StatementNode::Assignment(assignment),
             input,
-        ));
+        );
     }
 
     if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (value, input) = parse_expression_handle(syntax_trees, input)?;
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Assignment(TableAssignment {
-                    target: expression,
-                    value,
-                })),
+        return finish_semicolon_statement(
+            syntax_trees,
+            StatementNode::Assignment(TableAssignment {
+                target: expression,
+                value,
+            }),
             input,
-        ));
+        );
     }
 
     for (punctuation, label, operator) in [
@@ -219,16 +224,14 @@ fn parse_statement_handle<'tokens, 'source>(
                     operator,
                     right,
                 }));
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Assignment(TableAssignment {
-                    target: expression,
-                    value,
-                })),
+        return finish_semicolon_statement(
+            syntax_trees,
+            StatementNode::Assignment(TableAssignment {
+                target: expression,
+                value,
+            }),
             input,
-        ));
+        );
     }
 
     if input.at_punctuation(PunctuationKind::RightBrace) {
