@@ -263,11 +263,7 @@ impl OperationFrame<'_, '_> {
                     .declarations()
                     .iter()
                     .any(|declaration| {
-                        declaration.id == structural_type
-                            && matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::Record { .. }
-                            )
+                        declaration.id == structural_type && declaration.is_record_shape()
                     })
                 {
                     StoreRoot::Owned {

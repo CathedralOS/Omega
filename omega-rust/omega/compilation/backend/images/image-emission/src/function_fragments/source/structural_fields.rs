@@ -1196,11 +1196,7 @@ fn write_destination(
         let owned_record = purpose == AccessPurpose::ByteLength
             && access == terminal_psi::StructuralAccess::Owned
             && target.graph.structural_types.iter().any(|declaration| {
-                declaration.id == structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Record { .. }
-                    )
+                declaration.id == structural_type && declaration.is_record_shape()
             })
             && function.operations.iter().any(|operation| {
                 let result = match operation {
@@ -1282,13 +1278,12 @@ fn write_destination(
     else {
         return None;
     };
-    if !target.graph.structural_types.iter().any(|declaration| {
-        declaration.id == referent
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::Record { .. }
-            )
-    }) {
+    if !target
+        .graph
+        .structural_types
+        .iter()
+        .any(|declaration| declaration.id == referent && declaration.is_record_shape())
+    {
         return None;
     }
     let mut retained = target

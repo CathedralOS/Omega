@@ -78,6 +78,11 @@ pub struct StructuralFieldDeclaration {
 }
 
 impl StructuralTypeDeclaration {
+    /// Whether this declaration names a record shape.
+    pub fn is_record_shape(&self) -> bool {
+        matches!(self.shape, StructuralTypeShape::Record { .. })
+    }
+
     /// Whether this declaration names a bounded owned byte-sequence carrier.
     pub fn is_bounded_owned_byte_sequence(&self) -> bool {
         matches!(

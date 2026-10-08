@@ -2075,10 +2075,10 @@ pub(crate) fn store(
         else {
             return None;
         };
-        if !declarations.iter().any(|declaration| {
-            declaration.id == referent
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        }) {
+        if !declarations
+            .iter()
+            .any(|declaration| declaration.id == referent && declaration.is_record_shape())
+        {
             return None;
         }
         (referent, suffix)

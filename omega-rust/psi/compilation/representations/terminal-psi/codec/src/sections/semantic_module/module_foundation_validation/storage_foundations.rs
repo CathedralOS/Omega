@@ -79,10 +79,7 @@ fn reference_store_carrier<'path>(
     module
         .structural_types
         .iter()
-        .any(|declaration| {
-            declaration.id == referent
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        })
+        .any(|declaration| declaration.id == referent && declaration.is_record_shape())
         .then_some((referent, suffix))
 }
 
@@ -119,10 +116,10 @@ fn owned_record_store_carrier(
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
-        && module.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        }))
+        && module
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.id == structural_type && declaration.is_record_shape()))
     .then_some(structural_type)
 }
 
