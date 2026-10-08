@@ -90,15 +90,10 @@ impl ClosedIntegerEvaluator {
             }
             match term {
                 IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
-                IntegerMathTerm::Add(left, right)
-                | IntegerMathTerm::Subtract(left, right)
-                | IntegerMathTerm::Multiply(left, right)
-                | IntegerMathTerm::ShiftLeft {
-                    value: left,
-                    count: right,
-                } => {
-                    pending.push((right, depth + 1));
-                    pending.push((left, depth + 1));
+                term => {
+                    for operand in term.operands().into_iter().rev() {
+                        pending.push((operand, depth + 1));
+                    }
                 }
             }
         }

@@ -51,15 +51,10 @@ impl Proposition {
                 Pending::IntegerMath(term) => match term {
                     IntegerMathTerm::IntegerLiteral(_) => {}
                     IntegerMathTerm::MathValue { value, .. } => *value = map(*value),
-                    IntegerMathTerm::Add(left, right)
-                    | IntegerMathTerm::Subtract(left, right)
-                    | IntegerMathTerm::Multiply(left, right)
-                    | IntegerMathTerm::ShiftLeft {
-                        value: left,
-                        count: right,
-                    } => {
-                        pending.push(Pending::IntegerMath(right));
-                        pending.push(Pending::IntegerMath(left));
+                    term => {
+                        for operand in term.operands_mut().into_iter().rev() {
+                            pending.push(Pending::IntegerMath(operand));
+                        }
                     }
                 },
                 Pending::Scalar(term) => match term {

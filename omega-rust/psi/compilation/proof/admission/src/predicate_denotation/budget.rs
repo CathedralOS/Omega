@@ -101,18 +101,8 @@ impl Budget {
         depth: usize,
     ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
-        match value {
-            IntegerMathTerm::Add(left, right)
-            | IntegerMathTerm::Subtract(left, right)
-            | IntegerMathTerm::Multiply(left, right)
-            | IntegerMathTerm::ShiftLeft {
-                value: left,
-                count: right,
-            } => {
-                self.mathematical(left, depth + 1)?;
-                self.mathematical(right, depth + 1)?;
-            }
-            IntegerMathTerm::IntegerLiteral(_) | IntegerMathTerm::MathValue { .. } => {}
+        for operand in value.operands() {
+            self.mathematical(operand, depth + 1)?;
         }
         Ok(())
     }

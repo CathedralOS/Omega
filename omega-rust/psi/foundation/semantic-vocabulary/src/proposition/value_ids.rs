@@ -122,15 +122,10 @@ fn walk(
                         return (true, complete);
                     }
                 }
-                IntegerMathTerm::Add(left, right)
-                | IntegerMathTerm::Subtract(left, right)
-                | IntegerMathTerm::Multiply(left, right)
-                | IntegerMathTerm::ShiftLeft {
-                    value: left,
-                    count: right,
-                } => {
-                    pending.push(Pending::IntegerMath(right));
-                    pending.push(Pending::IntegerMath(left));
+                term => {
+                    for operand in term.operands().into_iter().rev() {
+                        pending.push(Pending::IntegerMath(operand));
+                    }
                 }
             },
             Pending::Scalar(term) => match term {

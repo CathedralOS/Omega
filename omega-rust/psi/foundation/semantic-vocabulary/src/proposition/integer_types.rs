@@ -881,6 +881,28 @@ pub enum IntegerMathTerm {
 }
 
 impl IntegerMathTerm {
+    /// The direct sub-term operands in authored order; leaves have none.
+    pub fn operands(&self) -> Vec<&IntegerMathTerm> {
+        match self {
+            Self::MathValue { .. } | Self::IntegerLiteral(_) => Vec::new(),
+            Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
+                vec![left.as_ref(), right.as_ref()]
+            }
+            Self::ShiftLeft { value, count } => vec![value.as_ref(), count.as_ref()],
+        }
+    }
+
+    /// [`Self::operands`] with mutable access.
+    pub fn operands_mut(&mut self) -> Vec<&mut IntegerMathTerm> {
+        match self {
+            Self::MathValue { .. } | Self::IntegerLiteral(_) => Vec::new(),
+            Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
+                vec![left.as_mut(), right.as_mut()]
+            }
+            Self::ShiftLeft { value, count } => vec![value.as_mut(), count.as_mut()],
+        }
+    }
+
     pub fn literal(value: IntegerValue) -> Self {
         Self::IntegerLiteral(IntegerMathLiteral::from_integer_value(value))
     }
