@@ -187,7 +187,6 @@ impl ProcessStaticServiceRegistry {
     ) -> Result<(), Box<ServiceRegistrationError>> {
         if let Err(diagnostic) = validate_candidate(&self.contract, &candidate) {
             return Err(Box::new(ServiceRegistrationError {
-                candidate,
                 diagnostic,
             }));
         }
@@ -195,7 +194,6 @@ impl ProcessStaticServiceRegistry {
             registration.registration_identity == candidate.registration_identity
         }) {
             return Err(Box::new(ServiceRegistrationError {
-                candidate,
                 diagnostic: "process-static service registration identity is already active".into(),
             }));
         }
@@ -224,7 +222,6 @@ impl ProcessStaticServiceRegistry {
                 }
             };
             return Err(Box::new(ServiceRegistrationError {
-                candidate,
                 diagnostic: diagnostic.into(),
             }));
         }
@@ -250,7 +247,6 @@ impl From<ServiceRegistrationCandidate> for ActiveServiceRegistration {
 
 #[derive(Debug)]
 pub struct ServiceRegistrationError {
-    candidate: ServiceRegistrationCandidate,
     diagnostic: String,
 }
 

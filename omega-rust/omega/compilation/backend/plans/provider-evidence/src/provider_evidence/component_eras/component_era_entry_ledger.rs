@@ -932,7 +932,6 @@ impl ProgramLocalRootEpochLeaseAcquisitionError {
 
 #[derive(Debug)]
 pub struct ProgramLocalRootEpochLeaseReleaseError {
-    lease: ProgramLocalRootEpochLease,
     rejection: ProgramLocalRootEpochLeaseReleaseRejection,
 }
 
