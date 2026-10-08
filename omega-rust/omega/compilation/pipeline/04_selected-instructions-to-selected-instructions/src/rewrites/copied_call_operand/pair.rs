@@ -44,6 +44,7 @@
 //! because the reroute changes only which virtual register each argument
 //! operand names, never what the call does.
 
+use crate::rewrites::operand_probes::{copy_alternative};
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -60,23 +61,6 @@ use crate::analyses::machine_effects::machine_semantic_kind;
 /// record carries — the operand-shape axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CopiedCallOperandShape {
-    /// The call's operand roster is the dense leading-`Use`-arguments,
-    /// trailing-`Def`-results shape the direct-call contract publishes:
-    /// operand numbers equal their positions, every operand pins its ABI
-    /// `fixed_view`, and no operand carries `tied_to` or `early_clobber`.
-    /// `results` names the result roster the consumer's semantic owns. The
-    /// producer's operand 1 `Def` names the destination register the
-    /// call's `Use` operands may read; the producer's operand 0 `Use`
-    /// names the referent source. The producer must be the destination's
-    /// last definition before the consumer in the same block, the source
-    /// must be a different register than the destination, at least one
-    /// `Use` operand must read the destination, and no instruction between
-    /// them may redefine the source: a rebound operand observes the
-    /// source's value at the call's position, which must be the value the
-    /// copy captured. The rewritten record rebinds every `Use` operand
-    /// reading the destination to the source register and carries
-    /// everything else — identity, kind, constraint row, operand order,
-    /// ABI views, implicit surfaces, provenance — verbatim.
     CopiedUseOperand { results: CallResultRoster },
 }
 
@@ -88,8 +72,6 @@ pub(super) enum CallResultRoster {
     Empty,
     /// Exactly one trailing `Def`: the scalar call's result.
     Scalar,
-    /// One or two trailing `Def` fragments — never zero operands overall:
-    /// the direct aggregate call's result roster.
     Aggregate,
 }
 
@@ -97,16 +79,6 @@ pub(super) enum CallResultRoster {
 /// unit-effects axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CopiedCallOperandUnitFlow {
-    /// The consumer and rewritten records carry the identical implicit
-    /// uses, implicit definitions, and caller-saved clobber roster — the
-    /// call's stack-pointer read, return-unit write, and register
-    /// preservation surface — and every operand binding carries verbatim:
-    /// the ABI `fixed_view` pins place each argument and result while no
-    /// `tied_to` or `early_clobber` decorates a call operand. The only
-    /// dataflow change is the operand registers the rebound positions
-    /// name. The producer is register-only: a `CopyI64` publishes no
-    /// implicit traffic and no operand binding, so a decorated or
-    /// unit-carrying copy cannot name this pair.
     CallSurfaceRetained,
 }
 
@@ -116,28 +88,6 @@ pub(super) enum CopiedCallOperandUnitFlow {
 /// cleanup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CopiedCallOperandEffects {
-    /// Stack lifecycle retention — the first declared axis admitting a
-    /// non-`UnchangedV1` stack effect. The rewritten form performs the
-    /// consumer's call unchanged, so its complete activation surface is
-    /// *retained*, not rewritten away: rebinding argument operands drops
-    /// only the copy's value forwarding, never the return-address
-    /// lifecycle the call itself performs.
-    ///
-    /// The consumer's declaration — which is also the rewritten form's,
-    /// the rewrite binding the same constraint row — carries `NoneV1`
-    /// memory and `NeverV1` trap at the declaration level (the lifecycle
-    /// lives on the encoded surface), the `Call` barrier, the
-    /// `InternalNormalReturnV1` call effect, and no cleanup. Every
-    /// encoded alternative restates the constraint row's read, write, and
-    /// implicit-unit roster exactly and carries `DirectRelativeCallV1`
-    /// control, the `MayArchitecturalFaultV1` surface the call retains,
-    /// and the target's stack contract: `WriteReturnAddressBelowStackPointerV1`
-    /// memory paired with `CallReturnAddressLifecycleV1` stack at matching
-    /// nonzero byte counts on a stack-pushing target, or `NoneV1` memory
-    /// paired with `UnchangedV1` stack where the link register holds the
-    /// return address. The retained `CopyI64` producer is fully
-    /// effect-isolated. A target whose copy or call rows encode anything
-    /// else cannot admit the pair.
     CallLifecycleRetained,
 }
 
@@ -398,17 +348,6 @@ fn isolated_copy(declaration: &MachineEffectDeclaration) -> bool {
 /// The encoded surface a copy alternative must carry: no memory access,
 /// unchanged stack, no trap surface, a plain fall-through, and no implicit
 /// unit traffic at all.
-fn copy_alternative(alternative: &MachineAlternative) -> bool {
-    let encoded = &alternative.encoded;
-    encoded.memory == MachineEncodedMemoryEffect::NoneV1
-        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
-        && encoded.control == MachineEncodedControlEffect::FallThroughV1
-        && encoded.implicit_unit_uses.is_empty()
-        && encoded.implicit_unit_defs.is_empty()
-        && encoded.implicit_unit_clobbers.is_empty()
-}
-
 /// The declared surface the call row — the consumer's and the rewritten
 /// form's alike — must carry: `NoneV1` memory and `NeverV1` trap at the
 /// declaration level, the `Call` barrier, the `InternalNormalReturnV1`

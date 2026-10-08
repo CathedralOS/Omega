@@ -93,6 +93,7 @@ mod dead_compare;
 mod fixed_view;
 mod literal_folds;
 mod load_forwarding;
+mod operand_probes;
 mod place_storage;
 mod pre_allocation;
 mod redundant_extension;

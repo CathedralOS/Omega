@@ -8,13 +8,14 @@
 //! decides the successor, whose unit-flow axis states the retired and
 //! preserved unit roles, and whose control-flow axis is checked against the
 //! bound machine-effect catalog.
+use crate::rewrites::operand_probes::{effect_declaration};
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
+    SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
     ValidatedMachineEffectCatalog,
 };
@@ -56,21 +57,6 @@ pub(super) struct Admission<'source> {
 
 /// The single catalog declaration for `semantic` bound to `constraint`, or
 /// none when the catalog does not declare exactly one such form.
-fn effect_declaration(
-    catalog: &ValidatedMachineEffectCatalog,
-    semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
-) -> Option<&MachineEffectDeclaration> {
-    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
-        declaration.semantic == semantic && declaration.constraint == constraint
-    });
-    let declaration = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(declaration)
-}
-
 /// Admit `branch` — the instruction a block's terminator carries — as a
 /// declared decided-branch pair.
 ///

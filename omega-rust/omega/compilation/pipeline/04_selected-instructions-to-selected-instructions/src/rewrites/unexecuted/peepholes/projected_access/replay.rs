@@ -11,6 +11,7 @@
 //! folded record, requires the proposal to equal it, and restores the
 //! complete source by content.
 
+use crate::rewrites::operand_probes::{effect_declaration,last_definition_before};
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -22,7 +23,6 @@ use selected_instructions::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, ValidatedMachineEffectCatalog,
-    VirtualRegisterId,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -326,18 +326,6 @@ pub fn validate_projected_access_fold(
 /// The instruction defining `register` at `position`: the last instruction
 /// in the block before it carrying a non-`Use` operand on that register —
 /// the replay's own last-definition scan.
-fn last_definition_before(
-    instructions: &[SelectedInstruction],
-    position: usize,
-    register: VirtualRegisterId,
-) -> Option<usize> {
-    instructions[..position].iter().rposition(|instruction| {
-        instruction.operands.iter().any(|operand| {
-            operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
-        })
-    })
-}
-
 /// The register-only unit surface, restated on one record: no implicit
 /// uses, definitions, or clobbers, and no operand unit bindings.
 fn register_only(instruction: &SelectedInstruction) -> bool {
@@ -431,21 +419,4 @@ fn access_alternative(
         && encoded.implicit_unit_uses.is_empty()
         && encoded.implicit_unit_defs.is_empty()
         && encoded.implicit_unit_clobbers.is_empty()
-}
-
-/// The single catalog declaration for `semantic` bound to `constraint`, or
-/// none when the catalog does not declare exactly one such form.
-fn effect_declaration(
-    catalog: &ValidatedMachineEffectCatalog,
-    semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
-) -> Option<&MachineEffectDeclaration> {
-    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
-        declaration.semantic == semantic && declaration.constraint == constraint
-    });
-    let declaration = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(declaration)
 }

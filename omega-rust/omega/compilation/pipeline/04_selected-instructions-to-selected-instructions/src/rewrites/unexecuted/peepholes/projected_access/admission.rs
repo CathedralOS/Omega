@@ -11,11 +11,12 @@
 //! whole-function work all charge into the caller's budget. The replay in
 //! `replay` re-derives all of it without the table.
 
+use crate::rewrites::operand_probes::{effect_declaration,last_definition_before};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedFunction, SelectedInstruction,
+    SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, ValidatedMachineEffectCatalog,
     VirtualRegisterId,
 };
@@ -47,18 +48,6 @@ pub(super) struct AdmittedPair<'source> {
 /// observes; edge and entry bindings can only reach it when no body
 /// instruction defines the register, in which case there is no in-block
 /// `AddressOffset` producer to fold.
-fn last_definition_before(
-    instructions: &[SelectedInstruction],
-    position: usize,
-    register: VirtualRegisterId,
-) -> Option<usize> {
-    instructions[..position].iter().rposition(|instruction| {
-        instruction.operands.iter().any(|operand| {
-            operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
-        })
-    })
-}
-
 /// Admit `access` — a body instruction in `function_index`'s function — as
 /// a projected-access pair under the descriptor table.
 ///
@@ -352,21 +341,4 @@ pub(super) fn rewritten(admitted: &AdmittedPair<'_>) -> SelectedInstruction {
     instruction.kind = admitted.kind;
     instruction.operands[0].virtual_register = admitted.base;
     instruction
-}
-
-/// The single catalog declaration for `semantic` bound to `constraint`, or
-/// none when the catalog does not declare exactly one such form.
-fn effect_declaration(
-    catalog: &ValidatedMachineEffectCatalog,
-    semantic: MachineSemanticKind,
-    constraint: register_model::RegisterConstraintKey,
-) -> Option<&MachineEffectDeclaration> {
-    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
-        declaration.semantic == semantic && declaration.constraint == constraint
-    });
-    let declaration = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(declaration)
 }
