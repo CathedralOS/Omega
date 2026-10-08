@@ -1,7 +1,9 @@
 use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRecoveryClassification,
-    PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
+    FunctionRecoveryClassification, PressureRecoveryClassification, RecoveryClassification,
+    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
+    RecoveryVictimRole, SpillChoiceIdentity, VirtualPointLegality,
+    VirtualRegisterAllocationLegality,
 };
 use selected_instructions::{
     BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan,
@@ -362,4 +364,35 @@ pub(crate) fn multiple_future_fixture() -> (
         operand: 0,
     });
     (selected, ranges, recovery, row)
+}
+
+/// The two-lane legality scaffold both exercise tests build: every virtual
+/// register point legal on both views, no early clobbers or transitions.
+pub(crate) fn two_lane_legality(
+    machine: MachineId,
+    function: &FunctionLiveRanges,
+) -> FunctionAllocationLegality {
+    FunctionAllocationLegality {
+        machine,
+        virtual_registers: function
+            .virtual_registers
+            .iter()
+            .map(|range| VirtualRegisterAllocationLegality {
+                virtual_register: range.virtual_register,
+                class: range.class,
+                points: range
+                    .fragments
+                    .iter()
+                    .flat_map(|fragment| fragment.start.0..fragment.end.0)
+                    .map(|point| VirtualPointLegality {
+                        block: SelectedBlockId(0),
+                        point: LiveRangePoint(point),
+                        candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                    })
+                    .collect(),
+                early_clobber_points: Vec::new(),
+                entry_transitions: Vec::new(),
+            })
+            .collect(),
+    }
 }

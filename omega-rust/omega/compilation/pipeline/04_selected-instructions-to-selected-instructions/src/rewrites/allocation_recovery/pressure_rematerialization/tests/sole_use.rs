@@ -11,6 +11,7 @@ use register_model::{RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    selected_instruction_plan_identity,
 };
 use semantic_vocabulary::{IntegerValue, ValueId};
 
@@ -122,28 +123,7 @@ pub fn exercise_single_use_rematerialization(
     );
 
     let physical = super::fixtures::two_lane_integer_model();
-    let legality = FunctionAllocationLegality {
-        machine: transformed_machine,
-        virtual_registers: post_ranges.plan().functions[0]
-            .virtual_registers
-            .iter()
-            .map(|range| VirtualRegisterAllocationLegality {
-                virtual_register: range.virtual_register,
-                class: range.class,
-                points: range
-                    .fragments
-                    .iter()
-                    .flat_map(|fragment| fragment.start.0..fragment.end.0)
-                    .map(|point| VirtualPointLegality {
-                        block: SelectedBlockId(0),
-                        point: LiveRangePoint(point),
-                        candidates: vec![RegisterViewId(0), RegisterViewId(1)],
-                    })
-                    .collect(),
-                early_clobber_points: Vec::new(),
-                entry_transitions: Vec::new(),
-            })
-            .collect(),
-    };
+    let legality =
+        super::fixtures::two_lane_legality(transformed_machine, &post_ranges.plan().functions[0]);
     check_assignment(&legality, &post_ranges.plan().functions[0], &physical);
 }
