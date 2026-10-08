@@ -32,6 +32,28 @@ struct ArgumentSources {
 /// argument reads its whole placement; a projected one is an exact borrowed or
 /// owned projection, a fixed-index element, a two-level fixed-index element, or
 /// a field path aligned inside the placement.
+/// The projected (path-carrying) and claim-transferred argument indexes one
+/// custody record settles.
+pub(crate) fn projected_and_transferred_argument_indexes(
+    custody: &machine_code::InternalUnitCallRecord,
+) -> (
+    std::collections::BTreeSet<usize>,
+    std::collections::BTreeSet<usize>,
+) {
+    let projected_argument_indexes = custody
+        .arguments
+        .iter()
+        .enumerate()
+        .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
+        .collect::<std::collections::BTreeSet<_>>();
+    let transferred_argument_indexes = custody
+        .claim_transfers
+        .iter()
+        .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
+        .collect::<std::collections::BTreeSet<_>>();
+    (projected_argument_indexes, transferred_argument_indexes)
+}
+
 /// Whether no residual cleanup action discards a path disjoint from this
 /// argument — the argument is left unsettled only while nothing accounts
 /// for it.

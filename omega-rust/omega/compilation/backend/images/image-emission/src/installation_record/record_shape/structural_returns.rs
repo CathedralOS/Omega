@@ -107,26 +107,9 @@ pub(super) fn validate_structural_returns(
                 .any(|(index, parameter)| {
                     usize::try_from(parameter.position) != Ok(index)
                 })
-            || returned.trivial_affine_discards
-                != returned
-                    .trivial_affine_locals
-                    .iter()
-                    .rev()
-                    .map(|(_, local, _)| local.id)
-                    .chain(
-                        returned
-                            .parameters
-                            .iter()
-                            .skip(1)
-                            .rev()
-                            .map(|parameter| parameter.place),
-                    )
-                    .collect::<Vec<_>>()
-            || returned
-                .parameters
-                .iter()
-                .skip(1)
-                .any(|parameter| parameter.multiplicity != StructuralMultiplicity::Affine)
+            || !crate::object_artifact::replay::structural::return_record::return_discards_and_parameters_are_exact(
+                returned,
+            )
             || expected_result != Some(&returned.result_placement)
             || structural_attribution.len() != returned.trivial_affine_locals.len() + 1
             || returned

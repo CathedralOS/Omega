@@ -46,6 +46,33 @@ pub(crate) fn has_claim_free_affine_identity_custody(returned: &StructuralReturn
 /// The scalar-parameter shapes and expected call plan one structural return
 /// evidence record must reproduce, or `None` when a parameter is not an
 /// ordinary scalar.
+/// Whether the evidence's discard order is the reverse of its local
+/// construction chain and every non-scalar parameter is affine.
+pub(crate) fn return_discards_and_parameters_are_exact(
+    returned: &StructuralReturnRecord,
+) -> bool {
+    returned.trivial_affine_discards
+        == returned
+            .trivial_affine_locals
+            .iter()
+            .rev()
+            .map(|(_, local, _)| local.id)
+            .chain(
+                returned
+                    .parameters
+                    .iter()
+                    .skip(1)
+                    .rev()
+                    .map(|parameter| parameter.place),
+            )
+            .collect::<Vec<_>>()
+        && returned
+            .parameters
+            .iter()
+            .skip(1)
+            .all(|parameter| parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine)
+}
+
 pub(crate) fn structural_return_call_plan(
     target: NativeTarget,
     returned: &StructuralReturnRecord,
@@ -201,26 +228,7 @@ pub(crate) fn validate_structural_return_record(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != returned.trivial_affine_locals.len()
-        || returned.trivial_affine_discards
-            != returned
-                .trivial_affine_locals
-                .iter()
-                .rev()
-                .map(|(_, local, _)| local.id)
-                .chain(
-                    returned
-                        .parameters
-                        .iter()
-                        .skip(1)
-                        .rev()
-                        .map(|parameter| parameter.place),
-                )
-                .collect::<Vec<_>>()
-        || returned
-            .parameters
-            .iter()
-            .skip(1)
-            .any(|parameter| parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine)
+        || !return_discards_and_parameters_are_exact(returned)
         || returned.parameter_placements.len() != returned.parameters.len()
         || expected_call_plan.parameters.len()
             != returned.scalar_parameters.len() + returned.parameter_placements.len()

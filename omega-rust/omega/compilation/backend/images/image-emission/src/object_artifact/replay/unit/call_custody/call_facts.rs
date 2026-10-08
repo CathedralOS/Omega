@@ -374,17 +374,8 @@ impl<'a> CallInputs<'a> {
             ..
         } = *stacks;
         let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
-        let projected_argument_indexes = custody
-            .arguments
-            .iter()
-            .enumerate()
-            .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
-            .collect::<std::collections::BTreeSet<_>>();
-        let transferred_argument_indexes = custody
-            .claim_transfers
-            .iter()
-            .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
-            .collect::<std::collections::BTreeSet<_>>();
+        let (projected_argument_indexes, transferred_argument_indexes) =
+            super::argument_custody::projected_and_transferred_argument_indexes(custody);
         let projected_result = crate::object_artifact::replay::structural::affine_projected_calls::exact_projected_affine_result(
         parameter_homes,
         internal_unit_calls,

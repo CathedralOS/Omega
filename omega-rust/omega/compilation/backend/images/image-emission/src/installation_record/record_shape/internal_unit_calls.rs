@@ -415,17 +415,10 @@ fn custody_facts<'a>(
     function_unit_calls: &'a [machine_code::InternalUnitCallRecord],
 ) -> Result<CustodyFacts<'a>, InstallationError> {
     let installed_machine = function.machine;
-    let projected_argument_indexes = custody
-        .arguments
-        .iter()
-        .enumerate()
-        .filter_map(|(index, argument)| (!argument.path.is_empty()).then_some(index))
-        .collect::<std::collections::BTreeSet<_>>();
-    let transferred_argument_indexes = custody
-        .claim_transfers
-        .iter()
-        .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
-        .collect::<std::collections::BTreeSet<_>>();
+    let (projected_argument_indexes, transferred_argument_indexes) =
+        crate::object_artifact::replay::unit::call_custody::argument_custody::projected_and_transferred_argument_indexes(
+            custody,
+        );
     let control_cleanup = match custody.owner {
         CallSiteOwner::CleanupAction { edge, .. } => function
             .scalar_control_affine_cleanups
