@@ -258,7 +258,6 @@ impl CheckedScalarExpression {
     /// The selected result carrier, independent of executable storage or
     /// target realization. An integer literal must already have a landing.
     pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
-        use numerics::literals::LandedIntegerType;
         use typed_trees::types::PrimitiveType;
         match self {
             Self::StructuralParameterByteLength { .. } => Some(PrimitiveType::U64),
