@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.35, "load1_start": 3.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 8.22, "load1_start": 7.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2180,6 +2180,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:ma
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 11704ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 1715ms check-target:macos_arm64 @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 2717ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/case_payload_shared_transition_exit checked 2612ms check-target:macos_arm64 @e8505b71528

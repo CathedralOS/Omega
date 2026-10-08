@@ -37,6 +37,7 @@ pass/borrow/runtime_indexed_write_only_local_receiver_exit built 1784ms exit:0 i
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrow/write_only_projected_state_receiver_exit built 1780ms exit:0 interpreter-exit:0 interpreter:agrees @8db36001d9fe+wt
+pass/borrows/borrowed_record_stack_parameter_writeback_exit built 1767ms exit:70 interpreter-exit:70 interpreter:agrees @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 2950ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/borrows/branch_selected_record_receiver_exit built 1765ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/borrows/case_payload_shared_transition_exit built 1499ms exit:70 interpreter-exit:70 interpreter:agrees @53e6e3215d6a
