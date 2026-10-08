@@ -78,9 +78,10 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-            parameter.place == place && parameter.access != StructuralAccess::Owned
-        }) {
+        if let Some(parameter) = machine
+            .signature_structural_parameter(place)
+            .filter(|parameter| parameter.access != StructuralAccess::Owned)
+        {
             if parameter.structural_type != owner.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !matches!(
