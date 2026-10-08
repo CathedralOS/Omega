@@ -416,22 +416,19 @@ pub(super) fn abstract_specification_place_type(
 
     fn named_data(
         program: &dyn crate::CheckingInput,
-        mut type_reference: TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
     ) -> Option<&typed_trees::data::DataDefinition> {
-        let (symbol, name) = loop {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => type_reference = *referee,
-                TypeReferenceNode::Named { symbol, name }
-                | TypeReferenceNode::Generic {
-                    base_symbol: symbol,
-                    base_name: name,
-                    ..
-                } => break (*symbol, name),
-                _ => return None,
-            }
+        let peeled = program
+            .type_reference_table
+            .peeled_type_reference(type_reference);
+        let (symbol, name) = match program.type_reference_table.type_reference(peeled) {
+            TypeReferenceNode::Named { symbol, name }
+            | TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                base_name: name,
+                ..
+            } => (*symbol, name),
+            _ => return None,
         };
         if symbol.is_valid() {
             return crate::declarations::data_queries::data_definition_by_symbol(program, symbol);

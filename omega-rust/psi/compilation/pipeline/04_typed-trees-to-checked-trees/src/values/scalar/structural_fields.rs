@@ -593,27 +593,24 @@ pub(super) fn runtime_index_element_type(
 
 pub(crate) fn structural_data(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    let (symbol, name) = loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, name }
-            | TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                base_name: name,
-                ..
-            } => {
-                if let Some(instance) = program.closed_data_definition(type_reference) {
-                    return Some(instance);
-                }
-                break (*symbol, name);
+    let peeled = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
+    let (symbol, name) = match program.type_reference_table.type_reference(peeled) {
+        TypeReferenceNode::Named { symbol, name }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            base_name: name,
+            ..
+        } => {
+            if let Some(instance) = program.closed_data_definition(peeled) {
+                return Some(instance);
             }
-            _ => return None,
+            (*symbol, name)
         }
+        _ => return None,
     };
     let symbol = if symbol.is_valid() {
         program
