@@ -215,29 +215,3 @@ pub fn state_scoped_name_symbol(
         })
 }
 
-/// The declared `Reference` type at the bottom of `type_reference`'s
-/// constraint shells, or `None` when the declared form is not a reference
-/// (or the table does not contain it). The loop is bounded by the table size
-/// so a cyclic constraint encoding cannot hang.
-pub(crate) fn peel_constraints_to_reference_declaring(
-    program: &dyn crate::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let mut reference = type_reference;
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type;
-            }
-            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
-            _ => return None,
-        }
-    }
-    Some(reference)
-}

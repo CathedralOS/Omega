@@ -19,7 +19,6 @@ mod checked_atomic_resident;
 mod placement_custody;
 mod plan_replay;
 pub use checked_atomic_resident::{
-    CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
     placed_atomic_observing_results,
 };
 

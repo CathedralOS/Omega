@@ -264,9 +264,6 @@ pub use value_custody::literals::{
     closed_literal_array_elements, closed_record_scalar_projection, is_closed_primitive_array_type,
     peel_arithmetic_policy, scalar_array_elements,
 };
-pub use value_custody::placed_views::{
-    CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
-};
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{
     declared_carriers_match, peel_declared_constraints, unwrapped_type_reference,
