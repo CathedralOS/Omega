@@ -21,9 +21,8 @@ pub(in crate::checks::borrows) fn resolve(
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     expression: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ResolvedAlias> {
-    let mut sources = resolve_all(program, facts, state, statement, expression, frames)?;
+    let mut sources = resolve_all(program, facts, state, statement, expression)?;
     (sources.len() == 1).then(|| sources.remove(0))
 }
 
@@ -35,11 +34,10 @@ pub(in crate::checks::borrows) fn resolve_all(
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     expression: ExpressionHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ResolvedAlias>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable => {
-            return resolve_all(program, facts, state, statement, borrow.target, frames);
+            return resolve_all(program, facts, state, statement, borrow.target);
         }
         ExpressionNode::Call(call) => {
             let mut resolved = Vec::new();
@@ -54,7 +52,7 @@ pub(in crate::checks::borrows) fn resolve_all(
                     return None;
                 }
                 let argument = *arguments.get(source.parameter_index)?;
-                for mut actual in resolve_all(program, facts, state, statement, argument, frames)? {
+                for mut actual in resolve_all(program, facts, state, statement, argument)? {
                     actual.place.segments.extend_from_slice(&projection);
                     if !resolved.iter().any(|previous: &ResolvedAlias| {
                         previous.place == actual.place && previous.lineage == actual.lineage
@@ -139,14 +137,7 @@ pub(in crate::checks::borrows) fn resolve_all(
                 .span_or_empty(state.statements)
                 .iter()
                 .find(|previous| previous.statement_index == loan.statement_index)?;
-            resolve_all(
-                program,
-                facts,
-                state,
-                formation,
-                local.initial_value,
-                frames,
-            )
+            resolve_all(program, facts, state, formation, local.initial_value)
         })();
         let mut lineage = vec![candidate.local_loan];
         if let Some(supplying) = supplying {

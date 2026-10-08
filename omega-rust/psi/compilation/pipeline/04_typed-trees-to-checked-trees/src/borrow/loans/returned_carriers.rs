@@ -96,7 +96,7 @@ fn completed_field_sources(
             })
             .nth(parameter_index as usize)?;
 
-        let parameter_index = parameters[..position].iter().count();
+        let parameter_index = position;
         let owner_path = owner_segments(loan_place_segments(
             program,
             state.return_type,

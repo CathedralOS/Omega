@@ -28,17 +28,10 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     later_operand: typed_trees::expression::ExpressionHandle,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let Some(receiver) = access_sources::resolve(
-        program,
-        facts,
-        state_flow,
-        statement,
-        expression,
-        call_frames,
-    ) else {
+    let Some(receiver) = access_sources::resolve(program, facts, state_flow, statement, expression)
+    else {
         diagnostics.push(Diagnostic::error(
             "exclusive operation requires an exact receiver source and available loan authority",
         ));

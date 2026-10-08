@@ -22,7 +22,6 @@ pub(super) fn check_storage_move<'program>(
     path: &[facts::PlaceSegment],
     active_loans: impl Iterator<Item = arena::Handle<checked_trees::BorrowLoanFact>>,
     premises: &[StatedOrderingPremise],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'program>>,
 ) {
@@ -57,14 +56,7 @@ pub(super) fn check_storage_move<'program>(
         // exclusion does not certify that extraction's source authority.
         // Do not infer such authority from matching storage candidates or a
         // fallback authored path. Independent Terminal custody still checks it.
-        super::access_sources::resolve(
-            program,
-            facts,
-            state,
-            statement,
-            event.expression,
-            call_frames,
-        )
+        super::access_sources::resolve(program, facts, state, statement, event.expression)
     };
     let Some(resolved) = resolved else {
         diagnostics.push(Diagnostic::error(

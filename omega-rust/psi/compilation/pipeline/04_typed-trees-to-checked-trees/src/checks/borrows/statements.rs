@@ -85,7 +85,6 @@ pub(super) fn check_statement_borrows<'p>(
                 binding.implementation_operand,
                 stated_premises,
                 diagnostics,
-                call_frames,
                 bound_lookup,
             );
         }
@@ -100,7 +99,6 @@ pub(super) fn check_statement_borrows<'p>(
                 state_flow,
                 statement,
                 loan.formation_expression,
-                call_frames,
             );
             for active_loan_handle in facts
                 .flow
@@ -216,7 +214,6 @@ pub(super) fn check_statement_borrows<'p>(
                         move_segments.span_or_empty(event.segments),
                         active,
                         stated_premises,
-                        call_frames,
                         diagnostics,
                         bound_lookup,
                     );
@@ -261,7 +258,6 @@ pub(super) fn check_statement_borrows<'p>(
                 state_flow,
                 statement,
                 assignment.target,
-                call_frames,
             )
         };
         let Some(destinations) = destinations else {
