@@ -2784,9 +2784,12 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
   still repeats `bind_selected_operator_calls` (3 + N runs),
-  `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
-  (2) and `land_float_literal_destinations` (2–3). The loop must specialize
-  and bind only; run each remaining pass once at its required point.
+  `normalize_open_index_identities` (2 + N) and `resolve_projected_receiver_calls`
+  (2). Pending constant evaluation also stamps float destinations in the Build
+  and product coordinators; move that work into private typed preparation.
+  The loop must specialize and bind only; run each remaining pass once at its
+  required point. Retire receiver elaboration with **STATIC-MACHINE-MIGRATION**,
+  not a new subsystem for the retired implicit-call syntax.
   Immutable checking owns authored argument/callable formation, tuple bounds,
   completed effects and template commitments, not the derivation loop. Private
   compile-time graphs admit once before execution. Coordinate with

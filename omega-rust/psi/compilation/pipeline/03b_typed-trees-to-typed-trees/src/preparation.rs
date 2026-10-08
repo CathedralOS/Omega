@@ -144,10 +144,10 @@ pub fn prepare_typed_trees(
     selections::retain_static_argument_contexts(&mut program);
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
-    // PDI3 operation/algebra authority is part of the authored generic
-    // contract, so bind it before specialization captures the universal
-    // template fingerprint. Normalize again afterward to cover cloned
-    // expression handles and concrete substitutions.
+    // Indexed-domain identities participate in static tuple selection. Bind
+    // their operation/algebra authority before deriving instances; each round
+    // refreshes identities for newly copied expressions and substitutions.
+    // Immutable checking, not this derivation, commits template contracts.
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     normalize_open_index_identities(&mut program)?;
@@ -174,9 +174,12 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
-    specialize_machine_calls(&mut program, true)?;
-    normalize_open_index_identities(&mut program)?;
     loop {
+        // Close ordinary calls before discovering boundary demands. A bound
+        // token or generated candidate can expose another ordinary application,
+        // so all rounds return through this same specialization entrypoint.
+        specialize_machine_calls(&mut program, true)?;
+        normalize_open_index_identities(&mut program)?;
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
                 templates,
@@ -193,16 +196,7 @@ pub fn prepare_typed_trees(
         if materialized == 0 {
             break;
         }
-        // Generated bodies add demands to the same derivation loop. Neither
-        // this round nor an inner round admits the whole source roster.
-        specialize_machine_calls(&mut program, true)?;
-        normalize_open_index_identities(&mut program)?;
     }
-    // F2b: unsuffixed float literals at declared f32/f64 destinations land
-    // their format on the text carrier HERE, while the tree is still mutable
-    // and before both engines fork off it -- every downstream read (native
-    // and interpreter) then rounds once from the spelling.
-    validation::land_float_literal_destinations(&mut program);
     // Calls through a `Binding<R>` service receiver cannot be resolved during
     // the earlier symbol pass because local declared types are not available
     // there. Bind their declaring-trait requirement now so the ordinary
@@ -227,13 +221,13 @@ pub fn prepare_typed_trees(
     // specialization and call-identity rebinding above, so validation and
     // every executing consumer see the same call edge a named call would make.
     crate::operators::bind_selected_operator_calls(&mut program)?;
-    // Early landing supports operand-driven selection, but provisional named
-    // targets need not expose their final formal types yet. Result-overload
-    // rebinding and conversion elaboration above can also introduce call
-    // destinations. Finish landing against those exact selected signatures
-    // before scalar plans or either evaluator consumes the frozen program.
-    // Already-landed literals retain their format; this is not a default-f64
-    // fallback or permission to reinterpret a typed argument.
+    // Land anonymous float values once, against final destinations. Provisional
+    // named targets are not authority to round an argument: overload rebinding
+    // and conversion elaboration above settle the exact formal types first.
+    // Readonly type queries leave anonymous values without a carrier until
+    // their destination is known; no provisional default-f64 landing is needed.
+    // Both execution engines consume this same rounded tree. Source-suffixed
+    // literals keep their declared format and its agreement checks.
     validation::land_float_literal_destinations(&mut program);
     default_domain_zero::refine_default_domain_zero(&mut program);
     // Every selection and selector call is now final: instantiate each
@@ -251,9 +245,9 @@ pub fn prepare_typed_trees(
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
-/// indexed-domain semantic ID. Orchestration calls this before typed
-/// snapshots and trust receipts; checked lowering calls it before capturing
-/// generic template fingerprints and again after specialization.
+/// indexed-domain semantic ID. Static tuple derivation consumes these identities;
+/// cloned expressions and substituted arguments require a refresh before the
+/// next round. Template commitments belong to the following immutable check.
 fn normalize_open_index_identities(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
