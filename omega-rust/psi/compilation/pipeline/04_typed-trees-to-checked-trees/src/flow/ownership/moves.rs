@@ -17,6 +17,10 @@ pub(super) mod observations;
 /// Select the consumed value without confusing a loan descriptor with its
 /// referent. Context only unwraps a reference when the admitted operand names
 /// the exact declared referent type; it cannot supply an unrelated result type.
+/// A byte view or `[T]` view is its own descriptor storage, never a pointer to
+/// a referent the operand could consume: storing one into a view-typed place
+/// (`slot.out = text`) copies the descriptor even though the assignment's
+/// expected type is the place's referent (`assignment_value_type`).
 fn consumed_value_type(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
@@ -27,6 +31,7 @@ fn consumed_value_type(
     let actual =
         validation::expression_type_reference_in_state(program, state, statement, expression)?;
     if expected.is_valid()
+        && validation::stores_reference_shape(program, actual, &[])
         && let Some(shell) = validation::reference_shell(program, actual)
         && program.normalized_type_identity(shell.referee)
             == program.normalized_type_identity(expected)
