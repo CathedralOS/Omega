@@ -4,7 +4,7 @@
 //! structural field paths, and decode-time constructor validation. Scalar
 //! primitive encodings remain in the sibling scalar wire module.
 
-use semantic_vocabulary::ScalarTerm;
+use semantic_vocabulary::{IntegerType, PropositionError, ScalarTerm};
 
 use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
@@ -109,228 +109,115 @@ pub(crate) fn encode_scalar_term(
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(12);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 12, *scalar_type, left, right, depth)?,
         ScalarTerm::IntegerLessThan {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(13);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 13, *scalar_type, left, right, depth)?,
         ScalarTerm::IntegerLessOrEqual {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(14);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 14, *scalar_type, left, right, depth)?,
         ScalarTerm::IntegerBitwiseNot {
             scalar_type,
             operand,
-        } => {
-            writer.u8(20);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, operand, depth + 1)?;
-        }
+        } => encode_typed_unary_term(writer, 20, *scalar_type, operand, depth)?,
         ScalarTerm::IntegerWiden {
             source_type,
             target_type,
             operand,
-        } => {
-            writer.u8(21);
-            encode_integer_type(writer, *source_type);
-            encode_integer_type(writer, *target_type);
-            encode_scalar_term(writer, operand, depth + 1)?;
-        }
+        } => encode_cast_term(writer, 21, *source_type, *target_type, operand, depth)?,
         ScalarTerm::IntegerExactCast {
             source_type,
             target_type,
             operand,
-        } => {
-            writer.u8(22);
-            encode_integer_type(writer, *source_type);
-            encode_integer_type(writer, *target_type);
-            encode_scalar_term(writer, operand, depth + 1)?;
-        }
+        } => encode_cast_term(writer, 22, *source_type, *target_type, operand, depth)?,
         ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(15);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 15, *scalar_type, left, right, depth)?,
         ScalarTerm::IntegerBitwiseOr {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(16);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 16, *scalar_type, left, right, depth)?,
         ScalarTerm::IntegerBitwiseXor {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(17);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 17, *scalar_type, left, right, depth)?,
         ScalarTerm::WrappingIntegerShiftLeft {
             value_type,
             count_type,
             value,
             count,
-        } => {
-            writer.u8(18);
-            encode_integer_type(writer, *value_type);
-            encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1)?;
-            encode_scalar_term(writer, count, depth + 1)?;
-        }
+        } => encode_shift_term(writer, 18, *value_type, *count_type, value, count, depth)?,
         ScalarTerm::WrappingIntegerShiftRight {
             value_type,
             count_type,
             value,
             count,
-        } => {
-            writer.u8(19);
-            encode_integer_type(writer, *value_type);
-            encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1)?;
-            encode_scalar_term(writer, count, depth + 1)?;
-        }
+        } => encode_shift_term(writer, 19, *value_type, *count_type, value, count, depth)?,
         ScalarTerm::ExactIntegerShiftRight {
             value_type,
             count_type,
             value,
             count,
-        } => {
-            writer.u8(23);
-            encode_integer_type(writer, *value_type);
-            encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1)?;
-            encode_scalar_term(writer, count, depth + 1)?;
-        }
+        } => encode_shift_term(writer, 23, *value_type, *count_type, value, count, depth)?,
         ScalarTerm::ExactIntegerShiftLeft {
             value_type,
             count_type,
             value,
             count,
-        } => {
-            writer.u8(24);
-            encode_integer_type(writer, *value_type);
-            encode_integer_type(writer, *count_type);
-            encode_scalar_term(writer, value, depth + 1)?;
-            encode_scalar_term(writer, count, depth + 1)?;
-        }
+        } => encode_shift_term(writer, 24, *value_type, *count_type, value, count, depth)?,
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(25);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 25, *scalar_type, left, right, depth)?,
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(26);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 26, *scalar_type, left, right, depth)?,
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(27);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 27, *scalar_type, left, right, depth)?,
         ScalarTerm::ExactIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(28);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 28, *scalar_type, left, right, depth)?,
         ScalarTerm::ExactIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(29);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 29, *scalar_type, left, right, depth)?,
         ScalarTerm::WrappingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(30);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 30, *scalar_type, left, right, depth)?,
         ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(31);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 31, *scalar_type, left, right, depth)?,
         ScalarTerm::SaturatingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(32);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 32, *scalar_type, left, right, depth)?,
         ScalarTerm::SaturatingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(33);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 33, *scalar_type, left, right, depth)?,
         ScalarTerm::Integer { scalar_type, value } => {
             writer.u8(3);
             encode_integer_type(writer, *scalar_type);
@@ -340,62 +227,32 @@ pub(crate) fn encode_scalar_term(
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(4);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 4, *scalar_type, left, right, depth)?,
         ScalarTerm::SaturatingIntegerAdd {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(5);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 5, *scalar_type, left, right, depth)?,
         ScalarTerm::WrappingIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(6);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 6, *scalar_type, left, right, depth)?,
         ScalarTerm::SaturatingIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(7);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 7, *scalar_type, left, right, depth)?,
         ScalarTerm::WrappingIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(8);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 8, *scalar_type, left, right, depth)?,
         ScalarTerm::SaturatingIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => {
-            writer.u8(9);
-            encode_integer_type(writer, *scalar_type);
-            encode_scalar_term(writer, left, depth + 1)?;
-            encode_scalar_term(writer, right, depth + 1)?;
-        }
+        } => encode_typed_binary_term(writer, 9, *scalar_type, left, right, depth)?,
     }
     Ok(())
 }
@@ -407,6 +264,101 @@ pub(crate) fn decode_scalar_terms(reader: &mut Reader<'_>) -> Result<Vec<ScalarT
         terms.push(decode_scalar_term(reader, 0)?);
     }
     Ok(terms)
+}
+
+fn encode_typed_binary_term(
+    writer: &mut Writer,
+    tag: u8,
+    scalar_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    writer.u8(tag);
+    encode_integer_type(writer, scalar_type);
+    encode_scalar_term(writer, left, depth + 1)?;
+    encode_scalar_term(writer, right, depth + 1)
+}
+
+fn encode_typed_unary_term(
+    writer: &mut Writer,
+    tag: u8,
+    scalar_type: IntegerType,
+    operand: &ScalarTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    writer.u8(tag);
+    encode_integer_type(writer, scalar_type);
+    encode_scalar_term(writer, operand, depth + 1)
+}
+
+fn encode_shift_term(
+    writer: &mut Writer,
+    tag: u8,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: &ScalarTerm,
+    count: &ScalarTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    writer.u8(tag);
+    encode_integer_type(writer, value_type);
+    encode_integer_type(writer, count_type);
+    encode_scalar_term(writer, value, depth + 1)?;
+    encode_scalar_term(writer, count, depth + 1)
+}
+
+fn encode_cast_term(
+    writer: &mut Writer,
+    tag: u8,
+    source_type: IntegerType,
+    target_type: IntegerType,
+    operand: &ScalarTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    writer.u8(tag);
+    encode_integer_type(writer, source_type);
+    encode_integer_type(writer, target_type);
+    encode_scalar_term(writer, operand, depth + 1)
+}
+
+fn decode_typed_binary_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    constructor: fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>,
+) -> Result<ScalarTerm, CodecError> {
+    let scalar_type = decode_integer_type(reader)?;
+    let left = decode_scalar_term(reader, depth + 1)?;
+    let right = decode_scalar_term(reader, depth + 1)?;
+    constructor(scalar_type, left, right).map_err(CodecError::MalformedProposition)
+}
+
+fn decode_shift_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    constructor: fn(
+        IntegerType,
+        IntegerType,
+        ScalarTerm,
+        ScalarTerm,
+    ) -> Result<ScalarTerm, PropositionError>,
+) -> Result<ScalarTerm, CodecError> {
+    let value_type = decode_integer_type(reader)?;
+    let count_type = decode_integer_type(reader)?;
+    let value = decode_scalar_term(reader, depth + 1)?;
+    let count = decode_scalar_term(reader, depth + 1)?;
+    constructor(value_type, count_type, value, count).map_err(CodecError::MalformedProposition)
+}
+
+fn decode_cast_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    constructor: fn(IntegerType, IntegerType, ScalarTerm) -> Result<ScalarTerm, PropositionError>,
+) -> Result<ScalarTerm, CodecError> {
+    let source_type = decode_integer_type(reader)?;
+    let target_type = decode_integer_type(reader)?;
+    let operand = decode_scalar_term(reader, depth + 1)?;
+    constructor(source_type, target_type, operand).map_err(CodecError::MalformedProposition)
 }
 
 pub(crate) fn decode_scalar_term(
@@ -424,48 +376,12 @@ pub(crate) fn decode_scalar_term(
             let value = decode_integer_value(reader)?;
             ScalarTerm::integer(scalar_type, value).map_err(CodecError::MalformedProposition)?
         }
-        4 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_add(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        5 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::saturating_integer_add(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        6 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_subtract(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        7 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::saturating_integer_subtract(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        8 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_multiply(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        9 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::saturating_integer_multiply(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
+        4 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_add)?,
+        5 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_add)?,
+        6 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_subtract)?,
+        7 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_subtract)?,
+        8 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_multiply)?,
+        9 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_multiply)?,
         10 => ScalarTerm::boolean_not(decode_scalar_term(reader, depth + 1)?)
             .map_err(CodecError::MalformedProposition)?,
         11 => {
@@ -473,163 +389,33 @@ pub(crate) fn decode_scalar_term(
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::boolean_equal(left, right).map_err(CodecError::MalformedProposition)?
         }
-        12 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_equal(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        13 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_less_than(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        14 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_less_or_equal(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        15 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_bitwise_and(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        16 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_bitwise_or(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        17 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_bitwise_xor(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        18 => {
-            let value_type = decode_integer_type(reader)?;
-            let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1)?;
-            let count = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_shift_left(value_type, count_type, value, count)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        19 => {
-            let value_type = decode_integer_type(reader)?;
-            let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1)?;
-            let count = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_shift_right(value_type, count_type, value, count)
-                .map_err(CodecError::MalformedProposition)?
-        }
+        12 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_equal)?,
+        13 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_less_than)?,
+        14 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_less_or_equal)?,
+        15 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_and)?,
+        16 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_or)?,
+        17 => decode_typed_binary_term(reader, depth, ScalarTerm::integer_bitwise_xor)?,
+        18 => decode_shift_term(reader, depth, ScalarTerm::wrapping_integer_shift_left)?,
+        19 => decode_shift_term(reader, depth, ScalarTerm::wrapping_integer_shift_right)?,
         20 => {
             let scalar_type = decode_integer_type(reader)?;
             let operand = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::integer_bitwise_not(scalar_type, operand)
                 .map_err(CodecError::MalformedProposition)?
         }
-        21 => {
-            let source_type = decode_integer_type(reader)?;
-            let target_type = decode_integer_type(reader)?;
-            let operand = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_widen(source_type, target_type, operand)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        22 => {
-            let source_type = decode_integer_type(reader)?;
-            let target_type = decode_integer_type(reader)?;
-            let operand = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::integer_exact_cast(source_type, target_type, operand)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        23 => {
-            let value_type = decode_integer_type(reader)?;
-            let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1)?;
-            let count = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_shift_right(value_type, count_type, value, count)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        24 => {
-            let value_type = decode_integer_type(reader)?;
-            let count_type = decode_integer_type(reader)?;
-            let value = decode_scalar_term(reader, depth + 1)?;
-            let count = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        25 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_add(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        26 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_subtract(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        27 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_multiply(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        28 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_divide(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        29 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::exact_integer_remainder(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        30 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_divide(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        31 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::wrapping_integer_remainder(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        32 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::saturating_integer_divide(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
-        33 => {
-            let scalar_type = decode_integer_type(reader)?;
-            let left = decode_scalar_term(reader, depth + 1)?;
-            let right = decode_scalar_term(reader, depth + 1)?;
-            ScalarTerm::saturating_integer_remainder(scalar_type, left, right)
-                .map_err(CodecError::MalformedProposition)?
-        }
+        21 => decode_cast_term(reader, depth, ScalarTerm::integer_widen)?,
+        22 => decode_cast_term(reader, depth, ScalarTerm::integer_exact_cast)?,
+        23 => decode_shift_term(reader, depth, ScalarTerm::exact_integer_shift_right)?,
+        24 => decode_shift_term(reader, depth, ScalarTerm::exact_integer_shift_left)?,
+        25 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_add)?,
+        26 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_subtract)?,
+        27 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_multiply)?,
+        28 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_divide)?,
+        29 => decode_typed_binary_term(reader, depth, ScalarTerm::exact_integer_remainder)?,
+        30 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_divide)?,
+        31 => decode_typed_binary_term(reader, depth, ScalarTerm::wrapping_integer_remainder)?,
+        32 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_divide)?,
+        33 => decode_typed_binary_term(reader, depth, ScalarTerm::saturating_integer_remainder)?,
         34 => {
             let (root, path) = decode_canonical_structural_field(reader)?;
             ScalarTerm::boolean_field_path(root, path)
