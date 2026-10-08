@@ -1,0 +1,150 @@
+// A 440 Hz sine wave rendered as a canonical 8-bit WAV file: one fixed
+// [u8; 8044] buffer holds the 44-byte RIFF header followed by 8000 unsigned
+// PCM samples, written once through the raw PosixFilesystemHost seam
+// (create + write + close) to a CWD-relative path — the portable `Filesystem`
+// adapter has no realized provider on this toolchain yet, so this sample
+// targets POSIX hosts like the filesystem canaries do. The oscillator is a 16.16 fixed-point phase accumulator
+// (increment 115343 = 440*32*65536/8000) stepping through a 32-entry
+// one-cycle table centered on 128 with amplitude 100; the table is a
+// value-position match on the wrapped index, so no dynamic array subscript
+// needs a bounds proof.
+// Expected exit: 0 on a successful write, 1 on UnitResult::Error.
+
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    fs: Binding<PosixFilesystemHost>;
+    exit: Binding<ProcessExit>;
+    fd: i32;
+    rc: i32;
+    n: i64;
+    buffer: [u8; 8044];
+    i: i32 in Wrapping;        // sample index 0..8000
+    phase: u32 in Wrapping;    // 16.16 fixed-point phase
+    top: u32 in Wrapping;      // phase / 65536
+    index: u32 in Wrapping;    // top % 32
+    byte: u8;
+}
+
+machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost + ProcessExit {
+    main.console.write_line("sine_tone: 440 Hz sine wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
+
+    // Canonical 44-byte WAV header, little-endian fields.
+    main.buffer[0] = 82;  // R
+    main.buffer[1] = 73;  // I
+    main.buffer[2] = 70;  // F
+    main.buffer[3] = 70;  // F
+    main.buffer[4] = 100; // 36 + 8000 = 8036 little-endian
+    main.buffer[5] = 31;
+    main.buffer[6] = 0;
+    main.buffer[7] = 0;
+    main.buffer[8] = 87;  // W
+    main.buffer[9] = 65;  // A
+    main.buffer[10] = 86; // V
+    main.buffer[11] = 69; // E
+    main.buffer[12] = 102; // f
+    main.buffer[13] = 109; // m
+    main.buffer[14] = 116; // t
+    main.buffer[15] = 32;  // <space>
+    main.buffer[16] = 16; // fmt chunk size 16
+    main.buffer[17] = 0;
+    main.buffer[18] = 0;
+    main.buffer[19] = 0;
+    main.buffer[20] = 1;  // PCM format
+    main.buffer[21] = 0;
+    main.buffer[22] = 1;  // mono
+    main.buffer[23] = 0;
+    main.buffer[24] = 64; // sample rate 8000 little-endian
+    main.buffer[25] = 31;
+    main.buffer[26] = 0;
+    main.buffer[27] = 0;
+    main.buffer[28] = 64; // byte rate 8000 (mono 8-bit)
+    main.buffer[29] = 31;
+    main.buffer[30] = 0;
+    main.buffer[31] = 0;
+    main.buffer[32] = 1;  // block align
+    main.buffer[33] = 0;
+    main.buffer[34] = 8;  // bits per sample
+    main.buffer[35] = 0;
+    main.buffer[36] = 100; // d
+    main.buffer[37] = 97;  // a
+    main.buffer[38] = 116; // t
+    main.buffer[39] = 97;  // a
+    main.buffer[40] = 64; // data size 8000 little-endian
+    main.buffer[41] = 31;
+    main.buffer[42] = 0;
+    main.buffer[43] = 0;
+
+    main.i = 0;
+    main.phase = 0;
+    transition { _ -> fill(main) }
+
+    state fill(main: &mut Main) {
+        transition main.i >= 0 && main.i < 8000 { true -> sample(main) _ -> write_file(main) }
+    }
+    state sample(main: &mut Main) {
+        main.phase = main.phase + 115343;
+        main.top = main.phase / 65536;
+        main.index = main.top % 32;
+        main.byte = match main.index {
+            0 -> 128
+            1 -> 148
+            2 -> 167
+            3 -> 185
+            4 -> 199
+            5 -> 211
+            6 -> 220
+            7 -> 225
+            8 -> 228
+            9 -> 225
+            10 -> 220
+            11 -> 211
+            12 -> 199
+            13 -> 185
+            14 -> 167
+            15 -> 148
+            16 -> 128
+            17 -> 108
+            18 -> 89
+            19 -> 71
+            20 -> 57
+            21 -> 45
+            22 -> 36
+            23 -> 31
+            24 -> 28
+            25 -> 31
+            26 -> 36
+            27 -> 45
+            28 -> 57
+            29 -> 71
+            30 -> 89
+            _ -> 108
+        };
+        main.buffer[main.i + 44] = main.byte;
+        main.i = main.i + 1;
+        transition { _ -> fill(main) }
+    }
+
+    state write_file(main: &mut Main) {
+        main.fd = main.fs.create("sine_tone.wav", 420); // 0o644
+        transition main.fd >= 0 { true -> write_bytes(main) _ -> bad(main) }
+    }
+    state write_bytes(main: &mut Main) {
+        main.n = main.fs.write(main.fd, &main.buffer);
+        main.rc = main.fs.close(main.fd);
+        transition main.n == 8044 { true -> good(main) _ -> bad(main) }
+    }
+    state good(main: &mut Main) {
+        main.console.write_line("sine_tone: wrote sine_tone.wav (8000 frames)");
+        main.exit.exit_process(0);
+    }
+    state bad(main: &mut Main) {
+        main.console.write_line("sine_tone: write failed");
+        main.exit.exit_process(1);
+    }
+}

@@ -64,6 +64,7 @@ CLI subdomains:
 - `cli/simulation/`: evolving state systems and time-ish models.
 - `cli/games/`: interactive game or game-adjacent flows.
 - `cli/rendering/`: terminal and pixel-style visual output.
+- `cli/audio/`: audio synthesis written as WAV files through the Filesystem boundary.
 - `cli/systems/`: host-ish, protocol, logging, task, ledger, and atomic samples.
 - `cli/proofs/`: proof/domain-surface samples.
 - `cli/probes/`: compact compiler/runtime behavior probes.

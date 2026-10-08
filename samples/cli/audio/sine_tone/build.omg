@@ -1,0 +1,12 @@
+// sine_tone build manifest.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "sine_tone");
+    Build::depend(builder, Source::Path {
+        location: "../../../../source/library/std"
+    });
+    // PosixFilesystemHost has no Windows provider; hosted entries only.
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}
