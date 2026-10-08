@@ -57,10 +57,7 @@ pub fn primitive_local_source(
         }
         _ => (borrow.target, false),
     };
-    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, target)
-    else {
-        return None;
-    };
+    let symbol = crate::expression_traversal::single_segment_name_symbol(program, target)?;
     let (source, storage) = if let Some((index, parameter)) = program
         .state_parameters(state)
         .iter()

@@ -18,8 +18,7 @@ pub fn adopt_owned_stable(
     admission: OwnedPlacementAdmission,
     content: ProviderExistingContentGrant,
 ) -> Result<DormantOwnedResident, OwnedStableAdoptionError> {
-    let diagnostic = validate_owned_stable_adoption(&admission, &content);
-    if let Err(diagnostic) = diagnostic {
+    if let Err(diagnostic) = validate_owned_stable_adoption(&admission, &content) {
         return Err(OwnedStableAdoptionError {
             admission,
             content,

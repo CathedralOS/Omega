@@ -73,12 +73,10 @@ pub(crate) fn validate_normalized_const_argument(
         }
         _ => false,
     };
-    if matches {
-        Ok(())
-    } else {
-        Err(Diagnostic::error(
+    matches.then_some(()).ok_or_else(|| {
+        Diagnostic::error(
             "normalized constant argument value drifted from its retained canonical result",
         )
-        .with_source_span(normalization.reference))
-    }
+        .with_source_span(normalization.reference)
+    })
 }

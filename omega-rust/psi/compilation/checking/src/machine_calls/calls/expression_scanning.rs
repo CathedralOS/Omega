@@ -700,8 +700,6 @@ fn validate_expression_call_bounds(
         call,
         diagnostics,
     );
-
-    let _ = writable_roots;
 }
 
 fn validate_named_float_to_integer_call(

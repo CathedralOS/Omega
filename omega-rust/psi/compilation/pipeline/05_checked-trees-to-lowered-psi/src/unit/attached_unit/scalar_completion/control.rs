@@ -6,8 +6,7 @@ use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::CheckedScalarBranchDestination;
 
 /// The ordered guarded exits of a returning scalar tail, as stage 04 planned
-/// them. Every arm and the fallback return a value; an ordered roster that
-/// transfers or crashes has no route through the scalar completion.
+/// them. Every arm and the fallback return a value.
 pub(crate) fn returning_exits<'checked>(
     checked: &'checked CheckedTrees,
     arms: arena::HandleSpan<checked_trees::CheckedScalarGuardedExit>,

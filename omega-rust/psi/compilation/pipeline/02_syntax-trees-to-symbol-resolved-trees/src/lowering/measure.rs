@@ -17,15 +17,11 @@ pub(crate) fn lower_measure_definition(
 ) -> Result<MeasureDefinition, Diagnostic> {
     let name = lower_operator_path_name(lowerer, syntax_trees, measure.name);
 
-    let parameter = if measure.parameter.is_valid() {
-        Some(lower_state_parameter(
-            lowerer,
-            syntax_trees,
-            measure.parameter,
-        )?)
-    } else {
-        None
-    };
+    let parameter = measure
+        .parameter
+        .is_valid()
+        .then(|| lower_state_parameter(lowerer, syntax_trees, measure.parameter))
+        .transpose()?;
 
     let return_type = measure
         .return_type

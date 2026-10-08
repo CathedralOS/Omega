@@ -20,14 +20,13 @@ pub(super) fn validate_result_use(
     return_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if call.discards_result || !return_type.is_valid() {
-        return;
-    }
-
-    if matches!(
-        program.type_reference_table.type_reference(return_type),
-        TypeReferenceNode::Unit
-    ) {
+    if call.discards_result
+        || !return_type.is_valid()
+        || matches!(
+            program.type_reference_table.type_reference(return_type),
+            TypeReferenceNode::Unit
+        )
+    {
         return;
     }
 

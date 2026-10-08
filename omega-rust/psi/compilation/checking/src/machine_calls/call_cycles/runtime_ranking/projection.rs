@@ -619,12 +619,7 @@ fn unsigned_carrier_type(
     .then_some(primitive)
 }
 
-pub(super) fn unwrapped(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> ExpressionHandle {
-    crate::expression_traversal::unwrapped(program, expression)
-}
+pub(super) use crate::expression_traversal::unwrapped;
 
 /// Publish only coordinates already selected by the component's filtered
 /// telescope. Unsupported ranking orders keep their ordinary admission but

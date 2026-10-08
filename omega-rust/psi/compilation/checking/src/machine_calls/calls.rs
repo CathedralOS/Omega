@@ -621,8 +621,6 @@ fn validate_call_arguments_with_type_correspondence(
         // reference/`addr` and text representations make args a false-positive
         // minefield; a wrong-count/type arg is already caught here + at the backend.
     }
-
-    let _ = (writable_roots, diagnostics);
 }
 
 /// Reject a single ARGUMENT whose scalar class conflicts with its `parameter`'s

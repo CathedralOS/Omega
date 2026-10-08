@@ -101,7 +101,6 @@ fn classify_transition_target_handle(
         ExpressionNode::Call(call) if target_shaped => {
             classify_call_target_handle(syntax_trees, call)?
         }
-        ExpressionNode::Name(_) => TransitionTargetNode::Value(expression),
         _ => TransitionTargetNode::Value(expression),
     };
 

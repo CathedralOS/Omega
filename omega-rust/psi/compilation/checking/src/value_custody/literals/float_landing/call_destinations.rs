@@ -17,9 +17,8 @@ pub(super) fn collect(
     let Some(parameters) = parameters(program, machine, call) else {
         return;
     };
-    let parameters = parameters.iter();
     let arguments = program.statement_table.expression_handles(call.arguments);
-    for (parameter, argument) in parameters.zip(arguments) {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         if parameter.type_reference.is_valid() {
             pairs.push((*argument, parameter.type_reference));
         }

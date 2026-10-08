@@ -148,16 +148,10 @@ impl BuildEvaluationSponsor {
         measurement: EvaluationMeasurementIdentity,
         fuel_ceiling: u64,
     ) -> Result<EvaluationInvocationAccount, EvaluationAccountingError> {
-        let (schema, schedule) = match measurement {
-            EvaluationMeasurementIdentity::CheckedTree => (7, 1),
-            EvaluationMeasurementIdentity::TerminalPsi { fuel_schedule, .. } => {
-                (8, fuel_schedule.marker())
-            }
-        };
         if fuel_ceiling == 0 {
             return Err(EvaluationAccountingError::ZeroInvocationFuelCeiling);
         }
-        if !measurement.is_supported(schema, schedule) {
+        if !measurement.is_current() {
             return Err(EvaluationAccountingError::UnsupportedMeasurementIdentity);
         }
         if measurement != self.measurement() {
@@ -296,14 +290,6 @@ impl EvaluationInvocationAccount {
             cells,
             payload_bytes,
         })
-    }
-
-    fn increase_storage(
-        &self,
-        cells: u64,
-        payload_bytes: u64,
-    ) -> Result<(), EvaluationAccountingError> {
-        self.increase_site(0, cells, payload_bytes)
     }
 
     fn increase_site(
@@ -509,7 +495,7 @@ impl EvaluationStorageLease {
         let new_bytes = self.payload_bytes.checked_add(payload_bytes).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::LiveStorage),
         )?;
-        self.account.increase_storage(cells, payload_bytes)?;
+        self.account.increase_site(0, cells, payload_bytes)?;
         self.cells = new_cells;
         self.payload_bytes = new_bytes;
         Ok(())

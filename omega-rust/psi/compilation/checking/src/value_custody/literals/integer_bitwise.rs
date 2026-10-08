@@ -49,15 +49,11 @@ fn untyped_operands(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    match operator {
-        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
-            is_anonymous_numeric_expression(program, left)
-        }
-        _ => {
-            is_anonymous_numeric_expression(program, left)
-                && is_anonymous_numeric_expression(program, right)
-        }
-    }
+    is_anonymous_numeric_expression(program, left)
+        && (matches!(
+            operator,
+            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+        ) || is_anonymous_numeric_expression(program, right))
 }
 
 const fn bitwise_spelling(operator: BinaryOperator) -> Option<&'static str> {

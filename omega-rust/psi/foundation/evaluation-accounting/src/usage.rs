@@ -175,16 +175,13 @@ impl BuildEvaluationUsage {
                 Some(result_storage_cell_ceiling),
                 Some(result_payload_byte_ceiling),
             ) => {
-                let consumed = self.fuel_units;
-                if consumed > session_ceiling {
+                if self.fuel_units > session_ceiling {
                     return Err(BuildEvaluationUsageError::SessionFuelExceeded);
                 }
-                let build_log = self.build_log_bytes;
-                if build_log > build_log_ceiling {
+                if self.build_log_bytes > build_log_ceiling {
                     return Err(BuildEvaluationUsageError::SessionBuildLogExceeded);
                 }
-                let filesystem_attempts = self.filesystem_operation_attempts;
-                if filesystem_attempts > filesystem_attempt_ceiling {
+                if self.filesystem_operation_attempts > filesystem_attempt_ceiling {
                     return Err(BuildEvaluationUsageError::SessionFilesystemAttemptsExceeded);
                 }
                 if self.session_peak_live_filesystem_handles > live_filesystem_handle_ceiling {
@@ -206,12 +203,10 @@ impl BuildEvaluationUsage {
                 if self.peak_live_payload_bytes > self.session_peak_live_payload_bytes {
                     return Err(BuildEvaluationUsageError::InvocationPayloadPeakExceedsSession);
                 }
-                let result_storage_cells = self.result_storage_cells;
-                if result_storage_cells > result_storage_cell_ceiling {
+                if self.result_storage_cells > result_storage_cell_ceiling {
                     return Err(BuildEvaluationUsageError::ResultStorageCellsExceeded);
                 }
-                let result_payload_bytes = self.result_payload_bytes;
-                if result_payload_bytes > result_payload_byte_ceiling {
+                if self.result_payload_bytes > result_payload_byte_ceiling {
                     return Err(BuildEvaluationUsageError::ResultPayloadBytesExceeded);
                 }
             }
