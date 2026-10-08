@@ -433,10 +433,7 @@ pub fn validate_entry_shape(
     else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    let Some(carrier) = module
-        .structural_types
-        .iter()
-        .find(|row| row.id == image.structural_type)
+    let Some(carrier) = module.structural_type(image.structural_type)
     else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };

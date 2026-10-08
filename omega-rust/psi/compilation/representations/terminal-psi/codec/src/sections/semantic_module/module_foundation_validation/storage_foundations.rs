@@ -57,10 +57,7 @@ fn reference_store_carrier<'path>(
     let StructuralTypeShape::Reference {
         referent,
         access: terminal_psi::StructuralAccess::MutableBorrow,
-    } = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)?
+    } = module.structural_type(structural_type)?
         .shape
     else {
         return None;
@@ -119,10 +116,7 @@ pub(super) fn validate_establish_reference(
     let Some(result) = operation.result.structural() else {
         return malformed("reference establishment requires a structural result");
     };
-    let Some(StructuralTypeShape::Reference { access, .. }) = module
-        .structural_types
-        .iter()
-        .find(|row| row.id == result.structural_type)
+    let Some(StructuralTypeShape::Reference { access, .. }) = module.structural_type(result.structural_type)
         .map(|row| &row.shape)
     else {
         return malformed("reference establishment requires a reference carrier type");

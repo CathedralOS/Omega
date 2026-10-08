@@ -214,6 +214,14 @@ impl TerminalModule {
         self.services.iter().find(|service| service.id == id)
     }
 
+    /// The structural type keyed `id`, when the module declares it.
+    pub fn structural_type(
+        &self,
+        id: semantic_vocabulary::StructuralTypeId,
+    ) -> Option<&StructuralTypeDeclaration> {
+        find_structural_type(&self.structural_types, id)
+    }
+
     /// A module for `entry` with the current vocabulary and every roster
     /// empty. Producers name only the rosters they fill
     /// (`TerminalModule { machines, structural_types, ..TerminalModule::for_entry(entry) }`),

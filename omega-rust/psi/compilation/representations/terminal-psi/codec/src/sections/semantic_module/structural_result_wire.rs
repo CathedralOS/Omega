@@ -30,10 +30,7 @@ pub(crate) fn validate_reference_sources(
                 result.structural_type,
                 &reference.path,
             )?;
-        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = module
-            .structural_types
-            .iter()
-            .find(|row| row.id == reference_type)
+        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = module.structural_type(reference_type)
             .map(|row| &row.shape)
         else {
             return crate::codec_error::malformed(

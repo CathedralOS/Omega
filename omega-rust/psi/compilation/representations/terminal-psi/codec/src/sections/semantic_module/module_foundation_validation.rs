@@ -191,10 +191,7 @@ fn validate_provider_attachment_foundation(
     let provider_fields = machine
         .attachment
         .and_then(|attachment| {
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == attachment)
+            module.structural_type(attachment)
         })
         .and_then(|attachment| match &attachment.shape {
             StructuralTypeShape::Record { fields, .. } => Some(
@@ -283,10 +280,7 @@ pub(crate) fn validate_structural_path(
     }
     let mut payload_fields = None;
     for segment in path {
-        let Some(declaration) = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
+        let Some(declaration) = module.structural_type(structural_type)
         else {
             return malformed("structural path has an unknown structural type");
         };
@@ -1259,10 +1253,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
         if !active.insert(id) {
             return malformed("structural type graph contains a by-value cycle");
         }
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == id)
+        let declaration = module.structural_type(id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
             // A reference does not inline its referent storage. The target's

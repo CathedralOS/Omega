@@ -69,10 +69,7 @@ pub(crate) fn lower_outcome_specific_ensures(
             .ok_or(LoweringError::Unsupported(
                 "guarded payloadless terminal result is not structural",
             ))?;
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == terminal_result.structural_type)
+    let declaration = module.structural_type(terminal_result.structural_type)
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless terminal result type is absent",
         ))?;

@@ -187,10 +187,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("structural scalar field store declares a non-Unit result");
     }
     let parent_type = field_store_parent(module, machine, *destination, path)?;
-    let Some(expected) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)
+    let Some(expected) = module.structural_type(parent_type)
         .and_then(|declaration| match &declaration.shape {
             // A mixed shape's common fields are direct fields at one offset
             // in every case; payload fields stay out of reach of this store.
@@ -509,10 +506,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         // A call result's `Reference` shell keeps the loan's access on the
         // type; the observed record is its referent, matching the peel the
         // validating verifier applies for the same read.
-        let (observed_root, access) = match module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == local.structural_type)
+        let (observed_root, access) = match module.structural_type(local.structural_type)
             .map(|declaration| &declaration.shape)
         {
             Some(StructuralTypeShape::Reference { referent, access }) => (*referent, *access),

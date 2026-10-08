@@ -30,10 +30,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let view_slot = match field {
         Some(field) => {
             let parent_type = field_store_parent(module, machine, *destination, path)?;
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == parent_type)
+            module.structural_type(parent_type)
                 .is_some_and(|declaration| match &declaration.shape {
                     StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                         candidate.id == *field
@@ -132,10 +129,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("byte field store has invalid destination custody");
     }
     let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
-    let bounded_field = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)
+    let bounded_field = module.structural_type(parent_type)
         .is_some_and(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                 candidate.id == *field

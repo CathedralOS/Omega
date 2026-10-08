@@ -325,10 +325,7 @@ pub(super) fn adapt(
                         &operation.kind
                     {
                         let result_type = result?.structural_type;
-                        let shape = &module
-                            .structural_types
-                            .iter()
-                            .find(|row| row.id == result_type)?
+                        let shape = &module.structural_type(result_type)?
                             .shape;
                         let cases = match shape {
                             StructuralTypeShape::Sum { cases }

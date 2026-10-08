@@ -69,10 +69,7 @@ pub(super) fn validate_establish_scalar_case(
     ) {
         return malformed("scalar case establishment has no matching result place");
     }
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+    let Some(declaration) = module.structural_type(result.structural_type)
     else {
         return malformed("scalar case establishment has an unknown structural type");
     };
@@ -131,10 +128,7 @@ pub(super) fn validate_establish_structural_case(
     ) {
         return malformed("structural case establishment has no matching result place");
     }
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+    let Some(declaration) = module.structural_type(result.structural_type)
     else {
         return malformed("structural case establishment has an unknown structural type");
     };
@@ -225,10 +219,7 @@ pub(super) fn validate_establish_byte_sequence_literal(
     else {
         return malformed("byte-sequence literal establishment has no literal declaration");
     };
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == *structural_type)
+    let Some(declaration) = module.structural_type(*structural_type)
     else {
         return malformed("byte-sequence literal has an unknown structural type");
     };
@@ -334,10 +325,7 @@ pub(super) fn validate_establish_trivial_affine_local(
     else {
         return malformed("trivial affine local establishment has no local declaration");
     };
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == *structural_type)
+    let Some(declaration) = module.structural_type(*structural_type)
     else {
         return malformed("trivial affine local has an unknown structural type");
     };
@@ -368,10 +356,7 @@ pub(super) fn validate_establish_record(
     if !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("record result custody is noncanonical");
     }
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+    let Some(declaration) = module.structural_type(result.structural_type)
     else {
         return malformed("record type is absent");
     };
@@ -527,10 +512,7 @@ pub(super) fn validate_establish_structural_array(
         || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("array result custody is noncanonical");
     }
-    let Some(StructuralTypeShape::FixedArray { element, length }) = module
-        .structural_types
-        .iter()
-        .find(|row| row.id == result.structural_type)
+    let Some(StructuralTypeShape::FixedArray { element, length }) = module.structural_type(result.structural_type)
         .map(|row| &row.shape)
     else {
         return malformed("structural array result is not a fixed array");

@@ -352,10 +352,7 @@ fn argument_places(arguments: &[StructuralArgument]) -> String {
 }
 
 fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Option<&str> {
-    module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == id)
+    module.structural_type(id)
         .map(|declaration| declaration.identity.as_str())
 }
 
