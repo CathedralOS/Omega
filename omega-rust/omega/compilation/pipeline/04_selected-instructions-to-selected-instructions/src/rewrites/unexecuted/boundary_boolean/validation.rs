@@ -26,7 +26,10 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
-use super::{BoundaryBooleanError, BoundaryBooleanReceipt, ValidatedBoundaryBoolean};
+use super::{
+    BoundaryBooleanError, BoundaryBooleanReceipt, Outcome, ValidatedBoundaryBoolean,
+    decidable_kind, outcome,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
@@ -37,16 +40,6 @@ use crate::rewrites::condition_state::{
 /// `left - right`, in the validator's own record: the same two outcomes
 /// the contract defines, re-decided here so a wrong boundary decision
 /// inside the producer's `outcome` cannot pass validation.
-#[derive(Clone, Copy)]
-enum Outcome {
-    /// The predicate is decided for every surviving operand value: the
-    /// reader becomes the target's own `MaterializeI64` of the constant.
-    Constant(bool),
-    /// The predicate holds exactly at the pole, coinciding with the
-    /// equality condition on the same published state: the reader keeps
-    /// its shape and only its kind becomes `MaterializeBooleanEqual`.
-    Equal,
-}
 
 /// The validator's own reconstruction of the fold the contract permits:
 /// the admitted materialization's coordinates and emitted provenance, the
@@ -75,15 +68,6 @@ struct Reconstructed<'source> {
 /// operand pole can fix it. The validator re-decides the emitted kinds
 /// from the instruction kind alone — a wrong admission inside shared
 /// producer code would decide both sides identically.
-fn decidable(kind: SelectedInstructionKind) -> bool {
-    matches!(
-        kind,
-        SelectedInstructionKind::MaterializeBooleanU64LessThan
-            | SelectedInstructionKind::MaterializeBooleanI64LessThan
-            | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-            | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-    )
-}
 
 /// The boundary decision over the compare's resolved operand poles. The
 /// strict orderings fold only at the far pole — a strict less-than against
@@ -97,56 +81,6 @@ fn decidable(kind: SelectedInstructionKind) -> bool {
 /// legality decision: it lives here, not in `admission`, because a wrong
 /// boundary rule in shared producer code would certify the proposal its
 /// own bug emitted.
-fn pole_outcome(
-    kind: SelectedInstructionKind,
-    left: Option<u64>,
-    right: Option<u64>,
-) -> Option<Outcome> {
-    match kind {
-        SelectedInstructionKind::MaterializeBooleanU64LessThan => {
-            // `x <u 0` never holds; `u64::MAX <u x` never holds. The
-            // remaining poles are `0 <u x` ≡ `x != 0` and `x <u MAX` ≡
-            // `x != MAX`, negations no materialization kind selects.
-            if right == Some(0) || left == Some(u64::MAX) {
-                Some(Outcome::Constant(false))
-            } else {
-                None
-            }
-        }
-        SelectedInstructionKind::MaterializeBooleanI64LessThan => {
-            // `x <s i64::MIN` never holds; `i64::MAX <s x` never holds.
-            if right == Some(i64::MIN as u64) || left == Some(i64::MAX as u64) {
-                Some(Outcome::Constant(false))
-            } else {
-                None
-            }
-        }
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => {
-            // `0 <=u x` and `x <=u u64::MAX` always hold; `x <=u 0` and
-            // `u64::MAX <=u x` each hold exactly at equality.
-            if left == Some(0) || right == Some(u64::MAX) {
-                Some(Outcome::Constant(true))
-            } else if right == Some(0) || left == Some(u64::MAX) {
-                Some(Outcome::Equal)
-            } else {
-                None
-            }
-        }
-        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
-            // `i64::MIN <=s x` and `x <=s i64::MAX` always hold;
-            // `x <=s i64::MIN` and `i64::MAX <=s x` hold exactly at
-            // equality.
-            if left == Some(i64::MIN as u64) || right == Some(i64::MAX as u64) {
-                Some(Outcome::Constant(true))
-            } else if right == Some(i64::MIN as u64) || left == Some(i64::MAX as u64) {
-                Some(Outcome::Equal)
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
 
 /// The boolean result register of an emitted `[def result]` flag reader,
 /// or none: the validator re-decides the emitted shape — one of the four
@@ -156,7 +90,7 @@ fn pole_outcome(
 /// equality kind is refused with the shape: no pole can decide
 /// `left == right`.
 fn flag_reader(instruction: &SelectedInstruction) -> Option<VirtualRegisterId> {
-    if !decidable(instruction.kind)
+    if !decidable_kind(instruction.kind)
         || instruction.operands.len() != 1
         || instruction.implicit_uses.is_empty()
         || !instruction.implicit_defs.is_empty()
@@ -273,7 +207,7 @@ fn reconstruct<'source>(
     }
     let (left, right) =
         boundary_operands(function, compare_instruction).map_err(condition_error)?;
-    let outcome = pole_outcome(materialization_instruction.kind, left, right)
+    let outcome = outcome(materialization_instruction.kind, left, right)
         .ok_or(BoundaryBooleanError::UnsupportedLiteral)?;
     // A decided predicate rewrites to the target's own materialize row: a
     // single `[def]` at the boolean result's class carrying no unit
