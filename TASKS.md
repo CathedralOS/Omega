@@ -2986,8 +2986,8 @@ of a check the same flow already performed, not the check itself.
   run each pass once at its required point without losing authored requirement
   identity or call-contract diagnostics. Erased applications and clone
   correspondence now remain typed input; lexical owners survive folding, and
-  data/machine copies substitute the complete copied type graph, including
-  nested static operands. Immutable checking admits authored argument/callable
+  data/machine copies substitute copied named type nodes, including those
+  nested in static operands. Immutable checking admits authored argument/callable
   formation and completed effects, without preparation-granted contract
   exemptions or repeated selection tables. Exact inferred type/const binding
   handles still need typed custody before the remaining tuple-bound judgments
