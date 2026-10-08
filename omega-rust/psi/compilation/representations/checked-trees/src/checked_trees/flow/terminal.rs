@@ -12,14 +12,16 @@
 //! rosters, `result_binding_plans.rs` carries result bindings,
 //! `unit_effect_plans.rs` carries effect operations, `unit_call_plans.rs`
 //! carries the one call operation's route, result and transfers,
-//! `boundary_machine_plans.rs` carries boundary machines and `atomic_plans.rs`
-//! carries normalized atomic events.
+//! `boundary_machine_plans.rs` carries boundary machines, `atomic_plans.rs`
+//! carries normalized atomic events and `place_loan_plans.rs` carries the
+//! place each silent `&`/`&mut` loan local names.
 
 mod affine_cleanup_plans;
 mod atomic_plans;
 mod boundary_machine_plans;
 mod composed_unit_control_plans;
 mod dynamic_slot_plans;
+mod place_loan_plans;
 mod result_binding_plans;
 mod scalar_state_plans;
 mod structural_argument_plans;
@@ -55,6 +57,7 @@ pub use composed_unit_control_plans::{
     CheckedScalarReturnPlan, CheckedStateNaturalRank, forwards_qualified_parameter,
 };
 pub use dynamic_slot_plans::CheckedDynamicSlotPlan;
+pub use place_loan_plans::{CheckedPlaceLoanPlan, CheckedPlaceLoanRoot};
 pub use result_binding_plans::{
     CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedByteSequenceValue,
     CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan, CheckedElementViewWritePlan,

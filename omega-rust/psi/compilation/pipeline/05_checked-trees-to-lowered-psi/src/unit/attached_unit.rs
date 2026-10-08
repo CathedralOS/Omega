@@ -214,7 +214,7 @@ pub(crate) fn lower_unit_closure(
                     argument.byte_sequence_literal().is_some()
                         && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 })
-            }) || crate::expression_preparation::source_custody::structural::byte_literals::collect_operation_requirements(
+            }) || crate::expression_preparation::source_custody::byte_literals::collect_operation_requirements(
                 checked, *machine_symbol, operation, &mut Vec::new(),
             )? {
                 crate::emission::structural_byte_sequence_store::literal_view_type(

@@ -24,6 +24,9 @@
 //! ordinary read of a field the source declares, with the source's facts. An
 //! equal-width integer leaf of the other sign reads its declared carrier and
 //! replays the view's modular image; any other carrier change refuses.
+//! A silent loan local's captured place is its stage 04 `CheckedPlaceLoanPlan`
+//! row: its root, root type and authored segments resolve here against the
+//! structural type catalog, never against the loan's initializer.
 //! Stores use the same captured source and normalized geometry. A loan local
 //! is not a second storage home; write permission and concrete encoding fit
 //! remain separate obligations at the emitting operation.
@@ -47,7 +50,6 @@ use crate::scalar_lowering::branch_states::structural_values;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 impl super::Expansion<'_> {
@@ -202,165 +204,13 @@ struct TypedRecordOverlay {
     referee: typed_trees::types::TypeReferenceHandle,
 }
 
-/// One authored segment of a shared loan's captured place: a declared record
-/// member projection, a literal index into a fixed array, or a runtime
-/// selector the loan's own obligations bound.
-enum LoanedPathSegment {
-    Field(String),
-    FixedIndex(u64),
-    RuntimeIndex(ExpressionHandle),
-}
-
-pub(crate) fn prepare_place_observations(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    types: &[StructuralTypeDeclaration],
-) -> Result<std::sync::Arc<[PlaceObservation]>, LoweringError> {
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    let mut loans = Vec::new();
-    for (statement_index, statement) in checked
-        .statement_table
-        .statements(authored.statement_nodes)
-        .iter()
-        .enumerate()
-    {
-        let StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        let TypeReferenceNode::Reference { referee, .. } = checked
-            .type_reference_table
-            .type_reference(local.type_reference)
-        else {
-            continue;
-        };
-        let statement_index = u32::try_from(statement_index).map_err(|_| {
-            LoweringError::Unsupported("place observation statement ordinal overflow")
-        })?;
-        let primitive = checked.primitive_type_reference(*referee).is_some();
-        if established_reference_local(checked, machine, state, statement_index)
-            || checked
-                .facts
-                .values
-                .structural_values
-                .root_for_expression(state, statement_index, local.initial_value)
-                .is_some()
-        {
-            // An actual descriptor owns its capture and observations for every
-            // referent shape. Its initializer is not a second storage binding.
-            continue;
-        }
-        let identity = checked.normalized_type_identity(*referee);
-        if !primitive
-            && !types.iter().any(|declaration| {
-                declaration.identity == identity.as_str()
-                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-            })
-        {
-            continue;
-        }
-        let capture = (|| {
-            let Some(loan) = captured_place_subject(checked, machine, state, local.symbol, types)?
-            else {
-                return Ok(None);
-            };
-            let observation = if let Some(primitive) = loan.primitive {
-                ObservationKind::Primitive(primitive)
-            } else if let Some(overlay) = loan.byte_overlay {
-                if loan.view_container || !loan.element_suffix.is_empty() {
-                    return Ok(None);
-                }
-                let Some(layout) =
-                    validation::recast_scalar_layout(&checked.typed, overlay.referee)
-                else {
-                    return unsupported("record byte observation has no normalized scalar layout");
-                };
-                ObservationKind::ByteRecord { overlay, layout }
-            } else {
-                ObservationKind::Structural
-            };
-            Ok(Some(PlaceObservationCapture {
-                coordinate: None,
-                source: loan.source,
-                carrier_path: loan.carrier_path,
-                runtime_index: loan.runtime_index,
-                observation,
-            }))
-        })();
-        let capture = match capture {
-            Ok(Some(capture)) => Ok(capture),
-            Ok(None) => continue,
-            Err(error) => Err(error),
-        };
-        loans.push(PlaceObservation {
-            statement_index,
-            symbol: local.symbol,
-            capture,
-        });
-    }
-    Ok(loans.into())
-}
-
-/// Walk an authored expression back to its root symbol, collecting member and
-/// literal-index segments in authored order. Only expression shapes that name
-/// an established storage place admit a captured path; a recast peels to the
-/// expression it reinterprets.
-fn captured_subject_path(
-    checked: &CheckedTrees,
-    expression: ExpressionHandle,
-) -> Option<(symbols::SymbolHandle, Vec<LoanedPathSegment>)> {
-    match checked.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-            captured_subject_path(checked, cast.value)
-        }
-        ExpressionNode::Name(path) => {
-            let mut members = checked
-                .expression_table
-                .name_path_member_symbols(path.member_symbols)
-                .iter();
-            let root = members.next().copied().filter(|symbol| symbol.is_valid())?;
-            Some((
-                root,
-                members
-                    .map(|member| {
-                        LoanedPathSegment::Field(checked.symbols.name(*member).to_string())
-                    })
-                    .collect(),
-            ))
-        }
-        ExpressionNode::Member(member) => {
-            let (root, mut segments) = captured_subject_path(checked, member.receiver)?;
-            segments.push(LoanedPathSegment::Field(
-                checked.symbols.name(member.member_symbol).to_string(),
-            ));
-            Some((root, segments))
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let (root, mut segments) = captured_subject_path(checked, indexed.collection)?;
-            match checked
-                .expression_table
-                .constant_integer_value(indexed.index)
-                .and_then(|index| u64::try_from(index).ok())
-            {
-                Some(index) => segments.push(LoanedPathSegment::FixedIndex(index)),
-                // A non-literal selector keeps its expression: the walk
-                // resolves it to the checked coordinate the same expression
-                // took on the loan's admission path.
-                None => segments.push(LoanedPathSegment::RuntimeIndex(indexed.index)),
-            }
-            Some((root, segments))
-        }
-        _ => None,
-    }
-}
-
 /// The established place an observation local borrows from: the captured
 /// root join, the canonical prefix to the referent, the referee's
 /// structural declaration at that prefix, and — when the prefix ends on a
 /// `u8` element (`&self.buf[0] as &T`) — the referee record the byte region
 /// overlays.
 struct CapturedPlaceSubject {
-    access: language_core::ReferenceAccess,
+    access: checked_trees::CheckedStructuralAccess,
     source: LoanedSource,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
@@ -377,190 +227,155 @@ struct CapturedPlaceSubject {
     element_suffix: Vec<terminal_psi::StructuralPathSegment>,
 }
 
-/// Checking has already selected storage for this local's descriptor. Silent
-/// place aliases alone need the legacy captured-place observation route.
-fn established_reference_local(
-    checked: &CheckedTrees,
+/// The silent place loans the plan records for `state`: the single-state
+/// body's roster, or the composed state's.
+fn planned_place_loans<'plan>(
+    checked: &'plan CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    statement_index: u32,
-) -> bool {
+) -> &'plan [checked_trees::CheckedPlaceLoanPlan] {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let operations = plans
+    if let Some(plan) = plans
         .for_machine(machine)
-        .map(|plan| plan.operations.as_slice())
-        .or_else(|| {
-            plans
-                .composed_for_machine(machine)
-                .and_then(|plan| plan.states.iter().find(|row| row.state == state))
-                .map(|state| state.operations.as_slice())
-        });
-    operations.is_some_and(|operations| operations.iter().any(|operation| {
-        matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            if result.statement_index == statement_index)
-    }))
+        .filter(|plan| plan.state == state)
+    {
+        return &plan.place_loans;
+    }
+    plans
+        .composed_for_machine(machine)
+        .and_then(|plan| plan.states.iter().find(|row| row.state == state))
+        .map_or(&[], |row| row.place_loans.as_slice())
 }
 
-/// A captured place observation is a silent loan marker: it mints no established
-/// place of its own, so a member read through it must resolve the structural
-/// parameter the loan captured plus the canonical path from that root to the
-/// referee. `None` means the local is not such a loan; `Some` carries the
-/// captured source join, the canonical prefix, and the declared type the
-/// prefix ends on so the ordinary subject walk can continue there.
-fn captured_place_subject(
+/// The captured place a silent loan local names, when `symbol` is one.
+fn loan_subject(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     symbol: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<CapturedPlaceSubject>, LoweringError> {
-    let (source_machine, source_state) = crate::declarations::state_declaration(checked, state)?;
-    if source_machine.symbol != machine {
-        return Ok(None);
-    }
-    let Some((statement_index, local)) =
-        checked.typed.state_local_declaration(source_state, symbol)
-    else {
-        return Ok(None);
-    };
-    if u32::try_from(statement_index)
-        .ok()
-        .is_some_and(|statement_index| {
-            established_reference_local(checked, machine, state, statement_index)
-        })
-    {
-        return Ok(None);
-    }
-    if local.is_mutable {
-        return Ok(None);
-    }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = checked
-        .type_reference_table
-        .type_reference(local.type_reference)
-    else {
-        return Ok(None);
-    };
-    if !matches!(
-        *access,
-        language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-    ) || (checked.primitive_type_reference(*referee).is_none()
-        && !matches!(
-            checked.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::Named { .. }
-        ))
-    {
-        return Ok(None);
-    }
-    let mut initializer = local.initial_value;
-    let mut recast = false;
-    let target = loop {
-        match checked.expression_table.expression(initializer) {
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-                recast = true;
-                initializer = cast.value;
-            }
-            ExpressionNode::Borrow(borrow) if borrow.access == *access => break borrow.target,
-            _ => return Ok(None),
-        }
-    };
-    let Some((root, mut segments)) = captured_subject_path(checked, target) else {
-        return unsupported("record loan captured an unreadable place");
-    };
-    // An immutable local scalar pinned to a literal is a fixed index for
-    // every rule that matters: the checker folds it through the literal-bound
-    // gate on the loan's admission path, so the replay folds it through the
-    // same literal segment here before the runtime-selector route sees it.
-    for segment in segments.iter_mut() {
-        if let LoanedPathSegment::RuntimeIndex(expression) = segment
-            && let ExpressionNode::Name(name) = checked.expression_table.expression(*expression)
-            && name.symbol.is_valid()
-            && let Some(index) =
-                crate::expression_preparation::source_custody::structural_places::constant_local_index(
-                    checked,
-                    source_state,
-                    name.symbol,
-                )
-        {
-            *segment = LoanedPathSegment::FixedIndex(index);
-        }
-    }
-    let parameters = checked.state_parameters(source_state);
-    // A parameter-rooted capture names its declaration. A local-rooted capture keeps
-    // that local's established place — the owned record is established storage
-    // even though the `&` loan binding itself stays a silent marker.
-    let authored_index = parameters
+    match planned_place_loans(checked, machine, state)
         .iter()
-        .position(|parameter| parameter.symbol == root);
-    let (source, type_reference) = match authored_index {
-        Some(authored_index) => {
-            // Both unit-plan shapes carry the same authored-position roster:
-            // a single-state body keeps it on the machine row, a composed
-            // machine keeps one per state.
-            let structural_parameters = if let Some(plan) = checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine)
-            {
-                &plan.structural_parameters
-            } else if let Some(plan) = checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .composed_for_machine(machine)
-                .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
-            {
-                &plan.structural_parameters
+        .find(|loan| loan.symbol == symbol)
+    {
+        Some(loan) => captured_place_subject(checked, state, loan, types),
+        None => Ok(None),
+    }
+}
+
+/// Each silent loan of a primitive or record referee observes its captured
+/// place. An unsupported capture is retained, not refused: only a use of the
+/// loan owns that failure.
+pub(crate) fn prepare_place_observations(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    types: &[StructuralTypeDeclaration],
+) -> std::sync::Arc<[PlaceObservation]> {
+    let mut observations = Vec::new();
+    for loan in planned_place_loans(checked, machine, state) {
+        let primitive = checked.primitive_type_reference(loan.referee).is_some();
+        let identity = checked.normalized_type_identity(loan.referee);
+        if !primitive
+            && !types.iter().any(|declaration| {
+                declaration.identity == identity.as_str()
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            })
+        {
+            continue;
+        }
+        let capture = (|| {
+            let Some(subject) = captured_place_subject(checked, state, loan, types)? else {
+                return Ok(None);
+            };
+            let observation = if let Some(primitive) = subject.primitive {
+                ObservationKind::Primitive(primitive)
+            } else if let Some(overlay) = subject.byte_overlay {
+                if subject.view_container || !subject.element_suffix.is_empty() {
+                    return Ok(None);
+                }
+                let Some(layout) =
+                    validation::recast_scalar_layout(&checked.typed, overlay.referee)
+                else {
+                    return unsupported("record byte observation has no normalized scalar layout");
+                };
+                ObservationKind::ByteRecord { overlay, layout }
             } else {
-                return unsupported("record loan's state left the composed plan");
+                ObservationKind::Structural
             };
-            let Some(parameter_index) = structural_parameters
-                .iter()
-                .position(|parameter| parameter.position as usize == authored_index)
-            else {
-                return unsupported("record loan captured a non-structural parameter");
-            };
-            (
-                LoanedSource::Parameter(parameter_index as u32),
-                parameters[authored_index].type_reference,
-            )
-        }
-        None => {
-            let Some(root_local) = checked
-                .statement_table
-                .statements(source_state.statement_nodes)
-                .iter()
-                .find_map(|node| match node {
-                    StatementNode::LocalData(local) if local.symbol == root => Some(local),
-                    _ => None,
-                })
-            else {
-                return unsupported("record loan captured no declared storage");
-            };
-            (LoanedSource::Local(root), root_local.type_reference)
-        }
-    };
-    let type_reference = checked
-        .type_reference_table
-        .dereferenced_type_reference(type_reference);
-    // The receiver's authored type names the machine itself; its structural
-    // carrier is the attached data record the machine's states operate on.
-    let root_identity = match checked.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named {
-            symbol: named_symbol,
-            ..
-        } if *named_symbol == source_machine.symbol => checked
-            .normalized_nominal_type_identity(source_machine.attached_data_symbol)
+            Ok(Some(PlaceObservationCapture {
+                coordinate: None,
+                source: subject.source,
+                carrier_path: subject.carrier_path,
+                runtime_index: subject.runtime_index,
+                observation,
+            }))
+        })();
+        let capture = match capture {
+            Ok(Some(capture)) => Ok(capture),
+            Ok(None) => continue,
+            Err(error) => Err(error),
+        };
+        observations.push(PlaceObservation {
+            statement_index: loan.statement_index,
+            symbol: loan.symbol,
+            capture,
+        });
+    }
+    observations.into()
+}
+
+/// The type identity a captured root or referee resolves under. A type naming
+/// the machine itself denotes the attached data record its states operate on.
+fn carrier_identity(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Result<String, LoweringError> {
+    match checked.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => Ok(checked
+            .normalized_nominal_type_identity(machine.attached_data_symbol)
             .ok_or(LoweringError::Unsupported(
                 "record loan's attached carrier has no identity",
             ))?
-            .into_string(),
-        _ => checked
-            .normalized_type_identity(type_reference)
-            .into_string(),
+            .into_string()),
+        _ => Ok(checked.normalized_type_identity(reference).into_string()),
+    }
+}
+
+/// A silent loan names no established place of its own, so a member read or
+/// store through it resolves the storage the loan captured plus the canonical
+/// path from that root to the referee. `None` means the loan's referee has no
+/// observation here; `Some` carries the captured source, the canonical prefix
+/// and the declared type it ends on, so the ordinary subject walk continues
+/// there.
+fn captured_place_subject(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    loan: &checked_trees::CheckedPlaceLoanPlan,
+    types: &[StructuralTypeDeclaration],
+) -> Result<Option<CapturedPlaceSubject>, LoweringError> {
+    let referee = loan.referee;
+    if checked.primitive_type_reference(referee).is_none()
+        && !matches!(
+            checked.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Named { .. }
+        )
+    {
+        return Ok(None);
+    }
+    let (owner, _) = crate::declarations::state_declaration(checked, state)?;
+    let source = match loan.root {
+        checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
+            LoanedSource::Parameter(parameter_index)
+        }
+        checked_trees::CheckedPlaceLoanRoot::Local { symbol } => LoanedSource::Local(symbol),
+        checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
+            return unsupported("record loan captured a non-structural parameter");
+        }
     };
+    let root_identity = carrier_identity(checked, owner, loan.root_type)?;
     let mut declaration = types
         .iter()
         .find(|declaration| declaration.identity == root_identity)
@@ -577,14 +392,14 @@ fn captured_place_subject(
     // `u8` element's members, so a byte-carrier prefix always ends there).
     let mut tail = None;
     let mut primitive_field = None;
-    let segment_count = segments.len();
-    for (segment_ordinal, segment) in segments.into_iter().enumerate() {
+    let segment_count = loan.path.len();
+    for (segment_ordinal, segment) in loan.path.iter().enumerate() {
         match segment {
-            LoanedPathSegment::Field(identity) => {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                 let Some(fields) = declaration.shape.record_fields() else {
                     return unsupported("record loan's captured path left its record namespace");
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == identity);
+                let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record loan's captured field is absent",
                 ))?;
@@ -597,7 +412,7 @@ fn captured_place_subject(
                 if let Some(scalar_type) = selected.field_type.scalar_type()
                     && !matches!(selected.field_type, StructuralFieldType::Atomic(_))
                 {
-                    if checked.primitive_type_reference(*referee).is_none() {
+                    if checked.primitive_type_reference(referee).is_none() {
                         return unsupported(
                             "record observation cannot replace a scalar storage endpoint",
                         );
@@ -629,7 +444,8 @@ fn captured_place_subject(
                         "record loan's captured type is absent",
                     ))?;
             }
-            LoanedPathSegment::FixedIndex(index) => {
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                let index = *index;
                 // An element-view root carries no literal extent: the index's
                 // bound is the view's live length, proven by the loan's own
                 // captured obligations rather than replayed here.
@@ -660,15 +476,12 @@ fn captured_place_subject(
                         "record loan's captured element type is absent",
                     ))?;
             }
-            LoanedPathSegment::RuntimeIndex(expression) => {
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
                 if runtime_index.is_some() {
                     return unsupported("record loan selects at most one runtime element");
                 }
-                // The selector resolves to the same checked coordinate the
-                // admission walk minted: a bare immutable integer parameter,
-                // or a pure field chain below an entry parameter. Neither
-                // container shape carries its bound on the segment — an
-                // element view's bound is its live extent and a fixed
+                // Neither container shape carries its bound on the segment —
+                // an element view's bound is its live extent and a fixed
                 // array's is its declared length; Terminal re-proves both.
                 let element = match &declaration.shape {
                     StructuralTypeShape::FixedArray { element, .. } => {
@@ -683,17 +496,7 @@ fn captured_place_subject(
                         return unsupported("record loan's runtime index left its array namespace");
                     }
                 };
-                runtime_index = Some(
-                    crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
-                        checked,
-                        source_machine,
-                        source_state,
-                        expression,
-                    )?,
-                );
-                if !checked.facts.resolved_types.result(expression).is_valid() {
-                    return unsupported("record loan's index selector lost its leaf type");
-                }
+                runtime_index = Some(selector.clone());
                 runtime_split = Some(path.len());
                 tail = None;
                 declaration = types
@@ -703,6 +506,11 @@ fn captured_place_subject(
                         "record loan's captured element type is absent",
                     ))?;
             }
+            _ => {
+                return unsupported(
+                    "record loan's captured place selects a case, a byte window or a stored reference",
+                );
+            }
         }
     }
     // The u8 element is the backing coordinate, not the record namespace.
@@ -711,20 +519,7 @@ fn captured_place_subject(
     // this namespace selection from granting access outside the region.
     let mut terminal = declaration.id;
     let mut byte_overlay = None;
-    // The referee's authored type names the machine itself under the same
-    // remap the captured root already applied.
-    let referee_identity = match checked.type_reference_table.type_reference(*referee) {
-        TypeReferenceNode::Named {
-            symbol: named_symbol,
-            ..
-        } if *named_symbol == source_machine.symbol => checked
-            .normalized_nominal_type_identity(source_machine.attached_data_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "record loan's attached referee has no identity",
-            ))?
-            .into_string(),
-        _ => checked.normalized_type_identity(*referee).into_string(),
-    };
+    let referee_identity = carrier_identity(checked, owner, referee)?;
     if (tail.is_some() || runtime_index.is_some())
         && matches!(
             &declaration.shape,
@@ -739,42 +534,22 @@ fn captured_place_subject(
     {
         terminal = overlay.id;
         byte_overlay = Some(ByteOverlaySource {
-            referee: *referee,
+            referee,
             remaining_bytes: tail.and_then(|(index, length)| length.checked_sub(index)),
         });
     }
     // A record-as-record recast keeps the source declaration as the
     // namespace; each read rejoins its view field to the source leaf. A
     // mutable view reads the same way: the loan only adds write authority.
-    // The recast may wrap the borrow or sit inside its target
-    // (`&place as &View` parses as a borrow of the recast place).
-    let recast = recast
-        || matches!(
-            checked.expression_table.expression(target),
-            ExpressionNode::Cast(cast) if cast.form.is_recast()
-        );
-    let mut typed_overlay = None;
-    if recast
+    let typed_overlay = (loan.recast_source.is_valid()
         && byte_overlay.is_none()
         && runtime_index.is_none()
         && declaration.identity != referee_identity
-        && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-    {
-        let mut place = target;
-        while let ExpressionNode::Cast(cast) = checked.expression_table.expression(place)
-            && cast.form.is_recast()
-        {
-            place = cast.value;
-        }
-        let source = checked.facts.resolved_types.place(place);
-        if !source.is_valid() {
-            return unsupported("record view lost its source place type");
-        }
-        typed_overlay = Some(TypedRecordOverlay {
-            source,
-            referee: *referee,
-        });
-    }
+        && matches!(declaration.shape, StructuralTypeShape::Record { .. }))
+    .then_some(TypedRecordOverlay {
+        source: loan.recast_source,
+        referee,
+    });
     // Segments below the runtime index walk inside the selected element;
     // they leave both path vocabularies so the emitted read can splice the
     // selector in where the canonical spelling has no runtime segment.
@@ -783,7 +558,7 @@ fn captured_place_subject(
         None => (Vec::new(), Vec::new()),
     };
     let primitive = checked
-        .primitive_type_reference(*referee)
+        .primitive_type_reference(referee)
         .map(|viewed| {
             let (field, scalar_type) = match primitive_field {
                 Some((field, scalar_type)) => (Some(field), scalar_type),
@@ -810,7 +585,7 @@ fn captured_place_subject(
         .transpose()?;
     Ok(Some(CapturedPlaceSubject {
         primitive,
-        access: *access,
+        access: loan.access,
         source,
         path,
         carrier_path,
@@ -843,10 +618,10 @@ pub(crate) fn loaned_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
         return Ok(None);
     };
-    let Some(loan) = captured_place_subject(checked, machine, state, symbol, types)? else {
+    let Some(loan) = loan_subject(checked, machine, state, symbol, types)? else {
         return Ok(None);
     };
-    if loan.access != language_core::ReferenceAccess::Mutable {
+    if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
         return unsupported("record store requires a mutable captured loan");
     }
     let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
@@ -903,13 +678,13 @@ pub(crate) fn loaned_primitive_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
         return Ok(None);
     };
-    let Some(loan) = captured_place_subject(checked, machine, state, *symbol, types)? else {
+    let Some(loan) = loan_subject(checked, machine, state, *symbol, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {
         return Ok(None);
     };
-    if loan.access != language_core::ReferenceAccess::Mutable {
+    if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
         return unsupported("record store requires a mutable captured loan");
     }
     let (_, scalar_type) =
@@ -961,8 +736,13 @@ fn checked_path_segment(
     }
 }
 
+/// Bind every record field read the `machines`' computations perform.
+/// `plan_machine` names the Unit plan being lowered: a fused roster's states
+/// all carry their silent loans in that one plan, whichever machine declares
+/// them.
 pub(crate) fn prepare(
     checked: &CheckedTrees,
+    plan_machine: symbols::SymbolHandle,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
@@ -993,7 +773,7 @@ pub(crate) fn prepare(
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
-                } => captured_place_subject(checked, root.machine, root.state, symbol, types)?,
+                } => loan_subject(checked, plan_machine, root.state, symbol, types)?,
                 _ => None,
             };
             let (

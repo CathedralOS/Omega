@@ -244,6 +244,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         scalar_control,
         structural_result,
         operations: sequence_operations,
+        place_loans,
         ..
     } = sequence;
     if !is_unit(program, state.return_type)
@@ -400,6 +401,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                     .len(),
             )
             .ok()?,
+            place_loans,
         },
         residual_affine_discards,
         has_projected_parameter_moves,

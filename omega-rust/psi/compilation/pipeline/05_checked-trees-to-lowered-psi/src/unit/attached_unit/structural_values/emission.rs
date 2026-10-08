@@ -19,7 +19,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
-use crate::expression_preparation::source_custody::structural as source_custody;
+use crate::expression_preparation::source_custody;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,

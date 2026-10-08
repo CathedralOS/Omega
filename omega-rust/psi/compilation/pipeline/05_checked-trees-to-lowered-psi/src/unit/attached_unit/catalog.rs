@@ -425,7 +425,7 @@ pub(super) fn lower_unit_structural_types_including(
                         *machine,
                         state,
                         &declarations,
-                    )?;
+                    );
                 needs_coordinate |= loans.iter().any(|loan| {
                     loan.capture
                         .as_ref()
@@ -774,7 +774,7 @@ pub(super) fn lower_unit_structural_domains(
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         for operation in body.operations() {
-            crate::expression_preparation::source_custody::structural::byte_literals::collect_operation_requirements(
+            crate::expression_preparation::source_custody::byte_literals::collect_operation_requirements(
                 checked, *symbol, operation, &mut selected,
             )?;
         }

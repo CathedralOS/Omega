@@ -287,9 +287,10 @@ pub(super) fn emit(
             plan.machine,
             plan.state,
             structural_types,
-        )?;
+        );
     evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
         checked,
+        plan.machine,
         &[plan.machine],
         structural_types,
         &mut next_place,

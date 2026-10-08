@@ -808,6 +808,9 @@ pub struct CheckedUnitEffectMachinePlan {
     /// The number of authored statements in the body, the position at which
     /// a record loan still live at body end is captured.
     pub statement_count: u32,
+    /// The body's silent place loans in statement order. They plan no
+    /// operation; each names the place its reads and stores rejoin.
+    pub place_loans: Vec<super::CheckedPlaceLoanPlan>,
 }
 
 /// Borrowed entry vocabulary shared by ordinary sequences and state graphs.

@@ -107,9 +107,10 @@ impl StateGraphEmission<'_, '_> {
                     plan.machine,
                     state.state,
                     &self.catalogs.structural_types,
-                )?,
+                ),
             record_fields: crate::scalar_lowering::computations::fields::prepare(
                 checked,
+                plan.machine,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,

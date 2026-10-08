@@ -12,9 +12,11 @@
 //! its result binding goes back to the sequence, which plans the call.
 //!
 //! Reference captures precede structural construction and establish their
-//! descriptor bindings. Runtime scalar parameters are backing roots alongside
-//! structural parameters and earlier locals; their view reads retain the
-//! parameter's declared carrier for ordinary representation-view replay.
+//! descriptor bindings. A silent place loan plans no operation; its row
+//! records the place every read and store through it rejoins. Runtime scalar
+//! parameters are backing roots alongside structural parameters and earlier
+//! locals; their view reads retain the parameter's declared carrier for
+//! ordinary representation-view replay.
 //! Passing such an alias onward still requires its backing storage to be
 //! established by lowering; admitting the read does not fabricate that home.
 use super::{
@@ -45,6 +47,7 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) erased_locals: &'a [SymbolHandle],
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
+    pub(super) place_loans: &'a mut Vec<checked_trees::CheckedPlaceLoanPlan>,
     pub(super) scalar_count: &'a mut usize,
     pub(super) structural_count: &'a mut usize,
     pub(super) structural_local_symbols: &'a mut Vec<SymbolHandle>,
@@ -90,6 +93,7 @@ pub(super) fn plan(
         binders,
         erased_locals,
         operations,
+        place_loans,
         scalar_count,
         structural_count,
         structural_local_symbols,
@@ -531,14 +535,18 @@ pub(super) fn plan(
         state,
         statement_index,
         local,
-    ) && is_shared_place_loan(
+    ) && let Some(loan) = place_loan(
         program,
-        machine.symbol,
+        machine,
         state,
         structural_parameters,
         statement_index,
         local,
+        CheckedStructuralAccess::SharedBorrow,
     ) {
+        if let PlaceLoan::Captured(loan) = loan {
+            place_loans.push(loan);
+        }
         return Some(LocalPlan::Planned);
     }
     // An initializer call may establish structural argument values at this
@@ -699,14 +707,18 @@ pub(super) fn plan(
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: exclusive place loan");
-    if is_exclusive_place_loan(
+    if let Some(loan) = place_loan(
         program,
-        machine.symbol,
+        machine,
         state,
         structural_parameters,
         statement_index,
         local,
+        CheckedStructuralAccess::MutableBorrow,
     ) {
+        if let PlaceLoan::Captured(loan) = loan {
+            place_loans.push(loan);
+        }
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: view loan binding");
@@ -813,66 +825,76 @@ pub(super) fn plan(
     }
 }
 
-/// A `let` binding an exclusive loan of a place: `let seen: &mut u8 = &mut
-/// self.byte;`. The binding is immutable and a reference cannot be reseated,
-/// so the name denotes one place for its whole scope and carries no runtime
-/// value of its own: every write through it is the ordinary store of that
-/// place, rejoined by `structural_scalar_store::destination`. The statement
-/// therefore plans no operation, like a record pattern's marker.
+/// A silent loan's admission: the place it names, or, for a recast whose
+/// place the checked walk cannot name, admission alone.
+enum PlaceLoan {
+    Captured(checked_trees::CheckedPlaceLoanPlan),
+    /// The §5b recast judgment admitted the loan, but its place carries a
+    /// selector no checked coordinate names (`self.bytes[k * 2]`). No use of
+    /// it can rejoin a place, so lowering refuses each one.
+    Unnamed,
+}
+
+/// A `let` binding a loan of a place: `let seen: &mut u8 = &mut self.byte;`
+/// or `let borrowed: &u32 = &self.size;`. The binding is immutable and a
+/// reference cannot be reseated, so the name denotes one place for its whole
+/// scope and carries no runtime value of its own: every read through it is a
+/// read of that place, every write through an exclusive loan is the ordinary
+/// store of that place, and the borrow layer owns the loan's lifetime. The
+/// statement therefore plans no operation, like a record pattern's marker;
+/// its row records the place lowering rejoins each use to.
 ///
 /// The conditions are what make that rejoin exact, not a convenience. The
-/// place must root at a structural parameter this state already writes
-/// through, or at an earlier local of this state — the borrow ledger names
-/// the loaned storage in either spelling — and its projection must bottom
-/// out in exactly the declared referent: a loan of a wider or narrower leaf
-/// is not this local's place. A runtime index stays a `RuntimeIndex` segment
-/// for the terminal's bound re-proof, and a `&mut ... as &mut T` recast skips
-/// the referent equality entirely — the §5b judgment already proved the two
-/// shapes compatible. Only an exclusive `&mut` loan is admitted. A shared
-/// loan carries no write authority and its reads are not rejoined here; the
-/// referent may be a record as well as a primitive, because the projection
-/// check below pins the loaned storage either way.
-fn is_exclusive_place_loan(
+/// place must root at a structural parameter of this state or at an earlier
+/// local of this state — the borrow ledger names the loaned storage in
+/// either spelling — and its projection must bottom out in exactly the
+/// declared referent: a loan of a wider or narrower leaf is not this local's
+/// place. A shared loan may also alias a runtime scalar parameter; it has no
+/// write authority, and the read keeps the parameter's declared carrier. A
+/// runtime index stays a `RuntimeIndex` segment for the terminal's bound
+/// re-proof. A `&place as &T` recast (either access) skips the referent
+/// equality: the §5b judgment already proved the two shapes compatible. The
+/// referent may be a record as well as a primitive.
+fn place_loan(
     program: &dyn ::validation::CheckingInput,
-    machine: SymbolHandle,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
-) -> bool {
-    exclusive_place_loan_referent(
-        program,
-        machine,
-        state,
-        structural_parameters,
-        statement_index,
-        local,
-    )
-    .is_some()
-}
-
-/// The named-custody gate both borrowed-local referent checks share after
-/// peeling their access kind: the target's canonical place must root at a
-/// state parameter or an earlier local of this state, a recast stops there,
-/// and a plain loan rejoins only when the referent's normalized identity
-/// matches the declared one.
-#[allow(clippy::too_many_arguments)]
-fn borrowed_local_named_root(
-    program: &dyn ::validation::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    target: typed_trees::expression::ExpressionHandle,
-    recast: bool,
-    referee: typed_trees::types::TypeReferenceHandle,
-    parameter_root: impl Fn(SymbolHandle) -> bool,
-) -> Option<()> {
+    access: CheckedStructuralAccess,
+) -> Option<PlaceLoan> {
+    if local.is_mutable {
+        return None;
+    }
+    let formation = validation::reference_formation_source(program, local.initial_value)?;
+    let (referee, _) = match access {
+        CheckedStructuralAccess::SharedBorrow => {
+            if formation.access != language_core::ReferenceAccess::Shared {
+                return None;
+            }
+            super::super::super::reference_results::shared_place_borrowed_parts(
+                program,
+                local.type_reference,
+            )?
+        }
+        CheckedStructuralAccess::MutableBorrow => {
+            if formation.access != language_core::ReferenceAccess::Mutable {
+                return None;
+            }
+            super::super::super::reference_results::mutable_borrowed_parts(
+                program,
+                local.type_reference,
+            )?
+        }
+        CheckedStructuralAccess::Owned | CheckedStructuralAccess::WriteOnlyBorrow => return None,
+    };
     let statement = usize::try_from(statement_index).ok()?;
     let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement,
-        target,
+        formation.source,
     )?;
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
@@ -880,152 +902,94 @@ fn borrowed_local_named_root(
     // The loaned storage must root at a structural parameter this state
     // already writes through, or at an earlier local of this state — the
     // same named-custody family in both spellings. A computed expression
-    // root has no rejoin the ledger can name.
-    let local_root = program
-        .state_local_declaration(state, symbol)
-        .is_some_and(|(ordinal, _)| ordinal < statement);
-    if !parameter_root(symbol) && !local_root {
-        return None;
+    // root has no rejoin the ledger can name. Scalar parameters own storage
+    // too, but only a shared loan may alias one: erased and const formals
+    // have no runtime storage to lend.
+    let parameters = program.state_parameters(state);
+    let (root, root_type) = match parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
+        Some(position) => {
+            let parameter = &parameters[position];
+            let root = match structural_parameters
+                .iter()
+                .position(|candidate| candidate.position as usize == position)
+            {
+                Some(dense) => checked_trees::CheckedPlaceLoanRoot::StructuralParameter {
+                    parameter_index: u32::try_from(dense).ok()?,
+                },
+                None if access == CheckedStructuralAccess::SharedBorrow
+                    && !parameter.is_const
+                    && !parameter.relevance.is_erased()
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some() =>
+                {
+                    checked_trees::CheckedPlaceLoanRoot::ScalarParameter {
+                        position: u32::try_from(position).ok()?,
+                    }
+                }
+                None => return None,
+            };
+            (root, parameter.type_reference)
+        }
+        None => {
+            let (ordinal, root_local) = program.state_local_declaration(state, symbol)?;
+            if ordinal >= statement {
+                return None;
+            }
+            (
+                checked_trees::CheckedPlaceLoanRoot::Local { symbol },
+                root_local.type_reference,
+            )
+        }
+    };
+    // The root denotes its storage through its own declared reference shells.
+    let mut root_type = root_type;
+    while let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(root_type)
+    {
+        root_type = *referee;
     }
-    if recast {
-        // The §5b judgment already proved operand and referent compatible,
-        // and the local plans no operation: the checked segment walk only
-        // serves the non-recast referent comparison below, so a selector it
-        // cannot resolve no longer fences the loan.
-        return Some(());
-    }
-    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+    // A recast reinterprets its place under the place's own declared type;
+    // without that type the view has nothing to read beneath it.
+    let recast_source = if formation.view_type.is_valid() {
+        validation::declared_place_type_raw(program, machine, Some(state), formation.source)
+            .filter(|source| source.is_valid())?
+    } else {
+        typed_trees::types::TypeReferenceHandle::default()
+    };
+    let projected = crate::execution::terminal_unit::calls::projected_borrowed_path(
         program,
-        machine,
+        machine.symbol,
         state.symbol,
         statement,
         &place,
-    )?;
-    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
-        .then_some(())
-}
-
-fn exclusive_place_loan_referent(
-    program: &dyn ::validation::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> Option<()> {
-    let formation = validation::reference_formation_source(program, local.initial_value)?;
-    if formation.access != language_core::ReferenceAccess::Mutable {
-        return None;
-    }
-    let (target, recast) = (formation.source, formation.view_type.is_valid());
-    let referee = immutable_local_borrowed_referee(
-        program,
-        local,
-        CheckedStructuralAccess::MutableBorrow,
-        super::super::super::reference_results::mutable_borrowed_parts,
-    )?;
-    borrowed_local_named_root(
-        program,
-        machine,
-        state,
+    );
+    let path = match projected {
+        Some((storage, path)) => {
+            if !recast_source.is_valid()
+                && program.normalized_type_identity(storage)
+                    != program.normalized_type_identity(referee)
+            {
+                return None;
+            }
+            path
+        }
+        None if recast_source.is_valid() => return Some(PlaceLoan::Unnamed),
+        None => return None,
+    };
+    Some(PlaceLoan::Captured(checked_trees::CheckedPlaceLoanPlan {
         statement_index,
-        target,
-        recast,
+        symbol: local.symbol,
+        access,
         referee,
-        |symbol| {
-            program
-                .state_parameters(state)
-                .iter()
-                .position(|parameter| parameter.symbol == symbol)
-                .is_some_and(|position| {
-                    structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.position as usize == position)
-                })
-        },
-    )
-}
-
-/// A `let` binding a shared loan of a place: `let borrowed: &u32 =
-/// &self.size;`. Like the exclusive carrier above, the immutable binding
-/// denotes one place for its whole scope and plans no operation: every read
-/// through it is a read of that place, and the borrow layer owns the loan's
-/// lifetime. The conditions mirror the exclusive ones — the place roots at
-/// a structural parameter or an earlier local and its projection bottoms out
-/// in exactly the declared referent, with the same recast peel and runtime
-/// index admission — minus write authority: the loan is `&`, never `&mut`,
-/// and the referent may still be a record or a primitive.
-fn is_shared_place_loan(
-    program: &dyn ::validation::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> bool {
-    shared_place_loan_referent(
-        program,
-        machine,
-        state,
-        structural_parameters,
-        statement_index,
-        local,
-    )
-    .is_some()
-}
-
-fn shared_place_loan_referent(
-    program: &dyn ::validation::CheckingInput,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> Option<()> {
-    let formation = validation::reference_formation_source(program, local.initial_value)?;
-    if formation.access != language_core::ReferenceAccess::Shared {
-        return None;
-    }
-    let (target, recast) = (formation.source, formation.view_type.is_valid());
-    let referee = immutable_local_borrowed_referee(
-        program,
-        local,
-        CheckedStructuralAccess::SharedBorrow,
-        super::super::super::reference_results::shared_place_borrowed_parts,
-    )?;
-    borrowed_local_named_root(
-        program,
-        machine,
-        state,
-        statement_index,
-        target,
-        recast,
-        referee,
-        |symbol| {
-            program
-                .state_parameters(state)
-                .iter()
-                .position(|parameter| parameter.symbol == symbol)
-                .is_some_and(|position| {
-                    structural_parameters
-                .iter()
-                .any(|parameter| parameter.position as usize == position)
-                // Scalar parameters own storage too. The shared local retains
-                // a checked alias of that exact parameter, rather than a new
-                // structural result; its reads preserve the source carrier
-                // through the ordinary representation-view operation. Erased
-                // and const formals have no runtime storage to lend.
-                || {
-                    let parameter = &program.state_parameters(state)[position];
-                    !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
-                }
-                })
-        },
-    )
+        root,
+        root_type,
+        path,
+        recast_source,
+    }))
 }
 
 /// A retained borrow root names this initializer and its exact reference type.
@@ -1184,23 +1148,4 @@ fn establish_declared_home(
     structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
     structural_local_symbols.push(local.symbol);
     Some(())
-}
-
-/// The referee beneath an immutable checked local's borrow carrier, when the
-/// carrier's access matches `expected`. `parts` selects the borrow flavor
-/// (mutable / shared place) the caller loans.
-fn immutable_local_borrowed_referee(
-    program: &dyn ::validation::CheckingInput,
-    local: &typed_trees::statement::TableLocalData,
-    expected: CheckedStructuralAccess,
-    parts: fn(
-        &dyn ::validation::CheckingInput,
-        typed_trees::types::TypeReferenceHandle,
-    ) -> Option<(
-        typed_trees::types::TypeReferenceHandle,
-        CheckedStructuralAccess,
-    )>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let (referee, access) = parts(program, local.type_reference)?;
-    (access == expected && !local.is_mutable).then_some(referee)
 }

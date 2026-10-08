@@ -67,6 +67,8 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) structural_result:
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
+    /// Every silent place loan the sequence admitted, in statement order.
+    pub(in crate::execution::terminal_unit) place_loans: Vec<checked_trees::CheckedPlaceLoanPlan>,
     pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
     /// Every structural result binding the sequence established, keyed by
     /// the authored root it publishes (a `let` local's symbol or an
@@ -380,6 +382,7 @@ pub(in crate::execution::terminal_unit) fn build(
         return None;
     }
     let mut operations = Vec::new();
+    let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
@@ -569,6 +572,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     binders: &binders,
                     erased_locals: &erased_locals,
                     operations: &mut operations,
+                    place_loans: &mut place_loans,
                     scalar_count: &mut scalar_count,
                     structural_count: &mut structural_count,
                     structural_local_symbols: &mut structural_local_symbols,
@@ -727,6 +731,7 @@ pub(in crate::execution::terminal_unit) fn build(
         binders: &binders,
         scalar_control,
         operations,
+        place_loans,
         scalar_count,
         structural_count,
         structural_local_symbols,
@@ -785,11 +790,7 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
             if guarded.next().is_some() {
                 return None;
             }
-            let arms = facts
-                .flow
-                .guarded_exits
-                .exits
-                .span(tail.arms)?;
+            let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
             if arms.first()?.guard_statement_ordinal as usize != prefix_count
                 || !arms.iter().all(|arm| {
                     matches!(

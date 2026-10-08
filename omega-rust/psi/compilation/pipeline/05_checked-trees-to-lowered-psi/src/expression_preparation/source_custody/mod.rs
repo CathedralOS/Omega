@@ -5,24 +5,19 @@
 //! the last of them (TASKS.md STAGE05-SOURCE-REREAD-DELETED). Do not add a
 //! reader here: record the value in the plan instead.
 //!
-//! What remains:
-//!
-//! - `structural_places` answers place questions from the authored source.
-//! - Some children still refuse shapes stage 05 cannot lower. Those refusals
-//!   stay until the route items admit the shapes; the validators that only
-//!   re-confirmed a plan row against its source are gone.
+//! What remains: some children still refuse shapes stage 05 cannot lower.
+//! Those refusals stay until the route items admit the shapes; the validators
+//! that only re-confirmed a plan row against its source are gone. A silent
+//! place loan's captured place is a plan row (`CheckedPlaceLoanPlan`), not a
+//! reader here.
 
 use super::{CheckedTrees, LoweringError, PrimitiveType};
-
-// Reads: the authored binding, parameter, place or record field a scalar
-// read names.
-pub(crate) mod structural_places;
 
 // Selected comparisons: a comparison's Terminal meaning.
 pub(crate) mod comparisons;
 
-// Constructed values: a declared view binding's type and byte literals.
-pub(crate) mod structural;
+// Constructed values: constructor byte literals against their carrier.
+pub(crate) mod byte_literals;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
     matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()

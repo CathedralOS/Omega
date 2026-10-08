@@ -156,6 +156,9 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
+    /// The state's silent place loans in statement order, indexed against
+    /// this state's `structural_parameters`.
+    pub place_loans: Vec<super::CheckedPlaceLoanPlan>,
     pub terminator: CheckedComposedUnitControlTerminatorPlan,
     /// The authored statement where `terminator` begins: the state's first
     /// transition, or the final expression that completes a value-returning

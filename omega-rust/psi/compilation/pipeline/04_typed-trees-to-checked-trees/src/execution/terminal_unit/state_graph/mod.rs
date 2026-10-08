@@ -467,6 +467,7 @@ pub(super) fn build_traced(
         )?;
         trace.phase("state graph: operation custody");
         let mut operations = sequence.operations;
+        let place_loans = sequence.place_loans;
         retire_guarded_reference_completion(
             facts,
             state,
@@ -573,6 +574,7 @@ pub(super) fn build_traced(
             requires: state_requires[state_index].clone(),
             entry_claims: state_entry_claims[state_index].clone(),
             operations,
+            place_loans,
             terminator,
             terminator_statement_ordinal,
             statement_count: u32::try_from(statements.len()).ok()?,
