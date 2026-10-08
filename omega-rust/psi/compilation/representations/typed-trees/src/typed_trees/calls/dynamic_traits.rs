@@ -385,57 +385,45 @@ fn contract_identity_is_public(program: &TypedTrees, symbol: SymbolHandle) -> Op
     program
         .data_definitions()
         .iter()
-        .find(|definition| definition.symbol == symbol)
-        .map(|definition| definition.is_public)
+        .find_map(|definition| (definition.symbol == symbol).then_some(definition.is_public))
         .or_else(|| program.machine(symbol).map(|machine| machine.is_public))
         .or_else(|| {
-            program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| definition.is_public)
+            program.traits().iter().find_map(|definition| {
+                (definition.symbol == symbol).then_some(definition.is_public)
+            })
         })
         .or_else(|| {
-            program
-                .domain_definitions()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| definition.is_public)
+            program.domain_definitions().iter().find_map(|definition| {
+                (definition.symbol == symbol).then_some(definition.is_public)
+            })
         })
         .or_else(|| {
-            program
-                .propositions()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| definition.is_public)
+            program.propositions().iter().find_map(|definition| {
+                (definition.symbol == symbol).then_some(definition.is_public)
+            })
         })
         .or_else(|| {
-            program
-                .conformances()
-                .iter()
-                .find(|conformance| conformance.symbol == symbol)
-                .map(|conformance| conformance.is_public)
+            program.conformances().iter().find_map(|conformance| {
+                (conformance.symbol == symbol).then_some(conformance.is_public)
+            })
         })
         .or_else(|| {
-            program
-                .const_declarations()
-                .iter()
-                .find(|declaration| declaration.symbol == symbol)
-                .map(|declaration| declaration.is_public)
+            program.const_declarations().iter().find_map(|declaration| {
+                (declaration.symbol == symbol).then_some(declaration.is_public)
+            })
         })
         .or_else(|| {
             program
                 .mathematical_definitions()
                 .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| definition.is_public)
+                .find_map(|definition| {
+                    (definition.symbol == symbol).then_some(definition.is_public)
+                })
         })
         .or_else(|| {
-            program
-                .operators()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-                .map(|definition| definition.is_public)
+            program.operators().iter().find_map(|definition| {
+                (definition.symbol == symbol).then_some(definition.is_public)
+            })
         })
 }
 
