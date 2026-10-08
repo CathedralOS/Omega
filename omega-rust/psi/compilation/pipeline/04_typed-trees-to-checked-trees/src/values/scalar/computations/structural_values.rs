@@ -382,23 +382,21 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            for (field_ordinal, field) in self
+            let field_values = self
                 .plans
                 .case_fields
                 .span(constructor.fields)?
                 .iter()
-                .enumerate()
-            {
-                self.plans.roots.append(CheckedScalarComputationRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                    role: CheckedScalarExpressionRole::StructuralValueField {
+                .map(|field| field.value)
+                .collect::<Vec<_>>();
+            for (field_ordinal, value) in field_values.iter().enumerate() {
+                self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValueField {
                         expression,
                         field_ordinal: u32::try_from(field_ordinal).ok()?,
                     },
-                    root: field.value,
-                });
+                    *value,
+                )?;
             }
             CheckedStructuralValueKind::Case(constructor)
         } else if let ExpressionNode::StructLiteral(literal) =
@@ -451,9 +449,9 @@ impl Builder<'_, '_> {
             let subject = self.expression(dispatch.subject, subject_type)?;
             self.plans.nodes.get_mut(subject).authored_root = dispatch.subject;
             self.push_scalar_root(
-                    CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                    subject,
-                )?;
+                CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                subject,
+            )?;
             let authored = self
                 .program
                 .expression_table
@@ -507,11 +505,9 @@ impl Builder<'_, '_> {
                         let computation = self.expression(pattern, subject_type)?;
                         self.plans.nodes.get_mut(computation).authored_root = pattern;
                         self.push_scalar_root(
-                    CheckedScalarExpressionRole::StructuralValuePattern {
-                                source_arm,
-                            },
-                    computation,
-                )?;
+                            CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                            computation,
+                        )?;
                         checked_trees::CheckedScalarDispatchPattern::Value(computation)
                     }
                 };

@@ -284,12 +284,12 @@ impl Builder<'_, '_> {
                 let root = self.expression(initializer.value, primitive)?;
                 self.plans.nodes.get_mut(root).authored_root = initializer.value;
                 self.push_scalar_root(
-                        CheckedScalarExpressionRole::RecordField {
+                    CheckedScalarExpressionRole::RecordField {
                         expression,
                         field_ordinal: u32::try_from(ordinal).ok()?,
                     },
-                        root,
-                    )?;
+                    root,
+                )?;
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
             } else {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(
@@ -386,12 +386,12 @@ impl Builder<'_, '_> {
                 let root = self.expression(value_expression, primitive)?;
                 self.plans.nodes.get_mut(root).authored_root = value_expression;
                 self.push_scalar_root(
-                        CheckedScalarExpressionRole::StructuralValueField {
+                    CheckedScalarExpressionRole::StructuralValueField {
                         expression,
                         field_ordinal: u32::try_from(ordinal).ok()?,
                     },
-                        root,
-                    )?;
+                    root,
+                )?;
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
             } else {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(

@@ -199,17 +199,10 @@ impl Builder<'_, '_> {
                     })?;
             let start = self.expression(region.start, primitive)?;
             self.plans.nodes.get_mut(start).authored_root = region.start;
-            self.plans
-                .roots
-                .append(checked_trees::CheckedScalarComputationRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                    role: checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset {
-                        expression,
-                    },
-                    root: start,
-                });
+            self.push_scalar_root(
+                checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset { expression },
+                start,
+            )?;
             checked_trees::CheckedElementViewRegion::RepresentationBytes {
                 start,
                 end: region.extent,

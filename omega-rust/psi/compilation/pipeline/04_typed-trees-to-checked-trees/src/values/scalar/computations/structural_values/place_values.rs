@@ -3,8 +3,7 @@
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
 use super::place_types::{
-    canonical_place_is_borrowable, needs_copied_place_root,
-    projection_root_expression,
+    canonical_place_is_borrowable, needs_copied_place_root, projection_root_expression,
 };
 use super::value_predicates::{
     is_view_element_copy, plain_or_policy_scalar_field, shared_record_reference,
