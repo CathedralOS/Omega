@@ -85,13 +85,12 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 *constraints,
                 exposure,
             )?;
-            let reference = typed_trees.type_reference_table.insert(
+            Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
                 },
-            );
-            Ok(reference)
+            ))
         }
         resolved::types::TypeReferenceNode::FixedArray {
             element_type,

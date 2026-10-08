@@ -37,7 +37,7 @@ pub(super) use traits::insert_trait_symbol_children;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use super::names::symbol_seed;
+use super::names::{symbol_seed, type_parameter_seed};
 
 pub(super) fn insert_measure_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -98,15 +98,7 @@ fn insert_machine_parameter_signature_children(
         program
             .data_type_parameters(signature.type_parameters)
             .iter()
-            .map(|parameter| {
-                let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                        SymbolKind::MachineParameter
-                    }
-                    _ => SymbolKind::TypeParameter,
-                };
-                symbol_seed(kind, &parameter.name, has_sources)
-            })
+            .map(|parameter| type_parameter_seed(parameter, false, has_sources))
             .chain(
                 program
                     .state_parameters(signature.parameters)
@@ -139,18 +131,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
         program
             .data_type_parameters(conformance.type_parameters)
             .iter()
-            .map(|parameter| {
-                let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                        SymbolKind::MachineParameter
-                    }
-                    symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
-                        SymbolKind::PropositionParameter
-                    }
-                    _ => SymbolKind::TypeParameter,
-                };
-                symbol_seed(kind, &parameter.name, has_sources)
-            }),
+            .map(|parameter| type_parameter_seed(parameter, true, has_sources)),
     );
 
     let mut children = SymbolTableBuilder::child_handles(children);

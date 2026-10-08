@@ -21,6 +21,28 @@ pub(super) fn symbol_seed<'name>(
     }
 }
 
+/// Seed a type parameter's child symbol: `Machine` binders always get their
+/// own kind; `Proposition` binders get theirs only where the declaring family
+/// admits proposition parameters.
+pub(in crate::symbols::symbol_table) fn type_parameter_seed<'name>(
+    parameter: &'name symbol_resolved_trees::data::TypeParameter,
+    proposition_parameters: bool,
+    has_sources: bool,
+) -> SymbolSeed<'name> {
+    let kind = match parameter.kind {
+        symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
+            SymbolKind::MachineParameter
+        }
+        symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+            if proposition_parameters =>
+        {
+            SymbolKind::PropositionParameter
+        }
+        _ => SymbolKind::TypeParameter,
+    };
+    symbol_seed(kind, &parameter.name, has_sources)
+}
+
 /// A machine declaration's seed. Compiler-synthesized machines (trait
 /// defaults, equatable realizations) carry a generated name, so the authored
 /// carrier occurrence in the conformance supplies the declaration's exact

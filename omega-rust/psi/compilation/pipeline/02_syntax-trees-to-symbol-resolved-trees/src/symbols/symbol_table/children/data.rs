@@ -2,7 +2,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_type_parameter_children;
-use crate::symbols::symbol_table::names::symbol_seed;
+use crate::symbols::symbol_table::names::{symbol_seed, type_parameter_seed};
 
 pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -16,15 +16,7 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
         program
             .data_type_parameters(data_definition.type_parameters)
             .iter()
-            .map(|parameter| {
-                let kind = match parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                        SymbolKind::MachineParameter
-                    }
-                    _ => SymbolKind::TypeParameter,
-                };
-                symbol_seed(kind, &parameter.name, has_sources)
-            })
+            .map(|parameter| type_parameter_seed(parameter, false, has_sources))
             .chain(program.data_members(data_definition.members).iter().map(
                 |member| match member {
                     symbol_resolved_trees::data::DataMember::Field(field) => {
