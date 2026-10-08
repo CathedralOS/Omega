@@ -3,6 +3,7 @@ use selected_instructions::{
 };
 
 use crate::PressureRematerializationError;
+use crate::rewrites::block_edges::block_instruction_ids;
 
 pub(super) use crate::rewrites::selected_operands::selected_operand as operand;
 
@@ -46,21 +47,7 @@ pub(super) fn validate_dense(
     let mut ids = function
         .blocks
         .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain(std::iter::once(match &block.terminator {
-                    SelectedTerminator::ConditionalBranch { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                    | SelectedTerminator::Jump { instruction, .. }
-                    | SelectedTerminator::Return { instruction, .. }
-                    | SelectedTerminator::Crash { instruction, .. }
-                    | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
-                }))
-        })
+        .flat_map(block_instruction_ids)
         .collect::<Vec<_>>();
     ids.sort_unstable();
     if ids != (0..count).collect::<Vec<_>>() {

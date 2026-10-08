@@ -1,6 +1,6 @@
 //! Ordered per-function proposal derivation.
 
-use selected_instructions::{SelectedFunction, SelectedInstructionPlan, SelectedTerminator};
+use selected_instructions::{SelectedFunction, SelectedInstructionPlan};
 
 use crate::{
     FunctionLiteralFold, LiteralFoldError, ValidatedRecoveryClassifications,
@@ -10,6 +10,7 @@ use crate::{
 use super::actions::derive_actions;
 use super::constraints::AdmittedPairs;
 use super::function_rewrite::apply_actions;
+use crate::rewrites::block_edges::block_instruction_ids;
 
 pub(super) fn derive_function_folds(
     selected: &impl ValidatedSelectedAnalysis,
@@ -77,21 +78,7 @@ fn validate_dense_identifiers(
     let mut ids = function
         .blocks
         .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id.0)
-                .chain(std::iter::once(match &block.terminator {
-                    SelectedTerminator::ConditionalBranch { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                    | SelectedTerminator::Jump { instruction, .. }
-                    | SelectedTerminator::Return { instruction, .. }
-                    | SelectedTerminator::Crash { instruction, .. }
-                    | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
-                }))
-        })
+        .flat_map(block_instruction_ids)
         .collect::<Vec<_>>();
     ids.sort_unstable();
     let count = u32::try_from(ids.len()).map_err(|_| LiteralFoldError::WorkOverflow)?;

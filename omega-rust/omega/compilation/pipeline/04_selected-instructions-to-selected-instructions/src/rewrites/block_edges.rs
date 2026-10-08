@@ -46,6 +46,11 @@ pub(super) fn block_instructions(
         .chain(std::iter::once(terminator_instruction(&block.terminator)))
 }
 
+/// Every instruction identity a block carries, in block order.
+pub(super) fn block_instruction_ids(block: &SelectedBlock) -> impl Iterator<Item = u32> + '_ {
+    block_instructions(block).map(|instruction| instruction.id.0)
+}
+
 /// Every successor edge in the function paired with the block it leaves,
 /// for predecessor-count audits.
 pub(super) fn all_edges(
