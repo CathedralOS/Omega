@@ -28,10 +28,7 @@ impl MachineIndex {
                 state_machine.insert(state.symbol, machine.symbol);
                 for offset in 0..state.statement_nodes.count() {
                     statement_machine.insert(
-                        StatementHandle::from_parts(
-                            state.statement_nodes.start().arena_index() + offset,
-                            state.statement_nodes.start().generation(),
-                        ),
+                        state.statement_nodes.handle_at(offset),
                         machine.symbol,
                     );
                 }

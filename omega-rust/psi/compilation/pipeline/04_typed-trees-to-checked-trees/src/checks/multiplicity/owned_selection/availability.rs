@@ -443,10 +443,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
                     .iter()
                     .position(|source| source.symbol == symbol)
                     .ok_or_else(unsupported)?;
-                let source = Handle::from_parts(
-                    sources.start().arena_index() + ordinal as u32,
-                    sources.start().generation(),
-                );
+                let source = sources.handle_at(ordinal as u32);
                 // Each leaf consumes the leaf type's whole linear frontier
                 // under its own moved path: one row per claim, each naming
                 // the consumed place's exact identity and provenance.

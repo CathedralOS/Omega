@@ -52,12 +52,7 @@ pub(super) fn build_call_entry_contexts(
             .span_or_empty(state.calls)
             .iter()
             .position(|call| call == borrow_call)
-            .map(|offset| {
-                arena::Handle::from_parts(
-                    state.calls.start().arena_index() + offset as u32,
-                    state.calls.start().generation(),
-                )
-            })
+            .map(|offset| state.calls.handle_at(offset as u32))
     });
     if let Some(borrow_call_handle) = owned_call {
         append_constraint_ref(

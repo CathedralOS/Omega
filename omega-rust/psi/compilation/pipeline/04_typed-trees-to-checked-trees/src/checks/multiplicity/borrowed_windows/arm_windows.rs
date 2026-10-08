@@ -167,10 +167,7 @@ impl ArmWindowPlan {
         }
         for (index, frame) in plan.frames.iter().enumerate() {
             for ordinal in 0..frame.arms.len() {
-                let arm = ArmHandle::from_parts(
-                    frame.arms.start().arena_index() + ordinal as u32,
-                    frame.arms.start().generation(),
-                );
+                let arm = frame.arms.handle_at(ordinal as u32);
                 plan.frame_by_arm.insert(arm_key(arm), index);
             }
         }
@@ -654,10 +651,7 @@ impl ArmWindowPlan {
                     .iter()
                     .enumerate()
                 {
-                    let arm_handle = ArmHandle::from_parts(
-                        dispatch.arms.start().arena_index() + ordinal as u32,
-                        dispatch.arms.start().generation(),
-                    );
+                    let arm_handle = dispatch.arms.handle_at(ordinal as u32);
                     if let MatchPattern::Value(pattern) = arm.pattern {
                         self.collect_frames(
                             program,

@@ -235,10 +235,7 @@ pub(in crate::checks) fn reachable_arms(
                 }
             }
         }
-        let handle = Handle::from_parts(
-            arms.start().arena_index() + ordinal as u32,
-            arms.start().generation(),
-        );
+        let handle = arms.handle_at(ordinal as u32);
         selected.push((handle, arm));
         if covered {
             break;

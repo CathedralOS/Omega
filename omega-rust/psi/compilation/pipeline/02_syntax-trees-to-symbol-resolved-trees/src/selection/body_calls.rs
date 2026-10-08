@@ -95,11 +95,7 @@ fn retarget_statement_span(
     statements: arena::HandleSpan<symbol_resolved_trees::statement::StatementNode>,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
-    for offset in 0..statements.count() {
-        let handle = arena::Handle::from_parts(
-            statements.start().arena_index() + offset,
-            statements.start().generation(),
-        );
+    for handle in statements.handles() {
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
         match statement {

@@ -341,12 +341,7 @@ fn append_type_children(
     span: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
     pending: &mut Vec<Handle<symbol_resolved_trees::types::TypeReference>>,
 ) {
-    for offset in 0..span.count() {
-        pending.push(Handle::from_parts(
-            span.start().arena_index() + offset,
-            span.start().generation(),
-        ));
-    }
+    pending.extend(span.handles());
 }
 
 /// Complete one authored call's machine-argument list and record the type
