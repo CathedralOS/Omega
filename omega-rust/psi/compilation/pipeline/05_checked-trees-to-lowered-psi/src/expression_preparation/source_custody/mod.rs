@@ -36,7 +36,6 @@ pub(crate) mod flow_calls;
 pub(crate) mod array_sources;
 pub(crate) mod case_sources;
 pub(crate) mod structural;
-pub(crate) mod value_correspondence;
 pub(crate) mod view_ranges;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {

@@ -84,7 +84,6 @@ mod parameters;
 pub(crate) mod primitive_locals;
 mod reference_results;
 pub(crate) mod scalar_arrays;
-mod scalar_structural_calls;
 mod structural_calls;
 pub(crate) mod structural_values;
 pub(crate) mod view_ranges;

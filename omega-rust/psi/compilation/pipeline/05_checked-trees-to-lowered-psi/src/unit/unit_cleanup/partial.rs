@@ -12,7 +12,6 @@ use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
-mod anonymous;
 mod residuals;
 
 pub(super) fn lower_partial_affine_unit_cleanup_machine(

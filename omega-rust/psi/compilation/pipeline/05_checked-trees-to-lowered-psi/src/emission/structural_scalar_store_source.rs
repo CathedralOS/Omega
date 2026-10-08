@@ -3,7 +3,6 @@ use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, unsupporte
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
-mod case_fields;
 
 /// Rejoin a structural local to its unique earlier declaration. This is source
 /// identity, not a transfer or mutation permission: a carrier may hold reference

@@ -1,28 +1,13 @@
-//! Reconstruct construction, selected ownership and ordered dispatch from authored nodes.
-//! Establishing a local place does not necessarily establish a new value origin:
-//! whole affine moves preserve the original provenance. Replay traces the authored
-//! initializer chain separately from checking each place's establishment and transfer.
-//!
-//! `validate` rejoins an establishment to its destination, then `validate_value`
-//! walks the retained value nodes as a worklist. Records, case
-//! payloads and structural selections replay in `record`, `structural_case`
-//! and `dispatch`, which queue their structural children back onto the same
-//! worklist through `Replay`.
+//! Structural referent and view carriers read from authored types: the
+//! referent of a shared borrow or slice view, a mutable view's carrier and a
+//! declared view binding's type. `byte_literals` replays constructor byte
+//! literals against their declared carrier.
 
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::types::TypeReferenceHandle;
 
 pub(crate) mod byte_literals;
-mod dispatch;
-mod local_disposition;
-mod owned_places;
-mod owned_selection;
-mod record;
-mod shared_borrow;
-mod slice_view;
-mod structural_case;
-mod view_element_copy;
 
 /// The referent of a shared-borrow `&T` result/local type: `T` must be a named
 /// record or a primitive, independently of whether a record contains loans.

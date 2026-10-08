@@ -2,9 +2,6 @@
 
 use super::{CheckedTrees, LoweringError, unsupported};
 pub(crate) mod authored;
-mod boundary_buffers;
-pub(crate) mod literal_arguments;
-pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
 
 /// A projected Fused binding selects an erased capability, not an implicit

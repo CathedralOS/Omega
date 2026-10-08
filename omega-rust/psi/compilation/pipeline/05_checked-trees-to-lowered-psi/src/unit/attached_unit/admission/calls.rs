@@ -258,8 +258,7 @@ fn unit_target<'a>(
 
 /// A scalar call rejoins its exact flow occurrence, a callee the shared
 /// scalar-call catalog resolves, and that callee's exact contract, signature
-/// and reach. Structural operands and claim transfers rejoin their authored
-/// sources through `scalar_structural_calls`.
+/// and reach.
 fn scalar_call(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,

@@ -14,7 +14,6 @@ mod admission;
 pub(super) mod callable;
 mod catalogs;
 mod emission;
-mod internal_calls;
 mod literal_arguments;
 mod scalar_calls;
 mod state_graph;

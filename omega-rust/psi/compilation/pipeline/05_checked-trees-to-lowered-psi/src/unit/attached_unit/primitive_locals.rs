@@ -25,7 +25,6 @@ use crate::unit::StructuralTypeDeclaration;
 use checked_trees::CheckedCallScalarArgument;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
-pub(super) mod unit_calls;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PrimitiveLocal {

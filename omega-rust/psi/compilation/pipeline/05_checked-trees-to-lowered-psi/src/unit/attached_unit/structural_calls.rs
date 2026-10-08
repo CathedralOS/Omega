@@ -10,7 +10,6 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
 mod result_uses;
-mod shared_temporary;
 pub(super) use result_uses::{result_use_operations, validate_consumer, validate_usage};
 
 /// An ordinary structural call: its plan, result binding and custody.
