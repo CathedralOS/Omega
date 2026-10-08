@@ -135,7 +135,7 @@ fn removable(
     sidecar_operations: &BTreeSet<OperationId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) -> bool {
-    let Some(block) = machine.blocks.iter().find(|block| block.id == block_id) else {
+    let Some(block) = machine.block(block_id) else {
         return false;
     };
     removable_block(block, evidence, sidecar_operations, sidecar_values)

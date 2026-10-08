@@ -788,7 +788,7 @@ fn private_region(
     let mut region = BTreeSet::from([header]);
     let mut pending = vec![header];
     while let Some(current) = pending.pop() {
-        let Some(block) = machine.blocks.iter().find(|block| block.id == current) else {
+        let Some(block) = machine.block(current) else {
             continue;
         };
         let targets = block.terminator.successor_targets();
