@@ -7,10 +7,8 @@
 //! integer semantic family has eight carriers, so its proof-position overload
 //! is selected by that exact parameter kind before checking sealed custody.
 
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::OperatorDefinition;
-use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::PrimitiveType;
 
 /// Return the carriers of a one-argument callable whose normal-return
@@ -154,18 +152,16 @@ fn scan_conversion_equalities<'program, R>(
     )>,
     mut judge: impl FnMut(&ConversionEqualityCandidate<'_>) -> Option<R>,
 ) -> Option<R> {
-    for contract in program.operator_contracts(operator) {
-        if contract.kind != SignatureContractKind::Ensures {
+    for expression in
+        crate::proof_contracts::proof_facts::ensures_expression_facts(
+            program,
+            program.operator_contracts(operator),
+        )
+    {
+        let ExpressionNode::Binary(equality) = program.expression_table.expression(expression)
+        else {
             continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            let ExpressionNode::Binary(equality) = program.expression_table.expression(*expression)
-            else {
-                continue;
-            };
+        };
             if equality.operator != BinaryOperator::Equal {
                 continue;
             }
@@ -182,14 +178,13 @@ fn scan_conversion_equalities<'program, R>(
                     continue;
                 };
                 if let Some(verdict) = judge(&ConversionEqualityCandidate {
-                    expression: *expression,
+                    expression: expression,
                     result,
                     conversion,
                     selected,
                     semantic,
-                }) {
-                    return Some(verdict);
-                }
+            }) {
+                return Some(verdict);
             }
         }
     }

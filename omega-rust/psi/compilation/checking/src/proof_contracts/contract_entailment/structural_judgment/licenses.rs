@@ -3,7 +3,7 @@
 //! normal form those licenses power. The judge keeps only the types it
 //! stores; all candidate computation and shape checking lives here.
 use super::super::{
-    BinaryOperator, ExpressionNode, Machine, ProofFact, SignatureContractKind, SymbolHandle,
+    BinaryOperator, ExpressionNode, Machine, SymbolHandle,
     TraitDefinition, structural_term,
 };
 use super::StructuralTerm;
@@ -47,29 +47,26 @@ fn for_each_ensures_equality(
     signature: &typed_trees::signature::StateSignature,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
-    for contract in program.state_signature_contracts(signature) {
-        if contract.kind != SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
+    for expression in
+        crate::proof_contracts::proof_facts::ensures_expression_facts(
+            program,
+            program.state_signature_contracts(signature),
+        )
+    {
+        let mut conjuncts = Vec::new();
+        collect_equality_conjuncts(program, expression, &mut conjuncts);
+        for conjunct in conjuncts {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            else {
                 continue;
             };
-            let mut conjuncts = Vec::new();
-            collect_equality_conjuncts(program, *expression, &mut conjuncts);
-            for conjunct in conjuncts {
-                let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
-                else {
-                    continue;
-                };
-                let (Some(left), Some(right)) = (
-                    structural_term(program, binary.left),
-                    structural_term(program, binary.right),
-                ) else {
-                    continue;
-                };
-                arm(left, right);
-            }
+            let (Some(left), Some(right)) = (
+                structural_term(program, binary.left),
+                structural_term(program, binary.right),
+            ) else {
+                continue;
+            };
+            arm(left, right);
         }
     }
 }

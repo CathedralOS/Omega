@@ -877,3 +877,30 @@ pub(crate) fn domain_admits_empty_bytes(
     typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
         .is_some_and(|predicate| predicate.holds_for(&[]))
 }
+
+/// The `Expression` facts carried by `Ensures` contracts in `contracts`, in
+/// order — the entitlement surface every entailment/seed loop filters down to.
+pub(crate) fn ensures_expression_facts<'a>(
+    program: &'a dyn crate::CheckingInput,
+    contracts: &'a [typed_trees::signature::SignatureContract],
+) -> impl Iterator<Item = ExpressionHandle> + 'a {
+    ensures_facts(program, contracts).filter_map(|fact| {
+        let ProofFact::Expression(expression) = fact else {
+            return None;
+        };
+        Some(*expression)
+    })
+}
+
+/// Every fact carried by `Ensures` contracts in `contracts`, in order.
+pub(crate) fn ensures_facts<'a>(
+    program: &'a dyn crate::CheckingInput,
+    contracts: &'a [typed_trees::signature::SignatureContract],
+) -> impl Iterator<Item = &'a ProofFact> + 'a {
+    contracts
+        .iter()
+        .filter(|contract| {
+            contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+}

@@ -27,8 +27,7 @@ pub(crate) use slot_bindings::{
 };
 
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
-    SignatureContractKind, StateSignature, StructuralTerm, TraitDefinition, structural_term,
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER, StateSignature, StructuralTerm, TraitDefinition, structural_term,
     unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
@@ -74,18 +73,16 @@ fn check_law_conformance_with_matches(
     // stay outside this check, exactly like the suggestion path).
     let mut law_conjuncts: Vec<ExpressionHandle> = Vec::new();
     let mut proposition_laws = Vec::new();
-    for contract in program.state_signature_contracts(requirement) {
-        if contract.kind != SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            match fact {
-                ProofFact::Expression(expression) => {
-                    collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
-                }
-                ProofFact::Proposition(application) => proposition_laws.push(application),
-                ProofFact::Membership(_) => {}
+    for fact in crate::proof_contracts::proof_facts::ensures_facts(
+        program,
+        program.state_signature_contracts(requirement),
+    ) {
+        match fact {
+            ProofFact::Expression(expression) => {
+                collect_equality_conjuncts(program, *expression, &mut law_conjuncts);
             }
+            ProofFact::Proposition(application) => proposition_laws.push(application),
+            ProofFact::Membership(_) => {}
         }
     }
     if law_conjuncts.is_empty() && proposition_laws.is_empty() {
@@ -109,16 +106,14 @@ fn check_law_conformance_with_matches(
 
     let mut proven_propositions = Vec::new();
     let mut proven_expressions = Vec::new();
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            match fact {
-                ProofFact::Proposition(application) => proven_propositions.push(application),
-                ProofFact::Expression(expression) => proven_expressions.push(*expression),
-                ProofFact::Membership(_) => {}
-            }
+    for fact in crate::proof_contracts::proof_facts::ensures_facts(
+        program,
+        program.machine_contracts(machine),
+    ) {
+        match fact {
+            ProofFact::Proposition(application) => proven_propositions.push(application),
+            ProofFact::Expression(expression) => proven_expressions.push(*expression),
+            ProofFact::Membership(_) => {}
         }
     }
     check_proposition_law_conformance(
@@ -162,20 +157,16 @@ fn check_law_conformance_with_matches(
     // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
     // engine before this point -- compiling means proven).
     let mut proven_conjuncts: Vec<(ExpressionHandle, ExpressionHandle)> = Vec::new();
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Ensures {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                let mut conjuncts = Vec::new();
-                collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                proven_conjuncts.extend(
-                    conjuncts
-                        .into_iter()
-                        .map(|conjunct| (conjunct, *expression)),
-                );
-            }
+    for fact in crate::proof_contracts::proof_facts::ensures_facts(
+        program,
+        program.machine_contracts(machine),
+    ) {
+        if let ProofFact::Expression(expression) = fact {
+            let mut conjuncts = Vec::new();
+            collect_equality_conjuncts(program, *expression, &mut conjuncts);
+            proven_conjuncts.extend(
+                conjuncts.into_iter().map(|conjunct| (conjunct, *expression)),
+            );
         }
     }
 
