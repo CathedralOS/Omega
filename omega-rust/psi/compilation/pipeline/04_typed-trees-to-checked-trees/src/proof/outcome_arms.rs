@@ -435,15 +435,7 @@ fn instantiate_outcome_arm_fact(
             }),
         )
         .map(lower_checked_proposition_application);
-    let identity = program
-        .normalize_proposition_application(
-            application,
-            Some(PropositionLabels {
-                binder_labels: &binder_labels,
-                argument_labels: &argument_labels,
-            }),
-        )
-        .map(|formula| formula.identity_label());
+    let identity = program.normalized_identity_label(application, &binder_labels, &argument_labels);
     (proposition, identity)
 }
 

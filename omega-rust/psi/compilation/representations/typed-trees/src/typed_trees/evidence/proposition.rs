@@ -786,6 +786,25 @@ impl crate::TypedTrees {
         )
     }
 
+    /// The normalized formula's identity label — the canonical spelling a
+    /// caller compares against when it only needs the label, not the
+    /// formula's machinery.
+    pub fn normalized_identity_label(
+        &self,
+        application: &PropositionApplication,
+        binder_labels: &[String],
+        argument_labels: &[String],
+    ) -> Option<String> {
+        self.normalize_proposition_application(
+            application,
+            Some(PropositionLabels {
+                binder_labels,
+                argument_labels,
+            }),
+        )
+        .map(|formula| formula.identity_label())
+    }
+
     fn normalize_proposition_application_inner(
         &self,
         application: &PropositionApplication,

@@ -3,7 +3,7 @@
 use arena::{Handle, HandleSpan};
 use checked_trees::ContractProofFactKind;
 use symbols::SymbolHandle;
-use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
+use typed_trees::proposition::ProofSubstitutions;
 
 pub(crate) fn contract_proposition_labels(
     program: &dyn ::validation::CheckingInput,
@@ -70,15 +70,7 @@ pub(crate) fn proposition_application_label(
 ) -> Option<String> {
     let (binder_labels, argument_labels) =
         proposition_label_parts(program, application, substitutions);
-    program
-        .normalize_proposition_application(
-            application,
-            Some(PropositionLabels {
-                binder_labels: &binder_labels,
-                argument_labels: &argument_labels,
-            }),
-        )
-        .map(|formula| formula.identity_label())
+    program.normalized_identity_label(application, &binder_labels, &argument_labels)
 }
 
 pub(crate) fn build_checked_proposition_vocabulary(

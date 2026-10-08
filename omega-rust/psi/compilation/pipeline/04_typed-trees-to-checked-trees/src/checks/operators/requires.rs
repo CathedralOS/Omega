@@ -49,7 +49,6 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::operator::OperatorDefinition;
-use typed_trees::proposition::PropositionLabels;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 
@@ -593,15 +592,8 @@ fn requires_fact_proven(
                     )
                 })
                 .collect::<Vec<_>>();
-            let Some(required_label) = program
-                .normalize_proposition_application(
-                    application,
-                    Some(PropositionLabels {
-                        binder_labels: &binder_labels,
-                        argument_labels: &argument_labels,
-                    }),
-                )
-                .map(|formula| formula.identity_label())
+            let Some(required_label) =
+                program.normalized_identity_label(application, &binder_labels, &argument_labels)
             else {
                 return false;
             };

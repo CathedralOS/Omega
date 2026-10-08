@@ -928,15 +928,8 @@ fn instantiate_proof_output_proposition(
             argument_labels: &argument_labels,
         }),
     )?;
-    let identity = program
-        .normalize_proposition_application(
-            application,
-            Some(PropositionLabels {
-                binder_labels: &binder_labels,
-                argument_labels: &argument_labels,
-            }),
-        )?
-        .identity_label();
+    let identity =
+        program.normalized_identity_label(application, &binder_labels, &argument_labels)?;
     Some((lower_checked_proposition_application(normalized), identity))
 }
 

@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
+use typed_trees::proposition::ProofSubstitutions;
 
 use diagnostics::Diagnostic;
 use typed_trees::domain::ProofFact;
@@ -385,15 +385,7 @@ fn proposition_labels(
                     )
                 })
                 .collect::<Vec<_>>();
-            program
-                .normalize_proposition_application(
-                    application,
-                    Some(PropositionLabels {
-                        binder_labels: &binder_labels,
-                        argument_labels: &argument_labels,
-                    }),
-                )
-                .map(|formula| formula.identity_label())
+            program.normalized_identity_label(application, &binder_labels, &argument_labels)
         })
         .collect()
 }
