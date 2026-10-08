@@ -11,7 +11,7 @@ use crate::symbols::top_level::{
 };
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
-    assign_proposition_family_argument_symbols, assign_trait_bound_slot_argument_symbols,
+    assign_proposition_family_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints,
 };
@@ -177,65 +177,19 @@ pub(super) fn assign_machine_symbols(
         // the declaring machine's generic/self context. Contract-parameter
         // symbols themselves join the modular-body checker in MP3; assigning
         // types here prevents representation loss meanwhile.
-        for index in 0..machine.type_parameters.len() {
-            let (parameter_symbol, kind) = {
-                let parameter = &data_type_parameters.span_or_empty(machine.type_parameters)[index];
-                (parameter.symbol, parameter.kind.clone())
-            };
-            let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Const {
-                    mut type_reference,
-                } => {
-                    assign_type_reference_symbol_with_locals_and_constraints(
-                        symbols,
-                        child_type_references,
-                        type_constraints,
-                        &local_type_parameters,
-                        &mut type_reference,
-);
-                    symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
-                }
-                symbol_resolved_trees::data::TypeParameterKind::Value {
-                    mut type_reference,
-                } => {
-                    assign_type_reference_symbol_with_locals_and_constraints(
-                        symbols,
-                        child_type_references,
-                        type_constraints,
-                        &local_type_parameters,
-                        &mut type_reference,
-);
-                    symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
-                }
-                symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
-                    if let symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
-                        trait_arguments,
-                        ..
-                    } = &contract
-                    {
-                        assign_type_reference_argument_symbols_with_constraints(
-                            symbols,
-                            child_type_references,
-                            type_constraints,
-                            &local_type_parameters,
-                            *trait_arguments,
-);
-                    }
-                    SignatureSymbolTables {
-    symbols,
-    data_type_parameters,
-    state_parameters,
-    child_type_references,
-    type_constraints,
-}
-.assign_parameter_contract_symbols(&mut contract, parameter_symbol, &local_type_parameters);
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
-                }
-                other => other,
-            };
-            data_type_parameters.span_mut_or_empty(machine.type_parameters)[index].kind =
-                resolved_kind;
+        SignatureSymbolTables {
+            symbols,
+            data_type_parameters,
+            state_parameters,
+            child_type_references,
+            type_constraints,
         }
+        .resolve_type_parameter_kind_symbols(
+            machine.type_parameters,
+            &local_type_parameters,
+            crate::symbols::top_level::MachineParameterArm::ResolveWithAuthoredTraitArguments,
+            true,
+        );
 
         // Machine-owned value expressions (owned-data initializers and
         // conformance `via` paths) resolve against the same enclosing scope.
@@ -419,26 +373,15 @@ pub(super) fn assign_machine_symbols(
             }
         }
 
-        for bound in &mut machine.conformance_bounds {
-            bound.trait_symbol =
-                top_level_symbol_for_source(symbols, SymbolKind::Trait, &bound.trait_name);
-            assign_type_reference_argument_symbols_with_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &local_type_parameters,
-                bound.arguments,
-            );
-            assign_trait_bound_slot_argument_symbols(
-                symbols,
-                child_type_references,
-                &local_type_parameters,
-                bound.trait_symbol,
-                bound.arguments,
-                &trait_proposition_slots,
-                &trait_machine_identity_slots,
-            );
-        }
+        crate::symbols::top_level::assign_conformance_bound_symbols(
+            symbols,
+            child_type_references,
+            type_constraints,
+            &local_type_parameters,
+            &mut machine.conformance_bounds,
+            &trait_proposition_slots,
+            &trait_machine_identity_slots,
+        );
 
         for state in machine_state_handles
             .span_or_empty(machine.states)

@@ -238,6 +238,48 @@ pub(super) struct MachineScope<'program> {
     pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
 }
 
+/// The reference bundle every contract-time `MachineScope` shares. The four
+/// scope literals in `symbols/contracts` differ only in the fields this
+/// constructor takes; the rest are constants.
+pub(super) struct ContractScopeContext<'program> {
+    pub(super) attached_machines: &'program AttachedMachines,
+    pub(super) resolution_indexes: &'program ResolvedIndexes,
+    pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
+    pub(super) data_members: &'program Arena<DataMember>,
+    pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
+    pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
+}
+
+impl<'program> ContractScopeContext<'program> {
+    pub(super) fn scope(
+        &self,
+        symbol: SymbolHandle,
+        lexical_requirements: LexicalRequirements<'program>,
+        type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
+        attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
+        attached_data_symbol: SymbolHandle,
+        inherited_data_members: Option<&'program [DataMember]>,
+        owned_data: &'program [symbol_resolved_trees::machine::OwnedData],
+    ) -> MachineScope<'program> {
+        MachineScope {
+            symbol,
+            lexical_requirements,
+            attached_machines: self.attached_machines,
+            resolution_indexes: self.resolution_indexes,
+            type_parameters,
+            attached_data,
+            attached_data_symbol,
+            inherited_data_members,
+            owned_data,
+            prior_statements: &[],
+            data_definitions: self.data_definitions,
+            data_members: self.data_members,
+            data_payload_fields: self.data_payload_fields,
+            type_constraints: self.type_constraints,
+        }
+    }
+}
+
 impl MachineScope<'_> {
     pub(super) fn attached_call_target(
         &self,

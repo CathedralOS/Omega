@@ -51,29 +51,28 @@ pub(super) fn assign_contract_reference_symbols(
     let proof_facts = &tables.declarations.proof_facts;
     let expression_table = &mut tables.bodies.expressions;
     let child_type_references = &mut tables.declarations.child_type_references;
+    let scope_context = super::scope::ContractScopeContext {
+        attached_machines: &attached_machines,
+        resolution_indexes: &program.resolution_indexes,
+        data_definitions,
+        data_members,
+        data_payload_fields: &tables.declarations.data_payload_fields,
+        type_constraints: &tables.types.constraints,
+    };
 
     for machine in roots.machines.iter() {
         let data_definition = data_definitions
             .iter()
             .find(|definition| definition.symbol == machine.attached_data_symbol);
-        let scope = MachineScope {
-            attached_machines: &attached_machines,
-            resolution_indexes: &program.resolution_indexes,
-            symbol: machine.symbol,
-            lexical_requirements: trait_scopes
-                .requirements_of(machine.trait_default_origin.declaring_trait),
-            type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
-            attached_data: machine.attached_data.as_ref(),
-            attached_data_symbol: machine.attached_data_symbol,
-            inherited_data_members: data_definition
-                .map(|definition| data_members.span_or_empty(definition.members)),
-            owned_data: machine_owned_data.span_or_empty(machine.owned_data),
-            prior_statements: &[],
-            data_definitions,
-            data_members,
-            data_payload_fields: &tables.declarations.data_payload_fields,
-            type_constraints: &tables.types.constraints,
-        };
+        let scope = scope_context.scope(
+            machine.symbol,
+            trait_scopes.requirements_of(machine.trait_default_origin.declaring_trait),
+            data_type_parameters.span_or_empty(machine.type_parameters),
+            machine.attached_data.as_ref(),
+            machine.attached_data_symbol,
+            data_definition.map(|definition| data_members.span_or_empty(definition.members)),
+            machine_owned_data.span_or_empty(machine.owned_data),
+        );
         let states = machine_state_handles.span_or_empty(machine.states);
         let entry = states.first().map(|handle| machine_states.get(*handle));
         let entry_symbol = entry.map_or(SymbolHandle::invalid(), |state| state.symbol);
@@ -115,22 +114,15 @@ pub(super) fn assign_contract_reference_symbols(
     // that lexical scope just as ordinary machine contracts are resolved in
     // the machine scope.
     for trait_definition in roots.traits.iter() {
-        let scope = MachineScope {
-            attached_machines: &attached_machines,
-            resolution_indexes: &program.resolution_indexes,
-            symbol: trait_definition.symbol,
-            lexical_requirements: trait_scopes.requirements_of(trait_definition.symbol),
-            type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
-            attached_data: None,
-            attached_data_symbol: SymbolHandle::invalid(),
-            inherited_data_members: None,
-            owned_data: &[],
-            prior_statements: &[],
-            data_definitions,
-            data_members,
-            data_payload_fields: &tables.declarations.data_payload_fields,
-            type_constraints: &tables.types.constraints,
-        };
+        let scope = scope_context.scope(
+            trait_definition.symbol,
+            trait_scopes.requirements_of(trait_definition.symbol),
+            data_type_parameters.span_or_empty(trait_definition.type_parameters),
+            None,
+            SymbolHandle::invalid(),
+            None,
+            &[],
+        );
         for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
             assign_contract_span(
                 symbols,
@@ -160,22 +152,15 @@ pub(super) fn assign_contract_reference_symbols(
                 .span_or_empty(domain.operators)
         }))
     {
-        let scope = MachineScope {
-            attached_machines: &attached_machines,
-            resolution_indexes: &program.resolution_indexes,
-            symbol: operator.symbol,
-            lexical_requirements: super::scope::LexicalRequirements::none(),
-            type_parameters: data_type_parameters.span_or_empty(operator.type_parameters),
-            attached_data: None,
-            attached_data_symbol: SymbolHandle::invalid(),
-            inherited_data_members: None,
-            owned_data: &[],
-            prior_statements: &[],
-            data_definitions,
-            data_members,
-            data_payload_fields: &tables.declarations.data_payload_fields,
-            type_constraints: &tables.types.constraints,
-        };
+        let scope = scope_context.scope(
+            operator.symbol,
+            super::scope::LexicalRequirements::none(),
+            data_type_parameters.span_or_empty(operator.type_parameters),
+            None,
+            SymbolHandle::invalid(),
+            None,
+            &[],
+        );
         assign_contract_span(
             symbols,
             &scope,
@@ -202,22 +187,15 @@ pub(super) fn assign_contract_reference_symbols(
         let Some(signature) = contract.structural() else {
             continue;
         };
-        let scope = MachineScope {
-            attached_machines: &attached_machines,
-            resolution_indexes: &program.resolution_indexes,
-            symbol: signature.symbol,
-            lexical_requirements: super::scope::LexicalRequirements::none(),
-            type_parameters: data_type_parameters.span_or_empty(signature.type_parameters),
-            attached_data: None,
-            attached_data_symbol: SymbolHandle::invalid(),
-            inherited_data_members: None,
-            owned_data: &[],
-            prior_statements: &[],
-            data_definitions,
-            data_members,
-            data_payload_fields: &tables.declarations.data_payload_fields,
-            type_constraints: &tables.types.constraints,
-        };
+        let scope = scope_context.scope(
+            signature.symbol,
+            super::scope::LexicalRequirements::none(),
+            data_type_parameters.span_or_empty(signature.type_parameters),
+            None,
+            SymbolHandle::invalid(),
+            None,
+            &[],
+        );
         assign_contract_span(
             symbols,
             &scope,
