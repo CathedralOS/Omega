@@ -360,27 +360,39 @@ pub fn exact_byte_read_result_type(
     let [DataMember::Variant(eof), DataMember::Variant(byte)] = program.data_members(data) else {
         return None;
     };
-    if eof.name.as_str() != "Eof" || !eof.payload.is_empty() || byte.name.as_str() != "Byte" {
+    if eof.name.as_str() != "Eof"
+        || !eof.payload.is_empty()
+        || !eof.where_facts.is_empty()
+        || byte.name.as_str() != "Byte"
+    {
         return None;
     }
     let [field] = program.data_payload_fields(byte) else {
         return None;
     };
+    // The host operation stores one input byte in a bare `i32` carrier. A
+    // qualified carrier names a domain this operation cannot establish.
     if field.name.as_str() != "value"
         || field.relevance.is_erased()
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(field.type_reference),
+            TypeReferenceNode::Named { .. }
+        )
         || program.primitive_type_reference(field.type_reference) != Some(PrimitiveType::I32)
     {
         return None;
     }
-    // Ranges may narrow the carrier but must include every input byte. Other
-    // domain/proof promises cannot be established by this host operation.
-    for (minimum, maximum) in crate::constrained_range_bounds(program, field.type_reference, true)?
-    {
-        if minimum.to_i64()? > 0 || maximum.to_i64()? < 255 {
-            return None;
-        }
-    }
-    Some(symbol)
+    // The case's `where` facts may narrow the payload but must admit every
+    // input byte, so only interval facts containing 0..=255 qualify.
+    crate::case_where_field_intervals(program, byte)?
+        .iter()
+        .all(|(_, minimum, maximum)| {
+            minimum.is_none_or(|minimum| minimum <= 0)
+                && maximum.is_none_or(|maximum| maximum >= 255)
+        })
+        .then_some(symbol)
 }
 
 fn exact_direct_intrinsic_signature(
