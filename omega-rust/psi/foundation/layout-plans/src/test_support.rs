@@ -244,6 +244,19 @@ pub fn sum_layout() -> ConventionalSumLayoutReport {
 /// every index the field spells, so `middle.neighbors[1].choice.Run.<p>`
 /// composes the element hop and the record boundary inside it under the same
 /// bounded traversal the standalone record carrier walks.
+/// The `address`-field writer plan over the split layout with no
+/// resolutions: the plan every post-handoff writer test starts from.
+pub fn post_handoff_split_writer_plan() -> crate::SymbolicMaterializationPlan {
+    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+    crate::derive_symbolic_materialization(
+        &split_layout(),
+        &[symbolic],
+        post_handoff_context(),
+        |_| None,
+    )
+    .expect("writer plan")
+}
+
 /// The `(field, byte offset)` projection of a plan's runtime writers, in
 /// action order.
 pub fn writer_field_offsets(plan: &crate::SymbolicMaterializationPlan) -> Vec<(&str, u64)> {

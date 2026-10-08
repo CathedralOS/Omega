@@ -6,9 +6,9 @@
 //! `layout-plans`.
 
 use layout_plans::test_support::{
-    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context, record_layout,
-    recursive_record_array_report, repeated_layout, split_layout, stored_integer_layout,
-    sum_layout, symbolic_path, writer_field_offsets,
+    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context,
+    post_handoff_split_writer_plan, record_layout, recursive_record_array_report, repeated_layout,
+    stored_integer_layout, sum_layout, symbolic_path, writer_field_offsets,
 };
 
 use crate::post_handoff_writer::{
@@ -282,14 +282,7 @@ fn writer_rejects_invalid_preresolved_value_before_any_resolution() {
 
 #[test]
 fn writer_rejects_a_resolved_source_that_does_not_match_its_write_target() {
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let plan = derive_symbolic_materialization(
-        &split_layout(),
-        &[symbolic],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("writer plan");
+    let plan = post_handoff_split_writer_plan();
     let mut writer =
         derive_post_handoff_writer(&plan).expect("runtime actions form a writer program");
     let substituted = RelocationTarget::Entry(
@@ -433,14 +426,7 @@ fn writer_execution_replays_stored_integer_fit_before_writes() {
 
 #[test]
 fn unresolved_writer_targets_leave_the_destination_unchanged() {
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let plan = derive_symbolic_materialization(
-        &split_layout(),
-        &[symbolic],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("writer plan");
+    let plan = post_handoff_split_writer_plan();
     let writer = derive_post_handoff_writer(&plan).expect("runtime actions form a writer program");
     let mut missing = [0xa5_u8; 16];
     assert!(

@@ -1,5 +1,5 @@
 use super::{entry, post_handoff_context, split_layout, stored_integer_layout};
-use crate::test_support::constrained_post_handoff_plan;
+use crate::test_support::{constrained_post_handoff_plan, post_handoff_split_writer_plan};
 use crate::{
     ByteOrder, ConsumptionInstant, MaterializationAction, MaterializationContext,
     PlacementConstraints, PlacementPhase, PlacementSite, SymbolicFieldValue,
@@ -110,14 +110,7 @@ fn unresolved_loader_consumed_fragments_reject() {
 
 #[test]
 fn unresolved_action_cannot_partially_materialize() {
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let plan = derive_symbolic_materialization(
-        &split_layout(),
-        &[symbolic],
-        post_handoff_context(),
-        |_| None,
-    )
-    .expect("writer plan");
+    let plan = post_handoff_split_writer_plan();
     let mut bytes = [0xa5_u8; 16];
     assert!(plan.materialize_resolved_into(&mut bytes).is_err());
     assert_eq!(bytes, [0xa5; 16]);
