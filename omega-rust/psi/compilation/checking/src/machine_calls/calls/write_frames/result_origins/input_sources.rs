@@ -112,11 +112,7 @@ pub(super) fn instantiate_source(
             builtin_coordinates: relative.source.builtin_coordinates,
         };
         let source = compose_source(leaf.origin?, suffix, relative.precision, &remaining);
-        if !sources.iter().any(|prior: &FramePlaceOrigin| {
-            prior.path == source.path
-                && prior.precision == source.precision
-                && prior.source == source.source
-        }) {
+        if !sources.contains(&source) {
             sources.push(source);
         }
     }

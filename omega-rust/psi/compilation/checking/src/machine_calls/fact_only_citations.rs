@@ -100,21 +100,18 @@ fn read_only_parameter(
     if parameter.is_mutable {
         return false;
     }
-    if program
+    program
         .primitive_type_reference(parameter.type_reference)
         .is_some()
-    {
-        return true;
-    }
-    matches!(
-        program
-            .type_reference_table
-            .type_reference(parameter.type_reference),
-        TypeReferenceNode::Reference {
-            access: language_core::ReferenceAccess::Shared,
-            ..
-        }
-    )
+        || matches!(
+            program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            TypeReferenceNode::Reference {
+                access: language_core::ReferenceAccess::Shared,
+                ..
+            }
+        )
 }
 
 /// Whether one statement is a fact-only citation that execution erases.

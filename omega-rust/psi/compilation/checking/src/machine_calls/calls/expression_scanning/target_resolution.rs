@@ -100,23 +100,20 @@ fn type_name_resolves_value_call(
     type_name: &str,
     target: &str,
 ) -> bool {
-    if let Some(trait_definition) = symbols.trait_definition(type_name)
-        && program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .any(|signature| signature.name.as_str() == target)
-    {
-        return true;
-    }
-    if let Some(machine) = symbols.machine(type_name)
-        && program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|state| state.name.as_str() == target)
-    {
-        return true;
-    }
-    false
+    symbols
+        .trait_definition(type_name)
+        .is_some_and(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .any(|signature| signature.name.as_str() == target)
+        })
+        || symbols.machine(type_name).is_some_and(|machine| {
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|state| state.name.as_str() == target)
+        })
 }
 
 /// Decision layer for the value-call fall-through: everything the partial

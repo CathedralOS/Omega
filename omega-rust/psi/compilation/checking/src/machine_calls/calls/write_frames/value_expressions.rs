@@ -156,9 +156,7 @@ pub(super) fn push_value_children(
             let Some(requirement) = position.computed_operand_requirement(program) else {
                 return false;
             };
-            if !push_computed_operands(program, expression, requirement, pending) {
-                return false;
-            }
+            return push_computed_operands(program, expression, requirement, pending);
         }
         _ => return false,
     }

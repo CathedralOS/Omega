@@ -30,9 +30,7 @@ pub(super) struct FramePlaceOrigin {
 /// precision, and structural source; a divergent arm must fail closed rather
 /// than select one side of the case analysis.
 pub(super) fn same_place_origin(first: &FramePlaceOrigin, second: &FramePlaceOrigin) -> bool {
-    first.path == second.path
-        && first.precision == second.precision
-        && first.source == second.source
+    first == second
 }
 
 /// A proven candidate set keeps one entry per distinct storage route. Two
