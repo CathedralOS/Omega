@@ -231,81 +231,65 @@ pub enum SelectedValueTransport {
     },
 }
 
+macro_rules! terminator_instruction_match {
+    ($terminator:expr) => {
+        match $terminator {
+            SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
+        }
+    };
+}
+
 /// The instruction record every terminator carries.
 pub fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
+    terminator_instruction_match!(terminator)
 }
 
 /// The mutable instruction record every terminator carries.
 pub fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
+    terminator_instruction_match!(terminator)
+}
+
+macro_rules! terminator_successors_match {
+    ($terminator:expr) => {
+        match $terminator {
+            SelectedTerminator::Jump { successor, .. } => vec![successor],
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => vec![when_nonzero, when_zero],
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => vec![when_less, when_not_less],
+            SelectedTerminator::Return { .. }
+            | SelectedTerminator::Crash { .. }
+            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
+        }
+    };
 }
 
 /// Every successor edge a terminator carries, in its physical record
 /// order; `HostedExitProcess` and `Return` carry none.
 pub fn terminator_successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-    }
+    terminator_successors_match!(terminator)
 }
 
 /// Every successor edge a terminator carries, mutably.
 pub fn terminator_successors_mut(
     terminator: &mut SelectedTerminator,
 ) -> Vec<&mut SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-    }
+    terminator_successors_match!(terminator)
 }
