@@ -5,7 +5,7 @@ use super::canonical_encoding::{
     encode_integer_type, encode_integer_value, encode_len, encode_scalar_type};
 use super::{
     BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
-    OwnershipFrontierSite, PsiProvenance};
+    PsiProvenance};
 use crate::optimization_unit::rewrite::{
     FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
     ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint,
