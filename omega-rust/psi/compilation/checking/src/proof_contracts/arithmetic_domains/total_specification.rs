@@ -941,3 +941,28 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         );
     }
 }
+
+/// The operand a domain check reads directly: a non-recast cast's target or
+/// a borrow's referent, else the expression's own abstract-specification type.
+pub(super) fn direct_abstract_operand(
+    program: &dyn crate::CheckingInput,
+    bindings: AbstractSpecificationBindings<'_>,
+    expression: ExpressionHandle,
+) -> Option<(PrimitiveType, ArithmeticDomain)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some((
+            program.primitive_type_reference(cast.target_type)?,
+            cast.domain,
+        )),
+        ExpressionNode::Borrow(value) => {
+            direct_abstract_operand(program, bindings, value.target)
+        }
+        _ => {
+            let type_reference = abstract_specification_place_type(program, bindings, expression)?;
+            Some((
+                program.primitive_type_reference(type_reference)?,
+                program.arithmetic_domain_for_type_reference(type_reference),
+            ))
+        }
+    }
+}

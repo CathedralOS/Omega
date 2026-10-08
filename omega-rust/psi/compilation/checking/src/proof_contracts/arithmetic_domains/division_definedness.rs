@@ -11,15 +11,15 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::{
     IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge,
 };
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
 use super::total_specification::{
+    direct_abstract_operand,
     AbstractSpecificationBindings, abstract_specification_interval,
-    abstract_specification_place_type,
-};
+    };
 use super::{Interval, ValueEnvironment, ordered_values};
 use typed_trees::expression::TableBinaryExpression;
 
@@ -190,27 +190,6 @@ pub(super) fn validate_operands(
                 )
         });
     report_partial(binary.operator, domain, proven, owner, true, diagnostics)
-}
-
-fn direct_abstract_operand(
-    program: &dyn crate::CheckingInput,
-    bindings: AbstractSpecificationBindings<'_>,
-    expression: ExpressionHandle,
-) -> Option<(PrimitiveType, ArithmeticDomain)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some((
-            program.primitive_type_reference(cast.target_type)?,
-            cast.domain,
-        )),
-        ExpressionNode::Borrow(value) => direct_abstract_operand(program, bindings, value.target),
-        _ => {
-            let type_reference = abstract_specification_place_type(program, bindings, expression)?;
-            Some((
-                program.primitive_type_reference(type_reference)?,
-                program.arithmetic_domain_for_type_reference(type_reference),
-            ))
-        }
-    }
 }
 
 pub(super) fn validate_abstract(

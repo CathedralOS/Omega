@@ -9,38 +9,16 @@ use super::visit_binary_operators;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::{IntegerPolicyPrimitive, ShiftCountLaw, integer_policy_bridge};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::types::PrimitiveType;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 use super::ValueEnvironment;
 use super::total_specification::{
+    direct_abstract_operand,
     AbstractSpecificationBindings, abstract_specification_interval,
-    abstract_specification_place_type,
-};
+    };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_name,
 };
-
-fn direct_shifted_operand(
-    program: &dyn crate::CheckingInput,
-    bindings: AbstractSpecificationBindings<'_>,
-    expression: ExpressionHandle,
-) -> Option<(PrimitiveType, ArithmeticDomain)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some((
-            program.primitive_type_reference(cast.target_type)?,
-            cast.domain,
-        )),
-        ExpressionNode::Borrow(value) => direct_shifted_operand(program, bindings, value.target),
-        _ => {
-            let type_reference = abstract_specification_place_type(program, bindings, expression)?;
-            Some((
-                program.primitive_type_reference(type_reference)?,
-                program.arithmetic_domain_for_type_reference(type_reference),
-            ))
-        }
-    }
-}
 
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
@@ -55,7 +33,7 @@ pub(super) fn validate(
         expression,
         &[BinaryOperator::ShiftLeft, BinaryOperator::ShiftRight],
         |binary| {
-            let Some((primitive, domain)) = direct_shifted_operand(program, bindings, binary.left)
+            let Some((primitive, domain)) = direct_abstract_operand(program, bindings, binary.left)
             else {
                 return;
             };
