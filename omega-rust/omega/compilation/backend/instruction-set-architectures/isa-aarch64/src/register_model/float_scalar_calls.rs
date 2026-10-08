@@ -6,8 +6,9 @@ use super::{
     aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    find_register_constraint,
 };
 pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let count = input_keys(darwin).len()
@@ -182,8 +183,7 @@ mod tests {
         }
         let result = physical.model().view_named("d0").unwrap();
         let call_key = aarch64_float_scalar_call_keys(false)[0];
-        let row = catalog.constraint(call_key)
-            .unwrap();
+        let row = catalog.constraint(call_key).unwrap();
         assert_eq!(row.operands.last().unwrap().fixed_view, Some(result.id));
         assert!(
             result
@@ -191,7 +191,8 @@ mod tests {
                 .iter()
                 .all(|unit| !row.clobbers.contains(unit))
         );
-        let input = catalog.constraint(aarch64_aapcs64_register_unit_call_keys()[0])
+        let input = catalog
+            .constraint(aarch64_aapcs64_register_unit_call_keys()[0])
             .unwrap();
         assert!(
             input
@@ -201,19 +202,14 @@ mod tests {
             "every caller-save effect remains either a Def write or a clobber"
         );
         let mut wrong_home = catalog.clone();
-        let row = wrong_home
-            .constraints
-            .iter_mut()
-            .find(|row| row.key == call_key)
-            .unwrap();
+        let row =
+            register_model::find_register_constraint_mut(&mut wrong_home.constraints, call_key)
+                .unwrap();
         row.operands.last_mut().unwrap().fixed_view =
             Some(physical.model().view_named("d1").unwrap().id);
         assert!(validate_aarch64_register_constraint_catalog(wrong_home, &physical).is_err());
         let mut wrong_clobbers = catalog;
-        wrong_clobbers
-            .constraints
-            .iter_mut()
-            .find(|row| row.key == call_key)
+        register_model::find_register_constraint_mut(&mut wrong_clobbers.constraints, call_key)
             .unwrap()
             .clobbers
             .clear();

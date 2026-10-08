@@ -16,9 +16,7 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint,
 };
-use crate::selected_form_encoding::instruction_bytes::{
-    assemble_labeled_stream, modrm, rex,
-};
+use crate::selected_form_encoding::instruction_bytes::{assemble_labeled_stream, modrm, rex};
 use crate::selected_form_encoding::request_validation::resolve_registers;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
@@ -447,12 +445,12 @@ mod tests {
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
         for operand in 4..8 {
             let mut changed = catalog.clone();
-            changed
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == crate::X86_64_COMPARE_BYTE_SEQUENCES)
-                .unwrap()
-                .operands[operand]
+            register_model::find_register_constraint_mut(
+                &mut changed.constraints,
+                crate::X86_64_COMPARE_BYTE_SEQUENCES,
+            )
+            .unwrap()
+            .operands[operand]
                 .early_clobber = false;
             assert!(
                 crate::validate_x86_64_register_constraint_catalog(changed, &physical).is_err()

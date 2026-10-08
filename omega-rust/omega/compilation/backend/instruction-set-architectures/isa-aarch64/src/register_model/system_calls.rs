@@ -89,9 +89,7 @@ mod tests {
         for (position, key) in aarch64_linux_system_call_keys().into_iter().enumerate() {
             let argument_count = position / 2;
             let returns_value = position % 2 != 0;
-            let row = validated
-                .catalog().constraint(key)
-                .unwrap();
+            let row = validated.catalog().constraint(key).unwrap();
             assert_eq!(
                 row.operands.len(),
                 argument_count + usize::from(returns_value)
@@ -142,22 +140,18 @@ mod tests {
 
         let key = aarch64_linux_system_call_keys()[8];
         let mut wrong_argument = catalog.clone();
-        let row = wrong_argument
-            .constraints
-            .iter_mut()
-            .find(|row| row.key == key)
-            .unwrap();
+        let row =
+            register_model::find_register_constraint_mut(&mut wrong_argument.constraints, key)
+                .unwrap();
         row.operands[3].fixed_view = Some(physical.model().view_named("x4").unwrap().id);
         assert!(
             crate::validate_aarch64_register_constraint_catalog(wrong_argument, physical).is_err()
         );
 
         let mut missing_clobbers = catalog;
-        let row = missing_clobbers
-            .constraints
-            .iter_mut()
-            .find(|row| row.key == key)
-            .unwrap();
+        let row =
+            register_model::find_register_constraint_mut(&mut missing_clobbers.constraints, key)
+                .unwrap();
         row.clobbers.clear();
         assert!(
             crate::validate_aarch64_register_constraint_catalog(missing_clobbers, physical)

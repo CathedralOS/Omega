@@ -223,10 +223,7 @@ pub struct RegisterConstraintCatalog {
 
 impl RegisterConstraintCatalog {
     /// The constraint row keyed `key`, when the catalog defines it.
-    pub fn constraint(
-        &self,
-        key: RegisterConstraintKey,
-    ) -> Option<&RegisterInstructionConstraint> {
+    pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
         find_register_constraint(&self.constraints, key)
     }
 }
@@ -614,4 +611,12 @@ pub fn find_register_constraint<'rows>(
     key: RegisterConstraintKey,
 ) -> Option<&'rows RegisterInstructionConstraint> {
     rows.iter().find(|row| row.key == key)
+}
+
+/// The mutable constraint row keyed `key` in a constraint row list.
+pub fn find_register_constraint_mut<'rows>(
+    rows: &'rows mut [RegisterInstructionConstraint],
+    key: RegisterConstraintKey,
+) -> Option<&'rows mut RegisterInstructionConstraint> {
+    rows.iter_mut().find(|row| row.key == key)
 }

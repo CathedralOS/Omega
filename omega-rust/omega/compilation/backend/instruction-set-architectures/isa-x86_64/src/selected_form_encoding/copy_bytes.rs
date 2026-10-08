@@ -201,12 +201,12 @@ mod tests {
             crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
         for operand in [3, 4] {
             let mut changed = catalog.clone();
-            changed
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == crate::X86_64_COPY_BYTES)
-                .unwrap()
-                .operands[operand]
+            register_model::find_register_constraint_mut(
+                &mut changed.constraints,
+                crate::X86_64_COPY_BYTES,
+            )
+            .unwrap()
+            .operands[operand]
                 .early_clobber = false;
             assert!(
                 crate::validate_x86_64_register_constraint_catalog(changed, &physical).is_err()
@@ -219,7 +219,8 @@ mod tests {
             let effects = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
             crate::validate_x86_64_machine_effect_catalog(target, &constraints, effects.clone())
                 .unwrap();
-            let row = effects.declaration_by_semantic(selected_instructions::MachineSemanticKind::CopyBytes)
+            let row = effects
+                .declaration_by_semantic(selected_instructions::MachineSemanticKind::CopyBytes)
                 .unwrap();
             assert_eq!(
                 row.memory,

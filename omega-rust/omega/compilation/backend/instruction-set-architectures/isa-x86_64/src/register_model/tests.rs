@@ -33,19 +33,14 @@ fn row(
     catalog: &RegisterConstraintCatalog,
     key: RegisterConstraintKey,
 ) -> &RegisterInstructionConstraint {
-    catalog.constraint(key)
-        .unwrap()
+    catalog.constraint(key).unwrap()
 }
 
 fn row_mut(
     catalog: &mut RegisterConstraintCatalog,
     key: RegisterConstraintKey,
 ) -> &mut RegisterInstructionConstraint {
-    catalog
-        .constraints
-        .iter_mut()
-        .find(|row| row.key == key)
-        .unwrap()
+    register_model::find_register_constraint_mut(&mut catalog.constraints, key).unwrap()
 }
 
 #[test]
@@ -725,10 +720,8 @@ fn normalized_foreign_templates_retain_complete_target_call_effects() {
         let [key] = keys.as_slice() else {
             panic!("one import template per ABI");
         };
-        let row = catalog.constraint(*key)
-            .unwrap();
-        let base = catalog.constraint(base)
-            .unwrap();
+        let row = catalog.constraint(*key).unwrap();
+        let base = catalog.constraint(base).unwrap();
         assert!(row.operands.is_empty());
         assert_eq!(row.implicit_uses, base.implicit_uses);
         assert_eq!(row.implicit_defs, base.implicit_defs);
@@ -750,10 +743,7 @@ fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
         let key = keys[0];
         for mutation in 0..5 {
             let mut changed = catalog.clone();
-            let row = changed
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == key)
+            let row = register_model::find_register_constraint_mut(&mut changed.constraints, key)
                 .unwrap();
             match mutation {
                 0..=2 => {

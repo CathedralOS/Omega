@@ -199,10 +199,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         }
         for mutation in 0..3 {
             let mut changed = catalog.clone();
-            let row = changed
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == key)
+            let row = register_model::find_register_constraint_mut(&mut changed.constraints, key)
                 .unwrap();
             match mutation {
                 0 => row.operands[2].early_clobber = false,

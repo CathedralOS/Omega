@@ -56,10 +56,8 @@ fn mixed_aggregate_rows_preserve_banks_results_and_other_call_effects() {
         .collect::<Vec<_>>();
     assert_eq!(keys.len(), expected_rows.len());
     for (key, (inputs, fragments, base_key)) in keys.into_iter().zip(expected_rows) {
-        let row = catalog.constraint(key)
-            .unwrap();
-        let base = catalog.constraint(base_key)
-            .unwrap();
+        let row = catalog.constraint(key).unwrap();
+        let base = catalog.constraint(base_key).unwrap();
         let names = inputs
             .iter()
             .map(String::as_str)
@@ -106,10 +104,7 @@ fn mixed_aggregate_rows_preserve_banks_results_and_other_call_effects() {
         }
         for mutation in 0..3 {
             let mut changed = catalog.clone();
-            let row = changed
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == key)
+            let row = register_model::find_register_constraint_mut(&mut changed.constraints, key)
                 .unwrap();
             match mutation {
                 0 => {

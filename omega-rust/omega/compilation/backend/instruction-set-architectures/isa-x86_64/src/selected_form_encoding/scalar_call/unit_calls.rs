@@ -22,8 +22,7 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
         ),
     ] {
         for (arity, key) in keys.iter().enumerate() {
-            let row = catalog.constraint(*key)
-                .unwrap();
+            let row = catalog.constraint(*key).unwrap();
             assert_eq!(row.operands.len(), arity);
             assert!(
                 row.operands
@@ -31,10 +30,7 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
                     .all(|operand| operand.access == RegisterOperandAccess::Use)
             );
             let mut missing_clobber = catalog.clone();
-            missing_clobber
-                .constraints
-                .iter_mut()
-                .find(|row| row.key == *key)
+            register_model::find_register_constraint_mut(&mut missing_clobber.constraints, *key)
                 .unwrap()
                 .clobbers
                 .clear();

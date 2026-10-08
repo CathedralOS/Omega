@@ -3,8 +3,8 @@
 use super::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
 use register_model::call_constraint_keys;
 use register_model::{
-    find_register_constraint,    RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 /// AAPCS64 rows ordered by GPR count (0–8), then IEEE register count (1–8).
 pub fn aarch64_aapcs64_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
@@ -23,7 +23,6 @@ pub fn aarch64_mixed_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraint
     let first = if darwin { 1300 } else { 1100 };
     call_constraint_keys(first..first + 144)
 }
-
 
 pub(super) fn append_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
@@ -171,10 +170,8 @@ mod tests {
                 let general_count = ordinal % 72 / 8;
                 let float_count = ordinal % 8 + 1;
                 let arity = general_count + float_count;
-                let row = catalog.constraint(key)
-                    .unwrap();
-                let unit = catalog.constraint(unit_keys[ordinal % 72])
-                    .unwrap();
+                let row = catalog.constraint(key).unwrap();
+                let unit = catalog.constraint(unit_keys[ordinal % 72]).unwrap();
                 assert_eq!(row.operands.len(), arity + fragments);
                 let names = (0..general_count)
                     .map(|position| format!("x{position}"))
@@ -217,11 +214,9 @@ mod tests {
             let key = aarch64_mixed_aggregate_call_keys(darwin)[143];
             for mutation in 0..4 {
                 let mut changed = catalog.clone();
-                let row = changed
-                    .constraints
-                    .iter_mut()
-                    .find(|row| row.key == key)
-                    .unwrap();
+                let row =
+                    register_model::find_register_constraint_mut(&mut changed.constraints, key)
+                        .unwrap();
                 match mutation {
                     0 => row.operands.last_mut().unwrap().access = RegisterOperandAccess::Use,
                     1 => {

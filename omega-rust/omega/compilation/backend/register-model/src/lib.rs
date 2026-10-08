@@ -22,8 +22,8 @@ pub use register_model::constraint_catalog::{
     RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
     RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, TargetRegisterEnvironmentConstraintKeys,
-    ValidatedRegisterConstraintCatalog, validate_register_constraint_catalog,
-    call_constraint_keys, encode_constraint_key, find_register_constraint,
+    ValidatedRegisterConstraintCatalog, call_constraint_keys, encode_constraint_key,
+    find_register_constraint, find_register_constraint_mut, validate_register_constraint_catalog,
 };
 pub use register_model::identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
@@ -41,9 +41,10 @@ pub use register_model::register_vocabulary::{
     RegisterViewId, RegisterWriteSemantics,
 };
 pub use register_model::reservation_profiles::{
-    RegisterReservationOverlay, RegisterReservationProfile, reservation_overlay, sorted_units,
+    RegisterReservationOverlay, RegisterReservationProfile,
     RegisterReservationProfileValidationError, ReservationReason,
-    ValidatedRegisterReservationProfile, validate_register_reservation_profile,
+    ValidatedRegisterReservationProfile, reservation_overlay, sorted_units,
+    validate_register_reservation_profile,
 };
 pub use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterModelValidationError,

@@ -245,10 +245,7 @@ fn packed_constraints_require_early_clobbers_and_effects_reject_scratch_omission
         assert!(row.operands[2].early_clobber);
         assert!(row.clobbers.is_empty());
         let mut changed = catalog.clone();
-        changed
-            .constraints
-            .iter_mut()
-            .find(|row| row.key == key)
+        register_model::find_register_constraint_mut(&mut changed.constraints, key)
             .unwrap()
             .operands[2]
             .early_clobber = false;
