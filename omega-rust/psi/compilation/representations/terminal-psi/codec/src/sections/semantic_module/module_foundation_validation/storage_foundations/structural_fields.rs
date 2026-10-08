@@ -366,10 +366,7 @@ fn borrowed_field_store_root_type(
         .structural_parameters
         .iter()
         .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
+            machine.block_structural_parameters(),
         )
         .find(|parameter| parameter.place == place)
         && matches!(

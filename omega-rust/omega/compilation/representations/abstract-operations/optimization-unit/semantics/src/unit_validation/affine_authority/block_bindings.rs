@@ -173,16 +173,12 @@ fn consume_sources<'function>(
     bindings: &[AbstractStructuralBinding],
 ) -> Option<ConsumedSources<'function>> {
     let mut frontier = entry.clone();
-    let parameters = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters);
     let mut arrivals = Vec::new();
     let mut claims = Vec::new();
     let mut removed_claims = BTreeSet::new();
     for binding in bindings {
-        let parameter = parameters
-            .clone()
+        let parameter = function
+            .block_structural_parameters()
             .find(|parameter| parameter.place == binding.parameter)?;
         if parameter.access != StructuralAccess::Owned {
             continue;

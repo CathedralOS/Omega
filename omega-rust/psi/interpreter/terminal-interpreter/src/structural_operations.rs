@@ -915,12 +915,7 @@ impl TerminalExecution<'_> {
             let borrowed_origin = machine
                 .structural_parameters
                 .iter()
-                .chain(
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
+                .chain(machine.block_structural_parameters())
                 .any(|parameter| {
                     parameter.access == StructuralAccess::MutableBorrow
                         && parameter.multiplicity != StructuralMultiplicity::Linear
