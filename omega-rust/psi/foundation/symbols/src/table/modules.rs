@@ -847,6 +847,28 @@ impl SymbolTable {
     }
 }
 
+/// The `a::b::c` spelling of a displayable member path, shared by the path
+/// member rosters that previously spelled the iter/map/collect chain inline.
+pub trait JoinedPath {
+    /// Members joined with `::`.
+    fn joined_path(&self) -> String;
+    /// Members joined with a caller-chosen separator.
+    fn joined_path_with(&self, separator: &str) -> String;
+}
+
+impl<T: std::fmt::Display> JoinedPath for [T] {
+    fn joined_path(&self) -> String {
+        self.joined_path_with("::")
+    }
+
+    fn joined_path_with(&self, separator: &str) -> String {
+        self.iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(separator)
+    }
+}
+
 /// A relative domain spelling matches its declared name either exactly or by
 /// leaf, mirroring the semantic-name rule the resolved-lookup exposure pool
 /// shares with this table law.

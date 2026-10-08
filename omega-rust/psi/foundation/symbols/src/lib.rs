@@ -28,9 +28,8 @@ pub use symbol::name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use symbol::path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
-    same_semantic_name,
-    SourceScopedTopLevelBinding, SymbolLookup, SymbolNameStorageCounts, SymbolTable,
-    SymbolTableAppender, SymbolTableBuilder, SymbolTableExtension,
+    JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolNameStorageCounts, SymbolTable,
+    SymbolTableAppender, SymbolTableBuilder, SymbolTableExtension, same_semantic_name,
 };
 
 #[cfg(test)]

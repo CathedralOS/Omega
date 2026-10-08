@@ -86,10 +86,7 @@ impl BuiltinTypeAtom {
     /// shapes `DecodedCanonicalConstValue` can hold. Arbitrary-width
     /// `Int`/`UInt`, floats, and composite atoms are not carriers.
     pub const fn is_canonical_const_scalar(self) -> bool {
-        matches!(
-            self,
-            Self::Bool | Self::Address
-        ) || self.is_fixed_integer()
+        matches!(self, Self::Bool | Self::Address) || self.is_fixed_integer()
     }
 
     /// Whether the atom names one of the eight fixed-width integers

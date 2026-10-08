@@ -16,7 +16,7 @@ use indices::{
 };
 mod modules;
 
-pub use modules::same_semantic_name;
+pub use modules::{JoinedPath, same_semantic_name};
 mod source_queries;
 #[cfg(test)]
 mod tests;
