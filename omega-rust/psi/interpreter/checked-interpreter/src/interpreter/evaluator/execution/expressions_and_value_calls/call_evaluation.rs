@@ -389,21 +389,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
         if builtin == Some(BuiltinFunction::Sqrt) && call.receiver == ExpressionHandle::invalid() {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec();
-            if arguments.len() == 1 {
-                let format = if matches!(
-                    self.expression_scalar_type(arguments[0], frame),
-                    Some((PrimitiveType::F32, _))
-                ) {
-                    SemanticFloatFormat::BINARY32
-                } else {
-                    SemanticFloatFormat::BINARY64
-                };
-                return match self.eval_expression(arguments[0], frame)? {
+            if let Some((value, format)) = self.unary_float_argument(call, frame)? {
+                return match value {
                     value if value.is_float() => {
                         let meaning = self.float_operand(&value, format)?;
                         Ok(self.semantic_float_result(
@@ -483,21 +470,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 | "float#is_subnormal"
         ) && call.receiver == ExpressionHandle::invalid()
         {
-            let arguments = self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec();
-            if arguments.len() == 1 {
-                let format = if matches!(
-                    self.expression_scalar_type(arguments[0], frame),
-                    Some((PrimitiveType::F32, _))
-                ) {
-                    SemanticFloatFormat::BINARY32
-                } else {
-                    SemanticFloatFormat::BINARY64
-                };
-                return match self.eval_expression(arguments[0], frame)? {
+            if let Some((value, format)) = self.unary_float_argument(call, frame)? {
+                return match value {
                     value if value.is_float() => {
                         let meaning = self.float_operand(&value, format)?;
                         let result = match target {
@@ -1069,5 +1043,31 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             self.non_fs_host_boundary_touched = true;
         }
         Ok(Some(value))
+    }
+    /// A unary float builtin's operand: the argument list must name
+    /// exactly one expression, whose scalar type picks the semantic
+    /// format. `None` defers the call to the next builtin candidate.
+    fn unary_float_argument(
+        &mut self,
+        call: &typed_trees::expression::TableCallExpression,
+        frame: &mut Frame,
+    ) -> Result<Option<(Value, SemanticFloatFormat)>, Halt> {
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        if arguments.len() != 1 {
+            return Ok(None);
+        }
+        let format = if matches!(
+            self.expression_scalar_type(arguments[0], frame),
+            Some((PrimitiveType::F32, _))
+        ) {
+            SemanticFloatFormat::BINARY32
+        } else {
+            SemanticFloatFormat::BINARY64
+        };
+        Ok(Some((self.eval_expression(arguments[0], frame)?, format)))
     }
 }
