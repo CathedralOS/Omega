@@ -98,9 +98,7 @@ pub(crate) fn retain_closed_reach_applications(
             .dependency_parameters
             .span_or_empty(template.dependency.parameters)
         {
-            let position = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == *dependency)
+            let position = typed_trees::data::type_parameter_position(parameters, *dependency)
                 .ok_or(LoweringError::Unsupported(
                     "closed reach dependency is outside its full telescope",
                 ))?;
@@ -295,12 +293,13 @@ pub(crate) fn retain_closed_reach_applications(
                 if !call.static_machine_parameter.is_valid() {
                     continue;
                 }
-                let binder = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == call.static_machine_parameter)
-                    .ok_or(LoweringError::Unsupported(
-                        "closed reach call lost its original binder",
-                    ))?;
+                let binder = typed_trees::data::type_parameter_position(
+                    parameters,
+                    call.static_machine_parameter,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "closed reach call lost its original binder",
+                ))?;
                 let mut matches = occurrences.iter().filter(|occurrence| {
                     occurrence.source_state == state.symbol
                         && occurrence.statement_index == call.statement_index

@@ -21,9 +21,8 @@ pub(super) fn project(
     for owner in compilation.traits() {
         for requirement in compilation.trait_machine_signatures(owner) {
             let parameters = compilation.state_signature_type_parameters(requirement);
-            if let Some(ordinal) = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == binder.parameter_symbol)
+            if let Some(ordinal) =
+                typed_trees::data::type_parameter_position(parameters, binder.parameter_symbol)
             {
                 if compilation.trait_requirement_callable_identity_text(owner, requirement)
                     != signature.owner_requirement_identity()
@@ -40,9 +39,8 @@ pub(super) fn project(
     }
     for owner in compilation.machines() {
         let parameters = compilation.machine_type_parameters(owner);
-        if let Some(ordinal) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == binder.parameter_symbol)
+        if let Some(ordinal) =
+            typed_trees::data::type_parameter_position(parameters, binder.parameter_symbol)
         {
             if compilation
                 .machine_callable_identity_text(owner)

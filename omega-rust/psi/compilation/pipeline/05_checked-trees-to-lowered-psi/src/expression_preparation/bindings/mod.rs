@@ -207,12 +207,11 @@ impl ScalarBindings {
                         let facts::PlaceRoot::Symbol(symbol) = root else {
                             return unsupported("computed borrow lost its established expression");
                         };
-                        let position = parameters
-                            .iter()
-                            .position(|parameter| parameter.symbol == symbol)
-                            .ok_or(LoweringError::Unsupported(
-                                "computed borrow lost its established local",
-                            ))?;
+                        let position =
+                            typed_trees::signature::state_parameter_position(parameters, symbol)
+                                .ok_or(LoweringError::Unsupported(
+                                    "computed borrow lost its established local",
+                                ))?;
                         let (_, source) = self
                             .structural_parameters
                             .iter()

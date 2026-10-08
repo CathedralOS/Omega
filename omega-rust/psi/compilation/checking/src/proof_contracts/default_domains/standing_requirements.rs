@@ -119,7 +119,5 @@ fn formal_position(
     argument: ExpressionHandle,
 ) -> Option<usize> {
     let symbol = crate::expression_traversal::single_member_argument_symbol(program, argument)?;
-    parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    typed_trees::signature::state_parameter_position(parameters, symbol)
 }

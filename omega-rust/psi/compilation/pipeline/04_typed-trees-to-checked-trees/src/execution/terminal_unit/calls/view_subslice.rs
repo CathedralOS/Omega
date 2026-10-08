@@ -461,9 +461,8 @@ fn shape_of_kind(
         return None;
     }
     let authored = program.state_parameters(state);
-    let root = if let Some(position) = authored
-        .iter()
-        .position(|parameter| parameter.symbol == path.symbol)
+    let root = if let Some(position) =
+        typed_trees::signature::state_parameter_position(authored, path.symbol)
     {
         let parameter_index = parameters
             .iter()
@@ -542,10 +541,8 @@ fn array_collection(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let root = if let Some(position) = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    let root = if let Some(position) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {
         let parameter_index = parameters
             .iter()

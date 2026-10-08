@@ -83,9 +83,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         {
             return expression;
         }
-        parameters
-            .iter()
-            .position(|parameter| parameter.symbol == path.symbol)
+        typed_trees::signature::state_parameter_position(parameters, path.symbol)
             .and_then(|position| arguments.get(position).copied())
             .unwrap_or(expression)
     };
@@ -202,9 +200,8 @@ fn instantiated_live_value_proves(
                         .len()
                         == 1 =>
             {
-                let position = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == path.symbol)?;
+                let position =
+                    typed_trees::signature::state_parameter_position(parameters, path.symbol)?;
                 *arguments.get(position)?
             }
             // A member or indexed projection of an explicit formal (`room.count`,
@@ -277,7 +274,6 @@ fn projected_formal_leaf_value(
     arguments: &[typed_trees::expression::ExpressionHandle],
     leaf: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
-
     // `room.exits.len` selects no storage: `len` on a fixed array is the
     // declared type's literal extent, so the receiver only has to be the
     // same checked projection of an explicit formal. A declared `len` field,
@@ -297,9 +293,7 @@ fn projected_formal_leaf_value(
     };
     // `self`'s projections stay with the receiver's own substitution owner;
     // only explicit formals join the positional argument roster.
-    let position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == formal)?;
+    let position = typed_trees::signature::state_parameter_position(parameters, formal)?;
     let argument = *arguments.get(position)?;
     let mut actual = validation::canonical_place_from_expression_in_state(
         program,

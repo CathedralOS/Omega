@@ -99,9 +99,8 @@ fn project_guarantee(
             ));
         }
         let root = premise.subject.root;
-        let subject = if let Some(position) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == root)
+        let subject = if let Some(position) =
+            typed_trees::signature::state_parameter_position(parameters, root)
         {
             PackageReviewProgressSubject::Parameter(
                 u32::try_from(position)

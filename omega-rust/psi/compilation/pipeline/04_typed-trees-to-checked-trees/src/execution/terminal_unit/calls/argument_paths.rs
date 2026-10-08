@@ -615,9 +615,7 @@ fn runtime_index_field_selector(
         return None;
     };
     let parameters = program.state_parameters(program.state_by_symbol(state_symbol)?);
-    let parameter_position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == root)?;
+    let parameter_position = typed_trees::signature::state_parameter_position(parameters, root)?;
     if place.segments.is_empty() {
         // A bare parameter selector is the `Parameter` coordinate, never a
         // field snapshot.

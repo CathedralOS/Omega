@@ -133,11 +133,11 @@ impl Builder<'_, '_> {
         // this emission cannot see — so `dense_structural_parameter_index` may
         // decline and the root then keys itself by symbol, which every roster
         // family matches directly.
-        let parameter_index = self
-            .authored_parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)
-            .and_then(|authored_position| self.dense_structural_parameter_index(authored_position));
+        let parameter_index =
+            typed_trees::signature::state_parameter_position(self.authored_parameters, symbol)
+                .and_then(|authored_position| {
+                    self.dense_structural_parameter_index(authored_position)
+                });
         let source = match parameter_index {
             Some(parameter_index) => {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {

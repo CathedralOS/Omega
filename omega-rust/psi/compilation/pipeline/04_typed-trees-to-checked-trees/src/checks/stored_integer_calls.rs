@@ -543,9 +543,8 @@ impl<'a> Admission<'a> {
         let (caller, caller_state) = self.owner(invocation.state)?;
         let mut result = Vec::new();
         for source in sources {
-            let Some(position) = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == source.root)
+            let Some(position) =
+                typed_trees::signature::state_parameter_position(parameters, source.root)
             else {
                 // The shared address solver retains proven private owned roots;
                 // it refuses unknown reference-local roots rather than calling

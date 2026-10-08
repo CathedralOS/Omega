@@ -590,10 +590,8 @@ fn bound_value_source(
     let facts::PlaceRoot::Symbol(symbol) = value_place.root else {
         return None;
     };
-    if let Some(position) = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    if let Some(position) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {
         let position = u32::try_from(position).ok()?;
         let (dense, parameter) = structural_parameters

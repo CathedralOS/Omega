@@ -329,9 +329,8 @@ pub(crate) fn borrowed_storage_argument(
     // the qualification its carrier is registered under.
     let target_identity = base_type_identity(program, target_shell.referee, &[])?;
     let parameters = program.state_parameters(state);
-    let (reference, mut source) = if let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    let (reference, mut source) = if let Some(position) =
+        typed_trees::signature::state_parameter_position(parameters, symbol)
     {
         let parameter = &parameters[position];
         if parameter.is_const {

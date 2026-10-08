@@ -42,9 +42,7 @@ pub(super) fn project(
                 "progress subject is not one exact requirement parameter",
             ));
         };
-        let ordinal = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == subject.symbol)
+        let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)
             .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
         let subject = ServiceProgressSubject::Parameter(ordinal);
         // Progress profiles project only requirement routes; exact-machine

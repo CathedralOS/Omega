@@ -303,9 +303,8 @@ pub(crate) fn call_argument_subjects_with_parameters(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == parameter_symbol)?;
+    let parameter_index =
+        typed_trees::signature::state_parameter_position(parameters, parameter_symbol)?;
     let arguments = call_site_argument_expressions(program, &call_site);
     let parameter = &parameters[parameter_index];
     let place = origins::call_argument_place(

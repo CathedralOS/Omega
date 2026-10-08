@@ -492,9 +492,7 @@ fn instantiate(
         return None;
     }
     let substitute = |root, segments: &[PlaceSegment]| {
-        let index = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == root)?;
+        let index = typed_trees::signature::state_parameter_position(parameters, root)?;
         let actual = *arguments.get(index)?;
         if super::caller_aliases::expression_has_calls(program, actual) {
             return None;
@@ -520,9 +518,10 @@ fn instantiate(
             let candidates = if source.source.is_static() {
                 vec![Some(source.clone())]
             } else {
-                let index = parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == source.source.root)?;
+                let index = typed_trees::signature::state_parameter_position(
+                    parameters,
+                    source.source.root,
+                )?;
                 let actual = *arguments.get(index)?;
                 let captured = argument_origin(
                     program,

@@ -628,9 +628,7 @@ fn argument_for_target_parameter(
     arguments: &[ExpressionHandle],
     parameter_symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    let position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == parameter_symbol)?;
+    let position = typed_trees::signature::state_parameter_position(parameters, parameter_symbol)?;
     arguments.get(position).copied()
 }
 

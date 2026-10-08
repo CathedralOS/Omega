@@ -90,10 +90,10 @@ pub(super) fn state_rank(
                 {
                     return None;
                 }
-                let collection_position = program
-                    .state_parameters(state)
-                    .iter()
-                    .position(|parameter| parameter.symbol == collection.symbol)?;
+                let collection_position = typed_trees::signature::state_parameter_position(
+                    program.state_parameters(state),
+                    collection.symbol,
+                )?;
                 return Some(checked_trees::CheckedStateNaturalRank {
                     state: state.symbol,
                     parameter: lower.symbol,

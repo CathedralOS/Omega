@@ -692,11 +692,10 @@ pub(super) fn retain_internal_transfer(
     let Some(target_state) = program.state_by_symbol(target) else {
         return false;
     };
-    let Some(argument_position) = program
-        .state_parameters(target_state)
-        .iter()
-        .position(|parameter| parameter.symbol == target_rank.parameter)
-    else {
+    let Some(argument_position) = typed_trees::signature::state_parameter_position(
+        program.state_parameters(target_state),
+        target_rank.parameter,
+    ) else {
         return false;
     };
     let Some(argument) = arguments.get(argument_position) else {

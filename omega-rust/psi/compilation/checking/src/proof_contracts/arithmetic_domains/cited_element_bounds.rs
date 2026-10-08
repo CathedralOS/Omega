@@ -176,10 +176,8 @@ impl Substitution<'_> {
         {
             return None;
         }
-        let position = self
-            .parameters
-            .iter()
-            .position(|parameter| parameter.symbol == path.symbol)?;
+        let position =
+            typed_trees::signature::state_parameter_position(self.parameters, path.symbol)?;
         // A formal the callee may write through is not a stable subject.
         if self.parameters[position].is_mutable {
             return None;

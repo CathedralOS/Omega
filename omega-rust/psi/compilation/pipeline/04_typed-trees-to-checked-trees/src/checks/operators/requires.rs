@@ -1196,9 +1196,7 @@ fn contexts_prove_case_membership(
     let facts::PlaceRoot::Symbol(symbol) = formal.root else {
         return false;
     };
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    let Some(position) = typed_trees::signature::state_parameter_position(parameters, symbol)
     else {
         return false;
     };

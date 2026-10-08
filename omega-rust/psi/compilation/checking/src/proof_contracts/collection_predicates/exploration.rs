@@ -580,11 +580,11 @@ pub(crate) fn evaluate(
             {
                 Some((_, binding)) => binding,
                 None => {
-                    let position = program
-                        .state_parameters(frame.state)
-                        .iter()
-                        .position(|parameter| parameter.symbol == path.symbol)
-                        .ok_or(Stop::Unsupported)?;
+                    let position = typed_trees::signature::state_parameter_position(
+                        program.state_parameters(frame.state),
+                        path.symbol,
+                    )
+                    .ok_or(Stop::Unsupported)?;
                     frame.bindings.get(position).ok_or(Stop::Unsupported)?
                 }
             };

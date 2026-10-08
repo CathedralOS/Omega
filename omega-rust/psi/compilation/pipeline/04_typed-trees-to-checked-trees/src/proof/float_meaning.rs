@@ -687,9 +687,8 @@ fn imported_call_operand_key(
     };
     if path.symbol.is_valid()
         && let Some(parameters) = target_parameters
-        && let Some(position) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == path.symbol)
+        && let Some(position) =
+            typed_trees::signature::state_parameter_position(parameters, path.symbol)
         && let Some(arguments) = argument_expressions
         && let Some(argument) = arguments.get(position)
     {

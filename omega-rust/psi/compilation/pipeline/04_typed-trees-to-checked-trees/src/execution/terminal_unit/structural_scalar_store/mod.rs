@@ -693,9 +693,8 @@ fn case_field_store(
         return None;
     };
     let source_parameters = program.state_parameters(state);
-    let value_position = source_parameters
-        .iter()
-        .position(|parameter| parameter.symbol == value_root)?;
+    let value_position =
+        typed_trees::signature::state_parameter_position(source_parameters, value_root)?;
     let _value_state_parameter = source_parameters.get(value_position)?;
 
     let (projected, value_path) = super::calls::projected_argument_path(
@@ -951,10 +950,8 @@ fn bound_structural_parameter(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return false;
     };
-    let Some(position) = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
+    let Some(position) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     else {
         return false;
     };

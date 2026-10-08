@@ -553,8 +553,7 @@ fn claim_outcomes_for_expression(
         typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_none() =>
         {
-            let Some(definition) = program
-                .data_definition_by_name_str(literal.type_name.as_str())
+            let Some(definition) = program.data_definition_by_name_str(literal.type_name.as_str())
             else {
                 return Vec::new();
             };
@@ -984,9 +983,7 @@ fn argument_for_parameter(
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     let parameters = program.state_parameters(target_state);
     let matched = parameter_for_symbol(program, target_state, parameter_symbol)?;
-    let position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == matched.symbol)?;
+    let position = typed_trees::signature::state_parameter_position(parameters, matched.symbol)?;
     arguments.get(position).copied()
 }
 

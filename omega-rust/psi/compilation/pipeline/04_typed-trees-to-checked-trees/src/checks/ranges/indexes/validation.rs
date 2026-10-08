@@ -634,10 +634,8 @@ fn extent_binds_pending_application(
     let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
         return false;
     };
-    let Some(position) = program
-        .data_type_parameters(template)
-        .iter()
-        .position(|parameter| parameter.symbol == extent)
+    let Some(position) =
+        typed_trees::data::type_parameter_position(program.data_type_parameters(template), extent)
     else {
         return false;
     };

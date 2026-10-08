@@ -153,9 +153,7 @@ pub(in crate::flow) fn local_jump_data_argument(
     let target = find_state_in_machine(program, caller_machine_symbol, path.head_symbol)?;
     let parameters = program.state_parameters(target);
     let subject = program.data_binding_parameter(machine, parameters)?;
-    let ordinal = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == subject.symbol)?;
+    let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)?;
     call_site_argument_expressions(program, call_site)
         .get(ordinal)
         .copied()

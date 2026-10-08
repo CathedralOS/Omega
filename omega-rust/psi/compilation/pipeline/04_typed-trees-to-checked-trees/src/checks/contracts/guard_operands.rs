@@ -193,9 +193,8 @@ fn requirement_reads(
     mentioned
         .iter()
         .filter_map(|symbol| {
-            let index = target_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == *symbol)?;
+            let index =
+                typed_trees::signature::state_parameter_position(target_parameters, *symbol)?;
             let argument_index = index;
             let argument = *arguments.get(argument_index)?;
             Some((argument_index, RequirementRead::Argument(argument)))

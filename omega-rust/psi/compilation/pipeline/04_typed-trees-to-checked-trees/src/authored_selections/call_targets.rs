@@ -280,10 +280,8 @@ fn authored_contextual_root(
         return selected;
     };
 
-    if let Some(parameter_ordinal) = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == selected)
+    if let Some(parameter_ordinal) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), selected)
     {
         return program
             .state_parameters(template_state)

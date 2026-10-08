@@ -277,9 +277,7 @@ fn collect_service_methods(
     visited.push(trait_definition.symbol);
 
     for requirement in program.trait_requirements(trait_definition) {
-        let Some(parent) = program
-            .trait_definition_by_symbol(requirement.symbol)
-        else {
+        let Some(parent) = program.trait_definition_by_symbol(requirement.symbol) else {
             continue;
         };
         collect_service_methods(
@@ -367,10 +365,9 @@ fn service_progress_premises_for_parameters(
     premises
         .iter()
         .map(|premise| {
-            let position = parameters
-                .iter()
-                .position(|parameter| parameter.symbol == premise.subject.root)
-                .expect("normalized public progress premise must be parameter-rooted");
+            let position =
+                typed_trees::signature::state_parameter_position(parameters, premise.subject.root)
+                    .expect("normalized public progress premise must be parameter-rooted");
             let subject = ServiceProgressSubject::Parameter(position);
             let profile = program
                 .semantic_domains

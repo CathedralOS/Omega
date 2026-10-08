@@ -40,9 +40,8 @@ impl<'parameters> SourceParameter<'parameters> {
         let declaration = declarations
             .iter()
             .find(|parameter| parameter_is_root(parameter, root))?;
-        let position = declarations
-            .iter()
-            .position(|parameter| parameter.symbol == declaration.symbol)?;
+        let position =
+            typed_trees::signature::state_parameter_position(declarations, declaration.symbol)?;
         let position = u32::try_from(position).unwrap_or(u32::MAX);
         let (index, plan) = plans
             .iter()

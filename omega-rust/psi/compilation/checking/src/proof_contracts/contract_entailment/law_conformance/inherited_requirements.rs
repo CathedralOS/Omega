@@ -35,10 +35,10 @@ pub fn inherited_requirement_proposition_application(
     if program.symbols.get(application.proposition).kind
         == symbols::SymbolKind::PropositionParameter
     {
-        let parameter_index = program
-            .trait_type_parameters(trait_definition)
-            .iter()
-            .position(|parameter| parameter.symbol == application.proposition)?;
+        let parameter_index = typed_trees::data::type_parameter_position(
+            program.trait_type_parameters(trait_definition),
+            application.proposition,
+        )?;
         let argument = trait_arguments.get(parameter_index)?;
         let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
             program.type_reference_table.type_reference(*argument)

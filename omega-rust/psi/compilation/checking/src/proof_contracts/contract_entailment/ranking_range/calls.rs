@@ -681,10 +681,10 @@ pub(crate) fn prove_ranking_range_call(
             if let Some(coordinate) =
                 lengths::SliceCoordinate::resolve_length(program, destination, subject)
             {
-                let position = program
-                    .state_parameters(destination)
-                    .iter()
-                    .position(|parameter| parameter.symbol == coordinate.parameter.symbol)?;
+                let position = typed_trees::signature::state_parameter_position(
+                    program.state_parameters(destination),
+                    coordinate.parameter.symbol,
+                )?;
                 coordinate.arrived_length(
                     program,
                     caller.machine,
@@ -696,10 +696,10 @@ pub(crate) fn prove_ranking_range_call(
                 )?
             } else {
                 let formal = lengths::parameter(program, destination, subject)?;
-                let position = program
-                    .state_parameters(destination)
-                    .iter()
-                    .position(|parameter| parameter.symbol == formal.symbol)?;
+                let position = typed_trees::signature::state_parameter_position(
+                    program.state_parameters(destination),
+                    formal.symbol,
+                )?;
                 lengths::actual(
                     program,
                     caller.machine,
@@ -978,19 +978,17 @@ fn bind_destination_fields(
                     program,
                     destination,
                     expression,
-                ) && let Some(position) = program
-                    .state_parameters(destination)
-                    .iter()
-                    .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
-                    && let Some(actual) = coordinate.arrived_field(
-                        program,
-                        machine,
-                        source,
-                        engine,
-                        arguments[position],
-                        coordinate.borrowed,
-                    )
-                    && !engine.bind_strict_projection(expression, actual)
+                ) && let Some(position) = typed_trees::signature::state_parameter_position(
+                    program.state_parameters(destination),
+                    coordinate.parameter.symbol,
+                ) && let Some(actual) = coordinate.arrived_field(
+                    program,
+                    machine,
+                    source,
+                    engine,
+                    arguments[position],
+                    coordinate.borrowed,
+                ) && !engine.bind_strict_projection(expression, actual)
                 {
                     return None;
                 }
@@ -1048,40 +1046,40 @@ fn bind_destination_lengths(
                     let actual = if let Some(coordinate) =
                         lengths::SliceCoordinate::resolve_length(program, destination, receiver)
                     {
-                        program
-                            .state_parameters(destination)
-                            .iter()
-                            .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
-                            .and_then(|position| {
-                                coordinate.arrived_length(
-                                    program,
-                                    machine,
-                                    source,
-                                    engine,
-                                    arguments[position],
-                                    coordinate.borrowed,
-                                    bindings,
-                                )
-                            })
+                        typed_trees::signature::state_parameter_position(
+                            program.state_parameters(destination),
+                            coordinate.parameter.symbol,
+                        )
+                        .and_then(|position| {
+                            coordinate.arrived_length(
+                                program,
+                                machine,
+                                source,
+                                engine,
+                                arguments[position],
+                                coordinate.borrowed,
+                                bindings,
+                            )
+                        })
                     } else {
                         // A bare slice formal's `.len` names the produced
                         // length its call actual installs, subslice geometry
                         // included.
                         lengths::parameter(program, destination, receiver).and_then(|formal| {
-                            program
-                                .state_parameters(destination)
-                                .iter()
-                                .position(|parameter| parameter.symbol == formal.symbol)
-                                .and_then(|position| {
-                                    lengths::actual(
-                                        program,
-                                        machine,
-                                        source,
-                                        arguments[position],
-                                        bindings,
-                                        engine,
-                                    )
-                                })
+                            typed_trees::signature::state_parameter_position(
+                                program.state_parameters(destination),
+                                formal.symbol,
+                            )
+                            .and_then(|position| {
+                                lengths::actual(
+                                    program,
+                                    machine,
+                                    source,
+                                    arguments[position],
+                                    bindings,
+                                    engine,
+                                )
+                            })
                         })
                     };
                     if let Some(actual) = actual

@@ -34,9 +34,8 @@ pub(crate) fn check_proposition_law_conformance(
     for law in proposition_laws {
         let mut instantiated = (*law).clone();
         if program.symbols.get(law.proposition).kind == symbols::SymbolKind::PropositionParameter {
-            let Some(parameter_index) = trait_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == law.proposition)
+            let Some(parameter_index) =
+                typed_trees::data::type_parameter_position(trait_parameters, law.proposition)
             else {
                 continue;
             };

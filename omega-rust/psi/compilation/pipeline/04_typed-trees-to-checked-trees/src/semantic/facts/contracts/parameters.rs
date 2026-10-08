@@ -40,10 +40,7 @@ pub(crate) fn contract_parameter_position(
     declared: SymbolHandle,
 ) -> Result<Option<usize>, ()> {
     let parameters = validation::call_target_parameters(program, target).ok_or(())?;
-    if let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == declared)
-    {
+    if let Some(position) = typed_trees::signature::state_parameter_position(parameters, declared) {
         return Ok(Some(position));
     }
     // A static/global subject has no operand epoch. Missing inherited binding
@@ -61,16 +58,12 @@ pub(crate) fn contract_parameter_position(
         satisfier_state,
     )
     .ok_or(())?;
-    let Some(position) = required
-        .iter()
-        .position(|parameter| parameter.symbol == declared)
+    let Some(position) = typed_trees::signature::state_parameter_position(required, declared)
     else {
         return Ok(None);
     };
     let actual = actual.get(position).ok_or(())?.symbol;
-    parameters
-        .iter()
-        .position(|parameter| parameter.symbol == actual)
+    typed_trees::signature::state_parameter_position(parameters, actual)
         .map(Some)
         .ok_or(())
 }

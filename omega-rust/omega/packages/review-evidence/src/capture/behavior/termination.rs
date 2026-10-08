@@ -35,10 +35,7 @@ pub(crate) fn project_trait_requirement_termination(
         }
     }
     project_termination_with_subject(compilation, &requirement.termination_guarantee, |root| {
-        if let Some(position) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == root)
-        {
+        if let Some(position) = typed_trees::signature::state_parameter_position(parameters, root) {
             let position = u32::try_from(position).map_err(|_| {
                 vec![Diagnostic::error(format!(
                     "public trait requirement `{}` has too many parameters for portable review evidence",
@@ -85,10 +82,7 @@ pub(crate) fn project_machine_parameter_termination(
         }
     }
     project_termination_with_subject(compilation, &signature.termination_guarantee, |root| {
-        if let Some(position) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == root)
-        {
+        if let Some(position) = typed_trees::signature::state_parameter_position(parameters, root) {
             Ok(PackageReviewProgressSubject::Parameter(
                 portable_parameter_position(position)?,
             ))

@@ -228,10 +228,10 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
                 .state_parameters(state)
                 .iter()
                 .nth(proof.target_argument_index)?;
-            let target_rank_parameter_position = program
-                .state_parameters(state)
-                .iter()
-                .position(|parameter| parameter.symbol == target_parameter.symbol)?;
+            let target_rank_parameter_position = typed_trees::signature::state_parameter_position(
+                program.state_parameters(state),
+                target_parameter.symbol,
+            )?;
             if target_parameter.symbol != rank_parameter.symbol {
                 return None;
             }
@@ -397,10 +397,11 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
                         .state_parameters(target)
                         .iter()
                         .nth(proof.target_argument_index)?;
-                    let target_rank_parameter_position = program
-                        .state_parameters(target)
-                        .iter()
-                        .position(|parameter| parameter.symbol == target_parameter.symbol)?;
+                    let target_rank_parameter_position =
+                        typed_trees::signature::state_parameter_position(
+                            program.state_parameters(target),
+                            target_parameter.symbol,
+                        )?;
                     if target_parameter.symbol != target_rank_parameter.symbol {
                         return None;
                     }

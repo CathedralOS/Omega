@@ -27,9 +27,7 @@ pub(super) fn append_proposition_premises(
     application: &PropositionApplication,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
-    let Some(definition) = program
-        .proposition_definition_by_symbol(application.proposition)
-    else {
+    let Some(definition) = program.proposition_definition_by_symbol(application.proposition) else {
         return;
     };
     let PropositionBody::Transparent { proposition } = &definition.body else {
@@ -74,9 +72,7 @@ pub(super) fn substitute_bound(
     arguments: &[ExpressionHandle],
 ) -> Option<NormalizedBound> {
     let argument_bound = |symbol: symbols::SymbolHandle| {
-        let index = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)?;
+        let index = typed_trees::signature::state_parameter_position(parameters, symbol)?;
         normalized_bound(program, lookup, arguments[index])
     };
     match bound {

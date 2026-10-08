@@ -906,45 +906,43 @@ fn place_loan(
     // too, but only a shared loan may alias one: erased and const formals
     // have no runtime storage to lend.
     let parameters = program.state_parameters(state);
-    let (root, root_type) = match parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    {
-        Some(position) => {
-            let parameter = &parameters[position];
-            let root = match structural_parameters
-                .iter()
-                .position(|candidate| candidate.position as usize == position)
-            {
-                Some(dense) => checked_trees::CheckedPlaceLoanRoot::StructuralParameter {
-                    parameter_index: u32::try_from(dense).ok()?,
-                },
-                None if access == CheckedStructuralAccess::SharedBorrow
-                    && !parameter.is_const
-                    && !parameter.relevance.is_erased()
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_some() =>
+    let (root, root_type) =
+        match typed_trees::signature::state_parameter_position(parameters, symbol) {
+            Some(position) => {
+                let parameter = &parameters[position];
+                let root = match structural_parameters
+                    .iter()
+                    .position(|candidate| candidate.position as usize == position)
                 {
-                    checked_trees::CheckedPlaceLoanRoot::ScalarParameter {
-                        position: u32::try_from(position).ok()?,
+                    Some(dense) => checked_trees::CheckedPlaceLoanRoot::StructuralParameter {
+                        parameter_index: u32::try_from(dense).ok()?,
+                    },
+                    None if access == CheckedStructuralAccess::SharedBorrow
+                        && !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some() =>
+                    {
+                        checked_trees::CheckedPlaceLoanRoot::ScalarParameter {
+                            position: u32::try_from(position).ok()?,
+                        }
                     }
-                }
-                None => return None,
-            };
-            (root, parameter.type_reference)
-        }
-        None => {
-            let (ordinal, root_local) = program.state_local_declaration(state, symbol)?;
-            if ordinal >= statement {
-                return None;
+                    None => return None,
+                };
+                (root, parameter.type_reference)
             }
-            (
-                checked_trees::CheckedPlaceLoanRoot::Local { symbol },
-                root_local.type_reference,
-            )
-        }
-    };
+            None => {
+                let (ordinal, root_local) = program.state_local_declaration(state, symbol)?;
+                if ordinal >= statement {
+                    return None;
+                }
+                (
+                    checked_trees::CheckedPlaceLoanRoot::Local { symbol },
+                    root_local.type_reference,
+                )
+            }
+        };
     // The root denotes its storage through its own declared reference shells.
     let mut root_type = root_type;
     while let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =

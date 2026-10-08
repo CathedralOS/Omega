@@ -313,9 +313,7 @@ fn normalize_open_index_expression_operations(
     };
     let mut candidates = Vec::new();
     for bound in &machine.conformance_bounds {
-        let Some(trait_definition) = program
-            .trait_definition_by_symbol(bound.trait_symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition_by_symbol(bound.trait_symbol) else {
             continue;
         };
         for requirement in program.trait_machine_signatures(trait_definition) {
@@ -413,9 +411,7 @@ fn binary_requirement_trait_parameter(
         else {
             return None;
         };
-        trait_parameters
-            .iter()
-            .position(|parameter| parameter.symbol == *symbol)
+        typed_trees::data::type_parameter_position(trait_parameters, *symbol)
     };
     let parameters = program.state_signature_parameters(requirement);
     let [left, right] = parameters else {

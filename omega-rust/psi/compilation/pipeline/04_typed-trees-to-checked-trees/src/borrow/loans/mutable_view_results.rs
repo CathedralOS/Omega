@@ -94,9 +94,8 @@ fn mutable_view_source(
             ordinal,
             borrow.target,
         )?;
-        let resolved = if let Some(position) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == root)
+        let resolved = if let Some(position) =
+            typed_trees::signature::state_parameter_position(parameters, root)
         {
             let parameter = &parameters[position];
             if !view_source_parameter_is_mutable(program, parameter) {

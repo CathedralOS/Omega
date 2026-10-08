@@ -200,10 +200,8 @@ pub(in crate::execution::terminal_unit) fn window_place(
     let PlaceRoot::Symbol(symbol) = root else {
         return None;
     };
-    let position = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
+    let position =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
     let position = u32::try_from(position).ok()?;
     let (parameter_index, parameter) = structural_parameters
         .iter()

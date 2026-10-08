@@ -38,9 +38,7 @@ pub(super) fn proves(
     let PlaceRoot::Symbol(formal) = required.root else {
         return None;
     };
-    let position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == formal)?;
+    let position = typed_trees::signature::state_parameter_position(parameters, formal)?;
     let Some(argument) = validation::call_site_argument_expressions(program, call)
         .get(position)
         .copied()

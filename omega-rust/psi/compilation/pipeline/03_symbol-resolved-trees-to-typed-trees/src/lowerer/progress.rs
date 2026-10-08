@@ -163,10 +163,10 @@ fn inherited_guarantee(
                 .map(|state| program.state_parameters(state))
                 .unwrap_or_default();
             for premise in premises {
-                let Some(index) = required_parameters
-                    .iter()
-                    .position(|parameter| parameter.symbol == premise.subject.root)
-                else {
+                let Some(index) = typed_trees::signature::state_parameter_position(
+                    required_parameters,
+                    premise.subject.root,
+                ) else {
                     return Err(Diagnostic::error(format!(
                         "progress premise inherited by `{}` is not rooted in requirement `{}`'s parameter telescope",
                         machine.name, requirement_name
@@ -390,8 +390,9 @@ fn declared_field_with_symbol<'program>(
         .iter()
         .find_map(|member| match member {
             typed::data::DataMember::Field(field) => (field.symbol == symbol).then_some(field),
-            typed::data::DataMember::Variant(variant) => program
-                .data_payload_field_by_symbol(variant, symbol),
+            typed::data::DataMember::Variant(variant) => {
+                program.data_payload_field_by_symbol(variant, symbol)
+            }
         })
 }
 

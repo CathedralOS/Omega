@@ -131,6 +131,16 @@ pub struct TypeParameter {
     pub bounds: DataProperties,
 }
 
+/// The roster position of the type parameter keyed `symbol`, if present.
+pub fn type_parameter_position(
+    parameters: &[TypeParameter],
+    symbol: SymbolHandle,
+) -> Option<usize> {
+    parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+}
+
 /// Whether a provider-side type parameter requires properties not guaranteed
 /// by the requirement-side parameter.
 ///

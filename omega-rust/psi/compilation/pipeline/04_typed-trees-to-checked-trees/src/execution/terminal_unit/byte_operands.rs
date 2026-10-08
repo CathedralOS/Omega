@@ -96,10 +96,8 @@ fn place(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let source = if let Some(position) = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == root)
+    let source = if let Some(position) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(state), root)
     {
         Source::Parameter {
             parameter_index: dense_parameter(position)?,
@@ -140,9 +138,7 @@ pub(super) fn store_operand_type_identities(
     let checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = operation else {
         return Vec::new();
     };
-    let Some(machine) = program
-        .machine(machine)
-    else {
+    let Some(machine) = program.machine(machine) else {
         return Vec::new();
     };
     let Some(state) = program

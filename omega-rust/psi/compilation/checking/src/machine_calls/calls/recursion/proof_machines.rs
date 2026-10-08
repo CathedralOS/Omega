@@ -144,9 +144,8 @@ pub(crate) fn proof_call_has_structural_descent(
         return false;
     }
     let parameters = program.state_parameters(entry);
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == measure.symbol)
+    let Some(position) =
+        typed_trees::signature::state_parameter_position(parameters, measure.symbol)
     else {
         return false;
     };

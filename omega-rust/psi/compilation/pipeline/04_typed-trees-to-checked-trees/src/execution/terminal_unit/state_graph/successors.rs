@@ -308,10 +308,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         if !place.segments.is_empty() {
             return None;
         }
-        program
-            .state_parameters(source)
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)
+        typed_trees::signature::state_parameter_position(program.state_parameters(source), symbol)
     };
     let transfers = target_structural
         .iter()
@@ -820,7 +817,12 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         && expression.role == role
                 });
                 if has_pure
-                    || !computations.is_authored_root(root, machine.symbol, argument, target.primitive_type)
+                    || !computations.is_authored_root(
+                        root,
+                        machine.symbol,
+                        argument,
+                        target.primitive_type,
+                    )
                 {
                     return None;
                 }
@@ -1170,10 +1172,7 @@ fn case_payload_transfer(
                 return None;
             };
             (variant.symbol == selected_case)
-                .then(|| {
-                    program
-                        .data_payload_field_by_symbol(variant, *field_symbol)
-                })
+                .then(|| program.data_payload_field_by_symbol(variant, *field_symbol))
                 .flatten()
         })
     })?;
@@ -1240,10 +1239,8 @@ fn case_payload_transfer(
     let facts::PlaceRoot::Symbol(root) = subject_place.root else {
         return None;
     };
-    let (subject_source, mut subject_type, root_identity) = if let Some(position) = program
-        .state_parameters(source)
-        .iter()
-        .position(|parameter| parameter.symbol == root)
+    let (subject_source, mut subject_type, root_identity) = if let Some(position) =
+        typed_trees::signature::state_parameter_position(program.state_parameters(source), root)
     {
         let (parameter_index, parameter) = source_structural
             .iter()

@@ -286,9 +286,8 @@ impl PremiseScope<'_> {
                         .len()
                         == 1
                     && path.head_symbol == path.symbol
-                    && let Some(index) = parameters
-                        .iter()
-                        .position(|parameter| parameter.symbol == path.symbol)
+                    && let Some(index) =
+                        typed_trees::signature::state_parameter_position(parameters, path.symbol)
                 {
                     return normalized_bound(program, lookup, arguments[index]);
                 }

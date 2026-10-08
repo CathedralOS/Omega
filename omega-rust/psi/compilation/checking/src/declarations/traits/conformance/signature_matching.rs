@@ -33,14 +33,10 @@ fn specialized_instance_realized_tail(
     machine: &Machine,
     state: &State,
 ) -> usize {
-    let Some(application) = program
-        .machine_specialization(machine.symbol)
-    else {
+    let Some(application) = program.machine_specialization(machine.symbol) else {
         return 0;
     };
-    let Some(template) = program
-        .machine(application.template)
-    else {
+    let Some(template) = program.machine(application.template) else {
         return 0;
     };
     // Cloned states keep template order, so the checked state's positional
@@ -1096,9 +1092,8 @@ pub(crate) fn carrier_data_definition_for_argument<'program>(
     applied_arguments: &[TypeReferenceHandle],
     carrier_parameter: &TypeParameter,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    let carrier_index = trait_parameters
-        .iter()
-        .position(|parameter| parameter.symbol == carrier_parameter.symbol)?;
+    let carrier_index =
+        typed_trees::data::type_parameter_position(trait_parameters, carrier_parameter.symbol)?;
     let carrier_argument = *applied_arguments.get(carrier_index)?;
     let TypeReferenceNode::Named {
         symbol: carrier_symbol,

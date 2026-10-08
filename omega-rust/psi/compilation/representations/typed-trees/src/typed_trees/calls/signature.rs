@@ -148,6 +148,16 @@ pub struct StateParameter {
     pub relevance: language_core::BindingRelevance,
 }
 
+/// The roster position of the state parameter keyed `symbol`, if present.
+pub fn state_parameter_position(
+    parameters: &[StateParameter],
+    symbol: SymbolHandle,
+) -> Option<usize> {
+    parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+}
+
 impl Default for StateParameter {
     fn default() -> Self {
         Self {
