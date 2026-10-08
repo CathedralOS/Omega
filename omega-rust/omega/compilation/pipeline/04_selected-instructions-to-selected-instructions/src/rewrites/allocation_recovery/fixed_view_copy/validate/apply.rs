@@ -1,10 +1,9 @@
-use super::leaf_destination::terminator;
 use register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
 };
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 use crate::{FixedViewCopy, FixedViewCopyError};
@@ -46,8 +45,8 @@ pub(super) fn replay_apply(
                 function: function_index,
                 instruction: instruction.0,
             })?;
-        let site_instruction = if terminator(&block.terminator).id == instruction {
-            terminator_mut(&mut block.terminator)
+        let site_instruction = if selected_instructions::terminator_instruction(&block.terminator).id == instruction {
+            selected_instructions::terminator_instruction_mut(&mut block.terminator)
         } else {
             block
                 .instructions
@@ -79,7 +78,7 @@ pub(super) fn replay_apply(
     // The copy sits immediately before the fixed-use instruction: at the end
     // of the block's instruction list for a terminator site, or at the site's
     // own position for an ordinary instruction.
-    let insertion_index = if terminator(&block.terminator).id == copy.before_instruction {
+    let insertion_index = if selected_instructions::terminator_instruction(&block.terminator).id == copy.before_instruction {
         block.instructions.len()
     } else {
         block
@@ -137,17 +136,6 @@ pub(super) fn replay_apply(
     Ok(())
 }
 
-fn terminator_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}
 
 fn replay_operand(
     constraint: &RegisterOperandConstraint,

@@ -1,4 +1,3 @@
-use super::leaf_destination::terminator;
 use super::site::replay_site_copies;
 use super::source_exit::replay_source_exit_copies;
 
@@ -41,7 +40,7 @@ pub(super) fn replay_transformation(
                     .instructions
                     .iter()
                     .map(|instruction| instruction.id.0)
-                    .chain(std::iter::once(terminator(&block.terminator).id.0))
+                    .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator).id.0))
             })
             .collect::<Vec<_>>();
         instruction_ids.sort_unstable();
