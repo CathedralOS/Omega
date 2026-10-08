@@ -6,7 +6,7 @@
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::ScalarType;
 use target_operations::{TargetFunction, TargetUnitOperation};
-use terminal_psi::StructuralArgument;
+use terminal_psi::{StructuralArgument, live_field_by_id};
 
 #[cfg(test)]
 mod tests;
@@ -1418,7 +1418,7 @@ fn parameter_access(
     types: &[terminal_psi::StructuralTypeDeclaration],
     purpose: AccessPurpose,
 ) -> bool {
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity, live_field_by_id};
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     if (parameter.multiplicity == StructuralMultiplicity::Linear
         && (parameter.access != StructuralAccess::Owned
             || purpose == AccessPurpose::ByteOwnerReplacement
