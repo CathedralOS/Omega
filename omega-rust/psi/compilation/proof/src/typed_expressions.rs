@@ -22,7 +22,9 @@ pub(crate) fn expression_type_reference(
     // for a range-refined field target (`self.x = 9999` with `x: i32 [0..=100]`)
     // was never collected and the declared range went UNENFORCED on assignment
     // (the field range a later narrowing trusts must hold at every write).
-    if let Some(field_type) = attached_data_field_type(program, machine, expression) {
+    if let Some(field_type) =
+        ::validation::field_domains::attached_data_field_type(program, machine, expression)
+    {
         return Some(field_type);
     }
     match program.expression_table.expression(expression) {
@@ -85,98 +87,6 @@ fn element_type_reference(
             Some(*element_type)
         }
         typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
-        _ => None,
-    }
-}
-
-/// Resolve a `self.a.b.c` field place (ONE level `self.f` or NESTED) to the
-/// final field's DECLARED type reference (constraints intact) via the machine's
-/// attached data, descending into each intermediate field's data type. `None` for
-/// any other expression shape. Mirrors `typed-trees-to-checked-trees`
-/// `field_domain::attached_data_field_type` -- both sides must agree so a nested
-/// domained field is trusted at reads exactly where it is enforced at writes.
-fn attached_data_field_type(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let path = self_field_path(program, expression)?;
-    let (last, parents) = path.split_last()?;
-
-    let attached = machine.attached_data.as_ref()?;
-    let mut data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    for segment in parents {
-        let field_type = data_field_type_by_name(program, data, segment)?;
-        let next = type_reference_data_name(program, field_type)?;
-        data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == next.as_str())?;
-    }
-    data_field_type_by_name(program, data, last)
-}
-
-/// The segments of a `self.a.b.c` field-access path AFTER `self`, or `None` if
-/// not a `self`-rooted field access. Handles the nested `Member` chain and a flat
-/// `Name` path alike.
-fn self_field_path(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<Vec<String>> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            let mut path = self_field_path(program, member.receiver)?;
-            path.push(member.member.as_str().to_owned());
-            Some(path)
-        }
-        ExpressionNode::Name(name) => {
-            match program.expression_table.name_path_members(name.members) {
-                [first, rest @ ..] if first.is_self_receiver() => Some(
-                    rest.iter()
-                        .map(|segment| segment.as_str().to_owned())
-                        .collect(),
-                ),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-pub(crate) fn data_field_type_by_name(
-    program: &dyn ::validation::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-    field_name: &str,
-) -> Option<TypeReferenceHandle> {
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        })
-}
-
-/// The data-type name a field's type reference names (peeling `&`/`&mut` and a
-/// domain `Constrained` wrapper), for descending a nested field path.
-fn type_reference_data_name(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<String> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
-        TypeReferenceNode::Reference { referee, .. } => type_reference_data_name(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_data_name(program, *base_type)
-        }
         _ => None,
     }
 }

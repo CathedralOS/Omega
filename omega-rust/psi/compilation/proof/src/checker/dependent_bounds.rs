@@ -301,7 +301,7 @@ fn dependent_field_floor_at(
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
     let field_type =
-        crate::typed_expressions::data_field_type_by_name(program, data, max_field.as_str())?;
+        ::validation::field_domains::data_field_type_by_name(program, data, max_field.as_str())?;
     enforced_literal_range_minimum(program, field_type)
 }
 

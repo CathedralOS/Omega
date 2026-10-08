@@ -597,9 +597,11 @@ fn operand_declared_primitive(
         else {
             continue;
         };
-        if let Some(field_type) =
-            crate::typed_expressions::data_field_type_by_name(program, data, member.member.as_str())
-        {
+        if let Some(field_type) = ::validation::field_domains::data_field_type_by_name(
+            program,
+            data,
+            member.member.as_str(),
+        ) {
             return program.primitive_type_reference(field_type);
         }
     }
