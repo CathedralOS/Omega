@@ -1056,7 +1056,8 @@ fn trapping_constraint(
 // saturating i32 forms' clamp bound, and the signed remainder's high half
 // all share the same i64 scratch the encoding defines itself on every
 // target. `sign` selects the carrier the form's bound reads.
-fn instruction_scratch(
+#[track_caller]
+pub(super) fn instruction_scratch(
     builder: &mut Builder<'_>,
     operand: u16,
     sign: IntegerSign,
@@ -1096,34 +1097,7 @@ fn instruction_scratch(
 pub(super) fn division_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(
-        builder
-            .registers
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                .map_err(|_| SelectedInstructionError::custody())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction,
-            operand: 0,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
+    let id = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
     builder.emit(
         SelectedInstructionKind::MaterializeI64 {
             value: IntegerValue::Unsigned(0),

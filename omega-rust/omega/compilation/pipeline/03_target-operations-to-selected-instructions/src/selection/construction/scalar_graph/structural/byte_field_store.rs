@@ -4,9 +4,9 @@
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
+    memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::byte_views;
@@ -128,8 +128,7 @@ pub(super) fn replace(
         .0
     } else {
         if !signature.structural_types.iter().any(|declaration| {
-            declaration.id == destination_type
-                && declaration.shape.is_bounded_owned_byte_sequence()
+            declaration.id == destination_type && declaration.shape.is_bounded_owned_byte_sequence()
         }) {
             return Err(invalid());
         }
@@ -411,26 +410,5 @@ pub(super) fn scratch(
     builder: &mut Builder<'_>,
     operand: u16,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction,
-            operand,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
+    super::super::integer_arithmetic::instruction_scratch(builder, operand, IntegerSign::Unsigned)
 }

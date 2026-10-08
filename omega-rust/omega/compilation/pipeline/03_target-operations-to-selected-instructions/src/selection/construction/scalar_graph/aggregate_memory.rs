@@ -2,10 +2,8 @@
 //! Packed expansions own an instruction-local temporary, never a source value.
 //! The caller retains the exact place/offset/width access record; the physical
 //! constraints keep scratch and early-written outputs disjoint from live inputs.
-use super::{
-    Builder, IntegerSign, ScalarType, SelectedInstructionId, SelectedInstructionKind,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
+use super::integer_arithmetic::instruction_scratch;
+use super::{Builder, IntegerSign, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
 
 pub(super) fn load(
@@ -91,33 +89,5 @@ pub(super) fn store(
 }
 
 fn scratch(builder: &mut Builder<'_>) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(
-        builder
-            .registers
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                .map_err(|_| SelectedInstructionError::custody())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction,
-            operand: 2,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
+    instruction_scratch(builder, 2, IntegerSign::Unsigned)
 }
