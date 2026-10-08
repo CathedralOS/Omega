@@ -17,7 +17,7 @@ use super::super::{
 };
 
 use crate::preparation::declaration_selection::{
-    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
+    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument, substituted_generic_arguments,
 };
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstFactValue;
@@ -852,13 +852,7 @@ fn validate_selected_const_type(
                 return Ok(());
             }
             visiting.push(declaration);
-            let mut next_substitution = GenericApplicationSubstitution::new();
-            for (parameter, argument) in parameters.iter().zip(argument_handles.iter()) {
-                next_substitution.insert(
-                    parameter.name.as_str().to_owned(),
-                    resolved_generic_argument(syntax, *argument, substitution)?,
-                );
-            }
+            let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
             for member in syntax.tables.items.data_members(definition.members) {
                 match member {
                     DataMember::Field(field) => validate_selected_const_type(syntax,

@@ -956,6 +956,24 @@ pub(crate) fn resolved_generic_argument(
     Ok(argument)
 }
 
+/// Builds the substitution a closed generic application yields: every
+/// parameter name bound to its resolved argument handle.
+pub(crate) fn substituted_generic_arguments(
+    syntax: &SyntaxTrees,
+    parameters: &[syntax_trees::item::TypeParameter],
+    argument_handles: &[syntax_trees::types::TypeReferenceHandle],
+    substitution: &GenericApplicationSubstitution,
+) -> Result<GenericApplicationSubstitution, String> {
+    let mut next_substitution = GenericApplicationSubstitution::new();
+    for (parameter, argument) in parameters.iter().zip(argument_handles.iter()) {
+        next_substitution.insert(
+            parameter.name.as_str().to_owned(),
+            resolved_generic_argument(syntax, *argument, substitution)?,
+        );
+    }
+    Ok(next_substitution)
+}
+
 /// Whether `type_reference` contains a deferred `ConstExpression` argument.
 /// Probe forests replace those arguments with layout stand-ins, so a carrier
 /// spelling containing one drifts from the materialized constructor's name;

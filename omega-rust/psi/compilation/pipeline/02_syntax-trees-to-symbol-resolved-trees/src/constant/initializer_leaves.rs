@@ -2,7 +2,7 @@
 
 use crate::constant::requires_const_initializer_evaluation;
 use crate::preparation::declaration_selection::{
-    GenericApplicationSubstitution, has_deferred_const_argument, resolved_generic_argument,
+    GenericApplicationSubstitution, has_deferred_const_argument, substituted_generic_arguments,
     type_mentions_parameters,
 };
 use source::{SourceSpan, Span};
@@ -299,13 +299,7 @@ pub(crate) fn pending_const_initializer_leaves(
                         "computed constant requires a closed generic application".to_owned(),
                     );
                 }
-                let mut next_substitution = GenericApplicationSubstitution::new();
-                for (parameter, argument) in parameters.iter().zip(argument_handles.iter()) {
-                    next_substitution.insert(
-                        parameter.name.as_str().to_owned(),
-                        resolved_generic_argument(syntax, *argument, substitution)?,
-                    );
-                }
+                let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
                 match syntax.expressions.expression(expression) {
                     ExpressionNode::StructLiteral(literal) => collect_literal_fields(
                         syntax,
@@ -660,13 +654,7 @@ fn pending_aggregate_placeholder_at(
                         .to_owned(),
                 );
             }
-            let mut next_substitution = GenericApplicationSubstitution::new();
-            for (parameter, argument) in parameters.iter().zip(argument_handles.iter()) {
-                next_substitution.insert(
-                    parameter.name.as_str().to_owned(),
-                    resolved_generic_argument(syntax, *argument, substitution)?,
-                );
-            }
+            let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
             // The member list is cloned so the declaration borrow ends before
             // recursive placeholder construction inserts into the same forest.
             let members = syntax.items.data_members(declared.members).to_vec();
