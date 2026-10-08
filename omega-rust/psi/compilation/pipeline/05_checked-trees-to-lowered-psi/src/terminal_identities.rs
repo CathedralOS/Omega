@@ -140,6 +140,21 @@ pub(crate) fn lookup_service_id(
         ))
 }
 
+/// Lower a checked service row into the sorted deduplicated ceiling shape the
+/// lowered unit records.
+pub(crate) fn lower_service_reach_sorted(
+    source: &[ServiceReachId],
+    ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    let mut lowered = source
+        .iter()
+        .map(|service| lookup_service_id(ids, *service))
+        .collect::<Result<Vec<_>, _>>()?;
+    lowered.sort();
+    lowered.dedup();
+    Ok(lowered)
+}
+
 pub(crate) fn lookup_machine_id(
     ids: &[(symbols::SymbolHandle, MachineId)],
     source: symbols::SymbolHandle,

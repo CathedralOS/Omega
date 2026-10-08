@@ -532,16 +532,11 @@ pub(crate) fn lower_declared_service_reach(
     if source.service_reach_is_installation_bound {
         return Ok(Vec::new());
     }
-    let mut declared = checked
+    let declared = checked
         .typed
         .service_reach_rows
-        .services(source.service_reach_row)
-        .iter()
-        .map(|service| lookup_service_id(service_ids, *service))
-        .collect::<Result<Vec<_>, _>>()?;
-    declared.sort();
-    declared.dedup();
-    Ok(declared)
+        .services(source.service_reach_row);
+    crate::terminal_identities::lower_service_reach_sorted(declared, service_ids)
 }
 
 pub(crate) fn lower_fixed_boundary_service_reach(
@@ -554,13 +549,7 @@ pub(crate) fn lower_fixed_boundary_service_reach(
             .ok_or(LoweringError::Unsupported(
                 "fixed boundary reach has no exact typed requirement",
             ))?;
-    let mut fixed = source
-        .iter()
-        .map(|service| lookup_service_id(service_ids, *service))
-        .collect::<Result<Vec<_>, _>>()?;
-    fixed.sort();
-    fixed.dedup();
-    Ok(fixed)
+    crate::terminal_identities::lower_service_reach_sorted(&source, service_ids)
 }
 
 pub(crate) fn lower_published_service_ceiling(

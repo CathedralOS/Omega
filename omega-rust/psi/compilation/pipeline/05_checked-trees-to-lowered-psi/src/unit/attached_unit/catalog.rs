@@ -1474,12 +1474,7 @@ pub(super) fn lower_provider_candidate_service_ceiling(
         &mut selected,
     )?;
     let source = rows.services(candidate.service_reach.transitive);
-    let mut lowered = source
-        .iter()
-        .map(|service| lookup_service_id(service_ids, *service))
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    lowered.sort();
-    lowered.dedup();
+    let lowered = crate::terminal_identities::lower_service_reach_sorted(source, service_ids)?;
     if lowered.len() != source.len() {
         return unsupported("checked provider adapter reach contains duplicates");
     }
