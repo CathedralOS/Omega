@@ -273,10 +273,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 role,
             ) {
                 let plans = &facts.values.scalar_computations;
-                if root.machine != machine
-                    || !plans.nodes.is_valid(root.root)
-                    || plans.nodes.get(root.root).authored_root != local.initial_value
-                    || plans.nodes.get(root.root).primitive_type != primitive_type
+                if !plans.is_authored_root(root, machine, local.initial_value, primitive_type)
                 {
                     return None;
                 }
@@ -364,10 +361,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 _ => return None,
             };
-            if root.machine != machine
-                || !plans.nodes.is_valid(root.root)
-                || plans.nodes.get(root.root).authored_root != expression
-                || plans.nodes.get(root.root).primitive_type != primitive
+            if !plans.is_authored_root(root, machine, expression, primitive)
             {
                 return None;
             }

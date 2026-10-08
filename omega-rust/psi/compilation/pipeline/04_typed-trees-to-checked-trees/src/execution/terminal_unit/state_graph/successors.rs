@@ -819,10 +819,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         && expression.role == role
                 });
                 if has_pure
-                    || root.machine != machine.symbol
-                    || !computations.nodes.is_valid(root.root)
-                    || computations.nodes.get(root.root).authored_root != argument
-                    || computations.nodes.get(root.root).primitive_type != target.primitive_type
+                    || !computations.is_authored_root(root, machine.symbol, argument, target.primitive_type)
                 {
                     return None;
                 }

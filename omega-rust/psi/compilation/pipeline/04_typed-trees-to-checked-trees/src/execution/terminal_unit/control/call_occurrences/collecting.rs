@@ -91,10 +91,7 @@ pub(super) fn collect_constructor_calls(
             else {
                 continue;
             };
-            if root.machine != machine
-                || !plans.nodes.is_valid(root.root)
-                || plans.nodes.get(root.root).authored_root != expression
-                || plans.nodes.get(root.root).primitive_type != primitive_type
+            if !plans.is_authored_root(root, machine, expression, primitive_type)
             {
                 return None;
             }
@@ -159,11 +156,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         });
         if let Some(root) = roots.next() {
             if roots.next().is_some()
-                || root.machine != machine
-                || !plans.nodes.is_valid(root.root)
-                || plans.nodes.get(root.root).authored_root != expression
-                || plans.nodes.get(root.root).primitive_type
-                    != typed_trees::types::PrimitiveType::Bool
+                || !plans.is_authored_root(root, machine, expression, typed_trees::types::PrimitiveType::Bool)
             {
                 return None;
             }
@@ -502,10 +495,7 @@ pub(super) fn collect_range_calls(
         });
         let Some(root) = roots.next() else { continue };
         if roots.next().is_some()
-            || root.machine != machine
-            || !plans.nodes.is_valid(root.root)
-            || plans.nodes.get(root.root).authored_root != endpoint
-            || plans.nodes.get(root.root).primitive_type != typed_trees::types::PrimitiveType::U64
+            || !plans.is_authored_root(root, machine, endpoint, typed_trees::types::PrimitiveType::U64)
         {
             return None;
         }

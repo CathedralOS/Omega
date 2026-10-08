@@ -96,10 +96,7 @@ pub(super) fn authored_value(
     let computations = &facts.values.scalar_computations;
     if let Some(root) = computations.root_at(state.symbol, statement_index, role) {
         trace.phase("structural field store: computation source");
-        if root.machine != machine.symbol
-            || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != authored
-            || computations.nodes.get(root.root).primitive_type != primitive_type
+        if !computations.is_authored_root(root, machine.symbol, authored, primitive_type)
             || facts
                 .values
                 .scalar_expressions

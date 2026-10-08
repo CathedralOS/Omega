@@ -95,6 +95,22 @@ impl CheckedScalarComputationPlans {
             .collect()
     }
 
+    /// Whether `root` points at a valid computation node authored by
+    /// `authored` with `primitive_type` on `machine` — the shared admission
+    /// shape for scalar root lookups.
+    pub fn is_authored_root(
+        &self,
+        root: &CheckedScalarComputationRoot,
+        machine: SymbolHandle,
+        authored: typed_trees::expression::ExpressionHandle,
+        primitive_type: PrimitiveType,
+    ) -> bool {
+        root.machine == machine
+            && self.nodes.is_valid(root.root)
+            && self.nodes.get(root.root).authored_root == authored
+            && self.nodes.get(root.root).primitive_type == primitive_type
+    }
+
     /// Root handles of computations owned by any machine in `machines`, in
     /// arena order.
     pub fn roots_in_machines(

@@ -156,10 +156,7 @@ fn primitive_store_value(
         });
     if let Some(root) = roots.next() {
         if roots.next().is_some()
-            || root.machine != machine.symbol
-            || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != assignment.value
-            || computations.nodes.get(root.root).primitive_type != primitive_type
+            || !computations.is_authored_root(root, machine.symbol, assignment.value, primitive_type)
             || facts
                 .values
                 .scalar_expressions

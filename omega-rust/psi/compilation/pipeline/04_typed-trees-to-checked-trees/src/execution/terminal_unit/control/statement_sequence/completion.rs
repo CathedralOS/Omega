@@ -463,10 +463,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 });
             let value = if let Some(root) = roots.next() {
                 if roots.next().is_some()
-                    || root.machine != machine.symbol
-                    || !computations.nodes.is_valid(root.root)
-                    || computations.nodes.get(root.root).authored_root != *expression
-                    || computations.nodes.get(root.root).primitive_type != primitive_type
+                    || !computations.is_authored_root(root, machine.symbol, *expression, primitive_type)
                     || facts
                         .values
                         .scalar_expressions

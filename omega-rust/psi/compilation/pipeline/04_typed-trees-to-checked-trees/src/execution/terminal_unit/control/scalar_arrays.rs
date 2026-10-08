@@ -43,10 +43,7 @@ pub(in crate::execution::terminal_unit) fn elements(
                 })
                 .collect::<Vec<_>>();
             if let [root] = roots.as_slice() {
-                if root.machine != machine
-                    || !computations.nodes.is_valid(root.root)
-                    || computations.nodes.get(root.root).authored_root != expression
-                    || computations.nodes.get(root.root).primitive_type != primitive_type
+                if !computations.is_authored_root(root, machine, expression, primitive_type)
                     || facts
                         .values
                         .scalar_expressions

@@ -43,10 +43,7 @@ pub(super) fn value(
         );
         trace.statement(Some(statement_index));
         if roots.next().is_some()
-            || root.machine != machine
-            || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != local.initial_value
-            || computations.nodes.get(root.root).primitive_type != primitive_type
+            || !computations.is_authored_root(root, machine, local.initial_value, primitive_type)
             || facts
                 .values
                 .scalar_expressions
