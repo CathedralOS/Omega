@@ -38,7 +38,7 @@ pub(in crate::checks::contracts) fn proves_with(
     {
         return true;
     }
-    if let ExpressionNode::Boolean(value) = program.expression_table.expression(required) {
+    if let Some(value) = program.expression_table.boolean_node(required) {
         return *value == required_value;
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(guard)
@@ -143,7 +143,7 @@ fn boolean_comparison(
         return None;
     }
     for (operand, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
-        if let ExpressionNode::Boolean(literal) = program.expression_table.expression(literal) {
+        if let Some(literal) = program.expression_table.boolean_node(literal) {
             return Some((
                 operand,
                 (*literal == value) == (binary.operator == BinaryOperator::Equal),

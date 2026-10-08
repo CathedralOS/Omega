@@ -115,7 +115,7 @@ pub fn closed_constant_array_elements(
     let mut root = expression;
     let mut indices = Vec::new();
     let mut projections = Vec::new();
-    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(root) {
+    while let Some(indexed) = program.expression_table.indexed_node(root) {
         if projections.contains(&root) {
             return None;
         }
@@ -235,9 +235,7 @@ pub fn scalar_array_elements(
                     )?);
                     let mut selected = expression;
                     let mut selected_projections = Vec::new();
-                    while let ExpressionNode::Indexed(indexed) =
-                        program.expression_table.expression(selected)
-                    {
+                    while let Some(indexed) = program.expression_table.indexed_node(selected) {
                         selected_projections.push(selected);
                         selected = indexed.collection;
                     }
@@ -430,7 +428,7 @@ pub fn builtin_constant_array_projection_type(
     mut expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut projections = Vec::new();
-    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+    while let Some(indexed) = program.expression_table.indexed_node(expression) {
         if !matches!(
             program.expression_table.expression(indexed.index),
             ExpressionNode::Integer(_)

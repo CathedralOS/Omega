@@ -85,8 +85,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 // literal operand. A receiver-spelled call supplies the first
                 // formal through its receiver, exactly as its operand roster
                 // does.
-                let Some(operator) = program
-                    .operator_definition_by_symbol(call.target_symbol)
+                let Some(operator) = program.operator_definition_by_symbol(call.target_symbol)
                 else {
                     continue;
                 };
@@ -355,7 +354,7 @@ fn land_float_value_for_type(
 ) {
     use typed_trees::types::TypeReferenceNode;
 
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         let values = program
             .expression_table
             .match_arms(dispatch.arms)

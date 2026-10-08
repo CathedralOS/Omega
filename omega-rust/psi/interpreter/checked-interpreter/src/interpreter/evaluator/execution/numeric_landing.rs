@@ -174,9 +174,7 @@ impl Evaluator<'_> {
             let mut pending = vec![expression];
             while let Some(expression) = pending.pop() {
                 self.tick()?;
-                if let ExpressionNode::Binary(binary) =
-                    self.program.expression_table.expression(expression)
-                {
+                if let Some(binary) = self.program.expression_table.binary_node(expression) {
                     pending.push(binary.right);
                     pending.push(binary.left);
                 }

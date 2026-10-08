@@ -65,7 +65,7 @@ pub(super) fn exact_interior_byte_region_offset(
     source: ExpressionHandle,
 ) -> Option<i64> {
     let indexed = program.expression_table.indexed_node(source)?;
-    if let ExpressionNode::Integer(literal) = program.expression_table.expression(indexed.index) {
+    if let Some(literal) = program.expression_table.integer_node(indexed.index) {
         return literal.value_i64().filter(|offset| *offset >= 0);
     }
     let type_reference = crate::value_custody::places::declared_place_type_raw(

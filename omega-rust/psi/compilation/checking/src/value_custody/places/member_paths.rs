@@ -110,7 +110,7 @@ pub(crate) fn first_unknown_nested_field(
     current_state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> Option<(String, String)> {
-    if let ExpressionNode::Member(member) = program.expression_table.expression(expression) {
+    if let Some(member) = program.expression_table.member_node(expression) {
         // Diagnose the first missing receiver hop before resolving this member.
         // The shared type query retains every selected case in that receiver;
         // a name-only walk would choose the first same-spelled payload instead.

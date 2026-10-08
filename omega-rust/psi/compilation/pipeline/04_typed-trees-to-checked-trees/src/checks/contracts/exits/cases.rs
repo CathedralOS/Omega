@@ -183,9 +183,7 @@ impl CaseObservation<'_> {
         {
             return false;
         }
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression)
-        {
+        if let Some(dispatch) = self.program.expression_table.match_node(expression) {
             // Join the same observation across all independently produced
             // alternatives without importing an unselected arm's predicates.
             return !self
@@ -208,8 +206,10 @@ impl CaseObservation<'_> {
                     });
         }
         if let Some((segment, rest)) = projection.split_first() {
-            if let ExpressionNode::StructLiteral(literal) =
-                self.program.expression_table.expression(expression)
+            if let Some(literal) = self
+                .program
+                .expression_table
+                .struct_literal_node(expression)
             {
                 if let PlaceSegment::Case { variant } = segment {
                     let declared = self.program.data_definitions().iter().any(|data| {
@@ -266,9 +266,7 @@ impl CaseObservation<'_> {
                     depth + 1,
                 );
             }
-            if let ExpressionNode::ArrayLiteral(elements) =
-                self.program.expression_table.expression(expression)
-            {
+            if let Some(elements) = self.program.expression_table.array_literal_node(expression) {
                 let PlaceSegment::FixedIndex { index } = segment else {
                     return false;
                 };

@@ -2,7 +2,7 @@
 //! Admission rejoins the published loan and each exact claim occurrence;
 //! source checking owns eligibility and contextual hook requirements.
 use super::{
-    ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, SymbolHandle,
 };
 use crate::execution::terminal_unit::MachineSupplyMode;
@@ -93,42 +93,41 @@ pub(crate) fn validate(
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return None;
     }
-    let producer_source =
-        if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-            let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
-                candidate.machine_symbol == machine && candidate.state_symbol == state
-            })?;
-            let mut producers = flow
-                .control
-                .calls
-                .span(state_flow.calls)?
-                .iter()
-                .filter(|call| {
-                    call.statement_index == consumer.statement_index
-                        && call.authored_expression == expression
-                });
-            let producer = producers.next()?;
-            if producers.next().is_some()
-                || crate::flow::call_permission_evaluation(
-                    program,
-                    source_machine,
-                    source_state,
-                    producer.statement_index,
-                    producer.call_ordinal,
-                ) != evaluation
-            {
-                return None;
-            }
-            PermissionEventSource::Call {
-                statement_index: producer.statement_index,
-                call_ordinal: producer.call_ordinal,
-                target_symbol: producer.target_symbol,
-            }
-        } else {
-            PermissionEventSource::Statement {
-                statement_index: consumer.statement_index,
-            }
-        };
+    let producer_source = if let Some(_) = program.expression_table.call_node(expression) {
+        let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
+            candidate.machine_symbol == machine && candidate.state_symbol == state
+        })?;
+        let mut producers = flow
+            .control
+            .calls
+            .span(state_flow.calls)?
+            .iter()
+            .filter(|call| {
+                call.statement_index == consumer.statement_index
+                    && call.authored_expression == expression
+            });
+        let producer = producers.next()?;
+        if producers.next().is_some()
+            || crate::flow::call_permission_evaluation(
+                program,
+                source_machine,
+                source_state,
+                producer.statement_index,
+                producer.call_ordinal,
+            ) != evaluation
+        {
+            return None;
+        }
+        PermissionEventSource::Call {
+            statement_index: producer.statement_index,
+            call_ordinal: producer.call_ordinal,
+            target_symbol: producer.target_symbol,
+        }
+    } else {
+        PermissionEventSource::Statement {
+            statement_index: consumer.statement_index,
+        }
+    };
     if multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }

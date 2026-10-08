@@ -38,7 +38,7 @@ pub(super) fn prove<'program>(
         // ranks that record formal's storage. Case projections and computed
         // receivers stay opaque — the edge judgment resolves the exact chain.
         let mut cursor = subject;
-        while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+        while let Some(member) = program.expression_table.member_node(cursor) {
             cursor = member.receiver;
         }
         match program.expression_table.expression(cursor) {

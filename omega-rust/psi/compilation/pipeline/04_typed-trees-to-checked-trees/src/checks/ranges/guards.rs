@@ -41,7 +41,7 @@ fn peel_boolean_alias_guard(
     // target(next_index)` under `has_next = next_index < count` mints
     // `next_index`'s bound from `count`'s declared range exactly as the
     // spelled comparison would.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
+    if let Some(path) = program.expression_table.name_path_node(guard) {
         let name = program
             .expression_table
             .name_path_members(path.members)

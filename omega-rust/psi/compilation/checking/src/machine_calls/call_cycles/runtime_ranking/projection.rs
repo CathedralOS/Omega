@@ -516,7 +516,7 @@ fn entry_parameter<'program>(
 ) -> Option<(usize, &'program StateParameter)> {
     let mut cursor = unwrapped(program, subject);
     let mut visited = Vec::new();
-    while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+    while let Some(member) = program.expression_table.member_node(cursor) {
         if !member.member_symbol.is_valid()
             || member.case_variant.is_some()
             || visited.contains(&cursor)

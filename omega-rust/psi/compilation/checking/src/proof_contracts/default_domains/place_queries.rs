@@ -229,10 +229,9 @@ pub(super) fn data_definition_for_expression<'program>(
         .is_some_and(is_self_receiver)
     {
         let attached = machine.attached_data.as_ref()?;
-        return program
-            .data_definition_by_name(attached);
+        return program.data_definition_by_name(attached);
     }
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+    if let Some(indexed) = program.expression_table.indexed_node(expression) {
         let mut collection_type = crate::value_custody::places::declared_place_type_raw(
             program,
             machine,
@@ -261,8 +260,7 @@ fn data_definition_for_type(
     handle: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Named { name, .. } => program
-            .data_definition_by_name(name),
+        TypeReferenceNode::Named { name, .. } => program.data_definition_by_name(name),
         TypeReferenceNode::Reference { referee, .. } => data_definition_for_type(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             data_definition_for_type(program, *base_type)

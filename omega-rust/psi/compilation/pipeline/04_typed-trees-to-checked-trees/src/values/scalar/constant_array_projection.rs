@@ -19,7 +19,7 @@ pub(super) fn selected_leaf(
 ) -> Option<ExpressionHandle> {
     let mut projections = Vec::new();
     let mut root = expression;
-    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(root) {
+    while let Some(indexed) = program.expression_table.indexed_node(root) {
         projections.push((root, indexed.index));
         root = indexed.collection;
     }

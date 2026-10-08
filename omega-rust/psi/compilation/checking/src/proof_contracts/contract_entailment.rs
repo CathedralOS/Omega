@@ -806,7 +806,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         // arithmetic's verdict directly: `true` is proven and `false` is
         // disproved. Standing down on `false` would let a refuted
         // postcondition pass `--check` silently.
-        if let ExpressionNode::Boolean(constant) = program.expression_table.expression(*fact) {
+        if let Some(constant) = program.expression_table.boolean_node(*fact) {
             if *constant {
                 proven.push(*fact);
             } else {

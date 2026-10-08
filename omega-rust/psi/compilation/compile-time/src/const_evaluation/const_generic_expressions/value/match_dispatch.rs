@@ -265,7 +265,7 @@ pub(super) fn validate_landing(
     // land once during execution, after their dispatch subjects are demanded.
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        if let Some(dispatch) = program.expression_table.match_node(expression) {
             pending.extend(
                 program
                     .expression_table
@@ -524,7 +524,7 @@ pub(super) fn validate_anonymous_fragments(
 ) -> Result<(), String> {
     let mut pending = vec![root];
     while let Some(expression) = pending.pop() {
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        if let Some(dispatch) = program.expression_table.match_node(expression) {
             pending.extend(
                 program
                     .expression_table

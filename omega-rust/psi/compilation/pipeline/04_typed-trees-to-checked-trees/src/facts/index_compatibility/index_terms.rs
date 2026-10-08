@@ -79,7 +79,7 @@ pub(super) fn index_leaf_term<'a>(
     expression: ExpressionHandle,
     substitutions: &'a BoundIndexSubstitutions,
 ) -> IndexTerm<'a> {
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+    if let Some(path) = program.expression_table.name_path_node(expression) {
         let leaf_symbol = if path.symbol.is_valid() {
             path.symbol
         } else {

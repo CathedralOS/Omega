@@ -1,13 +1,12 @@
 //! Optimizer module role: proposal leaf. Direct certificate-owned constant construction.
 
 use super::{
-    unsupported, validate_locations,
     BlockId, CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
     MachineId, NodeLocation, O, OperationId, OptimizerUnsignedCountdownRankingCertificate,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownInvariantConstants,
     ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId,
-    recompute_psi_optimization_unit_identity,
+    recompute_psi_optimization_unit_identity, unsupported, validate_locations,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
@@ -29,7 +28,8 @@ pub(super) fn propose(
             .iter()
             .find(|component| component.id == certificate.component)
             .ok_or(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch)?;
-        let function = unit.function(certificate.component.machine)
+        let function = unit
+            .function(certificate.component.machine)
             .ok_or(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch)?;
         if summary.region.blocks != component.members {
             return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);

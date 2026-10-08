@@ -642,7 +642,7 @@ pub(super) fn member_chain<'program>(
 )> {
     let mut chain = Vec::new();
     let mut cursor = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
+    while let Some(member) = program.expression_table.member_node(cursor) {
         if !member.member_symbol.is_valid() || member.case_variant.is_some() || chain.len() >= 128 {
             return None;
         }

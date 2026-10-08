@@ -953,9 +953,7 @@ impl<'program> Engine<'program> {
                 // the atom would collide with the caller's same-declared
                 // parameter on a recursive call and read another frame's
                 // hypotheses.
-                let machine = self
-                    .program
-                    .machine(self.machine_symbol)?;
+                let machine = self.program.machine(self.machine_symbol)?;
                 let root = member_receiver_root_symbol(self.program, expression);
                 if root != Some(self.machine_symbol) && root.is_some() {
                     return None;
@@ -1202,9 +1200,7 @@ impl<'program> Engine<'program> {
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let embedding =
             crate::proof_contracts::proof_embeddings::integer_embedding(self.program, expression)?;
-        if let ExpressionNode::Integer(literal) =
-            self.program.expression_table.expression(expression)
-        {
+        if let Some(literal) = self.program.expression_table.integer_node(expression) {
             return Some(Polynomial::constant(literal.value_bignum()?));
         }
         // A direct binding denotes its payload regardless of its arithmetic

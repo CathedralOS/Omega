@@ -1545,7 +1545,7 @@ fn entry_scalar_parameter(
         visited.push(subject);
         subject = atomic.value;
     }
-    if let ExpressionNode::Member(_) = program.expression_table.expression(subject) {
+    if let Some(_) = program.expression_table.member_node(subject) {
         // The projected leaf's declared type is the subject's carrier; every
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.

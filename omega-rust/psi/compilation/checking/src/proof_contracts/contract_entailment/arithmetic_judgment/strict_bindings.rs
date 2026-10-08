@@ -200,8 +200,7 @@ impl<'program> Engine<'program> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         let dividend = self.normalize(binary.left)?;
@@ -235,8 +234,7 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
         count_bits: u32,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         let value = self.normalize(binary.left)?;
@@ -261,8 +259,7 @@ impl<'program> Engine<'program> {
         bits: u32,
         signed: bool,
     ) -> Option<()> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         let left = self.normalize(binary.left)?;

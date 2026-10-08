@@ -418,7 +418,7 @@ fn value_bounds(
     {
         return Some([value.clone(), value]);
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
+    if let Some(call) = program.expression_table.call_node(value) {
         let (callee, entry) = crate::declarations::transitions::resolved_transition_target_state(
             program,
             call.target_symbol,

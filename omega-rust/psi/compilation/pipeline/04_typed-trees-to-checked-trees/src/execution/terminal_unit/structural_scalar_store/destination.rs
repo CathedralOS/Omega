@@ -781,7 +781,7 @@ fn rejoin_loan_local(
     // the loan's leading recast peels before the borrow itself.
     let mut initial = local.initial_value;
     let mut recast = false;
-    while let ExpressionNode::Cast(cast) = program.expression_table.expression(initial) {
+    while let Some(cast) = program.expression_table.cast_node(initial) {
         if !cast.form.is_recast() {
             break;
         }
@@ -804,7 +804,7 @@ fn rejoin_loan_local(
         return None;
     }
     let mut target = borrow.target;
-    while let ExpressionNode::Cast(cast) = program.expression_table.expression(target) {
+    while let Some(cast) = program.expression_table.cast_node(target) {
         if !cast.form.is_recast() {
             break;
         }

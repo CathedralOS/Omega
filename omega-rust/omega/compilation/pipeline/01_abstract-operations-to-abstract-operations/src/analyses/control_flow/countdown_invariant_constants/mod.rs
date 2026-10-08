@@ -127,9 +127,6 @@ impl std::fmt::Display for CountdownInvariantConstantAnalysisError {
 
 impl std::error::Error for CountdownInvariantConstantAnalysisError {}
 
-
-
-
 fn validate_locations(
     function: &PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,
@@ -156,7 +153,8 @@ fn validate_locations(
             certificate.guard.zero_operation,
         ));
     }
-    let preheader = function.block(entry.source)
+    let preheader = function
+        .block(entry.source)
         .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
     let jump_index = preheader
         .nodes
@@ -200,8 +198,6 @@ fn validate_locations(
     }
     Ok(())
 }
-
-
 
 fn unsupported(
     machine: MachineId,

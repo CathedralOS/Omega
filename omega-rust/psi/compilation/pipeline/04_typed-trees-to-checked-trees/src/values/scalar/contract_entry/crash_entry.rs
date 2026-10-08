@@ -616,7 +616,7 @@ impl<'program> Reader<'program> {
             ) {
                 return Some(true);
             }
-            if let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) {
+            if let Some(_) = self.program.expression_table.name_path_node(operand) {
                 let subject = self.subject(operand, depth + 1)?;
                 if self
                     .primitive(subject.type_reference, depth + 1)?

@@ -82,7 +82,9 @@ fn collect(
     symbols: &mut Vec<SymbolHandle>,
     depth: usize,
 ) -> Option<()> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         // Literal spellings have no state dependency. Formation and selected
         // meaning separately decide whether a decimal can land as an integer.

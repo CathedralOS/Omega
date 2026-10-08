@@ -267,7 +267,7 @@ pub fn has_anonymous_numeric_results(
         {
             return false;
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        if let Some(dispatch) = program.expression_table.match_node(expression) {
             active.push(expression);
             let anonymous = !program
                 .expression_table

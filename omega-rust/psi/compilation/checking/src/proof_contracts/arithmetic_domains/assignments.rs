@@ -228,7 +228,7 @@ pub(crate) fn check_value_narrowing(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
             // Narrowing discards arithmetic diagnostics normally produced by
             // statement validation; dispatch children need their own landing.

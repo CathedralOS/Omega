@@ -3,7 +3,7 @@
 //! only unchanged stable inputs can publish branch-local comparison evidence.
 use crate::flow::expression::Execution;
 use arena::HandleSpan;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
 use facts::{FactPayload, ProgramPoint};
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
@@ -44,9 +44,7 @@ impl Execution<'_, '_, '_> {
                         *constraints,
                     );
                 }
-                if let ExpressionNode::Boolean(value) =
-                    self.program.expression_table.expression(pattern)
-                {
+                if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                     boolean_coverage[usize::from(*value)] = true;
                     covered = boolean_coverage.iter().all(|value| *value);
                 }

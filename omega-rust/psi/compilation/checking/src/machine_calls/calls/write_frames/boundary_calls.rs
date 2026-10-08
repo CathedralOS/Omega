@@ -986,7 +986,7 @@ fn boundary_argument_origins(
     argument: ExpressionHandle,
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    if let ExpressionNode::Call(call) = program.expression_table.expression(argument) {
+    if let Some(call) = program.expression_table.call_node(argument) {
         if selected_boundary_signature(program, call.target_symbol) {
             return boundary_result_origins(
                 program,

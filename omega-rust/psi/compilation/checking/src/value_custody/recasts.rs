@@ -102,7 +102,7 @@ pub fn reference_formation_source(
         ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
         _ => (expression, None),
     };
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(operand) {
+    if let Some(cast) = program.expression_table.cast_node(operand) {
         let access = match cast.form {
             language_core::cast_form::CastForm::RecastShared => {
                 language_core::ReferenceAccess::Shared
@@ -147,7 +147,8 @@ pub(crate) fn validate_recasts(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 if let StatementNode::LocalData(local) = statement
                     && local.type_reference.is_valid()

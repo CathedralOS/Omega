@@ -27,8 +27,8 @@ pub(crate) use slot_bindings::{
 };
 
 use super::{
-    Diagnostic, ExpressionHandle, Machine, ProofFact, RESULT_BINDER,
-    StateSignature, StructuralTerm, TraitDefinition, structural_term, unfold_constant_applications,
+    Diagnostic, ExpressionHandle, Machine, ProofFact, RESULT_BINDER, StateSignature,
+    StructuralTerm, TraitDefinition, structural_term, unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
     bindings_are_forall_general, check_proposition_law_conformance,

@@ -10,8 +10,8 @@ use std::collections::HashSet;
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
-use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 pub fn validate_selected_attached_method_bounds(
     program: &dyn crate::CheckingInput,
@@ -219,7 +219,7 @@ fn collect_expression_selections(
     selected: &mut HashSet<SymbolHandle>,
 ) {
     for expression in expressions {
-        if let ExpressionNode::Call(call) = program.expression_table.expression(*expression) {
+        if let Some(call) = program.expression_table.call_node(*expression) {
             selected.insert(call.target_symbol);
             collect_static_selections(&call.machine_arguments, selected);
         }

@@ -168,8 +168,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             }
             let mut aliased: Vec<(String, StructuralTerm)> = Vec::new();
             for (parameter, argument) in parameters.iter().zip(argument_handles) {
-                let Some(member) = program.expression_table.member_node(*argument)
-                else {
+                let Some(member) = program.expression_table.member_node(*argument) else {
                     continue;
                 };
                 let Some(receiver_term) = structural_term(program, member.receiver) else {
@@ -219,9 +218,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
             StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                if let ExpressionNode::Call(call) =
-                    program.expression_table.expression(local.initial_value)
-                {
+                if let Some(call) = program.expression_table.call_node(local.initial_value) {
                     intake_citation_for_edge(
                         program,
                         &mut judge,

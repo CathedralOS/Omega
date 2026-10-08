@@ -56,7 +56,7 @@ pub(super) fn append_unevidenced_establishment_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     unresolved: &mut Vec<CompatibilityKey>,
 ) {
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(value) {
+    if let Some(cast) = program.expression_table.cast_node(value) {
         append_unevidenced_cast_mint_diagnostic(
             program,
             cast,

@@ -162,7 +162,7 @@ fn reference_result_nested_operand_call_is_supported(
     // The projected operand: a declared-field chain over one nested call.
     let mut members = Vec::new();
     let mut root = argument;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
+    while let Some(member) = program.expression_table.member_node(root) {
         if member.case_variant.is_some() {
             return false;
         }

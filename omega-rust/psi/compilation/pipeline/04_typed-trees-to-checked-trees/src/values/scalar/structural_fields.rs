@@ -724,7 +724,7 @@ pub(super) fn structural_storage_place(
             }
             _ => {}
         }
-        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(authored) {
+        if let Some(indexed) = program.expression_table.indexed_node(authored) {
             let (_, _, collection_type) =
                 structural_storage_place(program, parameters, indexed.collection)?;
             if !indexed_read_has_builtin_meaning(

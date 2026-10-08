@@ -103,9 +103,7 @@ impl ExpressionTransfer<'_, '_> {
                         // write must not turn its old truth into a fresh fact
                         // about storage the arm will read.
                         stable_subject &= self.is_read_only(pattern);
-                        if let ExpressionNode::Boolean(value) =
-                            self.program.expression_table.expression(pattern)
-                        {
+                        if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                             outcome = Some(*value);
                             if builtin_comparison {
                                 boolean_coverage[usize::from(*value)] = true;

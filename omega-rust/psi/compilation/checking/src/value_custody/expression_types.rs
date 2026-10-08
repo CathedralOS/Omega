@@ -198,7 +198,7 @@ fn argument_matches_type_reference_using(
         type_reference,
         required_substitutions,
     );
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
+    if let Some(dispatch) = program.expression_table.match_node(argument) {
         if matches!(
             program.type_reference_table.type_reference(type_reference),
             TypeReferenceNode::Reference { .. }

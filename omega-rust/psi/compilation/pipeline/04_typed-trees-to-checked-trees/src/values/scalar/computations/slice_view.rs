@@ -106,9 +106,7 @@ impl Builder<'_, '_> {
             // borrows the whole byte backing conservatively; its captured
             // endpoints, rather than an element-sized loan, narrow the view.
             let mut authored_loan = collection.clone();
-            if let ExpressionNode::Integer(offset) =
-                self.program.expression_table.expression(region.start)
-            {
+            if let Some(offset) = self.program.expression_table.integer_node(region.start) {
                 authored_loan
                     .segments
                     .push(facts::PlaceSegment::FixedRange {

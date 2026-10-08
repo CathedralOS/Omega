@@ -791,9 +791,7 @@ fn scan_expression_calls_at_position(
                     typed_trees::expression::MatchPattern::Wildcard => Some(true),
                     typed_trees::expression::MatchPattern::Value(pattern) => {
                         scan(pattern, remaining_executes, value_environment);
-                        if let ExpressionNode::Boolean(value) =
-                            program.expression_table.expression(pattern)
-                        {
+                        if let Some(value) = program.expression_table.boolean_node(pattern) {
                             boolean_values[usize::from(*value)] = true;
                         }
                         match (

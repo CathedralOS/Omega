@@ -147,7 +147,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
         if !reference.is_valid() {
             return None;
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        if let Some(dispatch) = program.expression_table.match_node(expression) {
             // Conditional result arms route through the same declared
             // boundary type: each arm resolves its own leaves, converging
             // arms dedup to one origin downstream, and divergent arms keep

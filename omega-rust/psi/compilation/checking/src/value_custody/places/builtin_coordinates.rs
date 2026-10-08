@@ -238,8 +238,7 @@ fn builtin_coordinates(
             if !builtin_coordinates(program, machine, state, indexed.collection, depth + 1) {
                 return false;
             }
-            if let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
-            {
+            if let Some(range) = program.expression_table.range_node(indexed.index) {
                 // A window keeps its collection's backing rather than
                 // selecting an element type. Authenticate the range operator
                 // and each present bound before interpreting that geometry.

@@ -191,36 +191,35 @@ pub(crate) fn temporary_owners(
             if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
                 continue;
             }
-            let producer =
-                if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-                    let mut producers = calls.iter().filter(|producer| {
-                        producer.statement_index == consumer.statement_index
-                            && producer.authored_expression == expression
-                    });
-                    let Some(producer) = producers.next() else {
-                        continue;
-                    };
-                    if producers.next().is_some()
-                        || crate::flow::call_permission_evaluation(
-                            program,
-                            machine,
-                            state,
-                            producer.statement_index,
-                            producer.call_ordinal,
-                        ) != evaluation
-                    {
-                        continue;
-                    }
-                    PermissionEventSource::Call {
-                        statement_index: producer.statement_index,
-                        call_ordinal: producer.call_ordinal,
-                        target_symbol: producer.target_symbol,
-                    }
-                } else {
-                    PermissionEventSource::Statement {
-                        statement_index: consumer.statement_index,
-                    }
+            let producer = if let Some(_) = program.expression_table.call_node(expression) {
+                let mut producers = calls.iter().filter(|producer| {
+                    producer.statement_index == consumer.statement_index
+                        && producer.authored_expression == expression
+                });
+                let Some(producer) = producers.next() else {
+                    continue;
                 };
+                if producers.next().is_some()
+                    || crate::flow::call_permission_evaluation(
+                        program,
+                        machine,
+                        state,
+                        producer.statement_index,
+                        producer.call_ordinal,
+                    ) != evaluation
+                {
+                    continue;
+                }
+                PermissionEventSource::Call {
+                    statement_index: producer.statement_index,
+                    call_ordinal: producer.call_ordinal,
+                    target_symbol: producer.target_symbol,
+                }
+            } else {
+                PermissionEventSource::Statement {
+                    statement_index: consumer.statement_index,
+                }
+            };
             owners.push(TemporaryOwner {
                 expression,
                 type_reference,

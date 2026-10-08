@@ -102,7 +102,7 @@ fn value_bounds(
     } else {
         Bounds::UNKNOWN
     };
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+    if let Some(path) = program.expression_table.name_path_node(expression) {
         bounds.symbol = path.symbol;
         // Sequence measures are not integer-value intervals. Preserve the
         // literal size only for an exact immutable declaration, never by name

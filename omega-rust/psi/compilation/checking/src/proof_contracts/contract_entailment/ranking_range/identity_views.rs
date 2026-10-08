@@ -225,7 +225,9 @@ fn computation_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(literal) => {
             (!literal.value_bignum()?.is_negative()).then_some(None)
@@ -351,7 +353,10 @@ pub fn measure_body_shape(
         let field = exact_record_field(program, owner, step.member_symbol, &step.member)?;
         // An intermediate step must itself be an exact declared record so the
         // next member resolves against one nominal owner.
-        let Some(next) = program.type_reference_table.unconstrained_named_symbol(field.type_reference) else {
+        let Some(next) = program
+            .type_reference_table
+            .unconstrained_named_symbol(field.type_reference)
+        else {
             return None;
         };
         if !crate::declarations::data_queries::data_definition_by_symbol(program, next).is_some() {
@@ -367,7 +372,9 @@ pub fn measure_body_shape(
     let field = exact_record_field(program, owner, last.member_symbol, &last.member)?;
     // Returning a field with another carrier does not establish a u64 measure.
     // Field constraints narrow its values without changing that carrier.
-    let field_type = program.type_reference_table.unconstrained_type_reference(field.type_reference);
+    let field_type = program
+        .type_reference_table
+        .unconstrained_type_reference(field.type_reference);
     if ![field_type, measure.return_type]
         .into_iter()
         .all(|reference| {

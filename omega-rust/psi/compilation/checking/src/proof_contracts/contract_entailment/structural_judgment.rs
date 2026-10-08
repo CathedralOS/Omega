@@ -1852,10 +1852,7 @@ impl<'program> StructuralJudge<'program> {
         let StructuralTerm::Variable(name) = variable else {
             return false;
         };
-        let Some(definition) = self
-            .program
-            .data_definition_by_name_str(data.as_str())
-        else {
+        let Some(definition) = self.program.data_definition_by_name_str(data.as_str()) else {
             return false;
         };
         let declared: Vec<&str> = self

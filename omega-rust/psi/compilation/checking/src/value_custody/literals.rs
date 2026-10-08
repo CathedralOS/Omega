@@ -196,7 +196,7 @@ pub(crate) fn validate_suffix_landing(
     declared: typed_trees::types::TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
             validate_suffix_landing(program, arm.value, declared, diagnostics);
         }

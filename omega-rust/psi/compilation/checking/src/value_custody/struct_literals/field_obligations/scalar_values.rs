@@ -8,7 +8,7 @@ use crate::proof_contracts::arithmetic_domains::{
     occurrence_value_environment, validate_value_range,
 };
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -30,7 +30,7 @@ pub(super) fn validate(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<ConstructionScalarValue> {
     let target = program.primitive_type_reference(field_type)?;
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+    if let Some(dispatch) = program.expression_table.match_node(expression) {
         let before = diagnostics.len();
         let mut combined: Option<ConstructionScalarValue> = None;
         let mut complete = true;

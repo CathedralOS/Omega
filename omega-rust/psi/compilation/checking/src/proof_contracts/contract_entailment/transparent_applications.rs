@@ -101,8 +101,7 @@ pub fn transparent_proposition_application_entailed(
             })
         }
 
-        let declaration = program
-            .proposition_definition_by_symbol(application.proposition)?;
+        let declaration = program.proposition_definition_by_symbol(application.proposition)?;
         let typed_trees::proposition::PropositionBody::Transparent {
             proposition: typed_trees::proposition::PropositionFormula::BooleanExpression(formula),
         } = declaration.body

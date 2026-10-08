@@ -302,7 +302,7 @@ where
     for _ in 0..CAPTURED_SOURCE_LITERAL_HOPS {
         // A domain or value cast qualifies the same storage, so provenance
         // continues at the operand it reinterprets.
-        while let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+        while let Some(cast) = program.expression_table.cast_node(expression) {
             expression = cast.value;
         }
         if let Some((call, relative)) = result_call(program, expression, &remaining)

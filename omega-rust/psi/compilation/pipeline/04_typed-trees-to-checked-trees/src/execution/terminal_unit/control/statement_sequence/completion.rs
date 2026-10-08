@@ -18,7 +18,7 @@ use super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
+    CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
     ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
     append_exit_reference_releases, append_reference_releases, consume_value_places,
     parameter_qualifications, retain_selected_sources, structural_operands,
@@ -311,7 +311,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             return None;
         };
         let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
-        if let ExpressionNode::Name(path) = program.expression_table.expression(*expression) {
+        if let Some(path) = program.expression_table.name_path_node(*expression) {
             if let Some((_, binding)) = array_bindings
                 .iter()
                 .find(|(symbol, _)| *symbol == path.symbol)

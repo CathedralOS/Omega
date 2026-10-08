@@ -29,7 +29,8 @@ pub(super) fn propose(
             .iter()
             .find(|component| component.id == certificate.component)
             .ok_or(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch)?;
-        let function = unit.function(certificate.component.machine)
+        let function = unit
+            .function(certificate.component.machine)
             .ok_or(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch)?;
         let destination = destination(function, component, &invariant.counted_loop)?;
         let placements = invariant

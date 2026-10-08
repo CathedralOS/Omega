@@ -215,7 +215,7 @@ fn admit_result_values_inner(
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return false;
     }
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+    if let Some(dispatch) = program.expression_table.match_node(expression) {
         // A typed arm fixes the common result before any outer cast. Only an
         // entirely anonymous result inherits that cast/consumer's destination.
         let destination =

@@ -127,7 +127,7 @@ fn operand_interval(
     expression: ExpressionHandle,
     allow_formals: bool,
 ) -> Option<(Interval, Option<TypeReferenceHandle>)> {
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+    if let Some(cast) = program.expression_table.cast_node(expression) {
         // A total Exact widening preserves the actual's value. Other casts
         // may change it or require their own evidence; their result carrier
         // alone cannot establish a relational guarantee about the source.
@@ -143,7 +143,7 @@ fn operand_interval(
         return crate::integer_widen_is_total(source, target)
             .then_some((interval, Some(cast.target_type)));
     }
-    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+    if let Some(literal) = program.expression_table.integer_node(expression) {
         // Unknown literal typing is a wildcard in candidate lookup, not a
         // guessed same-carrier type that could hide a heterogeneous operator.
         return Some((literal_interval(literal), None));

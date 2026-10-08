@@ -80,8 +80,7 @@ fn complete_case_guards(
     guards: &[TransitionGuardNode],
 ) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
-        let Some(case) = program.expression_table.name_path_node(comparison.right)
-        else {
+        let Some(case) = program.expression_table.name_path_node(comparison.right) else {
             return None;
         };
         Some(case.symbol)

@@ -322,7 +322,7 @@ pub fn declared_place_type_raw(
 
     // Preserve the retained root while traversing ordinary member expressions.
     // Flattening first loses a bare inherited field's declaration identity.
-    if let ExpressionNode::Member(member) = program.expression_table.expression(handle) {
+    if let Some(member) = program.expression_table.member_node(handle) {
         let receiver =
             declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
         let data = data_definition_for_type(program, receiver)?;

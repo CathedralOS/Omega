@@ -115,9 +115,7 @@ impl EvaluationTraversal<'_, '_> {
                         matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard);
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.visit_expression(pattern);
-                        if let ExpressionNode::Boolean(value) =
-                            self.program.expression_table.expression(pattern)
-                        {
+                        if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                             covered_booleans[usize::from(*value)] = true;
                             covered = covered_booleans.iter().all(|value| *value);
                         }

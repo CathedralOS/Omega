@@ -57,7 +57,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
     if primitive == PrimitiveType::Addr || !primitive.accepts_integer_literal() {
         return None;
     }
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+    if let Some(dispatch) = program.expression_table.match_node(expression) {
         // Every arm must form a compatible result, even after a wildcard. The
         // destination checks the complete anonymous arm; a successful arm is
         // not an unconditional interval fact about the whole dispatch.
@@ -73,7 +73,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
                 continue;
             }
             visited.push(value);
-            if let ExpressionNode::Match(nested) = program.expression_table.expression(value) {
+            if let Some(nested) = program.expression_table.match_node(value) {
                 pending.extend(
                     program
                         .expression_table

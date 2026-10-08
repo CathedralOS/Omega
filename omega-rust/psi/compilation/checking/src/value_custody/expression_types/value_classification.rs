@@ -111,7 +111,7 @@ pub(super) fn value_class(
             typed_trees::expression::UnaryOperator::LogicalNot => Some(ValueClass::Boolean),
         };
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
+    if let Some(call) = program.expression_table.call_node(value) {
         let reference = match (machine, state) {
             (Some(machine), Some(state)) => {
                 super::result_type::expression_result_type_reference(program, machine, state, value)
@@ -179,7 +179,7 @@ pub(crate) fn report_cross_class_store(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         let mut rejected = false;
         for arm in program.expression_table.match_arms(dispatch.arms) {
             rejected |= report_cross_class_store(
@@ -353,7 +353,7 @@ pub(crate) fn report_data_type_conflict(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         let mut rejected = false;
         for arm in program.expression_table.match_arms(dispatch.arms) {
             rejected |= report_data_type_conflict(

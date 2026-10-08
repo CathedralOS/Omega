@@ -659,6 +659,41 @@ impl ExpressionTable {
         }
     }
 
+    /// The typed `Boolean` node, or `None` for every other kind.
+    pub fn boolean_node(&self, handle: ExpressionHandle) -> Option<&bool> {
+        match self.expression(handle) {
+            ExpressionNode::Boolean(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Match` node, or `None` for every other kind.
+    pub fn match_node(&self, handle: ExpressionHandle) -> Option<&TableMatchExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Match(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed array literal handle span, or `None` for every other kind.
+    pub fn array_literal_node(
+        &self,
+        handle: ExpressionHandle,
+    ) -> Option<&HandleSpan<ExpressionHandle>> {
+        match self.expression(handle) {
+            ExpressionNode::ArrayLiteral(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `StructLiteral` node, or `None` for every other kind.
+    pub fn struct_literal_node(&self, handle: ExpressionHandle) -> Option<&TableStructLiteral> {
+        match self.expression(handle) {
+            ExpressionNode::StructLiteral(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// The typed `Integer` node, or `None` for every other kind.
     pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
         match self.expression(handle) {

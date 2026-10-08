@@ -395,7 +395,7 @@ fn target_exit(
     }
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Value(result) => {
-            if let ExpressionNode::Call(call) = program.expression_table.expression(*result) {
+            if let Some(call) = program.expression_table.call_node(*result) {
                 return tail_call_exit(program, frame, atoms, call);
             }
             let result = evaluate_boolean(program, frame, atoms, *result)?;

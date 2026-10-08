@@ -142,7 +142,6 @@ struct RecastScalarLayoutLeaf {
 }
 
 impl RecastScalarLayout {
-
     /// Resolve fields and fixed coordinates exactly, retaining every runtime
     /// array occurrence separately. Selecting its zero element supplies the
     /// normalized constant offset; the array node supplies stride and extent.
@@ -579,8 +578,7 @@ fn mutable_record_representation_inner_body(
         return None;
     }
     let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
-    let layout = program
-        .plan_laid_layout(data.symbol);
+    let layout = program.plan_laid_layout(data.symbol);
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
@@ -670,9 +668,7 @@ fn mutable_record_representation_inner_body(
         field_symbols.push(field.symbol);
     }
 
-    let (size, align, offsets) = if let Some(plan) = program
-        .plan_laid_layout(data.symbol)
-    {
+    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout(data.symbol) {
         if plan.field_symbols != field_symbols || plan.offsets.len() != fields.len() {
             visiting.remove(&symbol_identity);
             return None;

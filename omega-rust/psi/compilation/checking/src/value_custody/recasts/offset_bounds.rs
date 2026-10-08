@@ -110,7 +110,7 @@ fn standing_expression_bound(
     expression: ExpressionHandle,
     side: BoundSide,
 ) -> Option<i64> {
-    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+    if let Some(literal) = program.expression_table.integer_node(expression) {
         return literal.value_i64();
     }
     standing_bound(program, machine, source, expression, side)

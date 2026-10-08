@@ -117,8 +117,7 @@ pub fn validate_match_dispatch(
                     ).with_source_span(arm.source_span));
                     continue;
                 }
-                if let ExpressionNode::Boolean(value) = program.expression_table.expression(pattern)
-                {
+                if let Some(value) = program.expression_table.boolean_node(pattern) {
                     boolean_values[usize::from(*value)] = true;
                 }
                 if !is_scalar_value(program, machine, state, dispatch.subject)
@@ -1207,7 +1206,7 @@ fn check_compatible_values(
     message: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
             check_compatible_values(
                 program,
@@ -1221,7 +1220,7 @@ fn check_compatible_values(
         }
         return;
     }
-    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(peer) {
+    if let Some(dispatch) = program.expression_table.match_node(peer) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
             check_compatible_values(
                 program,

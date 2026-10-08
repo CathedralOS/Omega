@@ -561,7 +561,7 @@ fn construction_sources_with_calls(
     if stored_loan_parts(program, reference).is_none() && !is_reference_record(program, reference) {
         return None;
     }
-    if let ExpressionNode::Name(name) = program.expression_table.expression(expression) {
+    if let Some(name) = program.expression_table.name_path_node(expression) {
         let [spelling] = program.expression_table.name_path_members(name.members) else {
             return None;
         };
@@ -621,7 +621,7 @@ fn construction_sources_with_calls(
             sources
         });
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+    if let Some(call) = program.expression_table.call_node(expression) {
         call_sources_with_calls(
             program,
             state,

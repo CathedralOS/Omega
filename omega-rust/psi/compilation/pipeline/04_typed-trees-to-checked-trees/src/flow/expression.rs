@@ -782,9 +782,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             }
             ExpressionNode::Boolean(value) => return Some(*value),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                if let ExpressionNode::Member(member) =
-                    self.program.expression_table.expression(expression)
-                {
+                if let Some(member) = self.program.expression_table.member_node(expression) {
                     self.expression(member.receiver, contexts, constraints);
                 }
                 self.record_case_access(expression, *constraints);

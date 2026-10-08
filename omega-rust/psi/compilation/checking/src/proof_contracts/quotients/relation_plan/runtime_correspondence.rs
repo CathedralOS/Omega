@@ -374,8 +374,7 @@ pub(super) fn closed_lift_literal_for_representative(
     representative_type: TypeReferenceHandle,
     position: usize,
 ) -> Result<Option<ClosedLiftLiteral>, RelationPlanError> {
-    if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
-    {
+    if let Some(elements) = program.expression_table.array_literal_node(expression) {
         let TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(width),

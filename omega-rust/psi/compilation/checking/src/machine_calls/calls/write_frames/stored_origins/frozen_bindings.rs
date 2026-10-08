@@ -120,7 +120,7 @@ fn expression_exposes_with_writes(
     if !expression.is_valid() {
         return false;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+    if let Some(call) = program.expression_table.call_node(expression) {
         let arguments = program.expression_table.expression_handles(call.arguments);
         let receiver = super::super::frame_place_path(program, call.receiver);
         let mut call_writes = call_written_paths(

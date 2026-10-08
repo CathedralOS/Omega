@@ -18,7 +18,8 @@ pub(super) fn propose(
             .iter()
             .find(|component| component.id == certificate.component)
             .ok_or(CountedLoopAnalysisError::CertificateComponentRosterMismatch)?;
-        let function = unit.function(certificate.component.machine)
+        let function = unit
+            .function(certificate.component.machine)
             .ok_or_else(|| shape(certificate.component.machine))?;
         // The region is projected from the validated Terminal-SCC custody the
         // certificate keys on, not from a private loop-forest re-derivation.
@@ -45,7 +46,8 @@ fn summary(
     let [exit_edge] = component.exits.as_slice() else {
         return Err(shape(function.machine));
     };
-    let source = function.block(preheader_edge.source)
+    let source = function
+        .block(preheader_edge.source)
         .and_then(|block| block.nodes.last())
         .ok_or_else(|| shape(function.machine))?;
     let O::Jump {

@@ -463,7 +463,7 @@ pub(crate) fn lower_scalar_expression(
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
         return Some((length, ArithmeticDomain::Exact));
     }
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+    if let Some(indexed) = program.expression_table.indexed_node(expression) {
         // Literal fixed-array leaves use the same checked projection as record
         // fields. Runtime byte indexing below keeps its separate bound proof.
         if let Some(field) = structural_fields::lower_structural_parameter_field(

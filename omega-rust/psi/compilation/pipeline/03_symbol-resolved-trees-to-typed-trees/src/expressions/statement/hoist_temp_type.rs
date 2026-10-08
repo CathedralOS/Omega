@@ -310,7 +310,7 @@ pub(super) fn infer_hoist_temp_type(
     // guard narrows k -- exactly the manual let-temp idiom's behavior. An
     // operand with no Exact range yields a bare scalar temp (the index prover
     // then reports its clean cannot-prove error).
-    if let ExpressionNode::Binary(binary) = expressions.expression(initial_value) {
+    if let Some(binary) = expressions.binary_node(initial_value) {
         for operand in [binary.left, binary.right] {
             // `member_chain_type`, not `collection_type_reference`: the latter
             // resolves a member only when its receiver is spelled `self`, so
@@ -812,14 +812,14 @@ fn operand_declared_interval(
     operand: ExpressionHandle,
 ) -> Option<(i64, i64)> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    if let ExpressionNode::Integer(literal) = expressions.expression(operand) {
+    if let Some(literal) = expressions.integer_node(operand) {
         let value = literal.value_i64()?;
         return Some((value, value));
     }
     // A nested binary operand (`y * 4` inside `y * 4 + x`) composes through
     // the same interval arithmetic -- depth-bounded by the hoist predicate,
     // which admits exactly one nested level (R0's row-major shape).
-    if let ExpressionNode::Binary(inner) = expressions.expression(operand) {
+    if let Some(inner) = expressions.binary_node(operand) {
         return computed_index_interval(
             lowerer,
             attached_data,

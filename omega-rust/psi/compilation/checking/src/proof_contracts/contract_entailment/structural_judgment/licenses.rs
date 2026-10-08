@@ -2,10 +2,7 @@
 //! and semiring licenses, their law-shape detectors, and the polynomial
 //! normal form those licenses power. The judge keeps only the types it
 //! stores; all candidate computation and shape checking lives here.
-use super::super::{
-    BinaryOperator, Machine, SymbolHandle,
-    TraitDefinition, structural_term_pair,
-};
+use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term_pair};
 use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
 use typed_trees::types::TypeReferenceHandle;
@@ -47,17 +44,14 @@ fn for_each_ensures_equality(
     signature: &typed_trees::signature::StateSignature,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
-    for expression in
-        crate::proof_contracts::proof_facts::ensures_expression_facts(
-            program,
-            program.state_signature_contracts(signature),
-        )
-    {
+    for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+        program,
+        program.state_signature_contracts(signature),
+    ) {
         let mut conjuncts = Vec::new();
         collect_equality_conjuncts(program, expression, &mut conjuncts);
         for conjunct in conjuncts {
-            let Some(binary) = program.expression_table.binary_node(conjunct)
-            else {
+            let Some(binary) = program.expression_table.binary_node(conjunct) else {
                 continue;
             };
             let Some((left, right)) = structural_term_pair(program, binary) else {

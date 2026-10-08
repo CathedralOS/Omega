@@ -129,7 +129,7 @@ fn integer(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     let expression = unwrapped(program, expression);
-    if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+    if let Some(literal) = program.expression_table.integer_node(expression) {
         return literal.value_i64();
     }
     program

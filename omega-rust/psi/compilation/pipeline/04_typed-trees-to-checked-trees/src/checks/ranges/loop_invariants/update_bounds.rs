@@ -5,7 +5,7 @@
 //! states receive the union of their evaluated arrivals. Widening loses a
 //! bound rather than assuming that an unfinished iteration is inductive.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, StatementNode, SymbolHandle,
+    BinaryOperator, ExpressionHandle, Machine, State, StatementNode, SymbolHandle,
     TransitionGuardNode,
 };
 use crate::checks::ranges::loop_invariants::assignment_counter_field;
@@ -233,7 +233,7 @@ fn guard_bounds(
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) {
         for (literal, inner) in [(binary.left, binary.right), (binary.right, binary.left)] {
-            if let ExpressionNode::Boolean(value) = program.expression_table.expression(literal) {
+            if let Some(value) = program.expression_table.boolean_node(literal) {
                 let inner_positive =
                     (positive == *value) == (binary.operator == BinaryOperator::Equal);
                 return guard_bounds(

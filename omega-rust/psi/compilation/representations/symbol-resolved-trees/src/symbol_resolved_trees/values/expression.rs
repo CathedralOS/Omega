@@ -443,6 +443,14 @@ impl ExpressionTable {
         }
     }
 
+    /// The typed `Boolean` node, or `None` for every other kind.
+    pub fn boolean_node(&self, handle: ExpressionHandle) -> Option<&bool> {
+        match self.expression(handle) {
+            ExpressionNode::Boolean(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// The typed `Integer` node, or `None` for every other kind.
     pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
         match self.expression(handle) {

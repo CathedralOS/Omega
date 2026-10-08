@@ -50,7 +50,7 @@ pub(super) fn validate_asm_operand_constraint(
     constraint: language_core::inline_assembly::AsmOperandConstraint,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Integer(literal) = program.expression_table.expression(operand) {
+    if let Some(literal) = program.expression_table.integer_node(operand) {
         if let Some(maximum) = constraint.maximum_literal()
             && literal.value_u64().is_some_and(|value| value <= maximum)
         {

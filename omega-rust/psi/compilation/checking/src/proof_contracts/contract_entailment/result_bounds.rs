@@ -278,8 +278,7 @@ impl ReturnReader<'_, '_> {
             return None;
         }
         let (returned, before) = self.capture(expression, statement, statement, 0)?;
-        if let ExpressionNode::Integer(literal) = self.program.expression_table.expression(returned)
-        {
+        if let Some(literal) = self.program.expression_table.integer_node(returned) {
             let value = literal.value_bignum()?;
             typed_trees::closed_numeric::land_integer(&value, self.primitive)?;
             return Some(IntegerRange {
@@ -309,7 +308,7 @@ impl ReturnReader<'_, '_> {
         if depth >= 128 {
             return None;
         }
-        if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression) {
+        if let Some(cast) = self.program.expression_table.cast_node(expression) {
             if !crate::proof_contracts::arithmetic_domains::unannotated_exact_cast(cast) {
                 return None;
             }
@@ -368,8 +367,7 @@ impl ReturnReader<'_, '_> {
                 return None;
             }
             depth += 1;
-            let Some(path) = self.program.expression_table.name_path_node(expression)
-            else {
+            let Some(path) = self.program.expression_table.name_path_node(expression) else {
                 break;
             };
             let statements = self
@@ -457,8 +455,7 @@ impl ReturnReader<'_, '_> {
         if !self.stable(condition, before, 0) {
             return;
         }
-        let Some(binary) = self.program.expression_table.binary_node(condition)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(condition) else {
             return;
         };
         if (binary.operator == BinaryOperator::And && holds)
@@ -489,9 +486,7 @@ impl ReturnReader<'_, '_> {
             BinaryOperator::Equal | BinaryOperator::NotEqual
         ) {
             for (boolean, predicate) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                if let ExpressionNode::Boolean(value) =
-                    self.program.expression_table.expression(boolean)
-                {
+                if let Some(value) = self.program.expression_table.boolean_node(boolean) {
                     self.refine(
                         predicate,
                         holds == (*value == (binary.operator == BinaryOperator::Equal)),
@@ -699,7 +694,10 @@ impl ReturnReader<'_, '_> {
                     self.program,
                     self.place_type(member.receiver, before, depth + 1)?,
                 )?;
-                let owner = self.program.type_reference_table.type_head_symbol(receiver)?;
+                let owner = self
+                    .program
+                    .type_reference_table
+                    .type_head_symbol(receiver)?;
                 let data = crate::declarations::data_queries::data_definition_by_symbol(
                     self.program,
                     owner,

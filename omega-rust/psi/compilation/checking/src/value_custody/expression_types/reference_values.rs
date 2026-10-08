@@ -900,9 +900,7 @@ fn selected_value_type(
             // A `&mut self` / `&self` receiver's referee names the machine
             // symbol; its attached data declaration carries the fields. Other
             // receivers already name the data declaration directly.
-            let symbol = if program
-                .data_definition_by_symbol(symbol).is_some()
-            {
+            let symbol = if program.data_definition_by_symbol(symbol).is_some() {
                 symbol
             } else {
                 program
@@ -1075,9 +1073,7 @@ fn place_machine_symbol(
             {
                 let mut symbol = path.symbol;
                 for _ in 0..128 {
-                    if program
-                        .machine(symbol).is_some()
-                    {
+                    if program.machine(symbol).is_some() {
                         return Some(symbol);
                     }
                     let parent = program.symbols.get(symbol).parent;

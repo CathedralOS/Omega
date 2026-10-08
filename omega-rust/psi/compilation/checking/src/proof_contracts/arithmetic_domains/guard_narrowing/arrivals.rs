@@ -925,9 +925,7 @@ impl ArrivalWalk<'_, '_> {
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.expression(source, pattern, &mut remaining);
-                        if let ExpressionNode::Boolean(value) =
-                            self.program.expression_table.expression(pattern)
-                        {
+                        if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                             boolean_values[usize::from(*value)] = true;
                         }
                     }

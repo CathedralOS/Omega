@@ -468,7 +468,7 @@ fn comparison_is_supported(
         if arguments::is_unlanded_integer(program, expression) {
             return Some((None, None));
         }
-        if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
+        if let Some(literal) = program.expression_table.integer_node(expression) {
             let primitive = crate::values::scalar_expression_type(
                 &checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),

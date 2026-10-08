@@ -105,7 +105,7 @@ pub(super) fn state_rank(
                 });
             }
             let primitive_type = program.primitive_type_reference(lower.type_reference)?;
-            if let ExpressionNode::Integer(literal) = program.expression_table.expression(upper) {
+            if let Some(literal) = program.expression_table.integer_node(upper) {
                 // A constant bound: the rank is the cursor's distance below a
                 // fixed value, so no upper parameter rides along the cycle.
                 let upper = literal.value_u64()?;

@@ -173,8 +173,7 @@ pub(super) fn copied_place_type(
     else {
         return false;
     };
-    program
-        .data_definition_by_symbol(*symbol).is_some()
+    program.data_definition_by_symbol(*symbol).is_some()
 }
 
 /// A member/index projection rooted at readable owned or borrowed storage

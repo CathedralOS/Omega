@@ -1,14 +1,12 @@
 //! Optimizer module role: validation leaf. Independently keyed constant reconstruction.
 
 use super::{
-    unsupported, validate_locations,
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
-    NodeLocation, O, OperationId,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType,
-    UnsignedCountdownInvariantConstants, ValidatedCountedLoopAnalysis,
+    NodeLocation, O, OperationId, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    ScalarType, UnsignedCountdownInvariantConstants, ValidatedCountedLoopAnalysis,
     ValidatedOptimizerCycleComponents, ValueDefinitionSite, ValueId,
-    recompute_psi_optimization_unit_identity,
+    recompute_psi_optimization_unit_identity, unsupported, validate_locations,
 };
 use std::collections::BTreeMap;
 

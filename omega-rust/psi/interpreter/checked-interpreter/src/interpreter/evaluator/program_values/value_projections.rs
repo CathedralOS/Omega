@@ -59,9 +59,7 @@ impl Evaluator<'_> {
                 if let Some(value) = self.read_mutable_record_recast_target(expression, frame)? {
                     return self.allocate_cell(value);
                 }
-                if let ExpressionNode::Range(range) =
-                    self.program.expression_table.expression(indexed.index)
-                {
+                if let Some(range) = self.program.expression_table.range_node(indexed.index) {
                     let range = *range;
                     let value = self.eval_subslice(indexed.collection, &range, frame)?;
                     return self.allocate_cell(value);

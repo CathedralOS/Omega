@@ -183,8 +183,7 @@ impl Builder<'_, '_> {
                     match arm.pattern {
                         typed_trees::expression::MatchPattern::Wildcard => break,
                         typed_trees::expression::MatchPattern::Value(pattern) => {
-                            if let ExpressionNode::Boolean(value) =
-                                self.program.expression_table.expression(pattern)
+                            if let Some(value) = self.program.expression_table.boolean_node(pattern)
                             {
                                 boolean_coverage[usize::from(*value)] = true;
                                 if boolean_coverage.iter().all(|value| *value) {
@@ -459,9 +458,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         destination: PrimitiveType,
     ) -> bool {
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression)
-        {
+        if let Some(dispatch) = self.program.expression_table.match_node(expression) {
             let arms = self.program.expression_table.match_arms(dispatch.arms);
             return !arms.is_empty()
                 && arms

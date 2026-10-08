@@ -14,9 +14,7 @@ impl StronglyConnectedComponentAnalysis {
         unit.functions
             .iter()
             .filter(|function| {
-                let Some((_, components)) = self
-                    .function(function.machine)
-                else {
+                let Some((_, components)) = self.function(function.machine) else {
                     return false;
                 };
                 components.iter().any(|component| {

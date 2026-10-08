@@ -626,8 +626,7 @@ fn evaluate_expression(
                     ),
                     _ => return Err("constant cast requires an integer operand".into()),
                 };
-                let Some(cast) = program.expression_table.cast_node(expression)
-                else {
+                let Some(cast) = program.expression_table.cast_node(expression) else {
                     return Err("constant cast lost its expression".into());
                 };
                 values.push(retag_landed(result, cast.domain));
@@ -656,9 +655,7 @@ fn evaluate_expression(
                 let right = values.pop().ok_or("missing right constant operand")?;
                 let left = values.pop().ok_or("missing left constant operand")?;
                 let value = match (left, right) {
-                    (Value::Anonymous(_), Value::Anonymous(_))
-                        if comparison_operator(operator) =>
-                    {
+                    (Value::Anonymous(_), Value::Anonymous(_)) if comparison_operator(operator) => {
                         Value::Boolean(compare_anonymous(
                             program,
                             context,
@@ -921,7 +918,7 @@ fn validate_shapes(
             shapes.push(result);
             continue;
         }
-        if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+        if let Some(cast) = program.expression_table.cast_node(expression) {
             let target = cast_integer_carrier(program, cast)?;
             let source = shapes.pop().ok_or("missing constant cast operand type")?;
             // Conversion owns a new landing; it never retags arithmetic below
@@ -954,9 +951,7 @@ fn validate_shapes(
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
         );
         let (left, right) = match (left, right) {
-            (Shape::Anonymous(_), Shape::Anonymous(_))
-                if comparison_operator(operator) =>
-            {
+            (Shape::Anonymous(_), Shape::Anonymous(_)) if comparison_operator(operator) => {
                 match_dispatch::validate_anonymous_comparison(program, context, expression)?;
                 shapes.push(Shape::Boolean);
                 continue;

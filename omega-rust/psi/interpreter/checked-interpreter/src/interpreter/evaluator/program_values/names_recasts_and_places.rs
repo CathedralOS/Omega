@@ -669,9 +669,7 @@ impl<'program> Evaluator<'program> {
                 self.field_cell(&receiver, member.member.as_str())
             }
             ExpressionNode::Indexed(indexed) => {
-                if let ExpressionNode::Range(range) =
-                    self.program.expression_table.expression(indexed.index)
-                {
+                if let Some(range) = self.program.expression_table.range_node(indexed.index) {
                     let range = *range;
                     self.tick()?;
                     let view = self.eval_subslice(indexed.collection, &range, frame)?;
