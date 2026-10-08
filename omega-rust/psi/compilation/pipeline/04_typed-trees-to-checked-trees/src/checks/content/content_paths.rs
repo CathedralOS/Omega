@@ -251,7 +251,7 @@ fn contract_structural_place(
                     .enumerate()
                     .skip(1)
                     .fold(Vec::new(), |mut segments, (index, name)| {
-                        push_contract_field(
+                        ::validation::push_structural_field(
                             program,
                             &mut segments,
                             symbols
@@ -267,7 +267,7 @@ fn contract_structural_place(
         ExpressionNode::Member(member) => {
             let (root, root_symbol, mut segments) =
                 contract_structural_place(program, member.receiver)?;
-            push_contract_field(
+            ::validation::push_structural_field(
                 program,
                 &mut segments,
                 member.member_symbol,
@@ -288,26 +288,6 @@ fn contract_structural_place(
         ExpressionNode::Borrow(inner) => contract_structural_place(program, inner.target),
         _ => None,
     }
-}
-
-fn push_contract_field(
-    program: &dyn ::validation::CheckingInput,
-    segments: &mut Vec<ContentPlaceSegment>,
-    field_symbol: SymbolHandle,
-    field_name: &str,
-) {
-    if let Some(variant_symbol) = facts::payload_variant_for_field(program, field_symbol)
-        && let Some(variant_name) = data_variant_name(program, variant_symbol)
-    {
-        segments.push(ContentPlaceSegment::Case(ContentCaseSegment {
-            symbol: variant_symbol,
-            name: variant_name.to_owned(),
-        }));
-    }
-    segments.push(ContentPlaceSegment::Field(ContentFieldSegment {
-        symbol: field_symbol,
-        name: field_name.to_owned(),
-    }));
 }
 
 fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegment]) -> bool {
@@ -344,7 +324,7 @@ pub(crate) fn content_path(
             facts::PlaceSegment::Case { variant } => {
                 Some(ContentPlaceSegment::Case(ContentCaseSegment {
                     symbol: *variant,
-                    name: data_variant_name(program, *variant)?.to_owned(),
+                    name: ::validation::data_variant_name(program, *variant)?.to_owned(),
                 }))
             }
             facts::PlaceSegment::Field { symbol } => {
@@ -360,21 +340,4 @@ pub(crate) fn content_path(
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => None,
         })
         .collect()
-}
-
-fn data_variant_name(
-    program: &dyn ::validation::CheckingInput,
-    variant_symbol: SymbolHandle,
-) -> Option<&str> {
-    program.data_definitions().iter().find_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant) => {
-                    (variant.symbol == variant_symbol).then_some(variant.name.as_str())
-                }
-                typed_trees::data::DataMember::Field(_) => None,
-            })
-    })
 }

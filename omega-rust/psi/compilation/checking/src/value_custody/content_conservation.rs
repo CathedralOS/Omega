@@ -7,6 +7,8 @@
 
 mod normalization;
 
+pub use normalization::{data_variant_name, push_structural_field};
+
 use normalization::{NormalizationContext, normalize_equation};
 
 use diagnostics::Diagnostic;

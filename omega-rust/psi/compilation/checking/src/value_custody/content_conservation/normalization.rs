@@ -314,7 +314,7 @@ fn collect_structural_place(
     }
 }
 
-fn push_structural_field(
+pub fn push_structural_field(
     program: &dyn crate::CheckingInput,
     segments: &mut Vec<ContentPlaceSegment>,
     field_symbol: SymbolHandle,
@@ -357,7 +357,7 @@ fn retain_payload_case_segments(
     }
 }
 
-fn data_variant_name(
+pub fn data_variant_name(
     program: &dyn crate::CheckingInput,
     variant_symbol: SymbolHandle,
 ) -> Option<&str> {
