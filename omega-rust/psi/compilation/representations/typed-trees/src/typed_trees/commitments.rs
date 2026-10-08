@@ -170,6 +170,25 @@ digest_commitment! {
     ClosedConformanceApplicationCommitment
 }
 
+/// The closed conformance applications retained on `instance`'s
+/// specializations carrying the dispatch's fingerprint and commitment.
+pub fn closed_conformance_applications_of<'a>(
+    specializations: &'a [MachineSpecialization],
+    instance: symbols::SymbolHandle,
+    application_report_fingerprint: u64,
+    application_commitment: ClosedConformanceApplicationCommitment,
+) -> Vec<&'a ClosedConformanceApplication> {
+    specializations
+        .iter()
+        .filter(|specialization| specialization.instance == instance)
+        .flat_map(|specialization| &specialization.conformance_applications)
+        .filter(|application| {
+            application.report_fingerprint == application_report_fingerprint
+                && application.commitment == application_commitment
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClosedConformanceRowIdentity {
     pub declaring_trait: symbols::SymbolHandle,

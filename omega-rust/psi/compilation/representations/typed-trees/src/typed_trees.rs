@@ -36,6 +36,7 @@ pub use commitments::{
     ClosedConformanceApplicationCommitment, ClosedConformanceConstArgument,
     ClosedConformanceRowIdentity, FusedServiceErasureAuthorization, MachineSpecialization,
     MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
+    closed_conformance_applications_of,
 };
 pub use placed_plans::{
     PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,

@@ -44,5 +44,5 @@ pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
     BoundaryCompletionDeclaration, FrozenTypedTrees, PlanLaidBitField, PlanLaidBitFragment,
     PlanLaidIntegerField, PlanLaidLayout, PlanLaidRepeatedField, ProgramIdentity, TypedTreeRoots,
-    TypedTreeTables, TypedTrees,
+    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
 };

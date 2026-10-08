@@ -7,6 +7,7 @@ use checked_trees::{
     CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
 };
 use symbols::SymbolHandle;
+use typed_trees::closed_conformance_applications_of;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 pub(crate) fn bind_proof_output_call_facts(
@@ -614,16 +615,12 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     }
 
-    let applications = program
-        .machine_specializations
-        .iter()
-        .filter(|specialization| specialization.instance == caller_machine)
-        .flat_map(|specialization| &specialization.conformance_applications)
-        .filter(|application| {
-            application.report_fingerprint == dispatch.application_report_fingerprint
-                && application.commitment == dispatch.application_commitment
-        })
-        .collect::<Vec<_>>();
+    let applications = closed_conformance_applications_of(
+        &program.machine_specializations,
+        caller_machine,
+        dispatch.application_report_fingerprint,
+        dispatch.application_commitment,
+    );
     let [application] = applications.as_slice() else {
         return Err(rejected(
             "its exact owner-scoped closed conformance application is absent or ambiguous",

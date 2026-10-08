@@ -12,6 +12,7 @@ use crate::proofs::{
     PropositionId, StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
 use terminal_psi::ProofOutputRuntimeResult;
+use typed_trees::closed_conformance_applications_of;
 
 pub(crate) fn lower_proof_output_calls(
     checked: &CheckedTrees,
@@ -214,16 +215,12 @@ fn lower_static_requirement_dispatch(
     {
         return unsupported("static requirement proof output has an empty dispatch identity");
     }
-    let checked_applications = checked
-        .machine_specializations
-        .iter()
-        .filter(|specialization| specialization.instance == invocation.caller_machine_symbol)
-        .flat_map(|specialization| &specialization.conformance_applications)
-        .filter(|application| {
-            application.report_fingerprint == dispatch.application_report_fingerprint
-                && application.commitment == dispatch.application_commitment
-        })
-        .collect::<Vec<_>>();
+    let checked_applications = closed_conformance_applications_of(
+        &checked.machine_specializations,
+        invocation.caller_machine_symbol,
+        dispatch.application_report_fingerprint,
+        dispatch.application_commitment,
+    );
     let [checked_application] = checked_applications.as_slice() else {
         return unsupported(
             "static requirement proof output has no unique checked conformance application",
