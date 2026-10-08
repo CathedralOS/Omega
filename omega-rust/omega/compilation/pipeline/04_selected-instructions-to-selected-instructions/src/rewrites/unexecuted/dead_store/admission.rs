@@ -455,32 +455,21 @@ pub(super) fn admit<'source>(
         if edges.is_empty() {
             return Err(DeadStoreEliminationError::UnsupportedPair);
         }
-        for edge in &edges {
-            edge_unobserved(edge, &dead)?;
+        if let Some(crossed_id) = super::crossed_successors(
+            function,
+            &edges,
+            block_index,
+            cursor,
+            current.id,
+            &mut queued,
+            &mut frontier,
+            |edge| edge_unobserved(edge, &dead),
+        )? {
+            crossed.push(crossed_id);
         }
         interval = interval
             .checked_add(edges.len())
             .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-        for edge in &edges {
-            let next = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == edge.block)
-                .ok_or(DeadStoreEliminationError::SourceMismatch)?;
-            // An edge back into the dead store's own block re-executes the
-            // removed store from its top — it can never be its own covering
-            // write — so the looped path stays unproven.
-            if next == block_index {
-                return Err(DeadStoreEliminationError::UnsupportedPair);
-            }
-            if !queued[next] {
-                queued[next] = true;
-                frontier.push((next, 0));
-            }
-        }
-        if cursor != block_index {
-            crossed.push(current.id);
-        }
     }
     // The walked region is closed under successors: every edge out of a
     // scanned-clear block was crossed into a block the walk also scanned.

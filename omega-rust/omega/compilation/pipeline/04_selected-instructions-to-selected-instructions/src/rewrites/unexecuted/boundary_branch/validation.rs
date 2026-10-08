@@ -25,9 +25,7 @@ use selected_instructions::{
     terminator_instruction,
 };
 
-use super::{
-    BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch,
-};
+use super::{BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::sealed;
 

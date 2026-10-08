@@ -457,3 +457,39 @@ pub(super) fn byte_span_row_shape(
     }
     Ok(())
 }
+/// Queue a crossed block's distinct successors on the walk frontier,
+/// charging the block's id when the cursor left the store's own block.
+/// Each side's edge audit stays its own: admission proves the transport
+/// observes nothing, replay proves the transport keeps the bytes.
+pub(super) fn crossed_successors(
+    function: &selected_instructions::SelectedFunction,
+    edges: &[&selected_instructions::SelectedSuccessor],
+    block_index: usize,
+    cursor: usize,
+    cursor_id: selected_instructions::SelectedBlockId,
+    queued: &mut [bool],
+    frontier: &mut Vec<(usize, usize)>,
+    audit: impl Fn(&&selected_instructions::SelectedSuccessor) -> Result<(), DeadStoreEliminationError>,
+) -> Result<Option<selected_instructions::SelectedBlockId>, DeadStoreEliminationError> {
+    for edge in edges {
+        audit(edge)?;
+    }
+    for edge in edges {
+        let next = function
+            .blocks
+            .iter()
+            .position(|candidate| candidate.id == edge.block)
+            .ok_or(DeadStoreEliminationError::SourceMismatch)?;
+        // An edge back into the dead store's own block re-executes the
+        // removed store from its top — it can never be its own covering
+        // write — so the looped path stays unproven.
+        if next == block_index {
+            return Err(DeadStoreEliminationError::UnsupportedPair);
+        }
+        if !queued[next] {
+            queued[next] = true;
+            frontier.push((next, 0));
+        }
+    }
+    Ok((cursor != block_index).then_some(cursor_id))
+}

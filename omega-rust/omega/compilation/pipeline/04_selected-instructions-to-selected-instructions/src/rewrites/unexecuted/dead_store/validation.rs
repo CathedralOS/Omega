@@ -17,9 +17,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, SelectedBlockId, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
+    FrameStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
     terminator_instruction,
 };
 use semantic_vocabulary::PlaceId;
@@ -1066,32 +1066,21 @@ fn reconstruct<'source>(
         if edges.is_empty() {
             return Err(DeadStoreEliminationError::UnsupportedPair);
         }
-        for edge in &edges {
-            edge_keeps(edge, &subject)?;
+        if let Some(crossed_id) = super::crossed_successors(
+            function,
+            &edges,
+            block_index,
+            cursor,
+            current.id,
+            &mut queued,
+            &mut frontier,
+            |edge| edge_keeps(edge, &subject),
+        )? {
+            crossed.push(crossed_id);
         }
         interval = interval
             .checked_add(edges.len())
             .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-        for edge in &edges {
-            let next = function
-                .blocks
-                .iter()
-                .position(|candidate| candidate.id == edge.block)
-                .ok_or(DeadStoreEliminationError::SourceMismatch)?;
-            // An edge back into the dead store's own block re-executes the
-            // removed store from its top — it can never be its own
-            // covering write — so the looped path stays unproven.
-            if next == block_index {
-                return Err(DeadStoreEliminationError::UnsupportedPair);
-            }
-            if !queued[next] {
-                queued[next] = true;
-                frontier.push((next, 0));
-            }
-        }
-        if cursor != block_index {
-            crossed.push(current.id);
-        }
     }
     // A boundary settlement positioned inside the dead interval is an
     // event a boundary could observe the still-current bytes through;

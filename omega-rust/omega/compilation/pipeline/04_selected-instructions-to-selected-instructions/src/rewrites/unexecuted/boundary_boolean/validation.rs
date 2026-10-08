@@ -24,8 +24,7 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 
 use super::{
-    BoundaryBooleanError, BoundaryBooleanReceipt, Outcome, ValidatedBoundaryBoolean,
-    decidable_kind,
+    BoundaryBooleanError, BoundaryBooleanReceipt, Outcome, ValidatedBoundaryBoolean, decidable_kind,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::ConditionStateError;
