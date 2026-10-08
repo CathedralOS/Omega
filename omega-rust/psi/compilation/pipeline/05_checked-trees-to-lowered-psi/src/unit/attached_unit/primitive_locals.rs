@@ -13,6 +13,13 @@
 //! ordinary body or a composed state is the same storage, established before
 //! the first statement from the arriving value (`establish_parameter_storage`);
 //! checking reads such a formal only as `StorageRead` of its symbol.
+//! An ordinary value binding keeps its evaluated SSA value until its first
+//! address is observed. That operation publishes one owned structural home
+//! and redirects reads of this binding to it. Copies made before the address
+//! was observed retain their own values. Later loans reuse the home, never
+//! replay the initializer, and owe the same access and lifetime checks as
+//! every other owned place. `let mut` only selects declaration-time storage
+//! and replacement permission; it does not confer borrow authority.
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
@@ -24,7 +31,6 @@ use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::unit::StructuralTypeDeclaration;
 use checked_trees::CheckedCallScalarArgument;
 use checked_trees::statement::{StatementNode, TableLocalData};
-
 
 #[derive(Clone, Copy)]
 pub(crate) struct PrimitiveLocal {
@@ -463,7 +469,7 @@ impl super::argument_evaluation::Evaluation {
     }
     /// Immutable scalar locals are values until an address is observed. Rejoin
     /// their authored ordinal to the completed SSA value, then publish that
-    /// value's one shared home in the ordinary storage roster. Reference
+    /// value's one owned home in the ordinary storage roster. Reference
     /// formation, observations and call operands all use this same join;
     /// a temporary binding available only to reference construction loses
     /// custody when a call borrows the scalar directly.
@@ -536,7 +542,7 @@ impl super::argument_evaluation::Evaluation {
             argument: terminal_psi::StructuralArgument {
                 place,
                 path: Vec::new(),
-                access: terminal_psi::StructuralAccess::SharedBorrow,
+                access: terminal_psi::StructuralAccess::Owned,
             },
         };
         let mut established = self
@@ -554,6 +560,12 @@ impl super::argument_evaluation::Evaluation {
         } else {
             self.structural_locals.push(home);
         }
+        // This home now belongs to the common structural roster, not two
+        // competing storage indexes. Later scalar reads follow its authored
+        // binding to the original home; separately copied values stay snapshots.
+        self.primitive_storage.retain(|row| row.0 != symbol);
+        self.scalar_bindings
+            .register_local_storage(ordinal as usize, symbol, scalar_type)?;
         Ok(true)
     }
 
@@ -585,6 +597,20 @@ impl super::argument_evaluation::Evaluation {
                 return unsupported("primitive value has ambiguous original storage");
             }
             return Ok(*place);
+        }
+        let mut homes = self
+            .structural_locals
+            .iter()
+            .filter(|row| row.root == facts::PlaceRoot::Symbol(symbol));
+        if let Some(home) = homes.next() {
+            if homes.next().is_some()
+                || home.structural_type != structural_type
+                || !home.argument.path.is_empty()
+                || home.argument.access != terminal_psi::StructuralAccess::Owned
+            {
+                return unsupported("primitive value changes its original storage custody");
+            }
+            return Ok(home.argument.place);
         }
         let (place, declaration) =
             push_established_local(next_place, operations, value.id, structural_type)?;

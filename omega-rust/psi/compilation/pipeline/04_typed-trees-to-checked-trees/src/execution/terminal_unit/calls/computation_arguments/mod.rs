@@ -64,8 +64,9 @@ pub(crate) fn structural_computation_argument(
 
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
-    // Mutable scalar locals have their own storage representation. Resolve
-    // that representation before the common structural-home borrow join.
+    // Primitive loans retain the declaration's original home. Binding
+    // replacement mutability selects its existing value/storage carrier,
+    // never the access that the exact borrow occurrence may lend.
     if let facts::PlaceRoot::Symbol(symbol) = place.root
         && super::super::structural_scalar_store::primitive_local_before(
             program,
@@ -903,7 +904,11 @@ pub(super) fn primitive_local_argument(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol },
+        source: if local.is_mutable {
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol }
+        } else {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        },
         path: Vec::new(),
         type_identity,
         access,

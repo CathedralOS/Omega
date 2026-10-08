@@ -326,12 +326,9 @@ impl Expansion<'_> {
                     // selector is read before the tag and the observation owns
                     // the element's bound.
                     let identity = structural_case_identity(self.checked, observed_case)?;
-                    let expression = site.bindings.element_case_observation(
-                        argument,
-                        &source,
-                        &identity,
-                        input_types,
-                    )?;
+                    let expression = site
+                        .bindings
+                        .element_case_observation(argument, &source, &identity)?;
                     return Ok(self.binding(
                         input_types,
                         input_types.len(),

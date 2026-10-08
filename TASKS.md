@@ -1821,8 +1821,10 @@ then independent claimed restoration slices -> final closure.
   its canonical byte, not text. Thin foreign pointers may unwrap an internal
   scalar descriptor only when the existing storage-view relation proves its
   exact byte footprint; ambiguous-width scalar exports remain unavailable.
-  Primitive boundary loans from immutable value bindings still need original
-  home admission; binding replacement mutability is not borrow authority.
+  Preserve `host/runtime_descriptor_immutable_primitive_loans_exit`: taking
+  an address must keep one original owned home for direct imports, captured
+  references, helper/state forwarding and later scalar/index reads. Copied
+  bindings remain snapshots; binding replacement mutability is not borrow authority.
   Preserve the mutable-view and record-array input fixtures too: original
   array/field windows retain exact live extents and unread/outside bytes;
   field presentation cannot substitute the record owner's type or grant resizing.

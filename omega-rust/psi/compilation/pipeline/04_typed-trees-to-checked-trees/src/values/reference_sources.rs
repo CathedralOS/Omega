@@ -121,9 +121,8 @@ pub(crate) fn plan(
                     .into_string(),
             }
         } else {
-            if access != CheckedStructuralAccess::SharedBorrow && !local.is_mutable {
-                return None;
-            }
+            // Owned contents lend their admitted access independently of
+            // permission to replace the source binding.
             if local.is_mutable
                 && program
                     .primitive_type_reference(local.type_reference)

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 4.39, "load1_start": 4.64, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.69, "load1_start": 3.59, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1027,6 +1027,7 @@ pass/host/runtime_descriptor_binding_state_forwarding_input_exit built 15040ms e
 pass/host/runtime_descriptor_boolean_loan_output_exit built 12131ms exit:0 stdout:match @935b9317809f+wt
 pass/host/runtime_descriptor_direct_array_exit built 14475ms exit:0 stdout:match stderr:match @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_float_loan_input_exit built 36262ms exit:0 stdout:match @935b9317809f+wt
+pass/host/runtime_descriptor_immutable_primitive_loans_exit built 39881ms exit:0 stdout:match @c84aed767336+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit built 19796ms exit:0 stdout:match @198156d53e16
 pass/host/runtime_descriptor_mutable_view_input_exit built 15729ms exit:0 stdout:match @46782946f3c8+wt
 pass/host/runtime_descriptor_nested_array_window_exit built 11955ms exit:0 stdout:match @cf8f4f487a62+wt

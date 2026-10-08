@@ -29,6 +29,8 @@ use super::super::{
 
 /// Find primitive storage established by an initializer or its declaration's
 /// plain zero value before this occurrence.
+/// Both binding kinds own contents; replacement permission is checked by
+/// the store owner, while exact borrow facts decide the access a loan lends.
 pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
@@ -38,11 +40,10 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     let (_, local) = program
         .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if !local.is_mutable
-        || (!program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-            && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
+    if (!program
+        .expression_table
+        .expression_is_valid(local.initial_value)
+        && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
         || !validation::is_plain_scalar_storage(program, local.type_reference)
         || program
             .primitive_type_reference(local.type_reference)
@@ -85,7 +86,7 @@ pub(super) fn store_at(
                 // A local root names a `let mut` local or, when the
                 // destination found its storage row, a `mut` scalar formal.
                 if primitive_local_before(program, state, statement_index as usize, symbol)
-                    .is_none()
+                    .is_none_or(|local| !local.is_mutable)
                     && !program
                         .state_parameters(state)
                         .iter()

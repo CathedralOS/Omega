@@ -157,9 +157,8 @@ pub(in crate::execution::terminal_unit) fn plan(
                 root_type_identity: base_type_identity(program, shell.referee, &[])?,
             }
         } else {
-            if access != CheckedStructuralAccess::SharedBorrow && !owner.is_mutable {
-                return None;
-            }
+            // Owned contents lend their admitted access independently of
+            // permission to replace the source binding.
             if owner.is_mutable
                 && program
                     .primitive_type_reference(owner.type_reference)

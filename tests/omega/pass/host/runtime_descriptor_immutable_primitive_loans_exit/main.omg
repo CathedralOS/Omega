@@ -1,0 +1,79 @@
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+use omega::language::core::float_operations;
+
+pub boundary trait ScalarIo {
+    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
+    machine write(descriptor: i32, value: &f32, count: u64) -> i64;
+    machine flag(descriptor: i32, value: &bool, count: u64) -> i64;
+    machine byte(descriptor: i32, value: &u8, count: u64) -> i64;
+}
+pub data ScalarImports {}
+data Main { io: Binding<ScalarIo>; }
+
+pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } }
+}
+macos_arm64 boundary machine ScalarImports::read(descriptor: i32, value: &mut f32, count: u64) -> i64
+    satisfies ScalarIo::read via read_binding();
+macos_arm64 boundary machine ScalarImports::write(descriptor: i32, value: &f32, count: u64) -> i64
+    satisfies ScalarIo::write via write_binding();
+macos_arm64 boundary machine ScalarImports::flag(descriptor: i32, value: &bool, count: u64) -> i64
+    satisfies ScalarIo::flag via write_binding();
+macos_arm64 boundary machine ScalarImports::byte(descriptor: i32, value: &u8, count: u64) -> i64
+    satisfies ScalarIo::byte via write_binding();
+
+machine set(value: &mut bool) { value = true; }
+machine clear(value: &mut bool) { value = false; }
+machine initial() -> bool { false }
+machine select(value: &mut u8) { value = 1; }
+machine selected_element() -> bool {
+    let elements: [u8; 2] = [11, 22];
+    let coordinate: u8 = 0;
+    select(&mut coordinate);
+    coordinate < 2 && elements[coordinate] == 22
+}
+machine receive(io: &Binding<ScalarIo>, value: &mut f32) -> i64 reaches ScalarIo blocks; {
+    transition { _ -> read(io, value) }
+    state read(io: &Binding<ScalarIo>, value: &mut f32) {
+        block io.read(0, value, 4)
+    }
+}
+machine Main::main(main: &mut Main) reaches ScalarIo blocks; crashes Trap {
+    let flag: bool = initial();
+    let original: bool = flag;
+    let held: &mut bool = &mut flag;
+    set(held);
+    let observed: bool = flag;
+    clear(&mut flag);
+    let cleared: bool = !flag;
+    set(&mut flag);
+    let indexed: bool = selected_element();
+    let value: f32 = 100.0f32;
+    let before: f32 = value;
+    let empty: i64 = block main.io.read(0, &mut value, 0);
+    let moved: i64 = block receive(&main.io, &mut value);
+    let saved: f32 = value;
+    let at_end: i64 = block main.io.read(0, &mut value, 4);
+    let written: i64 = main.io.write(1, &value, 4);
+    let marked: i64 = main.io.flag(1, &flag, 1);
+    let newline: u8 = 10;
+    let ended: i64 = main.io.byte(1, &newline, 1);
+    transition flag && !original && observed && cleared && indexed
+        && before == 100.0f32 && value == saved
+        && value > 0.0f32 && value < 1.0f32
+        && empty == 0 && moved == 4 && at_end == 0
+        && written == 4 && marked == 1 && ended == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

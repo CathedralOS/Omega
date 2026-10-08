@@ -1,5 +1,8 @@
 //! Resolve authored scalar names against their evaluated values, and checked
 //! storage reads against their primitive places.
+//! Once an owned value acquires an address, its authored binding observes that
+//! original home. A separate copied binding still names its evaluated SSA value.
+//! Binding replacement permission is not permission to mutate borrowed contents.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralArgument,
@@ -81,6 +84,15 @@ fn published_structural_type(
         .then_some(structural_type)
 }
 
+/// One authored binding's evaluated value and, once addressed, its storage
+/// identity. The zero symbol keeps unaddressed bindings as SSA values.
+#[derive(Clone, Copy)]
+struct AuthoredScalarBinding {
+    value_position: usize,
+    scalar_type: ScalarType,
+    storage_symbol: symbols::SymbolHandle,
+}
+
 #[derive(Clone)]
 pub(crate) struct ScalarBindings {
     /// The binding-ordinal namespace: the scalar formals, then every
@@ -94,7 +106,7 @@ pub(crate) struct ScalarBindings {
     /// so it never occupies a slot here; resolving authored reads through the
     /// binding namespace instead would shift every later local onto the
     /// preceding call's result.
-    authored: Vec<Option<(usize, ScalarType)>>,
+    authored: Vec<Option<AuthoredScalarBinding>>,
     parameter_count: usize,
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Actual original ingress homes, in the dense scalar formal namespace.
@@ -376,7 +388,6 @@ impl ScalarBindings {
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         source: &StructuralArgument,
         case: &str,
-        scalar_types: &[semantic_vocabulary::QualifiedScalarType],
     ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
         let structural_type =
             self.structural_argument_type(source)
@@ -435,19 +446,10 @@ impl ScalarBindings {
                     &field.path,
                 )?
             }
-            // A hoisted computed selector is an established immutable local:
-            // the observation reads its value at the local's dense position.
+            // Hoisted computations and addressed primitive locals share the
+            // authored value/home join with ordinary element observations.
             checked_trees::CheckedRuntimeIndex::Local { position } => {
-                let position = self.authored_position(*position as usize)?;
-                LoweredDirectExpression::Local {
-                    position,
-                    scalar_type: scalar_types
-                        .get(position)
-                        .ok_or(LoweringError::Unsupported(
-                            "runtime case observation selector is outside its scalar frame",
-                        ))?
-                        .scalar_type,
-                }
+                self.runtime_index_local(*position)?
             }
             _ => return unsupported("runtime case observation requires a bound scalar selector"),
         };
@@ -520,12 +522,18 @@ impl ScalarBindings {
         let authored = types
             .into_iter()
             .enumerate()
-            .map(|(position, scalar_type)| Some((offset + position, scalar_type)))
+            .map(|(position, scalar_type)| {
+                Some(AuthoredScalarBinding {
+                    value_position: offset + position,
+                    scalar_type,
+                    storage_symbol: symbols::SymbolHandle::invalid(),
+                })
+            })
             .collect::<Vec<_>>();
         Self {
             immutable: authored
                 .iter()
-                .map(|binding| binding.map(|row| row.0))
+                .map(|binding| binding.map(|row| row.value_position))
                 .collect(),
             parameter_count: authored.len(),
             authored,
@@ -1119,7 +1127,42 @@ impl ScalarBindings {
     /// Mutable storage is a primitive place, never a rebound SSA value.
     pub(crate) fn append(&mut self, scalar_type: ScalarType, position: usize) {
         self.immutable.push(Some(position));
-        self.authored.push(Some((position, scalar_type)));
+        self.authored.push(Some(AuthoredScalarBinding {
+            value_position: position,
+            scalar_type,
+            storage_symbol: symbols::SymbolHandle::invalid(),
+        }));
+    }
+
+    /// The first addressable home replaces reads of this binding, not the
+    /// completed values of other bindings that previously copied its contents.
+    pub(crate) fn register_local_storage(
+        &mut self,
+        ordinal: usize,
+        symbol: symbols::SymbolHandle,
+        scalar_type: ScalarType,
+    ) -> Result<(), LoweringError> {
+        let position =
+            self.parameter_count
+                .checked_add(ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "addressed scalar local namespace overflow",
+                ))?;
+        let binding = self
+            .authored
+            .get_mut(position)
+            .and_then(Option::as_mut)
+            .ok_or(LoweringError::Unsupported(
+                "addressed scalar local has no completed binding",
+            ))?;
+        if !symbol.is_valid()
+            || binding.scalar_type != scalar_type
+            || (binding.storage_symbol.is_valid() && binding.storage_symbol != symbol)
+        {
+            return unsupported("addressed scalar local changes its original binding");
+        }
+        binding.storage_symbol = symbol;
+        Ok(())
     }
 
     /// Bind a retained scalar result that no source name reads: a call result
@@ -1127,19 +1170,6 @@ impl ScalarBindings {
     /// `Local` reads keep counting only declared locals.
     pub(crate) fn append_unnamed_result(&mut self, position: usize) {
         self.immutable.push(Some(position));
-    }
-
-    /// The dense value position of one authored `Parameter`/`Local` slot:
-    /// the scalar formals, then each declared immutable local in order.
-    fn authored_position(&self, position: usize) -> Result<usize, LoweringError> {
-        self.authored
-            .get(position)
-            .copied()
-            .flatten()
-            .map(|(position, _)| position)
-            .ok_or(LoweringError::Unsupported(
-                "scalar immutable operand is outside the established namespace",
-            ))
     }
 
     /// Rejoin an immutable local's source ordinal to its already-evaluated
@@ -1155,7 +1185,7 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "immutable local namespace overflow",
                 ))?;
-        let (value, actual_type) =
+        let binding =
             self.authored
                 .get(position)
                 .copied()
@@ -1163,10 +1193,10 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "immutable local has no established scalar value",
                 ))?;
-        if actual_type != scalar_type {
+        if binding.scalar_type != scalar_type {
             return unsupported("immutable local addressable home changes its scalar type");
         }
-        Ok(value)
+        Ok(binding.value_position)
     }
 
     /// The dense value position of one binding-ordinal slot: the scalar
@@ -1198,7 +1228,23 @@ impl ScalarBindings {
             }
             CheckedScalarExpression::Parameter { position, .. }
             | CheckedScalarExpression::Local { position, .. } => {
-                *position = self.authored_position(*position)?
+                let binding = self.authored.get(*position).copied().flatten().ok_or(
+                    LoweringError::Unsupported("scalar read has no authored binding"),
+                )?;
+                if binding.storage_symbol.is_valid() {
+                    let primitive_type =
+                        expression
+                            .primitive_type()
+                            .ok_or(LoweringError::Unsupported(
+                                "addressed scalar read lost its primitive type",
+                            ))?;
+                    *expression = CheckedScalarExpression::StorageRead {
+                        symbol: binding.storage_symbol,
+                        primitive_type,
+                    };
+                } else {
+                    *position = binding.value_position;
+                }
             }
             CheckedScalarExpression::StorageRead { symbol, .. } => {
                 if self
@@ -1247,7 +1293,19 @@ impl ScalarBindings {
             }
             CheckedBooleanExpression::Parameter { position }
             | CheckedBooleanExpression::Local { position } => {
-                *position = self.authored_position(*position)?
+                let binding = self.authored.get(*position).copied().flatten().ok_or(
+                    LoweringError::Unsupported("Boolean read has no authored binding"),
+                )?;
+                if binding.storage_symbol.is_valid() {
+                    if binding.scalar_type != ScalarType::Boolean {
+                        return unsupported("addressed Boolean read changes its scalar type");
+                    }
+                    *expression = CheckedBooleanExpression::StorageRead {
+                        symbol: binding.storage_symbol,
+                    };
+                } else {
+                    *position = binding.value_position;
+                }
             }
             CheckedBooleanExpression::StorageRead { symbol } => {
                 if self
@@ -1276,29 +1334,10 @@ impl ScalarBindings {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }
-            CheckedBooleanExpression::ByteSequencePredicate { path, .. } => {
-                for segment in path.iter_mut() {
-                    let checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) =
-                        segment
-                    else {
-                        continue;
-                    };
-                    match index {
-                        checked_trees::CheckedRuntimeIndex::Parameter { position }
-                        | checked_trees::CheckedRuntimeIndex::Local { position } => {
-                            *position = u32::try_from(self.authored_position(*position as usize)?)
-                                .map_err(|_| {
-                                    LoweringError::Unsupported(
-                                        "byte predicate selector overflows its position carrier",
-                                    )
-                                })?;
-                        }
-                        _ => {
-                            return unsupported("byte predicate cannot rebind a captured selector");
-                        }
-                    }
-                }
-            }
+            // Predicate paths retain authored selector coordinates. The
+            // shared projection emitter reads their current value/home once;
+            // remapping here would both remap twice and freeze addressed locals.
+            CheckedBooleanExpression::ByteSequencePredicate { .. } => {}
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
@@ -1387,7 +1426,7 @@ impl ScalarBindings {
     }
 
     fn runtime_index_value(&self, position: u32) -> Result<LoweredDirectExpression, LoweringError> {
-        let (position, scalar_type) = self
+        let binding = self
             .authored
             .get(position as usize)
             .copied()
@@ -1395,13 +1434,28 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "runtime selector has no established immutable scalar",
             ))?;
-        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+        if !matches!(binding.scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
             return unsupported("runtime selector is not an integer");
         }
-        Ok(LoweredDirectExpression::Parameter {
-            position,
-            scalar_type,
-        })
+        if binding.storage_symbol.is_valid() {
+            let (source, path) = primitive_storage_read(
+                &self.primitive_storage,
+                &self.structural_locals,
+                self.structural_fields.declarations(),
+                binding.storage_symbol,
+                binding.scalar_type,
+            )?;
+            Ok(LoweredDirectExpression::PrimitiveRead {
+                source: source.into(),
+                path,
+                scalar_type: binding.scalar_type,
+            })
+        } else {
+            Ok(LoweredDirectExpression::Parameter {
+                position: binding.value_position,
+                scalar_type: binding.scalar_type,
+            })
+        }
     }
 
     pub(crate) fn expression(
