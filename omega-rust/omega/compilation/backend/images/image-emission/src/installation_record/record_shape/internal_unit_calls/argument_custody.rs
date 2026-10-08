@@ -263,18 +263,10 @@ impl InternalUnitCall<'_> {
                 || (!fully_consumed_affine_parameter
                     && projected_result.is_none()
                     && !continuation_discards.contains(&argument.place)
-                    && affine_cleanup.is_none_or(|cleanup| {
-                        !cleanup.actions.iter().any(|action| {
-                            matches!(action,
-                                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual)
-                                    if residual.place == argument.place
-                                        && !residual.path.is_empty()
-                                        && !residual.path.starts_with(&argument.path)
-                                        && !argument.path.starts_with(&residual.path)
-                                        && residual.structural_type
-                                            != argument.root_structural_type)
-                        })
-                    }))
+                    && crate::object_artifact::replay::unit::call_custody::argument_custody::no_disjoint_residual_discard(
+                        argument,
+                        affine_cleanup,
+                    ))
         })
     }
 }

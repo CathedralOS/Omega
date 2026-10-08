@@ -32,6 +32,26 @@ struct ArgumentSources {
 /// argument reads its whole placement; a projected one is an exact borrowed or
 /// owned projection, a fixed-index element, a two-level fixed-index element, or
 /// a field path aligned inside the placement.
+/// Whether no residual cleanup action discards a path disjoint from this
+/// argument — the argument is left unsettled only while nothing accounts
+/// for it.
+pub(crate) fn no_disjoint_residual_discard(
+    argument: &machine_code::InternalUnitCallArgumentRecord,
+    affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
+) -> bool {
+    affine_cleanup.is_none_or(|cleanup| {
+        !cleanup.actions.iter().any(|action| {
+            matches!(action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual)
+                    if residual.place == argument.place
+                        && !residual.path.is_empty()
+                        && !residual.path.starts_with(&argument.path)
+                        && !argument.path.starts_with(&residual.path)
+                        && residual.structural_type != argument.root_structural_type)
+        })
+    })
+}
+
 /// Whether one trivial-affine local's establishment record is the exact
 /// owned source of this internal call argument: a fresh empty record the
 /// cleanup materializes in place.
@@ -504,18 +524,7 @@ impl InternalUnitCallCustody<'_> {
             argument.path.is_empty()
                 || (!fully_consumed_affine_parameter
                     && projected_result.is_none()
-                    && affine_cleanup.is_none_or(|cleanup| {
-                        !cleanup.actions.iter().any(|action| {
-                            matches!(action,
-                        terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual)
-                            if residual.place == argument.place
-                                && !residual.path.is_empty()
-                                && !residual.path.starts_with(&argument.path)
-                                && !argument.path.starts_with(&residual.path)
-                                && residual.structural_type
-                                    != argument.root_structural_type)
-                        })
-                    }))
+                    && no_disjoint_residual_discard(argument, affine_cleanup))
         })
     }
 
