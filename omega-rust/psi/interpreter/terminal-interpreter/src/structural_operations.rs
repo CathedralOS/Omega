@@ -1430,11 +1430,7 @@ impl TerminalExecution<'_> {
                 value |= u128::from(*byte) << (8 * position);
             }
             let scalar = match member.scalar_type {
-                ScalarType::Boolean => match value {
-                    0 => TerminalScalarValue::Boolean(false),
-                    1 => TerminalScalarValue::Boolean(true),
-                    _ => return Err(malformed()),
-                },
+                ScalarType::Boolean => crate::primitive_storage::encoding::boolean_bits(value)?,
                 ScalarType::Integer(scalar_type) => {
                     let value = match scalar_type.sign() {
                         semantic_vocabulary::IntegerSign::Signed => {

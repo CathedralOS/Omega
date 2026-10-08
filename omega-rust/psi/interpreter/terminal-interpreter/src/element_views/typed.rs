@@ -64,11 +64,7 @@ fn reinterpret(
     value: TerminalScalarValue,
     target: ScalarType,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    let input = match value {
-        TerminalScalarValue::Boolean(value) => ScalarViewValue::Boolean(value),
-        TerminalScalarValue::Integer { value, .. } => ScalarViewValue::Integer(value),
-        TerminalScalarValue::IeeeFloat(value) => ScalarViewValue::IeeeFloat(value),
-    };
+    let input = crate::values::scalar_view_value(&value);
     let output =
         terminal_semantics::scalar_reference_view_value(value.scalar_type(), target, input)
             .or_else(|| {

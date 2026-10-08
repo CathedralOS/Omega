@@ -468,11 +468,7 @@ fn encode(stored: ScalarType, scalar: TerminalScalarValue) -> Result<u128, Termi
 fn decode(stored: ScalarType, bits: u128) -> Result<TerminalScalarValue, TerminalInterpretError> {
     let width = terminal_semantics::reference_storage_byte_width(stored).ok_or_else(malformed)?;
     let result = match stored {
-        ScalarType::Boolean => match bits {
-            0 => TerminalScalarValue::Boolean(false),
-            1 => TerminalScalarValue::Boolean(true),
-            _ => return Err(malformed()),
-        },
+        ScalarType::Boolean => boolean_bits(bits)?,
         ScalarType::Integer(integer) => {
             let value = match integer.sign() {
                 IntegerSign::Unsigned => IntegerValue::Unsigned(bits),
@@ -609,4 +605,13 @@ mod tests {
             float
         );
     }
+}
+
+/// Boolean scalar decoded from one stored bit.
+pub(crate) fn boolean_bits(bits: u128) -> Result<TerminalScalarValue, TerminalInterpretError> {
+    Ok(match bits {
+        0 => TerminalScalarValue::Boolean(false),
+        1 => TerminalScalarValue::Boolean(true),
+        _ => return Err(malformed()),
+    })
 }

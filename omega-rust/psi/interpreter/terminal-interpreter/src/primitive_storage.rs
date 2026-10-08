@@ -27,7 +27,7 @@ use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use terminal_psi::TerminalMachine;
 
-mod encoding;
+pub(crate) mod encoding;
 
 pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
 
@@ -1230,11 +1230,7 @@ fn scalar_reference_observation(
     target: ScalarType,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
     use terminal_semantics::ScalarViewValue;
-    let input = match stored {
-        TerminalScalarValue::Boolean(value) => ScalarViewValue::Boolean(value),
-        TerminalScalarValue::Integer { value, .. } => ScalarViewValue::Integer(value),
-        TerminalScalarValue::IeeeFloat(value) => ScalarViewValue::IeeeFloat(value),
-    };
+    let input = crate::values::scalar_view_value(&stored);
     let observed =
         terminal_semantics::scalar_reference_view_value(stored.scalar_type(), target, input)
             .ok_or(malformed())?;

@@ -197,3 +197,18 @@ impl TerminalScalarValue {
         }
     }
 }
+
+/// The semantic view-value form of a runtime scalar.
+pub(crate) fn scalar_view_value(
+    value: &TerminalScalarValue,
+) -> terminal_semantics::ScalarViewValue {
+    match value {
+        TerminalScalarValue::Boolean(value) => terminal_semantics::ScalarViewValue::Boolean(*value),
+        TerminalScalarValue::Integer { value, .. } => {
+            terminal_semantics::ScalarViewValue::Integer(*value)
+        }
+        TerminalScalarValue::IeeeFloat(value) => {
+            terminal_semantics::ScalarViewValue::IeeeFloat(*value)
+        }
+    }
+}
