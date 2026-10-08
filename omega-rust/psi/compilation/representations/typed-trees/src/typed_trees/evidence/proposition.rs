@@ -203,9 +203,7 @@ fn normalized_evidence_requirements(
         }
         visited.push(visit);
         let Some(definition) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == trait_symbol)
+            .trait_definition_by_symbol(trait_symbol)
         else {
             return;
         };

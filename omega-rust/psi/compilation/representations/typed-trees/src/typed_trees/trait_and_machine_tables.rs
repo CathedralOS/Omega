@@ -34,9 +34,7 @@ impl TypedTrees {
             .collect::<Vec<_>>();
         for (handle, trait_symbol, requirement_symbol, trait_arguments) in pending {
             let Some(trait_definition) = self
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == trait_symbol)
+                .trait_definition_by_symbol(trait_symbol)
             else {
                 continue;
             };
@@ -50,9 +48,7 @@ impl TypedTrees {
                 continue;
             }
             let Some(declared) = self
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|candidate| candidate.symbol == requirement_symbol)
+                .trait_machine_signature_by_symbol(trait_definition, requirement_symbol)
                 .cloned()
             else {
                 continue;
@@ -337,6 +333,17 @@ impl TypedTrees {
             .span_or_empty(trait_definition.machines)
     }
 
+    /// The machine signature keyed `symbol` within `trait_definition`, when declared.
+    pub fn trait_machine_signature_by_symbol(
+        &self,
+        trait_definition: &trait_definition::TraitDefinition,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&signature::StateSignature> {
+        self.trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|candidate| candidate.symbol == symbol)
+    }
+
     pub fn machine_parameter_contract_view<'program>(
         &'program self,
         contract: &'program data::MachineParameterContract,
@@ -353,13 +360,9 @@ impl TypedTrees {
                 ..
             } => {
                 let trait_definition = self
-                    .traits()
-                    .iter()
-                    .find(|candidate| candidate.symbol == *trait_definition)?;
+                    .trait_definition_by_symbol(*trait_definition)?;
                 let declared = self
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|candidate| candidate.symbol == *requirement)?;
+                    .trait_machine_signature_by_symbol(trait_definition, *requirement)?;
                 Some(data::MachineParameterContractView::Nominal {
                     trait_definition,
                     requirement: instantiated.as_deref().unwrap_or(declared),

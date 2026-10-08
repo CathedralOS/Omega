@@ -746,9 +746,7 @@ fn collect_dynamic_requirements_named<'program>(
     }
     for parent in program.trait_requirements(trait_definition) {
         let Some(parent_trait) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == parent.symbol)
+            .trait_definition_by_symbol(parent.symbol)
         else {
             continue;
         };

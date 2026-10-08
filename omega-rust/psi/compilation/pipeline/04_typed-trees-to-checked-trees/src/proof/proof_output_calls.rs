@@ -768,9 +768,7 @@ fn trait_requires_transitively(
                 return true;
             }
             if let Some(parent) = program
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == requirement.symbol)
+                .trait_definition_by_symbol(requirement.symbol)
             {
                 pending.push(parent);
             }

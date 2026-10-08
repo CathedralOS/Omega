@@ -314,9 +314,7 @@ fn normalize_open_index_expression_operations(
     let mut candidates = Vec::new();
     for bound in &machine.conformance_bounds {
         let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|trait_definition| trait_definition.symbol == bound.trait_symbol)
+            .trait_definition_by_symbol(bound.trait_symbol)
         else {
             continue;
         };

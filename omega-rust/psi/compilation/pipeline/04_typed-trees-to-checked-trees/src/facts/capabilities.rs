@@ -570,9 +570,7 @@ fn boundary_capability(
 
     for conformance in program.machine_trait_conformances(machine) {
         let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|trait_definition| trait_definition.symbol == conformance.symbol)
+            .trait_definition_by_symbol(conformance.symbol)
         else {
             continue;
         };

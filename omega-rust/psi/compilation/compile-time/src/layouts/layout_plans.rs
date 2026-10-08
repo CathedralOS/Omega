@@ -115,9 +115,7 @@ fn normalize_private_callback_demands(
                 )
             })?;
         let trait_definition = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == conformance.trait_symbol)
+            .trait_definition_by_symbol(conformance.trait_symbol)
             .ok_or_else(|| {
                 format!(
                     "private layout conformance `{}` lost its exact trait declaration",
@@ -188,9 +186,7 @@ fn normalize_private_callback_demands(
             ));
         }
         let requirement_trait = typed
-            .traits()
-            .iter()
-            .find(|owner| owner.symbol == requirement_parent)
+            .trait_definition_by_symbol(requirement_parent)
             .expect("boundary callback owner was found above");
         let requirement_row = typed
             .trait_machine_signatures(requirement_trait)

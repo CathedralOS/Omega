@@ -105,13 +105,9 @@ pub fn selected_trait_operator_meanings<'program>(
         .flat_map(|application| {
             application.rows.iter().filter_map(move |row| {
                 let trait_definition = program
-                    .traits()
-                    .iter()
-                    .find(|candidate| candidate.symbol == row.declaring_trait)?;
+                    .trait_definition_by_symbol(row.declaring_trait)?;
                 let requirement = program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|candidate| candidate.symbol == row.requirement)?;
+                    .trait_machine_signature_by_symbol(trait_definition, row.requirement)?;
                 (requirement.spelling == Some(spelling)
                     && trait_operator_matches_application(
                         program,
@@ -153,16 +149,12 @@ pub fn selected_trait_operator_meaning_exists(
         .any(|application| {
             application.rows.iter().any(|row| {
                 let Some(trait_definition) = program
-                    .traits()
-                    .iter()
-                    .find(|candidate| candidate.symbol == row.declaring_trait)
+                    .trait_definition_by_symbol(row.declaring_trait)
                 else {
                     return false;
                 };
                 let Some(requirement) = program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|candidate| candidate.symbol == row.requirement)
+                    .trait_machine_signature_by_symbol(trait_definition, row.requirement)
                 else {
                     return false;
                 };

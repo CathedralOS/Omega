@@ -357,7 +357,5 @@ fn trait_definition_by_symbol(
     }
 
     program
-        .traits()
-        .iter()
-        .find(|trait_definition| trait_definition.symbol == symbol)
+        .trait_definition_by_symbol(symbol)
 }

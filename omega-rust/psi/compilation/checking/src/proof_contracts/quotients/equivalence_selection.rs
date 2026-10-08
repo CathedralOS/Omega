@@ -47,9 +47,7 @@ pub(crate) fn validate_equivalence_selection(
         return;
     }
     let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|candidate| candidate.symbol == selection.trait_symbol)
+        .trait_definition_by_symbol(selection.trait_symbol)
     else {
         diagnostics.push(Diagnostic::error(format!(
             "quotient data `{}` static selection retains no exact `Equivalence` trait identity",
@@ -127,9 +125,7 @@ pub(crate) fn validate_equivalence_selection(
     }
     for row in &conformance.rows {
         let Some(declaring_trait) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == row.declaring_trait)
+            .trait_definition_by_symbol(row.declaring_trait)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` row `{}::{}` has no exact declaring trait",
@@ -141,9 +137,7 @@ pub(crate) fn validate_equivalence_selection(
             continue;
         };
         let Some(requirement) = program
-            .trait_machine_signatures(declaring_trait)
-            .iter()
-            .find(|candidate| candidate.symbol == row.requirement)
+            .trait_machine_signature_by_symbol(declaring_trait, row.requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` row `{}::{}` has no exact inherited requirement",
@@ -446,9 +440,7 @@ fn is_sealed_core_equivalence(
         .iter()
         .filter_map(|parent| {
             program
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == parent.symbol)
+                .trait_definition_by_symbol(parent.symbol)
                 .map(|parent| parent.name.as_str())
         })
         .collect::<Vec<_>>();

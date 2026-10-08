@@ -940,9 +940,7 @@ fn generic_type_parameters(
         return Some(typed.machine_type_parameters(machine));
     }
     if let Some(trait_definition) = typed
-        .traits()
-        .iter()
-        .find(|candidate| candidate.symbol == base_symbol)
+        .trait_definition_by_symbol(base_symbol)
     {
         return Some(typed.trait_type_parameters(trait_definition));
     }

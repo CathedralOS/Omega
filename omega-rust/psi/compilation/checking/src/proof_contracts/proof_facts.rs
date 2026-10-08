@@ -210,9 +210,7 @@ fn evidence_trait_violation(
     visiting.push(trait_definition.symbol);
     for parent in program.trait_requirements(trait_definition) {
         let Some(parent_definition) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == parent.symbol)
+            .trait_definition_by_symbol(parent.symbol)
         else {
             continue;
         };

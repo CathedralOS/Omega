@@ -84,9 +84,7 @@ pub(crate) fn evidence_requirement_rewrites(
             continue;
         };
         let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|trait_definition| trait_definition.symbol == parameter.trait_symbol)
+            .trait_definition_by_symbol(parameter.trait_symbol)
         else {
             continue;
         };
@@ -161,17 +159,13 @@ pub(crate) fn collect_evidence_requirement_closure<'program>(
     // resolution (own machines, then the refined base, then parents).
     if let Some(base) = &trait_definition.refines
         && let Some(base_trait) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == base.symbol)
+            .trait_definition_by_symbol(base.symbol)
     {
         collect_evidence_requirement_closure(program, base_trait, visited, output);
     }
     for parent in program.trait_requirements(trait_definition) {
         let Some(parent_trait) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == parent.symbol)
+            .trait_definition_by_symbol(parent.symbol)
         else {
             continue;
         };

@@ -18,9 +18,7 @@ pub(super) fn validate_agreements(
 ) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == conformance.trait_symbol)
+            .trait_definition_by_symbol(conformance.trait_symbol)
         else {
             continue;
         };

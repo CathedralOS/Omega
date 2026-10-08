@@ -482,9 +482,7 @@ fn authorized_ensures_signature(
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> bool {
     program
-        .traits()
-        .iter()
-        .find(|owner| owner.symbol == owner_symbol)
+        .trait_definition_by_symbol(owner_symbol)
         .and_then(|owner| {
             program
                 .trait_machine_signatures(owner)

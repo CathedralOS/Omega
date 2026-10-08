@@ -52,9 +52,7 @@ fn append_boundary_edges_for_trait(
     }
 
     let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|trait_definition| trait_definition.symbol == trait_symbol)
+        .trait_definition_by_symbol(trait_symbol)
     else {
         return;
     };

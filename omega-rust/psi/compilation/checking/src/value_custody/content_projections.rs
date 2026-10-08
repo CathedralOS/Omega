@@ -46,9 +46,7 @@ pub(crate) fn validate_content_projection_conformances(
     for machine in program.machines() {
         for conformance in program.machine_trait_conformances(machine) {
             let Some(content) = program
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == conformance.symbol)
+                .trait_definition_by_symbol(conformance.symbol)
                 .filter(|candidate| is_content_projection_trait(program, candidate))
             else {
                 continue;
@@ -183,9 +181,7 @@ pub fn build_content_projection_plans(
                 .iter()
                 .filter_map(move |conformance| {
                     let content = program
-                        .traits()
-                        .iter()
-                        .find(|candidate| candidate.symbol == conformance.symbol)
+                        .trait_definition_by_symbol(conformance.symbol)
                         .filter(|candidate| is_content_projection_trait(program, candidate))?;
                     if conformance.requirement.as_ref().map(|name| name.as_str()) != Some("project")
                     {
@@ -234,9 +230,7 @@ pub(crate) fn is_content_projection_machine(
         .any(|conformance| {
             if conformance.requirement.as_ref().map(|name| name.as_str()) != Some("project")
                 || !program
-                    .traits()
-                    .iter()
-                    .find(|candidate| candidate.symbol == conformance.symbol)
+                    .trait_definition_by_symbol(conformance.symbol)
                     .is_some_and(|candidate| is_content_projection_trait(program, candidate))
             {
                 return false;
@@ -329,9 +323,7 @@ pub(crate) fn content_projection_body_expression(
         .any(|conformance| {
             conformance.requirement.as_ref().map(|name| name.as_str()) == Some("project")
                 && program
-                    .traits()
-                    .iter()
-                    .find(|candidate| candidate.symbol == conformance.symbol)
+                    .trait_definition_by_symbol(conformance.symbol)
                     .is_some_and(|candidate| is_content_projection_trait(program, candidate))
         })
         .then(|| projection_result_expression(program, machine))
