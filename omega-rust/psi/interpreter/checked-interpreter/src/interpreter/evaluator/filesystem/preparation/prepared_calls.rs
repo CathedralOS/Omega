@@ -618,22 +618,20 @@ impl<'evaluation, 'program, 'arguments, 'frame>
 
     fn i32(&mut self) -> EvalResult<i32> {
         let (_, raw) = self.integer()?;
-        let value = i32::try_from(raw).map_err(|_| {
+        i32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem i32 operand `{raw}` is out of range"
             ))
-        })?;
-        Ok(value)
+        })
     }
 
     fn u32(&mut self) -> EvalResult<u32> {
         let (_, raw) = self.integer()?;
-        let value = u32::try_from(raw).map_err(|_| {
+        u32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem u32 operand `{raw}` is out of range"
             ))
-        })?;
-        Ok(value)
+        })
     }
 
     fn descriptor(&mut self) -> EvalResult<i32> {

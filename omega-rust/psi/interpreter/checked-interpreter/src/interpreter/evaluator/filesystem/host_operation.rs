@@ -23,8 +23,6 @@ pub(in crate::interpreter::evaluator) enum FilesystemHostResultKind {
 // operand/result schemas are generated from the one Omega boundary declaration.
 include!(concat!(env!("OUT_DIR"), "/filesystem_host_operations.rs"));
 
-impl FilesystemHostOperation {}
-
 impl std::fmt::Display for FilesystemHostOperation {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(self.canonical_name())

@@ -68,11 +68,10 @@ impl<'program> Evaluator<'program> {
     ) -> Option<Value> {
         match target {
             "monotonic_ticks" => Some(Value::Int(self.virtual_ticks)),
-            "monotonic_ticks_per_second" => Some(Value::Int(1000)),
+            "monotonic_ticks_per_second" | "wall_clock_units_per_second" => Some(Value::Int(1000)),
             "wall_clock_raw" => 1_767_225_600_000_i64
                 .checked_add(self.virtual_ticks)
                 .map(Value::Int),
-            "wall_clock_units_per_second" => Some(Value::Int(1000)),
             "wall_clock_epoch_offset_seconds" => Some(Value::Int(0)),
             _ => None,
         }
