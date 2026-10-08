@@ -47,18 +47,8 @@ pub(super) fn check(
                     && block.instructions.len() == selected_block.instructions.len() + 1,
             )?;
             for (row, span) in block.instructions.iter().zip(&actual.instructions) {
-                let terminal = match &selected_block.terminator {
-                    SelectedTerminator::ConditionalBranch { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                    | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                    | SelectedTerminator::Jump { instruction, .. }
-                    | SelectedTerminator::Return { instruction, .. }
-                    | SelectedTerminator::Crash { instruction, .. }
-                    | selected_instructions::SelectedTerminator::HostedExitProcess {
-                        instruction,
-                        ..
-                    } => instruction,
-                };
+                let terminal =
+                    selected_instructions::terminator_instruction(&selected_block.terminator);
                 let selected_instruction = selected_block
                     .instructions
                     .iter()
