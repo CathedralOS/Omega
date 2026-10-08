@@ -11,9 +11,7 @@ use object_file::SectionKind;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use std::collections::BTreeSet;
 use target::{Architecture, NativeTarget};
-use target_operations::{
-    CompletionClaimSource, ProviderExecutionBinding, ProviderPlanReportIdentity,
-};
+use target_operations::{ProviderExecutionBinding, ProviderPlanReportIdentity};
 use terminal_psi::OperationKind;
 
 /// Rejoin the one retained provider execution an installed settlement names.

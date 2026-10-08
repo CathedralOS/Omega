@@ -6,7 +6,7 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
 
