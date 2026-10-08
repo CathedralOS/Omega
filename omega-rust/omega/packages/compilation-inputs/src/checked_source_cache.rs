@@ -534,23 +534,22 @@ fn host_inode(metadata: &std::fs::Metadata) -> u64 {
     0
 }
 
-fn host_modified_seconds(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .modified()
-        .ok()
-        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
+macro_rules! host_stat_duration {
+    ($(#[$attr:meta])* $name:ident, $accessor:ident, $extractor:ident) => {
+        $(#[$attr])*
+        fn $name(metadata: &std::fs::Metadata) -> i64 {
+            metadata
+                .$accessor()
+                .ok()
+                .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|duration| duration.$extractor() as i64)
+                .unwrap_or_default()
+        }
+    };
 }
 
-fn host_modified_nanos(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .modified()
-        .ok()
-        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|duration| duration.subsec_nanos() as i64)
-        .unwrap_or_default()
-}
+host_stat_duration!(host_modified_seconds, modified, as_secs);
+host_stat_duration!(host_modified_nanos, modified, subsec_nanos);
 
 #[cfg(unix)]
 fn host_changed_seconds(metadata: &std::fs::Metadata) -> i64 {
@@ -558,15 +557,12 @@ fn host_changed_seconds(metadata: &std::fs::Metadata) -> i64 {
     metadata.ctime()
 }
 
-#[cfg(not(unix))]
-fn host_changed_seconds(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .created()
-        .ok()
-        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
-}
+host_stat_duration!(
+    #[cfg(not(unix))]
+    host_changed_seconds,
+    created,
+    as_secs
+);
 
 #[cfg(unix)]
 fn host_changed_nanos(metadata: &std::fs::Metadata) -> i64 {
@@ -574,15 +570,12 @@ fn host_changed_nanos(metadata: &std::fs::Metadata) -> i64 {
     metadata.ctime_nsec()
 }
 
-#[cfg(not(unix))]
-fn host_changed_nanos(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .created()
-        .ok()
-        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|duration| duration.subsec_nanos() as i64)
-        .unwrap_or_default()
-}
+host_stat_duration!(
+    #[cfg(not(unix))]
+    host_changed_nanos,
+    created,
+    subsec_nanos
+);
 
 /// The record key: the canonical root spelling joined to the complete
 /// stat-identity fingerprint, so two roots whose members carry identical
