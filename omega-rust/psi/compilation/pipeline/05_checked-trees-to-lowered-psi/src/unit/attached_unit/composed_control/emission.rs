@@ -49,10 +49,11 @@ pub(super) fn emit_call_operations(
     // frontier this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    // The mutable primitive locals this sequence establishes. Their places
-    // live in the shared private roster; this roster keys later stores to
-    // them by authored symbol, as the ordinary machine's roster does.
-    let mut primitive_locals = Vec::<PrimitiveLocal>::new();
+    // The state's `mut` formal storage and the mutable primitive locals this
+    // sequence establishes. Their places live in the shared private roster;
+    // this roster keys later stores to them by authored symbol, as the
+    // ordinary machine's roster does.
+    let mut primitive_locals: Vec<PrimitiveLocal> = evaluation.parameter_storage.clone();
     // A returned final expression evaluates in the `Return` role.
     let scalar_result = match &state.terminator {
         checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {

@@ -157,17 +157,6 @@ pub(super) fn emit_prefix(
         structural_types,
         place_observations,
     );
-    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
-    for (position, parameter) in state.scalar_parameters.iter().enumerate() {
-        let source = &checked.state_parameters(authored)[parameter.source_position as usize];
-        if source.is_mutable {
-            bindings.initialize_parameter(
-                source.symbol,
-                terminal_scalar_type(parameter.primitive_type)?,
-                position,
-            )?;
-        }
-    }
     let mut immutable_ordinal = 0;
     for binding in &state.bindings {
         let expression = bindings.expression_at(

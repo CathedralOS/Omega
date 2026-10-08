@@ -9,10 +9,10 @@
 //! publishes the new place in the evaluation's primitive storage, so later
 //! reads, stores and borrows name the place rather than the initializer value.
 //! Each route keeps the returned referent in its own roster and declares its
-//! place with the rest of the body's places. An ordinary body's `mut` scalar
-//! formal is the same storage, established before the first statement from
-//! the incoming value (`establish_parameter_storage`); checking reads such a
-//! formal only as `StorageRead` of its symbol.
+//! place with the rest of the body's places. A `mut` scalar formal of an
+//! ordinary body or a composed state is the same storage, established before
+//! the first statement from the arriving value (`establish_parameter_storage`);
+//! checking reads such a formal only as `StorageRead` of its symbol.
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
@@ -27,6 +27,7 @@ use checked_trees::statement::{StatementNode, TableLocalData};
 
 pub(super) mod unit_calls;
 
+#[derive(Clone, Copy)]
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub declaration: StructuralPlaceDeclaration,
@@ -154,9 +155,10 @@ pub(super) struct ParameterStorage {
     pub(super) scalar_type: semantic_vocabulary::ScalarType,
 }
 
-/// Establish storage for each `mut` scalar formal of an ordinary body,
-/// initialized from the formal's incoming value. Checking reads such a formal
-/// only through its storage, so the storage dominates every statement, as a
+/// Establish storage for each `mut` scalar formal of an ordinary body or a
+/// composed state, initialized from the formal's incoming value. Checking
+/// reads such a formal only through its storage, so the storage dominates
+/// every statement, as a
 /// `let mut` local's establishment dominates the statements after its
 /// declaration. Later reads, stores and borrows name this place; the incoming
 /// value is never read again.

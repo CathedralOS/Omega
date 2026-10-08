@@ -1117,27 +1117,6 @@ impl ScalarBindings {
         })
     }
 
-    pub(crate) fn initialize_parameter(
-        &mut self,
-        symbol: symbols::SymbolHandle,
-        scalar_type: ScalarType,
-        position: usize,
-    ) -> Result<(), LoweringError> {
-        if self.immutable_position(position)? != position {
-            return unsupported("mutable parameter storage has no exact entry operand");
-        }
-        self.append(
-            checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol },
-            scalar_type,
-            position,
-        )?;
-        // Keep ordinal slots for subsequent immutable locals, but never let
-        // a mutable formal be read through the immutable entry-value path.
-        self.immutable[position] = None;
-        self.authored[position] = None;
-        Ok(())
-    }
-
     pub(crate) fn append(
         &mut self,
         destination: checked_trees::CheckedScalarBindingDestination,

@@ -75,6 +75,10 @@ pub(crate) struct Evaluation {
         symbols::SymbolHandle,
         Vec<(u32, checked_trees::CheckedScalarComputationHandle)>,
     )>,
+    /// A composed state's `mut` scalar formal storage. Every operation
+    /// sequence the state emits stores into it by the formal's symbol, as
+    /// it does into a `let mut` local the sequence establishes.
+    pub(crate) parameter_storage: Vec<super::primitive_locals::PrimitiveLocal>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// The body's scalar binding namespace: authored formals and locals on
     /// their dense values. Each route installs its entry namespace before it
@@ -280,6 +284,7 @@ impl Evaluation {
             place_observations: self.place_observations.clone(),
             computation_address_roots: self.computation_address_roots.clone(),
             primitive_storage: self.primitive_storage.clone(),
+            parameter_storage: self.parameter_storage.clone(),
             scalar_bindings: self.scalar_bindings.clone(),
             structural_parameters: self.structural_parameters.clone(),
             structural_fields: self.structural_fields.clone(),
@@ -856,6 +861,7 @@ impl Evaluation {
             place_observations: std::sync::Arc::from([]),
             computation_address_roots: Vec::new(),
             primitive_storage: Vec::new(),
+            parameter_storage: Vec::new(),
             scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
                 std::iter::empty(),
             ),

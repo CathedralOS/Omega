@@ -227,6 +227,19 @@ impl<'a> UnitBody<'a> {
         )
     }
 
+    /// Entry storage for every `mut` scalar formal the body's states take.
+    pub(crate) fn parameter_storage(
+        self,
+    ) -> impl Iterator<Item = &'a checked_trees::CheckedUnitParameterStoragePlan> {
+        let (ordinary, composed) = match self {
+            Self::Ordinary(plan) => (plan.parameter_storage.as_slice(), &[][..]),
+            Self::Composed(plan) => (&[][..], plan.states.as_slice()),
+        };
+        ordinary
+            .iter()
+            .chain(composed.iter().flat_map(|state| &state.parameter_storage))
+    }
+
     pub(crate) fn attachment(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(plan) => plan.attachment_type_identity.as_deref(),

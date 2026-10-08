@@ -145,6 +145,7 @@ impl StateGraphEmission<'_, '_> {
                 &mut self.catalogs.next_place,
             )?,
             primitive_storage: Vec::new(),
+            parameter_storage: Vec::new(),
             scalar_bindings: crate::expression_preparation::bindings::ScalarBindings::new(
                 std::iter::empty(),
             ),
@@ -181,6 +182,35 @@ impl StateGraphEmission<'_, '_> {
                 &evaluation.structural_parameters,
             )?;
         let mut values = self.state_values[position].clone();
+        // A `mut` scalar formal owns storage from arrival: the state
+        // establishes it from the arriving value before its first statement,
+        // as an ordinary body does, so the formal's stores, loans and later
+        // reads all name one place. Its operation sequences store into it by
+        // symbol (`Evaluation::parameter_storage`).
+        let parameter_storage =
+            super::super::super::super::primitive_locals::establish_parameter_storage(
+                &state.parameter_storage,
+                &state.scalar_parameters,
+                &values,
+                &self.catalogs.type_ids,
+                &self.catalogs.structural_types,
+                &mut self.catalogs.next_place,
+                &mut operations,
+            )?;
+        for storage in &parameter_storage {
+            self.catalogs
+                .temporary_places
+                .push(storage.local.declaration);
+            evaluation.primitive_storage.push((
+                storage.local.symbol,
+                storage.local.declaration.id,
+                storage.scalar_type,
+            ));
+        }
+        evaluation.parameter_storage = parameter_storage
+            .iter()
+            .map(|storage| storage.local)
+            .collect();
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
         let mut next_edge = self.catalogs.next_edge;
@@ -218,6 +248,18 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
         )?;
         evaluation.scalar_bindings = bindings.clone();
+        // A loan of a `mut` formal lends its storage, never a home rebuilt
+        // from the arriving value.
+        for storage in &parameter_storage {
+            evaluation.scalar_bindings.register_scalar_parameter_home(
+                u32::try_from(storage.position).map_err(|_| {
+                    LoweringError::Unsupported("parameter storage position exceeds u32")
+                })?,
+                storage.local.declaration.id,
+                storage.scalar_type,
+                terminal_psi::StructuralAccess::MutableBorrow,
+            )?;
+        }
         evaluation.structural_types = self.catalogs.structural_types.as_ref().into();
         evaluation.structural_fields =
             crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(

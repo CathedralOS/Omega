@@ -2654,17 +2654,6 @@ code and preserve check/native behavior for the named customer slices.
   for the callee's Unit-body exit. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
-- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Neither stage has a scalar
-  graph: stage 05 lowers every scalar machine through its Unit or composed
-  body, and stage 04 builds no graph plans. Left: a composed state keeps a
-  `mut` scalar formal as an SSA value in its binding prefix, so it refuses
-  the formal's later stores and borrows; give it the entry storage an
-  ordinary body takes from `CheckedUnitParameterStoragePlan`.
-
-  Acceptance: a composed machine whose later state assigns and borrows a
-  `mut` scalar formal runs natively; the full check corpus and the native
-  corpus are unchanged.
-
 - **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 still builds nominal
   cleanup twice: the Unit candidates pass in
   `execution/terminal_unit/mod.rs` builds free `drop<T>` consumers on the
@@ -2700,8 +2689,12 @@ code and preserve check/native behavior for the named customer slices.
   scalar-array and structural-value forms. Stage 05 handles them at about
   eight sites (`operation_frame::establish_scalar_local` and
   `establish_structural_local`, `primitive_locals`, `ordinary_machine/locals`,
-  `structural_values/locals`, `byte_locals`, `emission::emit_scalar_binding`). Replace them with one local-binding
-  operation keyed by the value's representation. Acceptance: one binding
+  `structural_values/locals`, `byte_locals`, `emission::emit_scalar_binding`).
+  A composed state also binds its leading immutable scalar locals as SSA
+  values before its operations (`CheckedComposedUnitControlStatePlan::bindings`,
+  stage 05 `composed_control/state_graph/scalars.rs::emit_prefix`), a second
+  route for what its statement sequence already lowers. Replace them with one
+  local-binding operation keyed by the value's representation. Acceptance: one binding
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
 

@@ -394,26 +394,14 @@ pub(super) fn build_traced(
         )
         .unwrap_or_default()
         .into_iter()
-        // Entry scalar parameters already own current-value slots. Their
-        // assignments use the same ordered SSA binding owner as immutable
-        // locals. Mutable local declarations instead establish addressable
-        // homes in ordinary sequencing; never split those initializers away
-        // from the later reads, assignments, and loans that need the home.
+        // Only immutable locals bind as SSA values. A `mut` local or formal
+        // owns addressable storage that ordinary sequencing establishes
+        // (`parameter_storage` below for a formal); its assignments are
+        // stores into that storage, never split away from the later reads,
+        // assignments and loans that need it.
         .take_while(|binding| {
             binding.value == CheckedScalarBindingValue::Expression
-                && match binding.destination {
-                    checked_trees::CheckedScalarBindingDestination::Immutable => true,
-                    checked_trees::CheckedScalarBindingDestination::StorageAssign { symbol } => {
-                        program.state_parameters(state).iter().any(|parameter| {
-                            parameter.symbol == symbol
-                                && crate::values::mutable_scalar_parameter_type(program, parameter)
-                                    == Some(binding.primitive_type)
-                        })
-                    }
-                    checked_trees::CheckedScalarBindingDestination::StorageInitialize {
-                        ..
-                    } => false,
-                }
+                && binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
         })
         // An atomic load or result placeholder is an event, not a pure prefix.
         .take_while(|binding| {
@@ -484,6 +472,15 @@ pub(super) fn build_traced(
         // composed states, so the sequence sees none and rewrites no
         // parameter identity; the signature stays the one recorded above.
         let mut sequence_structural = structural.clone();
+        trace.phase("state graph: parameter storage");
+        // Composed graphs admit no machine binders (see the entry guard).
+        let parameter_storage = crate::execution::terminal_unit::types::parameter_storage_plans(
+            program,
+            shapes,
+            state,
+            &[],
+            scalar,
+        )?;
         let sequence = control::statement_sequence::build(
             program,
             facts,
@@ -493,9 +490,7 @@ pub(super) fn build_traced(
             state,
             &mut sequence_structural,
             scalar,
-            // A composed state carries a `mut` scalar formal as an SSA value,
-            // not storage, so none of its stores may write one.
-            &[],
+            &parameter_storage,
             &state_entry_claims[state_index],
             &calls,
             &[],
@@ -600,6 +595,7 @@ pub(super) fn build_traced(
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
+            parameter_storage,
             erased_scalar_parameters:
                 crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
                     program, state,

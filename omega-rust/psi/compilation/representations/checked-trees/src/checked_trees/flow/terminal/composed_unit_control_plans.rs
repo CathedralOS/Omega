@@ -133,6 +133,12 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Entry storage for each `mut` scalar formal, established from the
+    /// arriving value before the state's first statement, exactly as an
+    /// ordinary body's (`CheckedUnitEffectMachinePlan::parameter_storage`).
+    /// Checking reads such a formal only as `StorageRead` of its symbol, so
+    /// its assignments, borrows and later reads name this storage.
+    pub parameter_storage: Vec<super::CheckedUnitParameterStoragePlan>,
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
