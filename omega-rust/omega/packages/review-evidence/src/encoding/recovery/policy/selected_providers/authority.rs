@@ -15,11 +15,10 @@ pub(in crate::encoding::recovery) fn authority(
         progress_premises: reader.sequence(58, |reader| {
             Ok(PackagePolicyServiceProgressPremise {
                 profile: nominal(reader)?,
-                subject: match reader.byte()? {
+                subject: super::super::tag!(reader => {
                     0 => ServiceProgressSubject::ProviderReceiver,
                     1 => ServiceProgressSubject::Parameter(reader.usize()?),
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
                 subject_projections: reader.sequence(41, nominal)?,
                 establishment_routes: reader.sequence(83, |reader| {
                     Ok(PackagePolicyServiceProgressRoute {

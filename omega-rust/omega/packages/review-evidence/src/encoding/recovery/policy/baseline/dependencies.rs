@@ -32,11 +32,10 @@ pub(in crate::encoding::recovery) fn semantic_dependency(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicySemanticDependency, Error> {
     Ok(PackagePolicySemanticDependency {
-        consumer: match reader.byte()? {
+        consumer: super::super::tag!(reader => {
             0 => PackagePolicySemanticDependencyConsumer::Callable(nominal(reader)?),
             1 => PackagePolicySemanticDependencyConsumer::PackageImplementation,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         dependency: nominal(reader)?,
         kind: super::super::tag!(reader => {
             0 => PackageReviewSemanticDependencyKind::NominalIdentity,

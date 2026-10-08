@@ -4,17 +4,15 @@ use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishme
 pub(in crate::encoding::recovery) fn alias_atom(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainAliasAtom, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackageReviewDomainAliasAtom::Declared(nominal(reader)?),
-        1 => PackageReviewDomainAliasAtom::Carry(match reader.byte()? {
+        1 => PackageReviewDomainAliasAtom::Carry(super::super::tag!(reader => {
             0 => language_semantics::CarryPermission::AcrossSuspend,
             1 => language_semantics::CarryPermission::AnyCpu,
             2 => language_semantics::CarryPermission::AnyThread,
             3 => language_semantics::CarryPermission::MovableAddress,
-            _ => return Err(Error::InvalidTag),
-        }),
-        _ => return Err(Error::InvalidTag),
-    })
+        })),
+    }))
 }
 
 /// Minimum route size is tag + nominal owner tag/digest + empty path length:
@@ -22,7 +20,7 @@ pub(in crate::encoding::recovery) fn alias_atom(
 pub(in crate::encoding::recovery) fn establishment_route(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackageReviewDomainEstablishmentRoute::CheckedRequirement {
             trait_identity: nominal(reader)?,
             requirement_identity: nominal(reader)?,
@@ -34,6 +32,5 @@ pub(in crate::encoding::recovery) fn establishment_route(
         2 => PackageReviewDomainEstablishmentRoute::ExactMachine {
             machine_identity: nominal(reader)?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

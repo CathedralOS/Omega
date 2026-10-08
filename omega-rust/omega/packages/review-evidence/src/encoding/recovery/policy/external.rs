@@ -55,7 +55,7 @@ pub(in crate::encoding::recovery) fn external_signature(
 pub(in crate::encoding::recovery) fn requirement(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyExternalRequirement, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackagePolicyExternalRequirement::Trait(callable_conformance(reader)?),
         1 => PackagePolicyExternalRequirement::Operator {
             coordinate: operator_coordinate(reader)?,
@@ -66,14 +66,13 @@ pub(in crate::encoding::recovery) fn requirement(
             signature: external_signature(reader)?,
             alias: reader.option(Reader::string)?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn binding(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyExternalBinding, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         // Tag 0 carried the retired string-backed import row. A policy that
         // still uses it is a stale artifact: reject it by name rather than
         // reinterpreting two authored strings as a physical locator.
@@ -101,8 +100,7 @@ pub(in crate::encoding::recovery) fn binding(
             number: reader.i64()?,
             producer: producer(reader)?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
@@ -129,7 +127,7 @@ pub(in crate::encoding::recovery) fn producer(
 pub(in crate::encoding::recovery) fn locator(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewForeignLocator, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackageReviewForeignLocator::PeByName {
             library: reader.bytes()?,
             export: reader.bytes()?,
@@ -147,8 +145,7 @@ pub(in crate::encoding::recovery) fn locator(
             install_name: reader.bytes()?,
             symbol: reader.bytes()?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 #[cfg(test)]

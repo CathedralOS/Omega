@@ -24,11 +24,10 @@ pub(in crate::encoding::recovery) fn domain_shape(
         }),
         predicate_facts: reader.sequence(2, contract_fact)?,
         alias_expansion: reader.option(|reader| reader.sequence(2, alias_atom))?,
-        classification: match reader.byte()? {
+        classification: super::super::tag!(reader => {
             0 => None,
             1 => Some(PackageReviewDomainClassification::ProgressProfile),
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         semantic_roles: reader.sequence(1, |reader| {
             Ok(super::super::tag!(reader => {
                 0 => PackageReviewDomainSemanticRole::DenotationDimension,

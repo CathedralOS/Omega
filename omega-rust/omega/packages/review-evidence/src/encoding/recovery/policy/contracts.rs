@@ -18,7 +18,7 @@ use crate::record::{
 pub(in crate::encoding::recovery) fn callable_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableContract, Error> {
-    let (kind, result_case) = match reader.byte()? {
+    let (kind, result_case) = super::tag!(reader => {
         0 => (PackageReviewContractKind::Requires, None),
         1 => (PackageReviewContractKind::Ensures, None),
         2 => (
@@ -28,8 +28,7 @@ pub(in crate::encoding::recovery) fn callable_contract(
                 result_case: nominal(reader)?,
             }),
         ),
-        _ => return Err(Error::InvalidTag),
-    };
+    });
     Ok(PackageReviewCallableContract {
         kind,
         result_case,
@@ -42,7 +41,7 @@ pub(in crate::encoding::recovery) fn callable_contract(
 pub(in crate::encoding::recovery) fn contract_fact(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractFact, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackageReviewContractFact::Expression(expression(reader)?),
         1 => PackageReviewContractFact::Membership {
             value: expression(reader)?,
@@ -55,8 +54,7 @@ pub(in crate::encoding::recovery) fn contract_fact(
                 arguments: reader.sequence(1, expression)?,
             },
         ),
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn proposition_application(
@@ -68,11 +66,10 @@ pub(in crate::encoding::recovery) fn proposition_application(
         parameter_types: reader.sequence(8, type_identity)?,
         binder_arguments: reader.sequence(2, binder_argument)?,
         arguments: reader.sequence(1, expression)?,
-        evidence: match reader.byte()? {
+        evidence: super::tag!(reader => {
             0 => PackageReviewPropositionEvidence::FactOnly,
             1 => PackageReviewPropositionEvidence::Witness(evidence_interface(reader)?),
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 
@@ -84,36 +81,33 @@ pub(in crate::encoding::recovery) fn binder_argument(
         1 => PackageReviewPropositionBinderArgumentKind::Const,
         2 => PackageReviewPropositionBinderArgumentKind::Machine,
     });
-    let value = match reader.byte()? {
+    let value = super::tag!(reader => {
         0 => PackageReviewPropositionBinderValue::Type(type_identity(reader)?),
         1 => PackageReviewPropositionBinderValue::GenericBinder(reader.u32()?),
         2 => PackageReviewPropositionBinderValue::Integer(reader.string()?),
         3 => PackageReviewPropositionBinderValue::EvidenceProjection {
-            source_kind: match reader.byte()? {
+            source_kind: super::tag!(reader => {
                 0 => PackageReviewContractKind::Requires,
                 1 => PackageReviewContractKind::Ensures,
-                _ => return Err(Error::InvalidTag),
-            },
+            }),
             source_lane_position: reader.u32()?,
             declaring_trait: nominal(reader)?,
             declaring_trait_arguments: reader.sequence(8, type_identity)?,
             requirement: nominal(reader)?,
         },
         4 => PackageReviewPropositionBinderValue::Machine(nominal(reader)?),
-        _ => return Err(Error::InvalidTag),
-    };
+    });
     Ok(PackageReviewPropositionBinderArgument { kind, value })
 }
 
 pub(in crate::encoding::recovery) fn proposition_binder(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionBinder, Error> {
-    let kind = match reader.byte()? {
+    let kind = super::tag!(reader => {
         0 => PackageReviewPropositionBinderKind::Type,
         1 => PackageReviewPropositionBinderKind::Const(type_identity(reader)?),
         2 => PackageReviewPropositionBinderKind::Machine,
-        _ => return Err(Error::InvalidTag),
-    };
+    });
     Ok(PackageReviewPropositionBinder {
         kind,
         bounds: data_properties(reader)?,

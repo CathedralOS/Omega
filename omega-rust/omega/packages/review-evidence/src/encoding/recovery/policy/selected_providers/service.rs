@@ -36,13 +36,12 @@ pub(in crate::encoding::recovery) fn method(
                 }),
             })
         })?,
-        completion: match reader.byte()? {
+        completion: super::super::tag!(reader => {
             0 => semantic_vocabulary::BoundaryCompletion::NormalReturn,
             1 => semantic_vocabulary::BoundaryCompletion::External(
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit,
             ),
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
         result_claims: reader.sequence(12, |reader| {
@@ -59,11 +58,10 @@ pub(in crate::encoding::recovery) fn method(
         termination_premises: reader.sequence(25, |reader| {
             Ok(ServiceProgressPremise {
                 profile: reader.string()?,
-                subject: match reader.byte()? {
+                subject: super::super::tag!(reader => {
                     0 => ServiceProgressSubject::ProviderReceiver,
                     1 => ServiceProgressSubject::Parameter(reader.usize()?),
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
                 subject_projections: reader.sequence(8, Reader::string)?,
                 establishment_routes: reader.sequence(9, |reader| {
                     Ok(ServiceProgressEstablishmentRoute {

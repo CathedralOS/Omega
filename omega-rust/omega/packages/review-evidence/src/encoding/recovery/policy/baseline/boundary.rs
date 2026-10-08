@@ -37,7 +37,7 @@ pub(in crate::encoding::recovery) fn applications(
                 requirement_identity: reader.string()?,
                 application: application(reader)?,
                 selected_plan_index: reader.u32()?,
-                realization: match reader.byte()? {
+                realization: super::super::tag!(reader => {
                     0 => PackagePolicyBoundaryRealization::NongenericCheckedBody {
                         declaration: nominal(reader)?,
                         realization: nominal(reader)?,
@@ -49,8 +49,7 @@ pub(in crate::encoding::recovery) fn applications(
                     2 => PackagePolicyBoundaryRealization::ExactCompilerIntrinsic {
                         execution: intrinsic::execution(reader)?,
                     },
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
             })
         })?,
     })
@@ -59,10 +58,10 @@ pub(in crate::encoding::recovery) fn applications(
 pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBoundaryApplication, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackageReviewBoundaryApplication::Empty,
         1 => PackageReviewBoundaryApplication::Exact(reader.sequence(1, |reader| {
-            Ok(match reader.byte()? {
+            Ok(super::super::tag!(reader => {
                 0 => PackageReviewBoundaryApplicationArgument::Type {
                     binder_ordinal: reader.u32()?,
                     type_identity: type_identity(reader)?,
@@ -73,9 +72,7 @@ pub(in crate::encoding::recovery) fn application(
                     value_type: reader.string()?,
                     value_encoding: reader.string()?,
                 },
-                _ => return Err(Error::InvalidTag),
-            })
+            }))
         })?),
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

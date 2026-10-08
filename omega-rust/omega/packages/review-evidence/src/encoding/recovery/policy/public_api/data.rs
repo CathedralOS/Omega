@@ -14,14 +14,13 @@ pub(in crate::encoding::recovery) fn data_shape(
 ) -> Result<PackagePolicyDataShape, Error> {
     Ok(PackagePolicyDataShape {
         identity: nominal(reader)?,
-        kind: match reader.byte()? {
+        kind: super::super::tag!(reader => {
             0 => PackageReviewDataKind::Ordinary,
             1 => PackageReviewDataKind::Quotient {
                 carrier: type_identity(reader)?,
                 relation: nominal(reader)?,
             },
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         supply: super::super::tag!(reader => {
             0 => language_semantics::DataSupplyMode::CheckedShape,
             1 => language_semantics::DataSupplyMode::BoundaryOpaque,

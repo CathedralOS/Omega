@@ -15,12 +15,11 @@ pub(in crate::encoding::recovery) fn proposition_shape(
         identity: nominal(reader)?,
         binders: reader.sequence(3, proposition_binder)?,
         parameter_types: reader.sequence(8, type_identity)?,
-        body: match reader.byte()? {
+        body: super::super::tag!(reader => {
             0 => PackageReviewPublicPropositionBody::Primitive,
             1 => PackageReviewPublicPropositionBody::Witness(evidence_interface(reader)?),
             2 => PackageReviewPublicPropositionBody::Transparent(contract_fact(reader)?),
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 

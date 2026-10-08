@@ -4,7 +4,7 @@ use crate::record::{PackageReviewDataField, PackageReviewDataMember};
 pub(in crate::encoding::recovery) fn data_member(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataMember, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackageReviewDataMember::Field(data_field(reader)?),
         1 => PackageReviewDataMember::Variant {
             identity: reader.option(|reader| reader.u64())?,
@@ -12,8 +12,7 @@ pub(in crate::encoding::recovery) fn data_member(
             payload: reader.sequence(18, data_field)?,
             retired_payload_identities: reader.sequence(8, |reader| reader.u64())?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn data_field(

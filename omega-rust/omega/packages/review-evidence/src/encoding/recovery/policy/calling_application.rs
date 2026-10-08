@@ -51,7 +51,7 @@ pub(in crate::encoding::recovery) fn application(
         native_parameters: reader.sequence(15, |reader| {
             Ok(PackagePolicyNativeParameter {
                 name: reader.string()?,
-                origin: match reader.byte()? {
+                origin: super::tag!(reader => {
                     0 => PackagePolicyNativeParameterOrigin::SemanticFormal {
                         formal_ordinal: reader.u32()?,
                         shape_root: reader.u16()?,
@@ -61,8 +61,7 @@ pub(in crate::encoding::recovery) fn application(
                         byte_size: reader.u16()?,
                         alignment: reader.u16()?,
                     },
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
             })
         })?,
         callbacks: callbacks::decode(reader)?,

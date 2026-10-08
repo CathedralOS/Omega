@@ -44,19 +44,17 @@ pub(in crate::encoding::recovery) fn crash(
         published: reader.sequence(9, crash_route)?,
         structural_runtime_requirements: reader
             .option(|reader| reader.sequence(1, boolean_expression))?,
-        inferred: match reader.byte()? {
+        inferred: super::super::tag!(reader => {
             0 => PackagePolicyInferredCrash::Unknown,
             1 => PackagePolicyInferredCrash::Complete {
                 causes: reader.sequence(1, |reader| {
-                    Ok(match reader.byte()? {
+                    Ok(super::super::tag!(reader => {
                         0 => PackageReviewCrashCause::Trap,
                         1 => PackageReviewCrashCause::Abort,
-                        _ => return Err(Error::InvalidTag),
-                    })
+                    }))
                 })?,
             },
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 
@@ -69,11 +67,10 @@ pub(in crate::encoding::recovery) fn crash_route(
             1 => PackageReviewCrashCause::Abort,
         }),
         alternative_guards: reader.sequence(1, |reader| {
-            Ok(match reader.byte()? {
+            Ok(super::super::tag!(reader => {
                 0 => PackagePolicyCrashGuard::Truth,
                 1 => PackagePolicyCrashGuard::Expression(expression(reader)?),
-                _ => return Err(Error::InvalidTag),
-            })
+            }))
         })?,
     })
 }
@@ -93,17 +90,16 @@ pub(in crate::encoding::recovery) fn mutation(
 pub(in crate::encoding::recovery) fn termination(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyTermination, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackagePolicyTermination::NoGuarantee,
         1 => PackagePolicyTermination::Terminates {
             premises: reader.sequence(1, |reader| {
                 Ok(PackagePolicyProgressPremise {
                     profile: nominal(reader)?,
-                    subject: match reader.byte()? {
+                    subject: super::super::tag!(reader => {
                         0 => PackageReviewProgressSubject::Declaration(nominal(reader)?),
                         2 => PackageReviewProgressSubject::Parameter(reader.u32()?),
-                        _ => return Err(Error::InvalidTag),
-                    },
+                    }),
                     projections: reader.sequence(41, nominal)?,
                     establishment_routes: reader.sequence(83, |reader| {
                         use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
@@ -119,6 +115,5 @@ pub(in crate::encoding::recovery) fn termination(
                 })
             })?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

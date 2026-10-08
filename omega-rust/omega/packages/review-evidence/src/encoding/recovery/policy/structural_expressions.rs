@@ -17,7 +17,7 @@ pub(in crate::encoding::recovery) fn boolean_expression(
 ) -> Result<PackageReviewBooleanExpression, Error> {
     reader.nested(|reader| {
         use PackageReviewBooleanExpression as Expression;
-        Ok(match reader.byte()? {
+        Ok(super::tag!(reader => {
             0 => Expression::Constant(reader.boolean()?),
             1 => Expression::Parameter {
                 position: reader.usize()?,
@@ -75,8 +75,7 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 left: reader.boxed(scalar_expression)?,
                 right: reader.boxed(scalar_expression)?,
             },
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }
 
@@ -106,18 +105,17 @@ pub(in crate::encoding::recovery) fn structural_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<PackageReviewStructuralPredicatePathSegment>, Error> {
     reader.sequence(9, |reader| {
-        Ok(match reader.byte()? {
+        Ok(super::tag!(reader => {
             0 => PackageReviewStructuralPredicatePathSegment::Field(reader.string()?),
             1 => PackageReviewStructuralPredicatePathSegment::Case(reader.string()?),
             2 => PackageReviewStructuralPredicatePathSegment::FixedIndex(reader.u64()?),
             3 => PackageReviewStructuralPredicatePathSegment::RuntimeIndex(runtime_index(reader)?),
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }
 
 fn runtime_index(reader: &mut Reader<'_>) -> Result<PackageReviewRuntimeIndex, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackageReviewRuntimeIndex::Parameter {
             position: reader.u32()?,
         },
@@ -131,6 +129,5 @@ fn runtime_index(reader: &mut Reader<'_>) -> Result<PackageReviewRuntimeIndex, E
         3 => PackageReviewRuntimeIndex::Local {
             position: reader.u32()?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

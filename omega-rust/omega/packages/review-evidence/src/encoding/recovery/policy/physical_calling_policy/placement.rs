@@ -9,7 +9,7 @@ use crate::record::{
 pub(in crate::encoding::recovery) fn value_placement(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBoundaryValuePlacement, Error> {
-    let class = match reader.byte()? {
+    let class = super::super::tag!(reader => {
         0 => Class::Integer,
         1 => Class::Float,
         2 => Class::HomogeneousFloatAggregate {
@@ -21,8 +21,7 @@ pub(in crate::encoding::recovery) fn value_placement(
         },
         4 => Class::BorrowedReference,
         5 => Class::BorrowedScalarReference,
-        _ => return Err(Error::InvalidTag),
-    };
+    });
     Ok(PackageReviewBoundaryValuePlacement {
         shape: PackageReviewBoundaryValueShape {
             class,
@@ -43,7 +42,7 @@ pub(in crate::encoding::recovery) fn eightbyte(
 }
 
 pub(in crate::encoding::recovery) fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => Location::Register {
             register: register(reader)?,
             value_byte_offset: reader.u32()?,
@@ -56,24 +55,22 @@ pub(in crate::encoding::recovery) fn location(reader: &mut Reader<'_>) -> Result
             alignment: reader.u16()?,
         },
         2 => Location::Indirect {
-            pointer: match reader.byte()? {
+            pointer: super::super::tag!(reader => {
                 0 => Pointer::Register(register(reader)?),
                 1 => Pointer::Stack {
                     stack_byte_offset: reader.u32()?,
                     alignment: reader.u16()?,
                 },
-                _ => return Err(Error::InvalidTag),
-            },
+            }),
             copy_stack_byte_offset: reader.option(Reader::u32)?,
             byte_size: reader.u32()?,
             alignment: reader.u16()?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn register(reader: &mut Reader<'_>) -> Result<Register, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => Register::X86Rax,
         1 => Register::X86Rcx,
         2 => Register::X86Rdx,
@@ -93,6 +90,5 @@ pub(in crate::encoding::recovery) fn register(reader: &mut Reader<'_>) -> Result
         16 => Register::X86Xmm(reader.byte()?),
         17 => Register::Aarch64X(reader.byte()?),
         18 => Register::Aarch64V(reader.byte()?),
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

@@ -6,7 +6,7 @@ pub(in crate::encoding::recovery) fn binding(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyProviderBinding, Error> {
     use PackagePolicyProviderBinding as Binding;
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         // Tag 0 carried the retired string-backed import bootstrap. A row
         // that still uses it is a stale artifact: reject it by name rather
         // than reinterpreting two authored strings as a physical locator.
@@ -45,6 +45,5 @@ pub(in crate::encoding::recovery) fn binding(
             locator: locator(reader)?,
             producer: producer(reader)?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

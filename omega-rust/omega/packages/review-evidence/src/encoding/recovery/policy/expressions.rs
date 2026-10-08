@@ -20,7 +20,7 @@ pub(in crate::encoding::recovery) fn expression(
 ) -> Result<PackageReviewContractExpression, Error> {
     reader.nested(|reader| {
         use PackageReviewContractExpression as Expression;
-        Ok(match reader.byte()? {
+        Ok(super::tag!(reader => {
             0 => Expression::Boolean(reader.boolean()?),
             1 => Expression::Integer(reader.string()?),
             2 => Expression::Parameter(reader.u32()?),
@@ -96,11 +96,10 @@ pub(in crate::encoding::recovery) fn expression(
             18 => Expression::CollectionLength {
                 collection: reader.boxed(expression)?,
             },
-            19 => Expression::Float(match reader.byte()? {
+            19 => Expression::Float(super::tag!(reader => {
                 0 => PackageReviewFloatLiteral::F32(reader.u32()?),
                 1 => PackageReviewFloatLiteral::F64(reader.u64()?),
-                _ => return Err(Error::InvalidTag),
-            }),
+            })),
             20 => Expression::Reference {
                 access: super::tag!(reader => {
                     0 => PackageReviewReferenceAccess::Shared,
@@ -119,7 +118,7 @@ pub(in crate::encoding::recovery) fn expression(
                     value: reader.boxed(expression)?,
                     ordering,
                 }
-            }
+            },
             22 => Expression::CaseMembership {
                 subject: reader.boxed(expression)?,
                 case: nominal(reader)?,
@@ -127,8 +126,7 @@ pub(in crate::encoding::recovery) fn expression(
             23 => Expression::CollectionCapacity {
                 collection: reader.boxed(expression)?,
             },
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }
 
@@ -175,13 +173,12 @@ pub(in crate::encoding::recovery) fn call_target(
 ) -> Result<PackageReviewContractCallTarget, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewContractCallTarget::Nominal(nominal(reader)?),
-        1 => PackageReviewContractCallTarget::ByteSequencePredicate(match reader.byte()? {
+        1 => PackageReviewContractCallTarget::ByteSequencePredicate(super::tag!(reader => {
             0 => PackageReviewByteSequencePredicate::ValidUtf8,
             1 => PackageReviewByteSequencePredicate::NoNul,
             2 => PackageReviewByteSequencePredicate::AsciiOnly,
             3 => PackageReviewByteSequencePredicate::NonEmpty,
-            _ => return Err(Error::InvalidTag),
-        }),
+        })),
         2 => PackageReviewContractCallTarget::BuiltinFunction(
             BuiltinFunction::from_ordinal(usize::from(reader.u16()?)).ok_or(Error::InvalidTag)?,
         ),
@@ -226,7 +223,7 @@ pub(in crate::encoding::recovery) fn static_argument(
 ) -> Result<PackageReviewContractStaticArgument, Error> {
     reader.nested(|reader| {
         use PackageReviewContractStaticArgument as Argument;
-        Ok(match reader.byte()? {
+        Ok(super::tag!(reader => {
             0 => Argument::Type(type_identity(reader)?),
             1 => Argument::GenericType {
                 base: type_identity(reader)?,
@@ -249,7 +246,6 @@ pub(in crate::encoding::recovery) fn static_argument(
                 declared_type: type_identity(reader)?,
                 canonical_value_encoding: reader.string()?,
             },
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }

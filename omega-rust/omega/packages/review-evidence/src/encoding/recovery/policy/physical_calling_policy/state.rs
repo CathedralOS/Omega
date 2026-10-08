@@ -8,49 +8,45 @@ use crate::record::{
 pub(in crate::encoding::recovery) fn entry_control(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyEntryControl, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackagePolicyEntryControl::CallReturn,
         1 => PackagePolicyEntryControl::SupervisorCall {
             number_register: register(reader)?,
             immediate: reader.u16()?,
         },
         2 => PackagePolicyEntryControl::InterruptReturn,
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn state_plan(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyStatePlan, Error> {
     Ok(PackagePolicyStatePlan {
-        initial_regime: match reader.byte()? {
+        initial_regime: super::super::tag!(reader => {
             0 => PackagePolicyMachineRegime::X86Long64,
             1 => PackagePolicyMachineRegime::Aarch64A64 {
                 exception_level: reader.byte()?,
             },
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         interrupted_state: state_set(reader)?,
         saved_state: state_set(reader)?,
         restored_state: state_set(reader)?,
         permitted_transitive_use: state_set(reader)?,
-        stack: match reader.byte()? {
+        stack: super::super::tag!(reader => {
             0 => PackagePolicyEntryStack::Interrupted,
             1 => PackagePolicyEntryStack::Dedicated {
                 class: reader.u16()?,
             },
             2 => PackagePolicyEntryStack::ProviderSelected,
-            _ => return Err(Error::InvalidTag),
-        },
-        preemption: match reader.byte()? {
+        }),
+        preemption: super::super::tag!(reader => {
             0 => PackagePolicyPreemption::NotApplicable,
             1 => PackagePolicyPreemption::Masked,
             2 => PackagePolicyPreemption::Nestable {
                 maximum_depth: reader.u16()?,
             },
             3 => PackagePolicyPreemption::ProviderDefined,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 

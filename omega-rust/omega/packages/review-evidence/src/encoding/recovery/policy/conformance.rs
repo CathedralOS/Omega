@@ -45,7 +45,7 @@ pub(in crate::encoding::recovery) fn application(
 pub(in crate::encoding::recovery) fn const_argument(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyConformanceConstArgument, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackagePolicyConformanceConstArgument::Evaluated {
             parameter_carrier: type_identity(reader)?,
             declared_carrier: type_identity(reader)?,
@@ -56,6 +56,5 @@ pub(in crate::encoding::recovery) fn const_argument(
             binder: nominal(reader)?,
             binder_carrier: type_identity(reader)?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }

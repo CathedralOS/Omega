@@ -40,7 +40,7 @@ pub(in crate::encoding::recovery) fn graph(
     Ok(PackageReviewBoundaryShapeGraph {
         shapes: reader.sequence(5, |reader| {
             Ok(PackageReviewBoundaryShape {
-                class: match reader.byte()? {
+                class: super::super::tag!(reader => {
                     0 => PackageReviewBoundaryShapeClass::Integer,
                     1 => PackageReviewBoundaryShapeClass::Float,
                     2 => PackageReviewBoundaryShapeClass::Reference,
@@ -52,8 +52,7 @@ pub(in crate::encoding::recovery) fn graph(
                         first_field: reader.u16()?,
                         field_count: reader.u16()?,
                     },
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
                 byte_size: reader.u16()?,
                 alignment: reader.u16()?,
             })

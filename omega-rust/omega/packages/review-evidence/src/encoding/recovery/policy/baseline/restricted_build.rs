@@ -41,12 +41,11 @@ pub(in crate::encoding::recovery) fn grant(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyRestrictedBuildGrant, Error> {
     Ok(PackagePolicyRestrictedBuildGrant {
-        root: match reader.byte()? {
+        root: super::super::tag!(reader => {
             0 => PackagePolicyRestrictedBuildGrantRoot::SourceInventory,
             1 => PackagePolicyRestrictedBuildGrantRoot::StagedOutput,
             2 => PackagePolicyRestrictedBuildGrantRoot::Other(reader.u32()?),
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         narrowed: reader.boolean()?,
         captured: reader.boolean()?,
     })

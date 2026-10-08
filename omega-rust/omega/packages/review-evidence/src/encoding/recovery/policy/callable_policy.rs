@@ -86,14 +86,13 @@ pub(in crate::encoding::recovery) fn callable(
             concrete: reader.sequence(41, nominal)?,
             parameters: reader.sequence(4, |reader| reader.u32())?,
         },
-        checked_service_reach: match reader.byte()? {
+        checked_service_reach: super::tag!(reader => {
             0 => PackageReviewCheckedServiceReach::NoCheckedBody,
             1 => PackageReviewCheckedServiceReach::CheckedBody {
                 realized: reader.sequence(41, nominal)?,
                 concrete: reader.sequence(41, nominal)?,
             },
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         unresolved_installation_reaches: reader.sequence(49, |reader| {
             Ok(PackageReviewInstallationReach {
                 requirement: nominal(reader)?,
