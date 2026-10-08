@@ -293,6 +293,20 @@ fn type_reference_spans_match(
         })
 }
 
+/// The shared parameter-lookup predicate: an authored `symbol` match wins
+/// unconditionally; a `name` fallback applies only when the caller allows it.
+fn find_type_parameter<'a>(
+    type_parameters: &'a [TypeParameter],
+    symbol: &SymbolHandle,
+    name: &crate::name::Identifier,
+    allow_name_fallback: bool,
+) -> Option<&'a TypeParameter> {
+    type_parameters.iter().find(|parameter| {
+        (symbol.is_valid() && parameter.symbol == *symbol)
+            || (allow_name_fallback && parameter.name == *name)
+    })
+}
+
 fn fixed_array_lengths_match(
     program: &TypedTrees,
     actual: &FixedArrayLength,
@@ -304,10 +318,8 @@ fn fixed_array_lengths_match(
     let FixedArrayLength::ConstParameter { symbol, name } = expected else {
         return actual == expected;
     };
-    let Some(parameter) = type_parameters.iter().find(|parameter| {
-        (symbol.is_valid() && parameter.symbol == *symbol)
-            || (allow_name_fallback && parameter.name == *name)
-    }) else {
+    let Some(parameter) = find_type_parameter(type_parameters, symbol, name, allow_name_fallback)
+    else {
         return actual == expected;
     };
     let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind else {
@@ -420,10 +432,7 @@ fn expected_type_parameter<'a>(
             base_symbol: symbol,
             base_name: name,
             ..
-        } => type_parameters.iter().find(|parameter| {
-            (symbol.is_valid() && parameter.symbol == *symbol)
-                || (allow_name_fallback && parameter.name == *name)
-        }),
+        } => find_type_parameter(type_parameters, symbol, name, allow_name_fallback),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Constrained { .. }
         | TypeReferenceNode::FixedArray { .. }
