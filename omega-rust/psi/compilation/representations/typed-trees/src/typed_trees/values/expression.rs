@@ -216,6 +216,21 @@ impl ExpressionTable {
             .all(|arm| visit(arm.pattern, arm.value))
     }
 
+    /// The worklist order for a depth-first walk over `dispatch`: arm values
+    /// in reverse so the first arm pops first off a stack, each `Value`
+    /// pattern after its arm's value, and the subject last.
+    pub fn match_pending(&self, dispatch: &TableMatchExpression) -> Vec<ExpressionHandle> {
+        let mut pending = Vec::new();
+        for arm in self.match_arms(dispatch.arms).iter().rev() {
+            pending.push(arm.value);
+            if let MatchPattern::Value(pattern) = arm.pattern {
+                pending.push(pattern);
+            }
+        }
+        pending.push(dispatch.subject);
+        pending
+    }
+
     pub fn new() -> Self {
         Self::with_expression_capacity(0)
     }

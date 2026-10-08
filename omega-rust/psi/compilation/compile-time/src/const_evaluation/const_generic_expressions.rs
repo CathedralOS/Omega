@@ -575,18 +575,7 @@ pub(super) fn expression_custody(
         } else if let ExpressionNode::Match(dispatch) =
             program.expression_table.expression(expression)
         {
-            for arm in program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .iter()
-                .rev()
-            {
-                pending.push(arm.value);
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    pending.push(pattern);
-                }
-            }
-            pending.push(dispatch.subject);
+            pending.extend(program.expression_table.match_pending(dispatch));
         }
     }
     Ok((origins, operators))
