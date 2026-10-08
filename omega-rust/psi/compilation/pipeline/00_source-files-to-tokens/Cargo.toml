@@ -11,5 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
+rayon = "1.10"
 source = { path = "../../../foundation/source" }
 tokens = { path = "../../representations/tokens" }

@@ -6,6 +6,7 @@
 
 use arena::Arena;
 use diagnostics::Diagnostic;
+use rayon::prelude::*;
 use source::{
     DependencyScope, LoadedSource, LoadedSources, SourceFileSystem, SourceId, SourceOrigin,
     SourcePosition,
@@ -94,37 +95,45 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
     let loaded_sources = sources.sources.span_or_empty(sources.batch);
     let source_count = loaded_sources.len();
     let mut lexed_sources = Arena::with_capacity(source_count);
-    let mut lexed = Vec::with_capacity(source_count);
-
-    for loaded_source in loaded_sources {
-        let tokens = crate::Lexer::new(loaded_source.source.as_ref())
-            .tokenize()
-            .map_err(|error| {
-                let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
-                vec![Diagnostic::error(format!(
-                    "{}:{}:{}: {}",
-                    loaded_source.path.display(),
-                    position.line,
-                    position.column,
-                    error.message
-                ))]
-            })?;
-
-        lexed.push(LexedSource {
-            source_id: loaded_source.source_id,
-            path: loaded_source.path.clone(),
-            source: loaded_source.source.clone(),
-            origin: loaded_source.origin,
-            tokens: own_token_stream(tokens, &loaded_source.source),
-            scope: loaded_source.scope,
-        });
-    }
+    let results: Vec<Result<LexedSource, Diagnostic>> = if source_count <= 1 {
+        loaded_sources.iter().map(lex_source).collect()
+    } else {
+        loaded_sources.par_iter().map(lex_source).collect()
+    };
+    let lexed = results
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![error])?;
 
     let batch = lexed_sources.insert_many(lexed);
 
     Ok(LexedSources {
         sources: lexed_sources,
         batch,
+    })
+}
+
+fn lex_source(loaded_source: &LoadedSource) -> Result<LexedSource, Diagnostic> {
+    let tokens = crate::Lexer::new(loaded_source.source.as_ref())
+        .tokenize()
+        .map_err(|error| {
+            let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
+            Diagnostic::error(format!(
+                "{}:{}:{}: {}",
+                loaded_source.path.display(),
+                position.line,
+                position.column,
+                error.message
+            ))
+        })?;
+
+    Ok(LexedSource {
+        source_id: loaded_source.source_id,
+        path: loaded_source.path.clone(),
+        source: loaded_source.source.clone(),
+        origin: loaded_source.origin,
+        tokens: own_token_stream(tokens, &loaded_source.source),
+        scope: loaded_source.scope,
     })
 }
 

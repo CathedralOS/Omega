@@ -139,3 +139,27 @@ fn lexing_stops_at_the_first_failure_with_its_exact_source_location() {
         "first.omg:2:3: unterminated block comment"
     );
 }
+
+#[test]
+fn lexing_preserves_source_order_when_a_later_failure_finishes_first() {
+    let mut loaded = LoadedSources::default();
+    loaded.batch = loaded.sources.insert_many([
+        LoadedSource {
+            path: PathBuf::from("first.omg"),
+            source: Arc::from(format!("{}\n/*", "identifier ".repeat(50_000))),
+            ..LoadedSource::default()
+        },
+        LoadedSource {
+            path: PathBuf::from("second.omg"),
+            source: Arc::from("/*"),
+            ..LoadedSource::default()
+        },
+    ]);
+
+    let errors = lex_sources(loaded).unwrap_err();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0].message,
+        "first.omg:2:1: unterminated block comment"
+    );
+}
