@@ -212,9 +212,10 @@ fn names_parameter(source: &CheckedStructuralControlTransferSourcePlan, index: u
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
                 if parameter_index == index
         ),
-        CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { root, .. }
-        | CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { root, .. } => {
-            matches!(root, CheckedStorageRoot::Parameter { index: lent } if *lent == index)
+        CheckedStructuralControlTransferSourcePlan::ViewSubslice(argument) => {
+            crate::unit::attached_unit::view_ranges::range(argument).is_some_and(|range| {
+                matches!(range.root, CheckedStorageRoot::Parameter { index: lent } if lent == index)
+            })
         }
         _ => false,
     }

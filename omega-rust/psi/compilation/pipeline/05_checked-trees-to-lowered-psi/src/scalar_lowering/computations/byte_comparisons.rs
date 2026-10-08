@@ -39,7 +39,6 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_literal_comparison(
         &mut self,
-        operand: checked_trees::expression::ExpressionHandle,
         bytes: &[u8],
         negated: bool,
         subject: &CheckedUnitStructuralArgumentPlan,
@@ -156,17 +155,7 @@ impl Expansion<'_> {
             )?;
         }
         match range_slot {
-            Some(slot) => self.subslice(
-                subject,
-                &slot,
-                checked_trees::CheckedSubsliceSite::Expression {
-                    expression: operand,
-                },
-                input_types,
-                comparison,
-                site,
-                active,
-            ),
+            Some(slot) => self.subslice(subject, &slot, input_types, comparison, site, active),
             None => Ok(comparison),
         }
     }
@@ -174,7 +163,6 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_predicate(
         &mut self,
-        operand: checked_trees::expression::ExpressionHandle,
         predicate: terminal_psi::ByteSequencePredicate,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
@@ -287,17 +275,7 @@ impl Expansion<'_> {
             )?;
         }
         match range_slot {
-            Some(slot) => self.subslice(
-                subject,
-                &slot,
-                checked_trees::CheckedSubsliceSite::Expression {
-                    expression: operand,
-                },
-                input_types,
-                evaluation,
-                site,
-                active,
-            ),
+            Some(slot) => self.subslice(subject, &slot, input_types, evaluation, site, active),
             None => Ok(evaluation),
         }
     }

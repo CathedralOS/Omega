@@ -22,10 +22,9 @@ use crate::emission::scalar_types::terminal_scalar_type;
 pub(crate) use call_lowering::lower_scalar_call;
 
 use super::{
-    CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
-    Multiplicity, PlaceId, QualifiedScalarType, ScalarType, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    scalar_carriers, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
+    QualifiedScalarType, ScalarType, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, scalar_carriers, unsupported,
 };
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 

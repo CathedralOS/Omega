@@ -1,9 +1,9 @@
 //! Stage call ranges at their authored argument positions.
 //!
 //! Ordinary and composed bodies provide the current scalar/storage bindings;
-//! view_ranges owns collection resolution, descriptor establishment and bounds
-//! replay. Neither caller result type nor storage origin selects another route.
-use super::view_ranges::{self, Range, ViewRangeSite};
+//! view_ranges owns collection resolution, descriptor establishment and
+//! narrowing. Neither caller result type nor storage origin selects another route.
+use super::view_ranges::{self, ViewRangeSite};
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, PlaceId,
     StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::bindings::ScalarBindings;
-use checked_trees::{CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan};
+use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 pub(super) fn arguments(
     operation: &CheckedUnitEffectOperationPlan,
@@ -27,21 +27,13 @@ pub(super) fn contains(operation: &CheckedUnitEffectOperationPlan) -> bool {
         .any(|argument| range(argument).is_some())
 }
 
-/// The call's `ordinal`th structural argument, a range, at its authored
-/// call-argument site.
+/// The call's `ordinal`th structural argument, a range, with its endpoints
+/// keyed at the call-argument site stage 04 recorded on it.
 fn locate<'a>(
-    checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &'a CheckedUnitEffectOperationPlan,
     ordinal: usize,
-) -> Result<
-    (
-        &'a CheckedUnitStructuralArgumentPlan,
-        Range<'a>,
-        ViewRangeSite<'a>,
-    ),
-    LoweringError,
-> {
+) -> Result<(&'a CheckedUnitStructuralArgumentPlan, ViewRangeSite<'a>), LoweringError> {
     let argument = arguments(operation)
         .get(ordinal)
         .ok_or(LoweringError::Unsupported(
@@ -53,30 +45,6 @@ fn locate<'a>(
     let Some(call) = operation.call() else {
         return unsupported("subslice schedule has no call coordinate");
     };
-    let coordinate = call.coordinate;
-    let authored = crate::call_sites::locate(checked, state, coordinate)?;
-    let (machine, _) = crate::declarations::state_declaration(checked, state)?;
-    let signature =
-        crate::declarations::target_signature(checked, machine.symbol, authored.source_target)?;
-    let positions = super::call_parameters::structural_positions(checked, call, &signature)?;
-    let authored_ordinal = positions
-        .get(ordinal)
-        .and_then(|formal_position| {
-            authored
-                .structural_arguments
-                .iter()
-                .position(|(position, _)| position == formal_position)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "subslice disagrees with its authored call argument",
-        ))?;
-    if authored
-        .structural_arguments
-        .get(authored_ordinal)
-        .is_none_or(|(_, source)| *source != range.expression)
-    {
-        return unsupported("subslice disagrees with its authored call argument");
-    }
     if !matches!(
         argument.access,
         checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -84,19 +52,12 @@ fn locate<'a>(
     ) {
         return unsupported("subslice source or result changed immutable view custody");
     }
-    let argument_ordinal = u32::try_from(authored_ordinal)
-        .map_err(|_| LoweringError::Unsupported("subslice argument ordinal exceeds u32"))?;
     let site = ViewRangeSite {
         state,
-        statement: coordinate.statement_index,
-        site: CheckedSubsliceSite::CallArgument {
-            call_ordinal: coordinate.call_ordinal,
-            argument_ordinal,
-        },
-        expression: range.expression,
-        retained: Some((range.start, range.end)),
+        statement: call.coordinate.statement_index,
+        range,
     };
-    Ok((argument, range, site))
+    Ok((argument, site))
 }
 
 /// The current bindings and type namespace a staged range reads.
@@ -128,7 +89,7 @@ pub(super) fn emit(
     operations: &mut OperationBuffer,
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
 ) -> Result<PlaceId, LoweringError> {
-    let (argument, _, site) = locate(checked, context.state, operation, ordinal)?;
+    let (argument, site) = locate(context.state, operation, ordinal)?;
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
     let destination = place_id(allocate_dense(next_place)?);
     let storage = view_ranges::storage(

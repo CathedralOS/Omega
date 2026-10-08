@@ -247,14 +247,12 @@ impl StateGraphEmission<'_, '_> {
                                 LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
                             )?.place)
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
-                        | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(_) => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             let emitted = subslices::emit(
-                                checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
+                                checked, state, edge.statement_ordinal, &transfer.source,
                                 state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values,
                                 next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places,
-                                &target_parameter.type_identity, target_parameter.access,
                             )?;
                             self.structural_places.push(emitted);
                             destination

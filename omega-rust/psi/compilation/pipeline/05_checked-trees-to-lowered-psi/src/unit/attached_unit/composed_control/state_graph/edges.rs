@@ -27,8 +27,11 @@ pub(super) fn admit_transfers(
     use checked_trees::CheckedStructuralControlTransferSourcePlan as Source;
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Subject;
     for (target, transfer) in target.structural_parameters.iter().zip(&edge.transfers) {
-        if let Some((root, _, collection, _, _)) = subslices::transfer_range(&transfer.source) {
-            match root {
+        if let Some(argument) = subslices::transfer_range(&transfer.source)
+            && let Some(range) = crate::unit::attached_unit::view_ranges::range(argument)
+        {
+            let collection = &argument.path;
+            match range.root {
                 checked_trees::CheckedStorageRoot::Parameter { index } => {
                     let source = state.structural_parameters.get(index as usize).ok_or(
                         LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
@@ -140,8 +143,7 @@ pub(super) fn admit_transfers(
             | Source::ProjectedLoan { .. }
             | Source::CasePayload { .. }
             | Source::ByteSequenceLiteral { .. }
-            | Source::ByteSequenceSubslice { .. }
-            | Source::ElementViewSubslice { .. } => {}
+            | Source::ViewSubslice(_) => {}
         }
     }
     Ok(())

@@ -11,8 +11,10 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedByteSequenceStorePlan,
     ) -> Result<PlaceId, LoweringError> {
-        let CheckedByteSequenceValue::Descriptor { expression, source } =
-            store.value.nodes.get(store.value.root)
+        let CheckedByteSequenceValue::Descriptor {
+            expression: _,
+            source,
+        } = store.value.nodes.get(store.value.root)
         else {
             return unsupported("view field store has no descriptor operand");
         };
@@ -73,7 +75,9 @@ impl OperationFrame<'_, '_> {
             .with_place_observations(&self.evaluation.place_observations);
         let structural_type =
             byte_store::existing_descriptor_value_type(self.structural_types.declarations())?;
-        if let Source::ByteSequenceSubslice { start, end, .. } = &source.source {
+        if let Source::ByteSequenceSubslice { .. } = &source.source
+            && let Some(range) = super::super::view_ranges::range(source)
+        {
             let storage = super::super::view_ranges::storage(
                 self.checked,
                 self.state,
@@ -108,11 +112,7 @@ impl OperationFrame<'_, '_> {
                 ViewRangeSite {
                     state: self.state,
                     statement: store.statement_index,
-                    site: checked_trees::CheckedSubsliceSite::Expression {
-                        expression: *expression,
-                    },
-                    expression: *expression,
-                    retained: Some((start, end)),
+                    range,
                 },
                 range_source,
                 result_type,

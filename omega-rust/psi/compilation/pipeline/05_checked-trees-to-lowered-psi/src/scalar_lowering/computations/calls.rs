@@ -23,7 +23,6 @@ enum Operand {
     Range {
         argument: checked_trees::CheckedUnitStructuralArgumentPlan,
         slot: subslices::Slot,
-        site: checked_trees::CheckedSubsliceSite,
     },
     /// An exact byte literal established into its reserved place before the
     /// call reads it through a shared borrow.
@@ -294,18 +293,9 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no reserved structural result",
                         ))?;
-                    let argument_ordinal = u32::try_from(structural_ordinal).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "computed range has no explicit structural ordinal",
-                        )
-                    })?;
                     operands.push(Operand::Range {
                         argument: argument.clone(),
                         slot: slot.clone(),
-                        site: checked_trees::CheckedSubsliceSite::CallArgument {
-                            call_ordinal,
-                            argument_ordinal,
-                        },
                     });
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
@@ -553,19 +543,9 @@ impl Expansion<'_> {
                     }],
                     terminator: LoweredScalarBranchTerminator::jump(continuation, super::parameters(prefix)),
                 }),
-                Operand::Range {
-                    argument,
-                    slot,
-                    site: range_site,
-                } => self.subslice(
-                    argument,
-                    slot,
-                    *range_site,
-                    prefix,
-                    continuation,
-                    site,
-                    active,
-                )?,
+                Operand::Range { argument, slot } => {
+                    self.subslice(argument, slot, prefix, continuation, site, active)?
+                }
                 Operand::Effect(effect) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),

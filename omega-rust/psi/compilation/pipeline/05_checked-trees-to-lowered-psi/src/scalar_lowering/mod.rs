@@ -16,10 +16,9 @@
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarBranchDestination,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility,
-    CheckedTrees, CheckedUnitStructuralParameterPlan, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan,
+    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitStructuralParameterPlan, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{

@@ -551,25 +551,9 @@ impl OperationFrame<'_, '_> {
         };
         self.results
             .require_next(result, "view subslice result binding is not dense")?;
-        let binding_site =
-            super::super::view_ranges::binding_site(self.checked, self.state, operation)?;
-        let (expression, start, end) = match &source.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-                root: _,
-                expression,
-                start,
-                end,
-                storage_type_identity: _,
-            } => (*expression, start, end),
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-                root: _,
-                expression,
-                start,
-                end,
-                storage_type_identity: _,
-            } => (*expression, start, end),
-            _ => return unsupported("view subslice binding lost its range source"),
-        };
+        let range = super::super::view_ranges::range(source).ok_or(LoweringError::Unsupported(
+            "view subslice binding lost its range source",
+        ))?;
 
         // Endpoints read the body's scalar namespace, including the view
         // locals and parameters a `len` endpoint may observe.
@@ -584,9 +568,7 @@ impl OperationFrame<'_, '_> {
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
-            site: binding_site,
-            expression,
-            retained: Some((start, end)),
+            range,
         };
         let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let storage = super::super::view_ranges::storage(

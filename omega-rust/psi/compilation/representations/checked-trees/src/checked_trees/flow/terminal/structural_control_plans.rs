@@ -202,33 +202,11 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         field_identity: String,
         path: Vec<CheckedUnitStructuralPathSegment>,
     },
-    /// Borrowed-byte range at the enclosing transition. The path selects the
-    /// backing collection below its storage root, just as for an element range.
-    /// Endpoint facts use the `TransitionArgument` subslice site at its
-    /// authored target argument position.
-    ByteSequenceSubslice {
-        root: crate::CheckedStorageRoot,
-        path: Vec<CheckedUnitStructuralPathSegment>,
-        expression: typed_trees::expression::ExpressionHandle,
-        /// Exact Terminal type identity of the collection the range reads —
-        /// the same backing identity the argument plan's
-        /// `ByteSequenceSubslice` carries for the range at its site.
-        storage_type_identity: String,
-    },
-    /// Exclusive borrowed `&[T]` element range, T != u8, rooted and keyed
-    /// exactly as a byte range is; the extent counts elements. `path` is the
-    /// record-field projection below `root` to the fixed array the range
-    /// views whole before narrowing — empty when `root` itself is an
-    /// established element view, mirroring the `path` contract a
-    /// `CheckedUnitStructuralArgumentPlan` carries for the same range at a
-    /// call site or a view-local binding.
-    ElementViewSubslice {
-        root: crate::CheckedStorageRoot,
-        path: Vec<CheckedUnitStructuralPathSegment>,
-        expression: typed_trees::expression::ExpressionHandle,
-        /// Exact Terminal type identity of the collection the range reads.
-        storage_type_identity: String,
-    },
+    /// A byte or element view range narrowed on the selected edge: the same
+    /// `ByteSequenceSubslice`/`ElementViewSubslice` argument plan a call
+    /// argument or view-local binding carries, with its endpoints keyed at
+    /// the edge's `TransitionArgument` subslice site.
+    ViewSubslice(CheckedUnitStructuralArgumentPlan),
     /// Authored byte-sequence literal supplied directly to a borrowed
     /// `&[u8]`-shaped parameter. The literal has no custody root: the edge
     /// establishes the octets into immutable storage the target parameter

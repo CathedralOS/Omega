@@ -39,7 +39,6 @@ impl Builder<'_, '_> {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 operand_type: target,
                 source_expression: expression,
-                operand_expression: operand,
                 literal,
                 negated: binary.operator == BinaryOperator::NotEqual,
                 subject,
@@ -66,7 +65,6 @@ impl Builder<'_, '_> {
                 predicate,
                 operand_type: target,
                 source_expression: expression,
-                operand_expression: operand,
                 subject,
             },
         ))

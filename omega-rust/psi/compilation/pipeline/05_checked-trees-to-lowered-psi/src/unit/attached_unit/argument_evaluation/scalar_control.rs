@@ -766,7 +766,6 @@ impl Evaluation {
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
                             ),
-                            when_false,
                             &mut expansion,
                         )?
                     }

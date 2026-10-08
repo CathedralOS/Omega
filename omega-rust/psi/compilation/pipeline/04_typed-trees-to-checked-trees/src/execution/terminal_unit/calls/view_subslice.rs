@@ -75,6 +75,8 @@ pub(crate) struct ViewSubslice {
     pub(in crate::execution) expression: ExpressionHandle,
     pub(in crate::execution) start: Option<checked_trees::CheckedCallScalarArgument>,
     pub(in crate::execution) end: Option<checked_trees::CheckedCallScalarArgument>,
+    pub(in crate::execution) end_inclusive: bool,
+    pub(in crate::execution) site: CheckedSubsliceSite,
 }
 
 impl ViewSubslice {
@@ -86,6 +88,8 @@ impl ViewSubslice {
             expression,
             start,
             end,
+            end_inclusive,
+            site,
         } = self;
         CheckedUnitStructuralArgumentPlan {
             source: match range.kind {
@@ -94,6 +98,8 @@ impl ViewSubslice {
                     expression,
                     start,
                     end,
+                    end_inclusive,
+                    site,
                     storage_type_identity: range.storage_type_identity,
                 },
                 ViewKind::Elements => {
@@ -102,6 +108,8 @@ impl ViewSubslice {
                         expression,
                         start,
                         end,
+                        end_inclusive,
+                        site,
                         storage_type_identity: range.storage_type_identity,
                     }
                 }
@@ -112,25 +120,10 @@ impl ViewSubslice {
         }
     }
 
-    /// The edge transfer for this range. Transfers retain only the source and
-    /// the authored range; their endpoints are replayed at the edge's site.
-    /// A field collection's projection rides along so the edge's emission
-    /// establishes the field's whole view exactly as a binding does.
-    pub(in crate::execution) fn transfer(&self) -> CheckedStructuralControlTransferSourcePlan {
-        match self.range.kind {
-            ViewKind::Bytes => CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                root: self.range.root,
-                path: self.range.collection.clone(),
-                expression: self.expression,
-                storage_type_identity: self.range.storage_type_identity.clone(),
-            },
-            ViewKind::Elements => CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                root: self.range.root,
-                path: self.range.collection.clone(),
-                expression: self.expression,
-                storage_type_identity: self.range.storage_type_identity.clone(),
-            },
-        }
+    /// The edge transfer for this range: its argument plan, admitted at the
+    /// edge's `TransitionArgument` site, so the endpoints are the edge's own.
+    pub(in crate::execution) fn transfer(self) -> CheckedStructuralControlTransferSourcePlan {
+        CheckedStructuralControlTransferSourcePlan::ViewSubslice(self.argument())
     }
 }
 
@@ -380,6 +373,8 @@ pub(in crate::execution) fn admit_replayed(
         expression,
         start,
         end,
+        end_inclusive: authored.end_inclusive,
+        site,
     })
 }
 
@@ -683,6 +678,9 @@ pub(in crate::execution) fn whole_extent(
             expression,
             start: None,
             end: None,
+            end_inclusive: false,
+            // No `..` is spelled, so no endpoint facts exist at this site.
+            site: CheckedSubsliceSite::LocalBinding,
         },
         storage,
     ))

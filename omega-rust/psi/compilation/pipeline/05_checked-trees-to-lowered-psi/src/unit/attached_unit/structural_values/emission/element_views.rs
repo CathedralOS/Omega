@@ -125,29 +125,13 @@ impl Emission<'_, '_, '_> {
                     self.operations,
                 ));
             }
-            let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-            let site = match self
-                .checked
-                .statement_table
-                .statements(authored.statement_nodes)
-                .get(self.statement as usize)
-            {
-                Some(checked_trees::statement::StatementNode::LocalData(local))
-                    if local.initial_value == expression =>
-                {
-                    checked_trees::CheckedSubsliceSite::LocalBinding
-                }
-                _ => checked_trees::CheckedSubsliceSite::Expression { expression },
-            };
             let place = place_id(allocate_dense(self.next_place)?);
             self.temporary_places.push(view_ranges::emit(
                 self.checked,
                 view_ranges::ViewRangeSite {
                     state: self.state,
                     statement: self.statement,
-                    site,
-                    expression: range.expression,
-                    retained: Some((range.start, range.end)),
+                    range,
                 },
                 bound,
                 self.structural_type,

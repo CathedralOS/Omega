@@ -108,6 +108,13 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
+        /// The authored range is `start..=end`. Lowering normalizes the end
+        /// only after capturing its value, so the endpoint keeps its identity.
+        end_inclusive: bool,
+        /// The occurrence whose `SubsliceStart`/`SubsliceEnd` facts `start`
+        /// and `end` were taken from: a call argument, a `let`, a returned
+        /// expression or a transition argument.
+        site: crate::CheckedSubsliceSite,
         /// Exact Terminal type identity of the collection the range reads:
         /// the peeled carrier of the projected backing, already enrolled in
         /// the checked structural type table. Naming it keeps the storage
@@ -128,6 +135,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedCallScalarArgument>,
         end: Option<CheckedCallScalarArgument>,
+        end_inclusive: bool,
+        site: crate::CheckedSubsliceSite,
         /// Exact Terminal type identity of the collection the range reads.
         storage_type_identity: String,
     },

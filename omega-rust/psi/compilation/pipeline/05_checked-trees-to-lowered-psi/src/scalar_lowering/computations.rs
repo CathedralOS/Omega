@@ -427,13 +427,11 @@ impl<'a> Expansion<'a> {
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
-                operand_expression,
                 literal,
                 negated,
                 subject,
                 ..
             } => self.byte_literal_comparison(
-                operand_expression,
                 &literal,
                 negated,
                 &subject,
@@ -443,19 +441,8 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::ByteSequencePredicate {
-                operand_expression,
-                predicate,
-                subject,
-                ..
-            } => self.byte_predicate(
-                operand_expression,
-                predicate,
-                &subject,
-                input_types,
-                target,
-                site,
-                active,
-            )?,
+                predicate, subject, ..
+            } => self.byte_predicate(predicate, &subject, input_types, target, site, active)?,
             CheckedScalarComputationKind::StructuralField {
                 receiver_value,
                 subject,

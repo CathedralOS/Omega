@@ -19,7 +19,6 @@
 
 use checked_trees::{CheckedStructuralAccess, CheckedTrees};
 use language_semantics::Multiplicity;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 fn custody(
@@ -80,17 +79,6 @@ fn state_custody(
     state: &checked_trees::state::State,
 ) -> checked_trees::StateReferenceCustodyRow {
     checked.facts.state_reference_custody.custody(state.symbol)
-}
-
-/// The expression producing this state's returned value: its tail expression
-/// statement, or the exit arm of a terminal return transition. Absent when
-/// the tail statement is neither.
-pub(crate) fn tail_return_expression(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> Option<ExpressionHandle> {
-    let expression = state_custody(checked, state).tail_return_expression;
-    expression.is_valid().then_some(expression)
 }
 
 /// Whether every normal completion of this state contributes an exact

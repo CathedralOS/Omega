@@ -1,8 +1,7 @@
 //! Evaluate the selected guard once before dispatching either branch.
 use super::{
-    CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
-    QualifiedScalarType, ScalarType, computations, scalar_carriers, storage, unsupported,
-    validate_boolean_parameter_types,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, ScalarType,
+    computations, scalar_carriers, storage, unsupported, validate_boolean_parameter_types,
 };
 use crate::emission::expression_validation::validate_short_circuit_expression;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -31,14 +30,8 @@ pub(crate) fn lower(
         Vec<LoweredDirectExpression>,
         Vec<LoweredProofTerm>,
     ),
-    fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
-    if is_computed(checked, state, statement)
-        || matches!(fallback, CheckedScalarBranchDestination::Crash { .. })
-    {
-        validate_fallback(checked, state, statement, fallback)?;
-    }
     evaluate(
         checked,
         state,
@@ -159,77 +152,4 @@ pub(crate) fn evaluate(
         erased_arguments: Vec::new(),
         erased_proof_arguments: Vec::new(),
     })
-}
-
-fn validate_fallback(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement: u32,
-    fallback: &CheckedScalarBranchDestination,
-) -> Result<(), LoweringError> {
-    use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
-
-    let program = &checked.typed;
-    let state = program
-        .state_by_symbol(state)
-        .ok_or(LoweringError::Unsupported(
-            "scalar guard has no authored state",
-        ))?;
-    let tail = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement as usize..)
-        .ok_or(LoweringError::Unsupported(
-            "scalar guard has no authored dispatch",
-        ))?;
-    if !matches!(
-        tail.first(),
-        Some(StatementNode::Transition(guard))
-            if matches!(guard.guard, TransitionGuardNode::When(_))
-    ) {
-        return unsupported("scalar conditional must retain its authored When guard");
-    }
-    let continuation = match fallback {
-        CheckedScalarBranchDestination::Jump(successor) => successor.is_continuation,
-        CheckedScalarBranchDestination::Return {
-            is_continuation, ..
-        } => *is_continuation,
-        CheckedScalarBranchDestination::Crash { .. } => false,
-    };
-    let crash_fallback = matches!(fallback, CheckedScalarBranchDestination::Crash { .. });
-    let valid = match tail {
-        [StatementNode::Transition(guard)] if continuation => {
-            !crash_fallback
-                && guard.continuation.is_valid()
-                && guard.exit == TransitionExit::Ordinary
-        }
-        // A guarded fallback is the exact complement `validate_second_guard`
-        // already established.
-        [
-            StatementNode::Transition(guard),
-            StatementNode::Transition(fallback),
-        ] if !continuation => {
-            !guard.continuation.is_valid()
-                && guard.exit == TransitionExit::Ordinary
-                && !fallback.continuation.is_valid()
-                && (if crash_fallback {
-                    matches!(fallback.exit, TransitionExit::Crash(_))
-                } else {
-                    fallback.exit == TransitionExit::Ordinary
-                })
-        }
-        [
-            StatementNode::Transition(guard),
-            StatementNode::Expression(_),
-        ] if !continuation => {
-            !crash_fallback
-                && !guard.continuation.is_valid()
-                && guard.exit == TransitionExit::Ordinary
-        }
-        _ => false,
-    };
-    if !valid {
-        return unsupported("scalar guard fallback disagrees with its authored dispatch");
-    }
-    Ok(())
 }

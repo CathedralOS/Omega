@@ -125,7 +125,6 @@ impl super::Expansion<'_> {
         &mut self,
         argument: &CheckedUnitStructuralArgumentPlan,
         slot: &Slot,
-        range_site: checked_trees::CheckedSubsliceSite,
         input_types: &[super::QualifiedScalarType],
         target: usize,
         site: &super::Site<'_>,
@@ -146,16 +145,7 @@ impl super::Expansion<'_> {
             slot.whole_view,
             self.structural_types,
         )?;
-        let (start, end) = view_ranges::replay(
-            self.checked,
-            &view_ranges::ViewRangeSite {
-                state: site.state,
-                statement: site.statement,
-                site: range_site,
-                expression: range.expression,
-                retained: Some((range.start, range.end)),
-            },
-        )?;
+        let (start, end) = (range.start.clone(), range.end.clone());
         let scalar_type =
             super::super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
         let mut endpoints = Vec::with_capacity(2);
@@ -183,7 +173,7 @@ impl super::Expansion<'_> {
             endpoint_types.push(value_type);
         }
         let [start, end] = completed;
-        let end = view_ranges::exclusive_end(self.checked, range.expression, end)?;
+        let end = view_ranges::exclusive_end(range.end_inclusive, end)?;
         let start = start.unwrap_or(
             crate::emission::operation_emission::expressions::LoweredDirectExpression::IntegerLiteral {
                 value: semantic_vocabulary::IntegerValue::Unsigned(0),
