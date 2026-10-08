@@ -152,7 +152,7 @@ impl LoweredScalarBranchState {
             structural_effects,
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,
-                arguments: crate::scalar_graph::scalar_computations::parameters(argument_types),
+                arguments: crate::scalar_lowering::computations::parameters(argument_types),
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
