@@ -249,6 +249,47 @@ impl InternalUnitCall<'_> {
                     pair[0].code_offset.checked_add(pair[0].byte_count) == Some(pair[1].code_offset)
                 })
         } else {
+            // One scalar roster: the abi arm binds the callee's declared
+            // scalar parameters, the returned arm the same declaration
+            // reached through the structural-return evidence.
+            let scalar_arguments_match = |scalar_parameters: &[target_operations::ScalarAbiValue]| {
+                custody
+                    .scalar_arguments
+                    .iter()
+                    .zip(scalar_parameters)
+                    .enumerate()
+                    .all(|(index, (argument, parameter))| {
+                        let expected_argument_bytes =
+                            custody.arguments.first().and_then(|structural| {
+                                crate::object_artifact::replay::unit::scalar_call_custody::expected_argument_bytes(
+                                    record.target,
+                                    plan,
+                                    &custody.scalar_arguments,
+                                    index,
+                                    function.unit_stack.as_ref()?.frame_bytes,
+                                    structural.call_stack_bytes,
+                                )
+                            });
+                        usize::try_from(argument.parameter_index) == Ok(index)
+                            && argument.destination == parameter.placement
+                            && argument.source.scalar_type() == parameter.scalar_type
+                            && installed_scalar_source_is_exact(
+                                record,
+                                function,
+                                installed.machine,
+                                custody,
+                                argument.source,
+                            )
+                            && expected_argument_bytes
+                                .as_ref()
+                                .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                            && argument.code_offset >= custody.code_offset
+                            && argument
+                                .code_offset
+                                .checked_add(argument.byte_count)
+                                .is_some_and(|argument_end| argument_end <= end)
+                    })
+            };
             match (callee_mixed_abi, callee_mixed_structural_return) {
                 (None, None) => custody.scalar_arguments.is_empty(),
                 (Some(_), Some(_)) => false,
@@ -257,42 +298,7 @@ impl InternalUnitCall<'_> {
                         && *plan == abi.call_plan
                         && scalar_count == abi.scalar_parameters.len()
                         && custody.arguments.len() == abi.structural_parameters.len()
-                        && custody
-                            .scalar_arguments
-                            .iter()
-                            .zip(&abi.scalar_parameters)
-                            .enumerate()
-                            .all(|(index, (argument, parameter))| {
-                                let expected_argument_bytes =
-                                    custody.arguments.first().and_then(|structural| {
-                                        crate::object_artifact::replay::unit::scalar_call_custody::expected_argument_bytes(
-                                            record.target,
-                                            plan,
-                                            &custody.scalar_arguments,
-                                            index,
-                                            function.unit_stack.as_ref()?.frame_bytes,
-                                            structural.call_stack_bytes,
-                                        )
-                                    });
-                                usize::try_from(argument.parameter_index) == Ok(index)
-                                    && argument.destination == parameter.placement
-                                    && argument.source.scalar_type() == parameter.scalar_type
-                                    && installed_scalar_source_is_exact(
-                                        record,
-                                        function,
-                                        installed.machine,
-                                        custody,
-                                        argument.source,
-                                    )
-                                    && expected_argument_bytes
-                                        .as_ref()
-                                        .is_some_and(|bytes| bytes.len() == argument.byte_count)
-                                    && argument.code_offset >= custody.code_offset
-                                    && argument
-                                        .code_offset
-                                        .checked_add(argument.byte_count)
-                                        .is_some_and(|argument_end| argument_end <= end)
-                            })
+                        && scalar_arguments_match(&abi.scalar_parameters)
                         && custody
                             .arguments
                             .iter()
@@ -344,42 +350,7 @@ impl InternalUnitCall<'_> {
                         && plan.parameters[returned.scalar_parameters.len()..]
                             == returned.parameter_placements
                         && plan.result.as_ref() == Some(&returned.result_placement)
-                        && custody
-                            .scalar_arguments
-                            .iter()
-                            .zip(&returned.scalar_parameters)
-                            .enumerate()
-                            .all(|(index, (argument, parameter))| {
-                                let expected_argument_bytes =
-                                    custody.arguments.first().and_then(|structural| {
-                                        crate::object_artifact::replay::unit::scalar_call_custody::expected_argument_bytes(
-                                            record.target,
-                                            plan,
-                                            &custody.scalar_arguments,
-                                            index,
-                                            function.unit_stack.as_ref()?.frame_bytes,
-                                            structural.call_stack_bytes,
-                                        )
-                                    });
-                                usize::try_from(argument.parameter_index) == Ok(index)
-                                    && argument.destination == parameter.placement
-                                    && argument.source.scalar_type() == parameter.scalar_type
-                                    && installed_scalar_source_is_exact(
-                                        record,
-                                        function,
-                                        installed.machine,
-                                        custody,
-                                        argument.source,
-                                    )
-                                    && expected_argument_bytes
-                                        .as_ref()
-                                        .is_some_and(|bytes| bytes.len() == argument.byte_count)
-                                    && argument.code_offset >= custody.code_offset
-                                    && argument
-                                        .code_offset
-                                        .checked_add(argument.byte_count)
-                                        .is_some_and(|argument_end| argument_end <= end)
-                            })
+                        && scalar_arguments_match(&returned.scalar_parameters)
                         && custody
                             .arguments
                             .iter()
