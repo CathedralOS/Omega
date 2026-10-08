@@ -11,7 +11,7 @@ pub(super) fn all_environment_allocatable_views(
     ranges: &StagedOptimizedLiveRanges,
 ) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
     let environment = ranges.register_environment();
-    let availability = materialize_allocator_availability(
+    materialize_allocator_availability(
         environment.identity(),
         environment.target(),
         environment.physical(),
@@ -20,8 +20,7 @@ pub(super) fn all_environment_allocatable_views(
         &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
     )
-    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
-    Ok(availability)
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)
 }
 
 /// Restrict unconstrained allocation to the exact selected convention's
@@ -60,7 +59,7 @@ pub(super) fn frameless_leaf_caller_saved_views(
         })
         .map(|view| view.id)
         .collect::<Vec<_>>();
-    let availability = materialize_allocator_availability(
+    materialize_allocator_availability(
         environment.identity(),
         environment.target(),
         environment.physical(),
@@ -69,8 +68,7 @@ pub(super) fn frameless_leaf_caller_saved_views(
         &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
     )
-    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
-    Ok(availability)
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)
 }
 
 /// Restrict unconstrained allocation to the exact two caller-saved views used
@@ -85,7 +83,7 @@ pub(super) fn active_resident_immediate_u64_multi_use_rematerialization_v1(
         environment.target().architecture,
         environment.physical().model(),
     )?;
-    let availability = materialize_allocator_availability(
+    materialize_allocator_availability(
         environment.identity(),
         environment.target(),
         environment.physical(),
@@ -94,8 +92,7 @@ pub(super) fn active_resident_immediate_u64_multi_use_rematerialization_v1(
         &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
     )
-    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
-    Ok(availability)
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)
 }
 
 fn active_resident_immediate_u64_multi_use_rematerialization_v1_views(
