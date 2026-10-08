@@ -267,3 +267,47 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
         ))
     })
 }
+
+/// One selected realization machine's single retained contract plan,
+/// committed rather than empty.
+pub(super) fn exact_realization_contract<'facts>(
+    checked: &'facts CheckedTrees,
+    realization_machine: symbols::SymbolHandle,
+    realization_label: &str,
+) -> Result<&'facts checked_trees::MachineContractPlan, Diagnostic> {
+    let contracts = checked
+        .facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|contract| contract.machine == realization_machine)
+        .collect::<Vec<_>>();
+    let [contract] = contracts.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected {realization_label} realization retains {} exact machine contracts; expected one",
+            contracts.len(),
+        )));
+    };
+    if contract.commitment.is_zero() {
+        return Err(Diagnostic::error(format!(
+            "selected {realization_label} realization has an empty machine contract commitment",
+        )));
+    }
+    Ok(contract)
+}
+
+/// One boundary operator's nonempty requirement overload identity.
+pub(super) fn requirement_overload_identity(
+    checked: &CheckedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    realization_label: &str,
+) -> Result<String, Diagnostic> {
+    let identity =
+        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+    if identity.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected {realization_label} realization has an empty requirement identity",
+        )));
+    }
+    Ok(identity)
+}

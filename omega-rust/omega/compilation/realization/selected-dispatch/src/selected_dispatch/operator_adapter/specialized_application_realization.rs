@@ -6,8 +6,9 @@
 //! native, admission, or universal generic-family coverage.
 
 use super::{
-    CheckedOperatorAuthoredUseKind, exact_operator_definition,
-    resolve_checked_adapter_for_operator, resolve_exact_selected_plan,
+    CheckedOperatorAuthoredUseKind, exact_operator_definition, exact_realization_contract,
+    requirement_overload_identity, resolve_checked_adapter_for_operator,
+    resolve_exact_selected_plan,
 };
 use checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationUseSite,
@@ -159,32 +160,9 @@ fn derive_one(
             "selected generic realization state differs from its concrete entry",
         ));
     }
-    let contracts = checked
-        .facts
-        .contract_plans
-        .machines
-        .iter()
-        .filter(|contract| contract.machine == realization_machine)
-        .collect::<Vec<_>>();
-    let [contract] = contracts.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected generic realization retains {} exact machine contracts; expected one",
-            contracts.len(),
-        )));
-    };
-    if contract.commitment.is_zero() {
-        return Err(Diagnostic::error(
-            "selected generic realization has an empty machine contract commitment",
-        ));
-    }
-
+    let contract = exact_realization_contract(checked, realization_machine, "generic")?;
     let requirement_overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
-    if requirement_overload_identity.is_empty() {
-        return Err(Diagnostic::error(
-            "selected generic realization has an empty requirement identity",
-        ));
-    }
+        requirement_overload_identity(checked, operator, "generic")?;
     Ok(CheckedSpecializedOperatorApplicationRealization {
         application_site: application.site,
         application_arguments: application.arguments.clone(),
