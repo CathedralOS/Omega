@@ -2,7 +2,9 @@
 //! shape a rule's law partition selects, the contract they share, and the
 //! traversal that joins a selected shape to its literal and effect evidence.
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -18,6 +20,7 @@ use semantic_vocabulary::{
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::global_value_numbering::exact_pure_scalar_effect;
 use crate::rules::node_elision::node_elision_accounting;
+use crate::rules::proof_check_elision::integer_zero;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 pub(super) fn propose_total_scalar_identities(
@@ -140,4 +143,51 @@ pub(super) fn all_ones(scalar_type: IntegerType) -> IntegerValue {
         IntegerSign::Signed => IntegerValue::Signed(-1),
         IntegerSign::Unsigned => scalar_type.maximum_value(),
     }
+}
+
+/// Shapes for a multiply-zero annihilation rule under one overflow policy:
+/// the left-zero then right-zero laws so ties stay deterministic.
+pub(super) fn multiply_zero_annihilation_shapes(
+    operation: &AbstractOperation,
+    policy: IntegerOverflowPolicy,
+    left_zero: TotalScalarIdentityKind,
+    right_zero: TotalScalarIdentityKind,
+) -> Vec<TotalScalarIdentityShape> {
+    let AbstractOperation::IntegerArithmetic {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+        arithmetic,
+        ..
+    } = operation
+    else {
+        return Vec::new();
+    };
+    if !arithmetic.is(policy, IntegerArithmeticOperator::Multiply) {
+        return Vec::new();
+    }
+    vec![
+        TotalScalarIdentityShape {
+            source_operation: *psi_operation,
+            result: *result,
+            replacement: *left,
+            law_operand: *left,
+            scalar_type: *scalar_type,
+            law_operand_type: *scalar_type,
+            identity: left_zero,
+            expected_law_value: integer_zero(*scalar_type),
+        },
+        TotalScalarIdentityShape {
+            source_operation: *psi_operation,
+            result: *result,
+            replacement: *right,
+            law_operand: *right,
+            scalar_type: *scalar_type,
+            law_operand_type: *scalar_type,
+            identity: right_zero,
+            expected_law_value: integer_zero(*scalar_type),
+        },
+    ]
 }

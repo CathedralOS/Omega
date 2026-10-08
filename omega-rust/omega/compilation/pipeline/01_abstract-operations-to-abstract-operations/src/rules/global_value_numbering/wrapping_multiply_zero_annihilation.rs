@@ -2,15 +2,15 @@
 //! (`classify`) it proposes over.
 
 use abstract_operations::{
-    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    AbstractOperation as O, IntegerOverflowPolicy,
 };
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 
 use crate::rules::global_value_numbering::total_scalar_identities::{
-    TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
+    TotalScalarIdentityShape, exact_total_scalar_identity, multiply_zero_annihilation_shapes,
+    propose_total_scalar_identities,
 };
-use crate::rules::proof_check_elision::integer_zero;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -28,44 +28,10 @@ psi_optimization_rule_delegate!(WrappingMultiplyZeroAnnihilationRule, propose = 
 
 /// Return left-zero then right-zero so ties remain deterministic.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        left,
-        right,
-        arithmetic,
-        ..
-    } = operation
-    else {
-        return Vec::new();
-    };
-    if !arithmetic.is(
+    multiply_zero_annihilation_shapes(
+        operation,
         IntegerOverflowPolicy::Wrapping,
-        IntegerArithmeticOperator::Multiply,
-    ) {
-        return Vec::new();
-    }
-    vec![
-        TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *left,
-            law_operand: *left,
-            scalar_type: *scalar_type,
-            law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
-            expected_law_value: integer_zero(*scalar_type),
-        },
-        TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *right,
-            law_operand: *right,
-            scalar_type: *scalar_type,
-            law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
-            expected_law_value: integer_zero(*scalar_type),
-        },
-    ]
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
+    )
 }
