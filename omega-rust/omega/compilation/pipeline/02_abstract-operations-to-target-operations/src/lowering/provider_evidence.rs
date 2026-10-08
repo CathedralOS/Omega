@@ -10,11 +10,9 @@ pub(super) fn bind_provider_executions(
     settlements
         .iter()
         .map(|settlement| {
-            let declaration = plan
-                .boundary_machines
-                .iter()
-                .find(|candidate| candidate.id == settlement.boundary)
-                .ok_or(LoweringError::UnknownBoundarySettlement(
+            let declaration =
+                terminal_psi::find_boundary_machine(&plan.boundary_machines, settlement.boundary)
+                    .ok_or(LoweringError::UnknownBoundarySettlement(
                     settlement.boundary,
                 ))?;
             let execution = match settlement.execution {

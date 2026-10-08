@@ -279,12 +279,10 @@ fn write_operation_summary(
             completion_receipts,
             ..
         } => {
-            let identity = module
-                .boundary_machines
-                .iter()
-                .find(|candidate| candidate.id == *boundary)
-                .map(|boundary| boundary.identity.as_str())
-                .unwrap_or("unknown");
+            let identity =
+                terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+                    .map(|boundary| boundary.identity.as_str())
+                    .unwrap_or("unknown");
             writeln!(
                 output,
                 "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCall boundary=boundary:{} boundary_identity={} arguments={} completion_receipts={}",

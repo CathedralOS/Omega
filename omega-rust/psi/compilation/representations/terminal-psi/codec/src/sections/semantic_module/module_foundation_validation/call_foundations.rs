@@ -387,10 +387,8 @@ pub(super) fn validate_external_completion(
     else {
         return Ok(());
     };
-    let Some(declaration) = module
-        .boundary_machines
-        .iter()
-        .find(|candidate| candidate.id == *boundary)
+    let Some(declaration) =
+        terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
     else {
         return malformed("external completion references an unknown boundary");
     };
@@ -458,10 +456,7 @@ pub(super) fn validate_boundary_call(
     else {
         unreachable!("dispatched validate_boundary_call")
     };
-    let Some(boundary) = module
-        .boundary_machines
-        .iter()
-        .find(|candidate| candidate.id == *boundary)
+    let Some(boundary) = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
     else {
         return malformed("boundary call references an unknown boundary");
     };
