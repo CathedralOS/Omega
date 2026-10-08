@@ -183,11 +183,9 @@ fn expression_uses_owner_path(
         )
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => recurse(dispatch.subject)
-            || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
-                    || recurse(arm.value)
-            }),
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_deep_any(dispatch, |handle| recurse(handle)),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
@@ -219,7 +217,8 @@ fn expression_uses_owner_path(
         ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,

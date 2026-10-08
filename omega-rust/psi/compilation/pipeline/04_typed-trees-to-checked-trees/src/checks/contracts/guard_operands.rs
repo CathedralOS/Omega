@@ -45,7 +45,8 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     if reads.is_empty() {
         return true;
     }
-    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    let Some((machine, state)) =
+        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return false;
     };
@@ -289,7 +290,8 @@ fn expression_contains(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,
@@ -301,17 +303,9 @@ fn expression_contains(
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),
         ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
-        ExpressionNode::Match(dispatch) => {
-            recurse(dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
-                            || recurse(arm.value)
-                    })
-        }
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_deep_any(dispatch, |handle| recurse(handle)),
         ExpressionNode::Call(call) => {
             recurse(call.receiver)
                 || program

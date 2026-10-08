@@ -159,11 +159,9 @@ pub(super) fn expression_reads_overlapping_place(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Match(dispatch) => recurse(dispatch.subject)
-            || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if recurse(pattern))
-                    || recurse(arm.value)
-            }),
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_deep_any(dispatch, |handle| recurse(handle)),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression_place_may_overlap(
             program,
             state_symbol,
@@ -209,7 +207,8 @@ pub(super) fn expression_reads_overlapping_place(
             .iter()
             .any(|field| recurse(field.value)),
         ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,

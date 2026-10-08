@@ -281,16 +281,9 @@ pub(crate) fn expression_contains_call_node(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            expression_contains_call_node(program, dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_contains_call_node(program, pattern))
-                            || expression_contains_call_node(program, arm.value)
-                    })
+            program.expression_table.match_deep_any(dispatch, |handle| {
+                expression_contains_call_node(program, handle)
+            })
         }
         ExpressionNode::Call(_) => true,
         ExpressionNode::Binary(binary) => {

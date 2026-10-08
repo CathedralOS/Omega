@@ -201,16 +201,9 @@ fn expression_contains_value_call(
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(_) => true,
         ExpressionNode::Match(dispatch) => {
-            expression_contains_value_call(program, dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_contains_value_call(program, pattern))
-                            || expression_contains_value_call(program, arm.value)
-                    })
+            program.expression_table.match_deep_any(dispatch, |handle| {
+                expression_contains_value_call(program, handle)
+            })
         }
         ExpressionNode::Atomic(atomic) => expression_contains_value_call(program, atomic.value),
         ExpressionNode::Binary(binary) => {

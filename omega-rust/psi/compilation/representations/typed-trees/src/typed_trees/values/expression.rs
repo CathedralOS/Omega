@@ -229,6 +229,20 @@ impl ExpressionTable {
             })
     }
 
+    /// `visit` holds for the subject, some arm's value, or some `Value`
+    /// pattern — the deep disjunctive predicate over a dispatch's handles.
+    pub fn match_deep_any(
+        &self,
+        dispatch: &TableMatchExpression,
+        mut visit: impl FnMut(ExpressionHandle) -> bool,
+    ) -> bool {
+        visit(dispatch.subject)
+            || self.match_arms(dispatch.arms).iter().any(|arm| {
+                matches!(arm.pattern, MatchPattern::Value(pattern) if visit(pattern))
+                    || visit(arm.value)
+            })
+    }
+
     /// The worklist order for a depth-first walk over `dispatch`: arm values
     /// in reverse so the first arm pops first off a stack, each `Value`
     /// pattern after its arm's value, and the subject last.
