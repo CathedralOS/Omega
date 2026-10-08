@@ -206,9 +206,7 @@ impl LoanChains {
             }
             for edge in state.successors() {
                 let target = plan
-                    .states
-                    .iter()
-                    .position(|candidate| candidate.state == edge.target_state)
+                    .state_position(edge.target_state)
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph loan chain target state is absent",
                     ))?;

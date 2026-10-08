@@ -72,9 +72,7 @@ impl StateGraphEmission<'_, '_> {
         operations.byte_lengths = inherited_lengths.to_vec();
         operations.field_byte_lengths = inherited_field_lengths.to_vec();
         let target = plan
-            .states
-            .iter()
-            .position(|state| state.state == edge.target_state)
+            .state_position(edge.target_state)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph target disappeared during emission",
             ))?;

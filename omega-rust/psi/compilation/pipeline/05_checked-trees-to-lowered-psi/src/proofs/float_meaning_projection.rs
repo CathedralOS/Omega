@@ -411,9 +411,7 @@ fn resolve_direct_block_float_parameter(
         .composed_for_machine(source_machine.symbol)
         .ok_or_else(invalid_source)?;
     let position = plan
-        .states
-        .iter()
-        .position(|state| state.state == parameter.owner_state)
+        .state_position(parameter.owner_state)
         .ok_or_else(invalid_source)?;
     if position == 0
         || plan

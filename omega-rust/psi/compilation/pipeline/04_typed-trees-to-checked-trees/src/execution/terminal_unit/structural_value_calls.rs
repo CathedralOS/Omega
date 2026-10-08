@@ -220,9 +220,7 @@ fn caller_operations(
         .enumerate()
         .filter(|(_, plan)| plan.machine == machine)
         .find_map(|(owner, plan)| {
-            plan.states
-                .iter()
-                .position(|plan| plan.state == state)
+            plan.state_position(state)
                 .map(|index| (owner, index))
         })
     {

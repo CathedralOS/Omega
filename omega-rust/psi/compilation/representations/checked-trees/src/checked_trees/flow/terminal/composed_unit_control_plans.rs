@@ -43,6 +43,23 @@ pub struct CheckedComposedUnitControlMachinePlan {
     pub states: Vec<CheckedComposedUnitControlStatePlan>,
 }
 
+impl CheckedComposedUnitControlMachinePlan {
+    /// The roster position of the state keyed `state`, if present.
+    pub fn state_position(&self, state: SymbolHandle) -> Option<usize> {
+        state_position(&self.states, state)
+    }
+}
+
+/// The roster position of the state keyed `state`, if present.
+pub fn state_position(
+    states: &[CheckedComposedUnitControlStatePlan],
+    state: SymbolHandle,
+) -> Option<usize> {
+    states
+        .iter()
+        .position(|candidate| candidate.state == state)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedControlResultPlan {
     Unit,
@@ -431,9 +448,7 @@ impl CheckedComposedUnitControlStatePlan {
         while let Some(source) = ready.get(next).copied() {
             next += 1;
             for successor in states[source].successors() {
-                let target = states
-                    .iter()
-                    .position(|state| state.state == successor.target_state)?;
+                let target = state_position(states, successor.target_state)?;
                 if !visited[target] {
                     visited[target] = true;
                     ready.push(target);
