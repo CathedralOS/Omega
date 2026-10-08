@@ -1,4 +1,13 @@
-Run on macOS AArch64 through the corpus gate:
+Run on macOS AArch64 through the public CLI after package acceptance:
+
+```sh
+cd tests/omega/pass/host/runtime_descriptor_record_array_input_exit
+omega update
+# Review pending decisions, then: omega update --resume
+omega run --both main.omg < input.txt
+```
+
+From the repository root, the independent corpus route is:
 
 ```sh
 python3 tools/corpus_gate.py --both --filter host/runtime_descriptor_record_array_input_exit
@@ -15,8 +24,8 @@ The record's custody is not the selected array's presentation type.
 The calling policy uses canonical std vocabulary and explicitly declares the
 pointer/count ABI. `Calling<ByteViewCallingPolicy<u8>>` closes a generic named
 map whose reference row selects the same non-generic plan body; the map argument
-does not become an extra runtime operand. Public execution is `omega update`, review the exact
-candidate, `omega update --resume`, then `omega run --both main.omg < input.txt`.
-Full std package review remains a separate acceptance requirement, as described
-in the sibling `runtime_descriptor_mutable_view_input_exit/README.md`; no
-unrelated std authority was approved to qualify this compiler regression.
+does not become an extra runtime operand. Full std package review remains a
+separate acceptance requirement; the corpus does not supply it. See the sibling
+[mutable-view fixture](../runtime_descriptor_mutable_view_input_exit/README.md)
+for the distinction between reviewed acceptance and disposable test-only bulk
+acceptance. Neither fixture publishes its generated lock.

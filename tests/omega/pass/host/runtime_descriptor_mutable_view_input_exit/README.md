@@ -1,5 +1,4 @@
-The compiler/corpus native and Terminal routes run this on macOS AArch64.
-The public package route additionally needs reviewed acceptance:
+Run on macOS AArch64 through the public CLI after package acceptance:
 
 ```sh
 cd tests/omega/pass/host/runtime_descriptor_mutable_view_input_exit
@@ -18,8 +17,14 @@ X1/X2; a bare safe slice does not declare a foreign ABI. Its types come from
 the canonical std calling vocabulary, not copied compiler-owned definitions.
 The policy selects the public `ByteViewCallingPolicy` map's exact reference
 row; its body machine needs no separate satisfaction edge or naming convention.
-Package preparation requests a full std review, including unused foreign
-filesystem/process interfaces. Those decisions remain
-unapproved in development validation. Without acceptance, the public command
-refuses std's dependency-owned program-entry binding before execution; corpus
-agreement is not evidence of accepted-package CLI execution.
+Package preparation checks the current full std package and requests review,
+including unused foreign filesystem/process interfaces. Without acceptance,
+the public command refuses std's dependency-owned program-entry binding before
+execution; corpus agreement does not settle package admission. After acceptance,
+the public native and Terminal routes produce the authored oracle above.
+
+For disposable, isolated fixture validation only, `omega update --offline
+--dangerously-accept-all` can accept pending decisions unread. This is not an
+audit attestation or a recipe for accepting an application's dependencies.
+The fixture does not publish that generated lock. Changing package source
+requires fresh acceptance; an old lock cannot approve a changed public contract.

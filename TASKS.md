@@ -1786,14 +1786,6 @@ then independent claimed restoration slices -> final closure.
   and explicit payload events address original backing through nested fields.
   Tag preservation must not preserve scalar observations, authorize ordinary
   shared writes, or turn atomic storage into a scalar dispatch snapshot.
-  Qualify the ordinary `omega run --both` route for
-  `borrows/{indexed_record_field_replacement_exit,runtime_affine_local_case_return_exit}` and
-  `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their
-  full-stdlib package review, including `FilesystemHost`. Recompute the exact
-  review choices against the current package after its named Calling migration;
-  old accepted evidence cannot admit a changed public telescope. Unlocked mutable-view
-  execution refuses the dependency-owned program-entry binding; corpus
-  agreement does not settle that package admission.
   Complete clock imports beyond the admitted Darwin nanosecond reads and
   descriptorless finite poll waits: descriptor readiness needs actual custody,
   CPU clocks need accounting, and other target locators need exact adapters.
