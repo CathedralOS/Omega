@@ -298,7 +298,7 @@ pub(super) fn structural_term_in_scope(
             fields: Vec::new(),
         }),
         ExpressionNode::Member(member) => {
-            if let ExpressionNode::Call(call) = program.expression_table.expression(member.receiver)
+            if let Some(call) = program.expression_table.call_node(member.receiver)
                 && (!call.receiver.is_valid() || static_call_receiver(program, call))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()

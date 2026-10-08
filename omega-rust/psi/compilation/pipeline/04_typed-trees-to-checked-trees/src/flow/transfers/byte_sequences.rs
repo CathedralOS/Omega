@@ -106,7 +106,7 @@ fn value_proves_predicate(
                 point,
             );
     }
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+    if let Some(indexed) = program.expression_table.indexed_node(expression)
         && matches!(
             program.expression_table.expression(indexed.index),
             ExpressionNode::Range(_)

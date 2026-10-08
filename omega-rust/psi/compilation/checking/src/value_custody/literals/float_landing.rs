@@ -120,7 +120,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 // resolves computed results in bodies and callable contracts.
                 for (typed, anonymous) in [(binary.left, binary.right), (binary.right, binary.left)]
                 {
-                    if let ExpressionNode::Name(path) = program.expression_table.expression(typed)
+                    if let Some(path) = program.expression_table.name_path_node(typed)
                         && let Some(declared) =
                             crate::value_custody::expression_types::named_value_type_reference(
                                 program, path,

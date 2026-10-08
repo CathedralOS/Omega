@@ -28,7 +28,7 @@ pub(super) fn initializer_satisfies_predicate_domain(
     }
     // An explicit `x as T in D` mint declares the qualification directly;
     // the staged mint fence at validation owns judging its legality.
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(value)
+    if let Some(cast) = program.expression_table.cast_node(value)
         && cast.semantic_domain_symbol == domain_symbol
     {
         return true;

@@ -240,7 +240,7 @@ fn argument_matches_type_reference_using(
     // the stated type here must neither infer a conversion from the destination
     // nor erase qualifications. Required bindings are simultaneous: a selected
     // caller type must not be rebound by another callee formal.
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(argument)
+    if let Some(cast) = program.expression_table.cast_node(argument)
         && cast.form.is_recast()
     {
         return program.type_identity(TypeIdentityRequest::ordinary(cast.target_type))
@@ -252,7 +252,7 @@ fn argument_matches_type_reference_using(
 
     // A resolved reference result has a declared referee carrier. Do not let the
     // permissive scalar-call or implicit-shared syntax fallbacks erase it.
-    if let ExpressionNode::Call(call) = program.expression_table.expression(argument)
+    if let Some(call) = program.expression_table.call_node(argument)
         && let Some(actual) = crate::machine_calls::calls::resolved_call_result_type(program, call)
         && matches!(
             program.type_reference_table.type_reference(actual),

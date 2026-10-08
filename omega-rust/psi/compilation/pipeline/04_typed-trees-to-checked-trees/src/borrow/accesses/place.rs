@@ -18,7 +18,7 @@ pub(crate) fn borrow_access_place(
     while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(viewed) {
         viewed = borrow.target;
     }
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(viewed)
+    if let Some(cast) = program.expression_table.cast_node(viewed)
         && cast.form.is_recast()
     {
         let mut source = cast.value;

@@ -237,7 +237,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
             assert_eq!(call.arguments.count(), 1);
             assert_eq!(call.evidence_arguments[0].as_str(), "proof");
             if target == "other.next" {
-                let Some(receiver) = parsed.expressions.name_path_node(call.receiver)
+                let ExpressionNode::Name(receiver) = parsed.expressions.expression(call.receiver)
                 else {
                     panic!("direct receiver identity lost");
                 };

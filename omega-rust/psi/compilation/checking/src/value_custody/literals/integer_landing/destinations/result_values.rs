@@ -18,7 +18,7 @@ pub(super) fn admit_assignment_value<'p>(
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
     >,
 ) -> bool {
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target)
+    if let Some(indexed) = program.expression_table.indexed_node(target)
         && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
     {
         let Some(collection_type) = crate::value_custody::places::declared_place_type(

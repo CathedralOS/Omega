@@ -153,7 +153,7 @@ fn collect_licensed_ac_operands(
     context: &TypeIdentityContext<'_>,
     operands: &mut Vec<String>,
 ) {
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == operator
         && open_index_operation_selection(program, expression)
             .is_some_and(|selection| same_open_index_ac_authority(authority, selection))

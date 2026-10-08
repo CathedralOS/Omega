@@ -140,7 +140,7 @@ fn explicit_borrow_source_refusal(
     mut source: ExpressionHandle,
     access: language_semantics::ReferenceAccess,
 ) -> Option<ReferenceAccessRefusal> {
-    if let ExpressionNode::Cast(cast) = program.expression_table.expression(source)
+    if let Some(cast) = program.expression_table.cast_node(source)
         && cast.form.is_recast()
     {
         source = cast.value;

@@ -46,7 +46,7 @@ impl Builder<'_, '_> {
         // result borrows the same collection; the callee may narrow its extent
         // or perform effects before returning. Only erased collection openers
         // have no runtime occurrence to preserve here.
-        if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        if let Some(call) = self.program.expression_table.call_node(expression)
             && self
                 .call_ordinal(
                     expression,

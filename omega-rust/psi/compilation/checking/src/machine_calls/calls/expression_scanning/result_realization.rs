@@ -578,7 +578,7 @@ pub(crate) fn report_nested_call_in_local_assignment(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(state) = state {
-        if let ExpressionNode::Name(path) = program.expression_table.expression(assignment.target)
+        if let Some(path) = program.expression_table.name_path_node(assignment.target)
             && path.symbol.is_valid()
             && program
                 .expression_table

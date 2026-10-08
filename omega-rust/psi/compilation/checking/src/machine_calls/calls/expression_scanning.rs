@@ -532,7 +532,7 @@ fn validate_expression_call_bounds(
     // (`Ascending::before(left, right)`); resolution already selected that
     // implementation's row, an ordinary machine called with its explicit
     // arguments.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+    if let Some(path) = program.expression_table.name_path_node(call.receiver)
         && path.symbol.is_valid()
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Conformance
     {

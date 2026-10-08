@@ -1153,7 +1153,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+    if let Some(indexed) = program.expression_table.indexed_node(expression)
         && let Some(root) = direct_write_only_root(program, indexed.collection, roots)
         && fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
     {

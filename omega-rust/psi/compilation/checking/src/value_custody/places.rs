@@ -280,7 +280,7 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
-    if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
+    if let Some(path) = program.expression_table.name_path_node(handle)
         && program.expression_table.name_path_is_single_member(path)
         && let Some(parameter) = program
             .machine_type_parameters(current_machine)
@@ -294,7 +294,7 @@ pub fn declared_place_type_raw(
         return Some(type_reference);
     }
 
-    if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
+    if let Some(path) = program.expression_table.name_path_node(handle)
         && path.head_symbol == path.symbol
         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
         && program

@@ -117,7 +117,7 @@ pub(crate) fn projected_leaf_place(
         };
     }
     for expression in visited.into_iter().rev() {
-        if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+        if let Some(member) = program.expression_table.member_node(expression)
             && (!member.member_symbol.is_valid()
                 || effective_member_symbol(program, member.receiver, member)
                     != member.member_symbol)

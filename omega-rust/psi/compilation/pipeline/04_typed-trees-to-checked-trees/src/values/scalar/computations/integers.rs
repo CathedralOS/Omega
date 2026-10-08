@@ -120,7 +120,7 @@ impl Builder<'_, '_> {
                 computation,
             });
         }
-        if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        if let Some(cast) = self.program.expression_table.cast_node(expression)
             && (!cast.semantic_domain.is_empty()
                 || semantic_casts::result_type(self.program, self.state, cast.value).is_some_and(
                     |reference| semantic_casts::has_declared_domains(self.program, reference),

@@ -662,7 +662,7 @@ fn scan_expression_calls_at_position(
     // is the current state; retained foreign binding identities cannot be
     // replaced by a coincidentally matching spelling. Qualified paths check
     // their root too, so member access cannot hide an implicit capture.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    if let Some(path) = program.expression_table.name_path_node(expression)
         && let Some(first) = program
             .expression_table
             .name_path_members(path.members)
@@ -731,7 +731,7 @@ fn scan_expression_calls_at_position(
     // head and leaf symbols invalid and would silently read 0 (ZII) in value
     // position (native AND interpreter agree, so the differential cannot catch
     // it). Reject exactly that shape: both symbols unresolved.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    if let Some(path) = program.expression_table.name_path_node(expression)
         && let [scope, tail] = program.expression_table.name_path_members(path.members)
         && !path.head_symbol.is_valid()
         && !path.symbol.is_valid()

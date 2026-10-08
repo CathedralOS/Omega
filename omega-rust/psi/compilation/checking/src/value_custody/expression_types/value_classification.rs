@@ -207,7 +207,7 @@ pub(crate) fn report_cross_class_store(
         )));
         return true;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(value)
+    if let Some(call) = program.expression_table.call_node(value)
         && let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
         && let Some(source) = program.primitive_type_reference(operator.return_type)
         && source != target

@@ -279,7 +279,7 @@ impl PremiseScope<'_> {
                 arguments,
                 ..
             } => {
-                if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+                if let Some(path) = program.expression_table.name_path_node(expression)
                     && program
                         .expression_table
                         .name_path_members(path.members)

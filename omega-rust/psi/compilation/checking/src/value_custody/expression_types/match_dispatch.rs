@@ -1113,7 +1113,7 @@ fn case_dispatch_subject(
     if parameter_case_subject(program, machine, state, subject).is_some() {
         return Some(MatchCaseSubject::ParameterField);
     }
-    if let ExpressionNode::Name(path) = program.expression_table.expression(subject)
+    if let Some(path) = program.expression_table.name_path_node(subject)
         && path.head_symbol == path.symbol
         && program
             .expression_table

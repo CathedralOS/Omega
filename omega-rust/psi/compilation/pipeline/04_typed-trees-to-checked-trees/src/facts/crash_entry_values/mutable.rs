@@ -183,7 +183,7 @@ fn rooted_place_path(
         }
         ExpressionNode::Borrow(borrow) => rooted_place_path(program, machine_symbol, borrow.target),
         ExpressionNode::Member(member) => {
-            if let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            if let Some(path) = program.expression_table.name_path_node(member.receiver)
                 && path.members.count() == 1
                 && path.symbol.is_valid()
                 && path.symbol == machine_symbol

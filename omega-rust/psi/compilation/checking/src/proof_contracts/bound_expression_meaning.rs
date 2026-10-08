@@ -361,7 +361,7 @@ fn sealed_float_comparison_for_operands(
         return false;
     };
     let operator = candidate.operator;
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+    if let Some(call) = program.expression_table.call_node(expression)
         && !call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
     {
         return false;

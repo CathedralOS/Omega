@@ -546,7 +546,7 @@ fn selected_term(
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, Polynomial)],
 ) -> Option<Polynomial> {
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    if let Some(path) = program.expression_table.name_path_node(expression)
         && program.expression_table.name_path_is_single_member(path)
         && let Some((_, value)) = bindings.iter().find(|(symbol, _)| *symbol == path.symbol)
     {

@@ -322,7 +322,7 @@ impl ReturnReader<'_, '_> {
             self.place_type(expression, before, depth + 1)?,
         )?;
         let mut bounds = carrier_bounds(primitive)?;
-        if let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        if let Some(path) = self.program.expression_table.name_path_node(expression)
             && self
                 .program
                 .state_parameters(self.state)

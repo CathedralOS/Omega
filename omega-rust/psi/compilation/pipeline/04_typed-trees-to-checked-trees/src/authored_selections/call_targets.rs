@@ -91,12 +91,12 @@ pub(crate) fn checked_call_target(
     if let Some(target) = checked_named_target {
         return target;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+    if let Some(call) = program.expression_table.call_node(expression)
         && let Some(operator) = exact_named_operator_call(program, call)
     {
         return operator.symbol;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+    if let Some(call) = program.expression_table.call_node(expression)
         && let Some(operator) = contract_resolution::checked_named_operator_call(
             program,
             facts,
@@ -108,7 +108,7 @@ pub(crate) fn checked_call_target(
     {
         return operator.symbol;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+    if let Some(call) = program.expression_table.call_node(expression)
         && let Some(target) =
             validation::expression_owners::checked_machine_call_target_from_exact_owner(
                 program,

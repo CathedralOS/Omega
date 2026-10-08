@@ -360,7 +360,7 @@ pub(super) fn project_component(
                     }
                 }
                 for node in nodes {
-                    if let ExpressionNode::Name(path) = program.expression_table.expression(node)
+                    if let Some(path) = program.expression_table.name_path_node(node)
                         && path.head_symbol.is_valid()
                         && !arrival_premises.contains(&path.head_symbol)
                     {

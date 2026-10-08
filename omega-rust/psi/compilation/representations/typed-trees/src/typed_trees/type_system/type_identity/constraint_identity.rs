@@ -87,7 +87,7 @@ pub(crate) fn normalized_range_endpoint(
     end_inclusive: bool,
     context: &TypeIdentityContext<'_>,
 ) -> String {
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+    if let Some(path) = program.expression_table.name_path_node(expression)
         && let Some(identity) =
             substitution::range_endpoint(program, path.symbol, end_inclusive, context)
     {

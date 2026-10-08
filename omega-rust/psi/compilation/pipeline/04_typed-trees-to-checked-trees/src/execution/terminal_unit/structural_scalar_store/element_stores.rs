@@ -122,7 +122,7 @@ fn element_selector_target(
             _ => return None,
         };
     }
-    if let ExpressionNode::Name(name) = program.expression_table.expression(target)
+    if let Some(name) = program.expression_table.name_path_node(target)
         && let Some((_, local)) = program.state_local_declaration(state, name.symbol)
         && let ExpressionNode::Borrow(borrow) =
             program.expression_table.expression(local.initial_value)

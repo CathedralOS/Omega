@@ -284,7 +284,7 @@ fn projected_formal_leaf_value(
     // same checked projection of an explicit formal. A declared `len` field,
     // a slice's runtime length, or an unresolved extent keeps the storage
     // read below (or refuses there) — this route owns no other evidence.
-    if let ExpressionNode::Member(member) = program.expression_table.expression(leaf)
+    if let Some(member) = program.expression_table.member_node(leaf)
         && member.case_variant.is_none()
         && !member.member_symbol.is_valid()
         && CollectionMeasure::from_authored_spelling(member.member.as_str())

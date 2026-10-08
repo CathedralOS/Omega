@@ -522,7 +522,7 @@ fn parses_slice_range_indexing_into_range_expression() {
     let StatementNode::LocalData(local) = statement else {
         panic!("expected local data statement");
     };
-    let Some(indexed) = parsed.expressions.indexed_node(local.initial_value)
+    let ExpressionNode::Indexed(indexed) = parsed.expressions.expression(local.initial_value)
     else {
         panic!("expected indexed initializer");
     };

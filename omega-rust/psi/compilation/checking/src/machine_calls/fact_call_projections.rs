@@ -150,7 +150,7 @@ fn append_substituted_projection_requests(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            if let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            if let Some(path) = program.expression_table.name_path_node(member.receiver)
                 && let Some((_, actual)) = bindings
                     .iter()
                     .find(|(parameter, _)| *parameter == path.symbol)
