@@ -28,6 +28,7 @@ pub(super) struct Admission<'source> {
 }
 
 /// The normalization a `ZeroExtend*`/`SignExtend*` consumer performs.
+use crate::rewrites::block_edges::member_position;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Extension {
     /// Result bits at or above `width` are zero.
@@ -149,18 +150,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RedundantExtensionError::SourceMismatch
         })?;
-    let (block_index, extension_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == extension_id)
-                .map(|extension_index| (block_index, extension_index))
-        })
-        .ok_or(RedundantExtensionError::SourceMismatch)?;
+    let (block_index, extension_index) =
+        member_position(function, extension_id).ok_or(RedundantExtensionError::SourceMismatch)?;
     let extension_instruction = &function.blocks[block_index].instructions[extension_index];
     let form = extension(extension_instruction.kind)
         .ok_or(RedundantExtensionError::UnsupportedInstruction)?;

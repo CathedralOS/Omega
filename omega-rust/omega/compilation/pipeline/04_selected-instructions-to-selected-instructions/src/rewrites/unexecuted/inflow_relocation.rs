@@ -115,11 +115,9 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{all_edges, plain_edge, member_position};
+use crate::rewrites::block_edges::{all_edges, member_position, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
-use crate::rewrites::window_hazards::{
-    RunRelocationRejection, schedulable, speculatable,
-};
+use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
 pub use rewrite::relocate_selected_instruction_onto_inflow;
 pub use validation::validate_inflow_relocation;
@@ -181,7 +179,6 @@ impl std::fmt::Display for InflowRelocationError {
 
 impl std::error::Error for InflowRelocationError {}
 
-
 /// The shared derivation of the member's inflow legality both the
 /// admission and the validator prove: the member's join block and index,
 /// the inflow predecessor the destination names, the landing position in
@@ -210,8 +207,10 @@ fn derive_inflow_span<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<InflowDerivation<'source>, InflowRelocationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || InflowRelocationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            InflowRelocationError::SourceMismatch
+        })?;
     let (block_index, member_index) =
         member_position(function, member).ok_or(InflowRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];

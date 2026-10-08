@@ -56,7 +56,7 @@ use selected_instructions::{
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface,
+    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface, member_position,
     terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
@@ -186,18 +186,8 @@ fn reconstruct<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             MemberRunRelocationError::SourceMismatch
         })?;
-    let (run_block, run_start) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == first_member)
-                .map(|run_start| (block_index, run_start))
-        })
-        .ok_or(MemberRunRelocationError::SourceMismatch)?;
+    let (run_block, run_start) =
+        member_position(function, first_member).ok_or(MemberRunRelocationError::SourceMismatch)?;
     // The run is the contiguous span the two named members bound in this
     // block, in the named order; one member is the member-level move. A
     // last member absent from the same body, or earlier than the first,

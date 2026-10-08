@@ -29,7 +29,7 @@ use selected_instructions::{
 
 use super::DeadCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, terminator_successors};
+use crate::rewrites::block_edges::{block_instructions, member_position, terminator_successors};
 use crate::rewrites::condition_state::{EventSite, instruction_at};
 
 pub(super) struct Admission<'source> {
@@ -228,18 +228,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             DeadCompareError::SourceMismatch
         })?;
-    let (block_index, compare_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == compare)
-                .map(|compare_index| (block_index, compare_index))
-        })
-        .ok_or(DeadCompareError::SourceMismatch)?;
+    let (block_index, compare_index) =
+        member_position(function, compare).ok_or(DeadCompareError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let compare_instruction = &block.instructions[compare_index];
     // The removed instruction must be one of the three compare forms in the

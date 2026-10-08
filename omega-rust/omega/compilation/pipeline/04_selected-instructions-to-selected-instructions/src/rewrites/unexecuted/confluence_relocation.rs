@@ -118,7 +118,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{all_edges, plain_edge};
+use crate::rewrites::block_edges::{all_edges, member_position, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
@@ -280,18 +280,8 @@ fn derive_confluence_span<'source>(
         function_index,
         ConfluenceRelocationError::SourceMismatch,
     )?;
-    let (block_index, first_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == first_member)
-                .map(|first_index| (block_index, first_index))
-        })
-        .ok_or(ConfluenceRelocationError::SourceMismatch)?;
+    let (block_index, first_index) =
+        member_position(function, first_member).ok_or(ConfluenceRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     // The run is the contiguous span the two named members bound in this
     // block, in the named order; a repeated id or a last member that does

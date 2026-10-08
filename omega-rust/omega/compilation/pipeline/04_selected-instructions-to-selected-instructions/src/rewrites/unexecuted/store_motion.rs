@@ -122,7 +122,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_successors;
+use crate::rewrites::block_edges::{member_position, terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,
@@ -290,18 +290,8 @@ fn reconstruct<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             StoreMutationMotionError::SourceMismatch
         })?;
-    let (block_index, store_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == store)
-                .map(|store_index| (block_index, store_index))
-        })
-        .ok_or(StoreMutationMotionError::SourceMismatch)?;
+    let (block_index, store_index) =
+        member_position(function, store).ok_or(StoreMutationMotionError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let moved_store = &block.instructions[store_index];
     // The moved store's encoded byte range and, for the direct slot

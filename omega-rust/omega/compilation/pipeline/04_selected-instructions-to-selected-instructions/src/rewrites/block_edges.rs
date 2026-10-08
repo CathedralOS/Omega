@@ -14,8 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(super) use selected_instructions::terminator_successors;
 
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId,
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
     SelectedSuccessorRole, SelectedValueTransport, terminator_instruction,
 };

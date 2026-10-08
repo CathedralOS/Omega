@@ -98,7 +98,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_successors;
+use crate::rewrites::block_edges::{member_position, terminator_successors};
 use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
@@ -182,18 +182,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             StoredLoadForwardingError::SourceMismatch
         })?;
-    let (block_index, load_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == load)
-                .map(|load_index| (block_index, load_index))
-        })
-        .ok_or(StoredLoadForwardingError::SourceMismatch)?;
+    let (block_index, load_index) =
+        member_position(function, load).ok_or(StoredLoadForwardingError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let forwarded_load = &block.instructions[load_index];
     let indexed = matches!(forwarded_load.kind, SelectedInstructionKind::Load8Indexed);

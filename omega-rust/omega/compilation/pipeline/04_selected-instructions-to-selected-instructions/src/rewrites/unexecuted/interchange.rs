@@ -59,6 +59,7 @@ mod validation;
 
 use std::sync::Arc;
 
+use crate::rewrites::block_edges::member_position;
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
@@ -166,18 +167,8 @@ pub(super) fn derive_interchange<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             InterchangeError::SourceMismatch
         })?;
-    let (block_index, earlier_first_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == earlier_first)
-                .map(|earlier_first_index| (block_index, earlier_first_index))
-        })
-        .ok_or(InterchangeError::SourceMismatch)?;
+    let (block_index, earlier_first_index) =
+        member_position(function, earlier_first).ok_or(InterchangeError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     // Each run is the contiguous span its two named members bound in this
     // block, in the named order. Naming one member twice is the run of one,

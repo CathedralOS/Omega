@@ -12,12 +12,11 @@
 //! record, requires the proposal to equal it, and restores the complete
 //! source by content.
 
-
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 
 use super::{CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand};
-use crate::rewrites::sealed;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::sealed;
 
 /// The bounded-work charge of one copied-call-operand audit — the
 /// whole-function consumer scan, the forward producer scan, the backward

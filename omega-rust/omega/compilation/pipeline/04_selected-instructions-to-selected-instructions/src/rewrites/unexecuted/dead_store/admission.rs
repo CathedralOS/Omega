@@ -88,7 +88,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_successors;
+use crate::rewrites::block_edges::{member_position, terminator_successors};
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
@@ -190,18 +190,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             DeadStoreEliminationError::SourceMismatch
         })?;
-    let (block_index, store_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == store)
-                .map(|store_index| (block_index, store_index))
-        })
-        .ok_or(DeadStoreEliminationError::SourceMismatch)?;
+    let (block_index, store_index) =
+        member_position(function, store).ok_or(DeadStoreEliminationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let dead_store = &block.instructions[store_index];
     // The dead store writes the place's storage by one of the routes the

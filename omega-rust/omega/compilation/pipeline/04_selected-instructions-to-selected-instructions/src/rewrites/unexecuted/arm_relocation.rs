@@ -100,8 +100,8 @@ use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, RelocationCrossing, all_edges, crossed_window, predecessor_source_index,
-    member_position,
+    CrossingDirection, RelocationCrossing, all_edges, crossed_window, member_position,
+    predecessor_source_index,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
@@ -165,7 +165,6 @@ impl std::fmt::Display for ArmRelocationError {
 
 impl std::error::Error for ArmRelocationError {}
 
-
 /// The shared derivation of the member relocation both the admission and
 /// the validator prove: the member's arm block and index, the two-branch
 /// fork head it rises to and the landing index in its body, the plain
@@ -196,8 +195,10 @@ fn derive_arm_relocation<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<ArmRelocationDerivation<'source>, ArmRelocationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || ArmRelocationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            ArmRelocationError::SourceMismatch
+        })?;
     let (block_index, member_index) =
         member_position(function, member).ok_or(ArmRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];

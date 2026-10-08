@@ -43,6 +43,7 @@ use super::super::admission::{
 };
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::member_position;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
@@ -65,18 +66,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RedundantCompareError::SourceMismatch
         })?;
-    let (block_index, compare_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == compare)
-                .map(|compare_index| (block_index, compare_index))
-        })
-        .ok_or(RedundantCompareError::SourceMismatch)?;
+    let (block_index, compare_index) =
+        member_position(function, compare).ok_or(RedundantCompareError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let compare_instruction = &block.instructions[compare_index];
     // The removed instruction must be one of the three compare forms in the

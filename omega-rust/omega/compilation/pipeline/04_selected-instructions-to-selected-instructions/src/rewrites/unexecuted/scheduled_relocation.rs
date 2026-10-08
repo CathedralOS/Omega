@@ -75,7 +75,7 @@ use std::sync::Arc;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
     CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
-    terminator_successors,
+    member_position, terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
@@ -338,18 +338,8 @@ fn reconstruct<'source>(
     let [first_member, ..] = members else {
         return Err(ScheduledRelocationError::UnsupportedPair);
     };
-    let (block_index, member_first) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == *first_member)
-                .map(|member_index| (block_index, member_index))
-        })
-        .ok_or(ScheduledRelocationError::SourceMismatch)?;
+    let (block_index, member_first) =
+        member_position(function, *first_member).ok_or(ScheduledRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let member_last = member_first + members.len() - 1;
     if members.iter().enumerate().any(|(offset, member)| {

@@ -46,6 +46,7 @@ use crate::rewrites::sealed;
 /// row a constant fold is built from, the resolved-index successor lists
 /// the shared walk ran over, and the flag-use count for the measured-step
 /// contract. It shares no state with the producer's `admission` record.
+use crate::rewrites::block_edges::member_position;
 struct Reconstructed<'source> {
     function: &'source SelectedFunction,
     block_index: usize,
@@ -141,18 +142,8 @@ fn reconstruct<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             BoundaryBooleanError::SourceMismatch
         })?;
-    let (block_index, materialization_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == materialization)
-                .map(|materialization_index| (block_index, materialization_index))
-        })
-        .ok_or(BoundaryBooleanError::SourceMismatch)?;
+    let (block_index, materialization_index) =
+        member_position(function, materialization).ok_or(BoundaryBooleanError::SourceMismatch)?;
     let materialization_instruction =
         &function.blocks[block_index].instructions[materialization_index];
     let result = flag_reader(materialization_instruction)

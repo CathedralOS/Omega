@@ -47,6 +47,7 @@ pub(super) struct Admission<'source> {
 /// The semantic right side a canonical compare subtracts: the second
 /// register operand for `CompareI64`, or the literal the form encodes —
 /// `CompareI64Zero` reads as `left - 0`.
+use crate::rewrites::block_edges::member_position;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CompareRight {
     Register(VirtualRegisterId),
@@ -144,18 +145,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             EquivalentCompareError::SourceMismatch
         })?;
-    let (block_index, compare_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == compare)
-                .map(|compare_index| (block_index, compare_index))
-        })
-        .ok_or(EquivalentCompareError::SourceMismatch)?;
+    let (block_index, compare_index) =
+        member_position(function, compare).ok_or(EquivalentCompareError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let compare_instruction = &block.instructions[compare_index];
     // The removed instruction must be one of the three compare forms in the

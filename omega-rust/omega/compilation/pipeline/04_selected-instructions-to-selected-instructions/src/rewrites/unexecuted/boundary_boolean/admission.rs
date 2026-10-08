@@ -15,6 +15,7 @@ use semantic_vocabulary::IntegerValue;
 
 use super::{BoundaryBooleanError, Outcome, decidable_kind, outcome};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::member_position;
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
@@ -54,18 +55,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             BoundaryBooleanError::SourceMismatch
         })?;
-    let (block_index, materialization_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == materialization)
-                .map(|materialization_index| (block_index, materialization_index))
-        })
-        .ok_or(BoundaryBooleanError::SourceMismatch)?;
+    let (block_index, materialization_index) =
+        member_position(function, materialization).ok_or(BoundaryBooleanError::SourceMismatch)?;
     let materialization_instruction =
         &function.blocks[block_index].instructions[materialization_index];
     // The materialization must be the emitted `[def result]` flag reader:

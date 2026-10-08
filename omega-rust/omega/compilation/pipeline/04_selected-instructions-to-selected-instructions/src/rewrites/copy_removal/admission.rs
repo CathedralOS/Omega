@@ -24,7 +24,7 @@ use selected_instructions::{
 
 use super::CopyRemovalError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, terminator_successors};
+use crate::rewrites::block_edges::{block_instructions, member_position, terminator_successors};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -194,18 +194,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             CopyRemovalError::SourceMismatch
         })?;
-    let (block_index, copy_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == copy)
-                .map(|copy_index| (block_index, copy_index))
-        })
-        .ok_or(CopyRemovalError::SourceMismatch)?;
+    let (block_index, copy_index) =
+        member_position(function, copy).ok_or(CopyRemovalError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let copy_instruction = &block.instructions[copy_index];
     // The removed instruction must be the target's plain register copy: a

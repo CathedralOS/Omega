@@ -29,7 +29,7 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::function_at;
+use crate::rewrites::block_edges::{function_at, member_position};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,
@@ -97,18 +97,8 @@ pub(super) fn admit<'source>(
         return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
     let function = function_at(plan, function_index, ConstantBooleanError::SourceMismatch)?;
-    let (block_index, materialization_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == materialization)
-                .map(|materialization_index| (block_index, materialization_index))
-        })
-        .ok_or(ConstantBooleanError::SourceMismatch)?;
+    let (block_index, materialization_index) =
+        member_position(function, materialization).ok_or(ConstantBooleanError::SourceMismatch)?;
     let materialization_instruction =
         &function.blocks[block_index].instructions[materialization_index];
     // The materialization must be a declared consumer in its emitted

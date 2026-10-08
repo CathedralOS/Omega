@@ -66,6 +66,7 @@
 //! window and the roster's window rows to equal the independently computed
 //! rotation, and restores the complete source by content.
 
+use crate::rewrites::block_edges::member_position;
 mod admission;
 mod rewrite;
 mod validation;
@@ -178,18 +179,8 @@ fn reconstruct<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             CommutingRelocationError::SourceMismatch
         })?;
-    let (block_index, first_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == first_member)
-                .map(|first_index| (block_index, first_index))
-        })
-        .ok_or(CommutingRelocationError::SourceMismatch)?;
+    let (block_index, first_index) =
+        member_position(function, first_member).ok_or(CommutingRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     // The run is the contiguous span the two named members bound in this
     // block, in the named order; a repeated id or a last member that does

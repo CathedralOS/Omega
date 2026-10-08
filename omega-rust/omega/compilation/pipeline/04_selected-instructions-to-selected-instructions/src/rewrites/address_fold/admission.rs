@@ -12,6 +12,7 @@ use selected_instructions::{
 
 use super::AddressFoldError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::member_position;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -118,18 +119,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             AddressFoldError::SourceMismatch
         })?;
-    let (block_index, consumer_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == access)
-                .map(|consumer_index| (block_index, consumer_index))
-        })
-        .ok_or(AddressFoldError::SourceMismatch)?;
+    let (block_index, consumer_index) =
+        member_position(function, access).ok_or(AddressFoldError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let consumer = &block.instructions[consumer_index];
     // The consumer must be the emitted two-operand addressing form: operand
