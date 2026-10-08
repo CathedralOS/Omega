@@ -65,6 +65,62 @@ pub enum StructuralPathSegment {
     Referent,
 }
 
+/// The projection inventories' exhaustiveness fallbacks share two runs of
+/// scalar-only catalog operations — each restated per inventory so a new
+/// operation edited into one arm silently escaped the other. One spec each;
+/// the path-bearing `*StructuralField` variants sit between them in the
+/// by-path inventory only.
+macro_rules! call_and_scalar_constant_operations {
+    () => {
+        Self::Call { .. }
+            | Self::SelectImplementation { .. }
+            | Self::PortWrite { .. }
+            | Self::IntegerConstant { .. }
+            | Self::BooleanConstant { .. }
+            | Self::IeeeFloatConstant { .. }
+            | Self::IeeeFloatCompare { .. }
+            | Self::ScalarRepresentationView { .. }
+            | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
+    };
+}
+
+macro_rules! scalar_predicate_operations {
+    () => {
+        Self::BooleanNot { .. }
+            | Self::BooleanEqual { .. }
+            | Self::IntegerEqual { .. }
+            | Self::IntegerLessThan { .. }
+            | Self::IntegerLessOrEqual { .. }
+            | Self::IntegerBitwiseNot { .. }
+            | Self::IntegerWiden { .. }
+            | Self::IntegerExactCast { .. }
+            | Self::IntegerBitwiseAnd { .. }
+            | Self::IntegerBitwiseOr { .. }
+            | Self::IntegerBitwiseXor { .. }
+            | Self::WrappingIntegerShiftLeft { .. }
+            | Self::WrappingIntegerShiftRight { .. }
+            | Self::ExactIntegerShiftLeft { .. }
+            | Self::ExactIntegerShiftRight { .. }
+            | Self::ExactIntegerAdd { .. }
+            | Self::ExactIntegerSubtract { .. }
+            | Self::ExactIntegerMultiply { .. }
+            | Self::ExactIntegerDivide { .. }
+            | Self::ExactIntegerRemainder { .. }
+            | Self::WrappingIntegerDivide { .. }
+            | Self::WrappingIntegerRemainder { .. }
+            | Self::SaturatingIntegerDivide { .. }
+            | Self::SaturatingIntegerRemainder { .. }
+            | Self::WrappingIntegerAdd { .. }
+            | Self::SaturatingIntegerAdd { .. }
+            | Self::WrappingIntegerSubtract { .. }
+            | Self::SaturatingIntegerSubtract { .. }
+            | Self::WrappingIntegerMultiply { .. }
+            | Self::SaturatingIntegerMultiply { .. }
+            | Self::TrappingInteger { .. }
+            | Self::FloatResultPolicy { .. }
+    };
+}
+
 impl StructuralPathSegment {
     /// The runtime selector and its obligation when this segment is a
     /// `RuntimeIndex`.
@@ -310,47 +366,8 @@ impl OperationKind {
             | Self::EstablishScalarCase { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::EstablishTrivialAffineLocal { .. }
-            | Self::Call { .. }
-            | Self::SelectImplementation { .. }
-            | Self::PortWrite { .. }
-            | Self::IntegerConstant { .. }
-            | Self::BooleanConstant { .. }
-            | Self::IeeeFloatConstant { .. }
-            | Self::IeeeFloatCompare { .. }
-            | Self::ScalarRepresentationView { .. }
-            | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
-            | Self::BooleanNot { .. }
-            | Self::BooleanEqual { .. }
-            | Self::IntegerEqual { .. }
-            | Self::IntegerLessThan { .. }
-            | Self::IntegerLessOrEqual { .. }
-            | Self::IntegerBitwiseNot { .. }
-            | Self::IntegerWiden { .. }
-            | Self::IntegerExactCast { .. }
-            | Self::IntegerBitwiseAnd { .. }
-            | Self::IntegerBitwiseOr { .. }
-            | Self::IntegerBitwiseXor { .. }
-            | Self::WrappingIntegerShiftLeft { .. }
-            | Self::WrappingIntegerShiftRight { .. }
-            | Self::ExactIntegerShiftLeft { .. }
-            | Self::ExactIntegerShiftRight { .. }
-            | Self::ExactIntegerAdd { .. }
-            | Self::ExactIntegerSubtract { .. }
-            | Self::ExactIntegerMultiply { .. }
-            | Self::ExactIntegerDivide { .. }
-            | Self::ExactIntegerRemainder { .. }
-            | Self::WrappingIntegerDivide { .. }
-            | Self::WrappingIntegerRemainder { .. }
-            | Self::SaturatingIntegerDivide { .. }
-            | Self::SaturatingIntegerRemainder { .. }
-            | Self::WrappingIntegerAdd { .. }
-            | Self::SaturatingIntegerAdd { .. }
-            | Self::WrappingIntegerSubtract { .. }
-            | Self::SaturatingIntegerSubtract { .. }
-            | Self::WrappingIntegerMultiply { .. }
-            | Self::SaturatingIntegerMultiply { .. }
-            | Self::TrappingInteger { .. }
-            | Self::FloatResultPolicy { .. } => {}
+            | call_and_scalar_constant_operations!()
+            | scalar_predicate_operations!() => {}
         }
     }
 
@@ -482,49 +499,10 @@ impl OperationKind {
             | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
-            | Self::Call { .. }
-            | Self::SelectImplementation { .. }
-            | Self::PortWrite { .. }
-            | Self::IntegerConstant { .. }
-            | Self::BooleanConstant { .. }
-            | Self::IeeeFloatConstant { .. }
-            | Self::IeeeFloatCompare { .. }
-            | Self::ScalarRepresentationView { .. }
-            | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
+            | call_and_scalar_constant_operations!()
             | Self::BooleanStructuralField { .. }
             | Self::IntegerStructuralField { .. }
-            | Self::BooleanNot { .. }
-            | Self::BooleanEqual { .. }
-            | Self::IntegerEqual { .. }
-            | Self::IntegerLessThan { .. }
-            | Self::IntegerLessOrEqual { .. }
-            | Self::IntegerBitwiseNot { .. }
-            | Self::IntegerWiden { .. }
-            | Self::IntegerExactCast { .. }
-            | Self::IntegerBitwiseAnd { .. }
-            | Self::IntegerBitwiseOr { .. }
-            | Self::IntegerBitwiseXor { .. }
-            | Self::WrappingIntegerShiftLeft { .. }
-            | Self::WrappingIntegerShiftRight { .. }
-            | Self::ExactIntegerShiftLeft { .. }
-            | Self::ExactIntegerShiftRight { .. }
-            | Self::ExactIntegerAdd { .. }
-            | Self::ExactIntegerSubtract { .. }
-            | Self::ExactIntegerMultiply { .. }
-            | Self::ExactIntegerDivide { .. }
-            | Self::ExactIntegerRemainder { .. }
-            | Self::WrappingIntegerDivide { .. }
-            | Self::WrappingIntegerRemainder { .. }
-            | Self::SaturatingIntegerDivide { .. }
-            | Self::SaturatingIntegerRemainder { .. }
-            | Self::WrappingIntegerAdd { .. }
-            | Self::SaturatingIntegerAdd { .. }
-            | Self::WrappingIntegerSubtract { .. }
-            | Self::SaturatingIntegerSubtract { .. }
-            | Self::WrappingIntegerMultiply { .. }
-            | Self::SaturatingIntegerMultiply { .. }
-            | Self::TrappingInteger { .. }
-            | Self::FloatResultPolicy { .. } => {}
+            | scalar_predicate_operations!() => {}
         }
         projections
     }
