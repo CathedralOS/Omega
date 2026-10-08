@@ -120,10 +120,6 @@ impl<'a> TerminalProductionRequest<'a> {
             unoptimized,
             boundary_operator_scope,
             source_call_occurrences: source_custody.source_call_occurrences,
-            selected_ieee_float_comparison_occurrences: source_custody
-                .selected_ieee_float_comparison_occurrences,
-            selected_integer_comparison_occurrences: source_custody
-                .selected_integer_comparison_occurrences,
         })
     }
 

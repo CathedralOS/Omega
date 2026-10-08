@@ -2,18 +2,14 @@
 //!
 //! These are driver results beside the canonical artifact, not another Psi IR.
 
-use lowered_psi::{
-    LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
-};
+use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 use artifacts::compile_timings::CompileTimings;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: the checked D29 demand scope, the selected
-/// floating-point and integer comparison occurrences, the source call
+/// asked production to retain: the checked boundary scope, source call
 /// occurrences, and the checked `ProgramEntry` receipt when an entry identity
 /// was supplied.
 ///
@@ -52,21 +48,6 @@ impl ProducedTerminalArtifact {
         self.production.source_call_occurrences()
     }
 
-    pub fn selected_ieee_float_comparison_occurrences(
-        &self,
-    ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
-        self.production.selected_ieee_float_comparison_occurrences()
-    }
-
-    /// Selected integer comparison joins, the integer counterpart of the IEEE
-    /// comparison roster. Omega rejoins each row to its exact selected
-    /// provider before native realization may admit the operation.
-    pub fn selected_integer_comparison_occurrences(
-        &self,
-    ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
-        self.production.selected_integer_comparison_occurrences()
-    }
-
     /// Keep only the canonical portable artifact.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
         self.production.into_artifact()
@@ -81,8 +62,6 @@ impl ProducedTerminalArtifact {
         Option<LoweredPsi>,
         CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSourceCallOccurrence>,
-        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
-        Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
         self.production.into_parts()
     }

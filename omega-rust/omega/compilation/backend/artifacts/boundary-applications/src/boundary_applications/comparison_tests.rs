@@ -1,16 +1,7 @@
-use super::{
-    BoundaryApplication, BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
-    BoundaryNominalIdentity, BoundaryOperatorRequirement, TerminalBoundaryApplicationDemand,
-    TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
-    TerminalIeeeFloatComparisonOccurrenceProposal as FloatOccurrence,
-    TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence,
-};
+use super::TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence;
+use effects::CompilerPrimitiveIntegerComparisonOperation as Authored;
 use effects::provider_plan::ProviderPlan;
 use effects::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
-use lowered_psi::{
-    LoweredSelectedIntegerComparisonOperandOrder as Order,
-    LoweredSelectedIntegerComparisonOperation as Emitted,
-};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
     ValueId,
@@ -81,40 +72,6 @@ fn value(identity: u64, scalar_type: ScalarType) -> ValueDeclaration {
     }
 }
 
-fn float_realizations(
-    occurrence: FloatOccurrence,
-    execution: CompilerIntrinsicExecutionIdentity,
-) -> TerminalBoundaryApplicationRealizations {
-    let demands = TerminalBoundaryApplicationDemands::new(
-        terminal_psi::TerminalPsiIdentity {
-            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
-            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
-        },
-        vec![TerminalBoundaryApplicationDemand::new(
-            occurrence.terminal_operation,
-            BoundaryOperatorRequirement::new(
-                BoundaryNominalIdentity::new("comparison".to_owned()).unwrap(),
-                "float,float->bool".to_owned(),
-            )
-            .unwrap(),
-            BoundaryApplication::Empty,
-        )],
-    )
-    .unwrap();
-    TerminalBoundaryApplicationRealizations::new(
-        &demands,
-        vec![
-            BoundaryApplicationRealizationCompanion::new(
-                occurrence.terminal_operation,
-                *occurrence.provider_plan_commitment.as_bytes(),
-                BoundaryApplicationRealization::ExactCompilerIntrinsic { execution },
-            )
-            .unwrap(),
-        ],
-    )
-    .unwrap()
-}
-
 #[test]
 fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
     let plans = [ProviderPlan::default()];
@@ -131,13 +88,11 @@ fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
         terminal_operation: OperationId::new(1).unwrap(),
         provider_plan_index: 0,
         provider_plan_commitment: plans[0].identity_digest(),
-        comparison: Emitted::Equal,
-        operand_order: Order::Authored,
-        negated: true,
-        integer_type,
+        comparison: Authored::NotEqual,
+        integer_type: CompilerNumericType::I64,
     };
-    // A bare integer operation may be builtin; only the sealed checked scope
-    // can establish whether it requires a selected-provider occurrence.
+    // A bare integer operation may be builtin; the canonical demand table
+    // establishes whether it requires a selected-provider occurrence.
     assert_eq!(
         IntegerOccurrence::validate_roster(&module, &plans, &[]),
         Ok(())
@@ -172,7 +127,7 @@ fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
         Err("Terminal integer comparison changed operand type or identity")
     );
     let wrong_type = IntegerOccurrence {
-        integer_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        integer_type: CompilerNumericType::U64,
         ..occurrence
     };
     assert_eq!(
@@ -182,86 +137,34 @@ fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
 }
 
 #[test]
-fn integer_execution_identity_recovers_only_admitted_authored_meanings() {
-    use effects::CompilerPrimitiveIntegerComparisonOperation as Authored;
-    let occurrence = IntegerOccurrence {
-        terminal_machine: MachineId::new(1).unwrap(),
-        terminal_operation: OperationId::new(1).unwrap(),
-        provider_plan_index: 0,
-        provider_plan_commitment: ProviderPlan::default().identity_digest(),
-        comparison: Emitted::Equal,
-        operand_order: Order::Authored,
-        negated: false,
-        integer_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
-    };
-    for (comparison, operand_order, negated, expected) in [
-        (
-            Emitted::Equal,
-            Order::Authored,
-            false,
-            Some(Authored::Equal),
-        ),
-        (
-            Emitted::Equal,
-            Order::Authored,
-            true,
-            Some(Authored::NotEqual),
-        ),
-        (
-            Emitted::LessThan,
-            Order::Authored,
-            false,
-            Some(Authored::Less),
-        ),
-        (
-            Emitted::LessOrEqual,
-            Order::Authored,
-            false,
-            Some(Authored::LessOrEqual),
-        ),
-        (
-            Emitted::LessThan,
-            Order::Swapped,
-            false,
-            Some(Authored::Greater),
-        ),
-        (
-            Emitted::LessOrEqual,
-            Order::Swapped,
-            false,
-            Some(Authored::GreaterOrEqual),
-        ),
-        (Emitted::Equal, Order::Swapped, false, None),
-        (Emitted::LessThan, Order::Authored, true, None),
-    ] {
-        let proposal = IntegerOccurrence {
+fn integer_execution_identity_preserves_selected_meaning() {
+    for comparison in Authored::ALL {
+        let occurrence = IntegerOccurrence {
+            terminal_machine: MachineId::new(1).unwrap(),
+            terminal_operation: OperationId::new(1).unwrap(),
+            provider_plan_index: 0,
+            provider_plan_commitment: ProviderPlan::default().identity_digest(),
             comparison,
-            operand_order,
-            negated,
-            ..occurrence
+            integer_type: CompilerNumericType::I64,
         };
-        assert_eq!(proposal.authored_operation(), expected);
         assert_eq!(
-            proposal.execution_identity(),
-            expected.map(|operation| {
+            occurrence.execution_identity(),
+            Some(
                 CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
-                    operation,
+                    operation: comparison,
                     integer_type: CompilerNumericType::I64,
                 }
-            })
+            )
         );
-    }
-    for integer_type in [
-        IntegerType::address(64).unwrap(),
-        IntegerType::new(IntegerSign::Signed, 128).unwrap(),
-    ] {
-        assert_eq!(
-            IntegerOccurrence {
-                integer_type,
-                ..occurrence
-            }
-            .execution_identity(),
-            None
-        );
+        for integer_type in [CompilerNumericType::F32, CompilerNumericType::F64] {
+            assert_eq!(
+                IntegerOccurrence {
+                    integer_type,
+                    ..occurrence
+                }
+                .execution_identity(),
+                None
+            );
+        }
     }
 }

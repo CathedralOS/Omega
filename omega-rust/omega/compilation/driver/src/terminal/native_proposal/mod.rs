@@ -13,8 +13,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
-    selected_ieee_float_comparison_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
-    selected_integer_comparison_occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_thunks = callback_placements
@@ -29,8 +27,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
             callback_placements,
             callback_thunks,
             source_call_occurrences,
-            selected_ieee_float_comparison_occurrences,
-            selected_integer_comparison_occurrences,
             selections,
         ),
     )

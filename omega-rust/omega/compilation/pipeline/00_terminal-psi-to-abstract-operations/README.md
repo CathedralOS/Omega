@@ -67,13 +67,12 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   Const application values arrive already admitted by Psi checking. The
   proposal retains the coverage it settles; native admission consumes it
   without replaying it against the sealed scope.
-- [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
-  and integer comparisons to their exact authored application, selected plan,
-  retained provenance and rederived intrinsic execution. The native proposal
-  derives these records once and retains them. The existing
-  checked-build route still supplies source-side selection evidence; these
-  source-free sidecars grant no native authority and do not bypass canonical
-  admission. Integer emission order/negation and diagnostic ordering are retained.
+- [comparison_settlement.rs](src/comparison_settlement.rs): traverse Terminal
+  comparisons and consume the exact executions already selected by boundary
+  coverage. A sorted plan-digest index joins the target plans without source
+  uses, checked handles or Lowered Psi occurrence records. Integer comparisons
+  retain their selected semantic operation, not another lowering emission
+  triple. Ordinary builtin integer comparisons need no provider row.
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 

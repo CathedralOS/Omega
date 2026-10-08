@@ -33,12 +33,11 @@ pub struct TerminalNativeOccurrences {
     pub integer_comparisons: Vec<TerminalIntegerComparisonOccurrenceProposal>,
 }
 
-/// Keep the producer's complete coverage and its sealed checked scope intact.
+/// Keep the producer's complete source-free coverage intact.
 /// Splitting coverage into demands, realizations and opaque applications would
 /// discard its already-constructed identity references only to rebuild them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeBoundaryApplications {
-    pub scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
 

@@ -24,9 +24,8 @@
 //! `entry_settlement` and `callback_settlement` admit native entry sidecars
 //! against already-produced Terminal artifacts. These checks do not create
 //! another program stage or grant artifact-publication authority.
-//! `comparison_settlement` joins emitted comparison occurrences to authored
-//! applications and this target's selected providers. It produces source-free
-//! comparison records, not a substitute for canonical artifact admission.
+//! `comparison_settlement` consumes Terminal operations and settled boundary
+//! executions. It does not recover source uses or repeat provider selection.
 //! `retained_terminal::proposal` owns their producing sequence, joining already
 //! compiled entry/callback artifacts to selected native evidence once. The
 //! retained proposal never leaves the process, so no later stage replays these
@@ -72,9 +71,6 @@ pub use artifact_admission::{
 };
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
 pub use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
-pub use comparison_settlement::{
-    settle_ieee_float_comparison_occurrences, settle_integer_comparison_occurrences,
-};
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntryCallingPlans, ValidatedNativeProgramEntrySettlement,

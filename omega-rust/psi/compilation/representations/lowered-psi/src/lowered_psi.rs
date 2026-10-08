@@ -14,9 +14,6 @@ use terminal_psi::{TerminalDebugMap, TerminalModule};
 pub struct LoweredSourceCustody {
     pub boundary_application_occurrences: Vec<LoweredBoundaryApplicationOccurrence>,
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-    pub selected_ieee_float_comparison_occurrences:
-        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
 /// Semantic module and source companions produced by the Psi frontend.
@@ -40,7 +37,7 @@ pub struct LoweredPsi {
     /// the Terminal operations they produced, the integer counterpart of
     /// `selected_ieee_float_comparison_occurrences`. Operation crash contracts
     /// are joined through these rows before the source companions are gone;
-    /// Omega does not consume them yet and fails closed on a nonempty roster.
+    /// Publication discards them; native settlement reads canonical demands.
     pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
 }
 
@@ -60,10 +57,6 @@ impl LoweredPsi {
             LoweredSourceCustody {
                 boundary_application_occurrences: self.boundary_application_occurrences,
                 source_call_occurrences: self.source_call_occurrences,
-                selected_ieee_float_comparison_occurrences: self
-                    .selected_ieee_float_comparison_occurrences,
-                selected_integer_comparison_occurrences: self
-                    .selected_integer_comparison_occurrences,
             },
         )
     }

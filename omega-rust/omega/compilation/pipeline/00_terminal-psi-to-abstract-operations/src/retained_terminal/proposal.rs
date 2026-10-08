@@ -28,10 +28,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
     pub source_call_occurrences: &'input [lowered_psi::LoweredSourceCallOccurrence],
-    pub selected_ieee_float_comparison_occurrences:
-        &'input [lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
-    pub selected_integer_comparison_occurrences:
-        &'input [lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
 }
 
 /// Reconstruct the entry, provider and occurrence joins required by native
@@ -44,9 +40,6 @@ pub fn project_terminal_native_realization_proposal(
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_placements = request.callback_placements;
     let source_call_occurrences = request.source_call_occurrences;
-    let selected_ieee_float_comparison_occurrences =
-        request.selected_ieee_float_comparison_occurrences;
-    let selected_integer_comparison_occurrences = request.selected_integer_comparison_occurrences;
     let target_profile = request.boundaries.target_profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
@@ -117,23 +110,14 @@ pub fn project_terminal_native_realization_proposal(
         source_call_occurrences,
         request.callback_thunks,
     )?;
-    let ieee_float_comparison_occurrences = crate::settle_ieee_float_comparison_occurrences(
-        request.boundaries.checked,
-        terminal_module,
-        request.boundaries.selected_provider_plans,
-        request.boundaries.selected_provider_provenance,
-        selected_ieee_float_comparison_occurrences,
-    )?;
-    let integer_comparison_occurrences = crate::settle_integer_comparison_occurrences(
-        request.boundaries.checked,
-        terminal_module,
-        request.boundaries.selected_provider_plans,
-        request.boundaries.selected_provider_provenance,
-        selected_integer_comparison_occurrences,
-    )?;
     let boundary_application_coverage = request
         .boundaries
         .settle(artifact, &checked_boundary_operator_scope)?;
+    let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
+        terminal_module,
+        request.boundaries.selected_provider_plans,
+        &boundary_application_coverage,
+    )?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
         callback_placements,
@@ -158,11 +142,10 @@ pub fn project_terminal_native_realization_proposal(
         },
         TerminalNativeOccurrences {
             callbacks: callback_occurrences,
-            ieee_float_comparisons: ieee_float_comparison_occurrences,
-            integer_comparisons: integer_comparison_occurrences,
+            ieee_float_comparisons: comparisons.ieee_float,
+            integer_comparisons: comparisons.integer,
         },
         TerminalNativeBoundaryApplications {
-            scope: checked_boundary_operator_scope,
             coverage: boundary_application_coverage,
         },
         request.package_terminal_authority_permissions,

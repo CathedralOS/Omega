@@ -1,191 +1,158 @@
-//! Join already-emitted comparisons to this target's selected provider evidence.
+//! Bind Terminal comparisons to already-settled boundary executions.
 //!
-//! Retained Terminal products and direct native compilation use this same
-//! settlement. Stage 05 recorded each occurrence's authored comparison meaning
-//! from the checker's classification, so settlement reads it rather than
-//! classifying the typed trees again; it joins the occurrence to this target's
-//! selected plan and provider provenance. These sidecars neither replace
-//! canonical-artifact admission nor lower source into native operations.
+//! Boundary coverage owns requirement-to-provider selection. This consumer
+//! never rejoins source uses, checked operator handles or lowering occurrences.
+//! Ordinary integer comparisons without a boundary demand remain builtin.
 
 use boundary_applications::{
+    BoundaryApplicationRealization, TerminalBoundaryApplicationCoverage,
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
 };
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use effects::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
+use semantic_vocabulary::{IeeeFloatComparisonOperation, IeeeFloatFormat};
 
-/// Rejoin emitted IEEE comparisons to exact authored uses, selected plans and executions.
-/// Returns source-free backend records after replaying their Terminal roster.
-/// This association grants no native execution or artifact-publication authority.
-pub fn settle_ieee_float_comparison_occurrences(
-    checked: &CheckedTrees,
+pub(crate) struct SelectedComparisonOccurrences {
+    pub ieee_float: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
+    pub integer: Vec<TerminalIntegerComparisonOccurrenceProposal>,
+}
+
+pub(crate) fn settle_comparison_occurrences(
     module: &terminal_psi::TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
-) -> Result<Vec<TerminalIeeeFloatComparisonOccurrenceProposal>, Vec<Diagnostic>> {
-    let proposals = occurrences
+    coverage: &TerminalBoundaryApplicationCoverage,
+) -> Result<SelectedComparisonOccurrences, Vec<Diagnostic>> {
+    let plans = selected.plans();
+    let mut plan_indices = plans
         .iter()
-        .map(|occurrence| {
-            settle_ieee_float_occurrence(checked, selected, provenance, occurrence)
-                .map_err(|error| vec![error])
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .enumerate()
+        .map(|(index, plan)| (*plan.identity_digest().as_bytes(), index))
+        .collect::<Vec<_>>();
+    plan_indices.sort_unstable_by_key(|(identity, _)| *identity);
+    let realizations = coverage.realizations().rows();
+    let mut occurrences = SelectedComparisonOccurrences {
+        ieee_float: Vec::new(),
+        integer: Vec::new(),
+    };
+    for machine in &module.machines {
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            use terminal_psi::OperationKind;
+            if !matches!(
+                operation.kind,
+                OperationKind::IeeeFloatCompare { .. }
+                    | OperationKind::IntegerEqual { .. }
+                    | OperationKind::IntegerLessThan { .. }
+                    | OperationKind::IntegerLessOrEqual { .. }
+            ) {
+                continue;
+            }
+            let fail = |reason: &str| {
+                vec![Diagnostic::error(format!(
+                    "Terminal comparison {}: {reason}",
+                    operation.id.get()
+                ))]
+            };
+            let Ok(row_index) = realizations
+                .binary_search_by_key(&operation.id.get(), |row| row.terminal_operation().get())
+            else {
+                if matches!(operation.kind, OperationKind::IeeeFloatCompare { .. }) {
+                    return Err(fail("has no selected boundary execution"));
+                }
+                continue;
+            };
+            let row = &realizations[row_index];
+            let identity = row.selected_plan_digest();
+            let position = plan_indices.partition_point(|(digest, _)| digest < identity);
+            let Some((digest, provider_plan_index)) = plan_indices.get(position) else {
+                return Err(fail("selected execution names an absent provider plan"));
+            };
+            if digest != identity
+                || plan_indices
+                    .get(position + 1)
+                    .is_some_and(|(next, _)| next == identity)
+            {
+                return Err(fail(
+                    "selected execution does not name one exact provider plan",
+                ));
+            }
+            let provider_plan_index = *provider_plan_index;
+            let provider_plan_commitment = plans[provider_plan_index].identity_digest();
+            let BoundaryApplicationRealization::ExactCompilerIntrinsic { execution } =
+                row.realization()
+            else {
+                return Err(fail("requires an exact comparison execution"));
+            };
+            match (&operation.kind, execution) {
+                (
+                    OperationKind::IeeeFloatCompare { comparison, .. },
+                    CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                        operation: selected_operation,
+                        format,
+                    },
+                ) => {
+                    use CompilerPrimitiveFloatBinaryOperation as Selected;
+                    let selected_comparison = match selected_operation {
+                        Selected::Equal => IeeeFloatComparisonOperation::Equal,
+                        Selected::NotEqual => IeeeFloatComparisonOperation::NotEqual,
+                        Selected::Less => IeeeFloatComparisonOperation::Less,
+                        Selected::LessOrEqual => IeeeFloatComparisonOperation::LessOrEqual,
+                        Selected::Greater => IeeeFloatComparisonOperation::Greater,
+                        Selected::GreaterOrEqual => IeeeFloatComparisonOperation::GreaterOrEqual,
+                        _ => return Err(fail("selected execution is not a float comparison")),
+                    };
+                    if *comparison != selected_comparison {
+                        return Err(fail("selected float execution changes comparison meaning"));
+                    }
+                    occurrences
+                        .ieee_float
+                        .push(TerminalIeeeFloatComparisonOccurrenceProposal {
+                            terminal_machine: machine.id,
+                            terminal_operation: operation.id,
+                            provider_plan_index,
+                            provider_plan_commitment,
+                            comparison: *comparison,
+                            format: match format {
+                                numerics::literals::FloatFormat::F32 => IeeeFloatFormat::Binary32,
+                                numerics::literals::FloatFormat::F64 => IeeeFloatFormat::Binary64,
+                            },
+                        });
+                }
+                (
+                    OperationKind::IntegerEqual { .. }
+                    | OperationKind::IntegerLessThan { .. }
+                    | OperationKind::IntegerLessOrEqual { .. },
+                    CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                        operation: comparison,
+                        integer_type,
+                    },
+                ) => {
+                    occurrences
+                        .integer
+                        .push(TerminalIntegerComparisonOccurrenceProposal {
+                            terminal_machine: machine.id,
+                            terminal_operation: operation.id,
+                            provider_plan_index,
+                            provider_plan_commitment,
+                            comparison: *comparison,
+                            integer_type: *integer_type,
+                        });
+                }
+                _ => return Err(fail("selected execution has the wrong comparison family")),
+            }
+        }
+    }
     TerminalIeeeFloatComparisonOccurrenceProposal::validate_roster(
         module,
-        selected.plans(),
-        &proposals,
+        plans,
+        &occurrences.ieee_float,
     )
+    .and_then(|()| {
+        TerminalIntegerComparisonOccurrenceProposal::validate_roster(
+            module,
+            plans,
+            &occurrences.integer,
+        )
+    })
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    Ok(proposals)
-}
-
-fn settle_ieee_float_occurrence(
-    checked: &CheckedTrees,
-    selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    occurrence: &lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence,
-) -> Result<TerminalIeeeFloatComparisonOccurrenceProposal, Diagnostic> {
-    let fail = |reason: &str| {
-        Diagnostic::error(format!(
-            "Terminal IEEE comparison {}: {reason}",
-            occurrence.terminal_operation.get()
-        ))
-    };
-    let operator_use = checked.facts.operators.uses.get(occurrence.operator_use);
-    // This target's selected plan joins the occurrence by requirement
-    // identity; the Terminal occurrence carries no selection.
-    let Some((provider_plan_index, plan)) = provider_planning::selected_use_plan(
-        checked,
-        source::DependencyScope::Product,
-        selected.plans(),
-        occurrence.requirement_operator,
-        operator_use.origin,
-    ) else {
-        return Err(fail("requires exactly one exact selected provider plan"));
-    };
-    let retained = retained_exact_provider(
-        provenance,
-        provider_plan_index,
-        plan,
-        occurrence.requirement_operator,
-        fail,
-    )?;
-    let proposal = TerminalIeeeFloatComparisonOccurrenceProposal {
-        terminal_machine: occurrence.terminal_machine,
-        terminal_operation: occurrence.terminal_operation,
-        provider_plan_index,
-        provider_plan_commitment: plan.identity_digest(),
-        comparison: occurrence.comparison,
-        format: occurrence.format,
-    };
-    let execution = proposal.execution_identity();
-    if retained.row_compiler_intrinsic_executions.as_slice() != [Some(execution)] {
-        return Err(fail(
-            "selected execution is not the exact IEEE comparison and format",
-        ));
-    }
-    Ok(proposal)
-}
-
-/// Rejoin emitted integer comparisons to exact authored meanings and selected executions.
-/// The emission triple preserves operand order and negation; unrecognized meanings reject.
-/// This association grants no native execution or artifact-publication authority.
-pub fn settle_integer_comparison_occurrences(
-    checked: &CheckedTrees,
-    module: &terminal_psi::TerminalModule,
-    selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
-) -> Result<Vec<TerminalIntegerComparisonOccurrenceProposal>, Vec<Diagnostic>> {
-    let proposals = occurrences
-        .iter()
-        .map(|occurrence| {
-            settle_integer_occurrence(checked, selected, provenance, occurrence)
-                .map_err(|error| vec![error])
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    TerminalIntegerComparisonOccurrenceProposal::validate_roster(
-        module,
-        selected.plans(),
-        &proposals,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])?;
-    Ok(proposals)
-}
-
-fn settle_integer_occurrence(
-    checked: &CheckedTrees,
-    selected: &effects::SelectedProviderPlanFacts,
-    provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    occurrence: &lowered_psi::LoweredSelectedIntegerComparisonOccurrence,
-) -> Result<TerminalIntegerComparisonOccurrenceProposal, Diagnostic> {
-    let fail = |reason: &str| {
-        Diagnostic::error(format!(
-            "Terminal integer comparison {}: {reason}",
-            occurrence.terminal_operation.get()
-        ))
-    };
-    let operator_use = checked.facts.operators.uses.get(occurrence.operator_use);
-    // This target's selected plan joins the occurrence by requirement
-    // identity; the Terminal occurrence carries no selection.
-    let Some((provider_plan_index, plan)) = provider_planning::selected_use_plan(
-        checked,
-        source::DependencyScope::Product,
-        selected.plans(),
-        occurrence.requirement_operator,
-        operator_use.origin,
-    ) else {
-        return Err(fail("requires exactly one exact selected provider plan"));
-    };
-    let retained = retained_exact_provider(
-        provenance,
-        provider_plan_index,
-        plan,
-        occurrence.requirement_operator,
-        fail,
-    )?;
-    let proposal = TerminalIntegerComparisonOccurrenceProposal {
-        terminal_machine: occurrence.terminal_machine,
-        terminal_operation: occurrence.terminal_operation,
-        provider_plan_index,
-        provider_plan_commitment: plan.identity_digest(),
-        comparison: occurrence.comparison,
-        operand_order: occurrence.operand_order,
-        negated: occurrence.negated,
-        integer_type: occurrence.integer_type,
-    };
-    let Some(execution) = proposal.execution_identity() else {
-        return Err(fail(
-            "recorded emission has no admitted authored comparison meaning",
-        ));
-    };
-    if retained.row_compiler_intrinsic_executions.as_slice() != [Some(execution)] {
-        return Err(fail(
-            "selected execution is not the exact authored integer comparison and operand type",
-        ));
-    }
-    Ok(proposal)
-}
-
-/// The provenance row the selected `plan` rejoins, or the caller's failure
-/// when the exact requirement does not survive selection.
-fn retained_exact_provider<'provenance>(
-    provenance: &'provenance [provider_planning::SelectedProviderReviewProvenance],
-    provider_plan_index: usize,
-    plan: &effects::provider_plan::ProviderPlan,
-    requirement_operator: symbols::SymbolHandle,
-    fail: impl Fn(&str) -> Diagnostic,
-) -> Result<&'provenance provider_planning::SelectedProviderReviewProvenance, Diagnostic> {
-    let Some(retained) = provenance.get(provider_plan_index) else {
-        return Err(fail("selected provider provenance is missing"));
-    };
-    if retained.plan != *plan
-        || plan.rows.len() != 1
-        || retained.provider.row_requirements.as_slice() != [requirement_operator]
-    {
-        return Err(fail(
-            "selected provider provenance does not rejoin the exact requirement",
-        ));
-    }
-    Ok(retained)
+    Ok(occurrences)
 }

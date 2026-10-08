@@ -8,10 +8,7 @@
 use super::CheckedCompilation;
 use crate::TerminalCallbackThunkArtifact;
 use diagnostics::Diagnostic;
-use lowered_psi::{
-    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
-    LoweredSourceCallOccurrence,
-};
+use lowered_psi::LoweredSourceCallOccurrence;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
 };
@@ -48,8 +45,6 @@ impl CheckedCompilation {
         callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
         callback_thunks: Vec<TerminalCallbackThunkArtifact>,
         source_call_occurrences: &'input [LoweredSourceCallOccurrence],
-        selected_ieee_float_comparison_occurrences: &'input [LoweredSelectedIeeeFloatComparisonOccurrence],
-        selected_integer_comparison_occurrences: &'input [LoweredSelectedIntegerComparisonOccurrence],
         selections: &optimization_core::OptimizationSelections,
     ) -> TerminalNativeProposalRequest<'input> {
         let execution = self.execution();
@@ -82,8 +77,6 @@ impl CheckedCompilation {
             callback_placements,
             callback_thunks,
             source_call_occurrences,
-            selected_ieee_float_comparison_occurrences,
-            selected_integer_comparison_occurrences,
         }
     }
 }
