@@ -46,10 +46,13 @@ pub(super) fn derive(
         .map(|function| groups::derive_function(function, &catalog))
         .collect::<Result<Vec<_>, _>>()?;
     let usage = work::usage(source_plan, &catalog, &functions)?;
-    if !usage.within(budget) {
+    // The derivation reads each requirement once: its ceilings grow with the
+    // program's requirements rather than capping the program's size.
+    let ceiling = budget.for_extent(work::extent(source_plan)?);
+    if !usage.within(ceiling) {
         return Err(NonAuthoritativeCalleeSaveStorageError::BudgetExceeded {
             required: usage,
-            budget,
+            budget: ceiling,
         });
     }
     Ok(NonAuthoritativeCalleeSaveStoragePlan {

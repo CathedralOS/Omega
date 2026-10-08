@@ -51,3 +51,20 @@ fn add(left: u64, right: u64) -> Result<u64, NonAuthoritativeCalleeSaveStorageEr
     left.checked_add(right)
         .ok_or(NonAuthoritativeCalleeSaveStorageError::WorkOverflow)
 }
+
+/// The requirement extent the derivation reads: every function, modified
+/// unit and modification witness of the source plan, each once. The pass
+/// budget's ceilings scale with it (`OptimizationWorkBudget::for_extent`).
+pub(super) fn extent(
+    source: &AllocatedCalleeSavedRequirementPlan,
+) -> Result<u64, NonAuthoritativeCalleeSaveStorageError> {
+    source
+        .functions
+        .iter()
+        .try_fold(count(source.functions.len())?, |total, function| {
+            function.modified_units.iter().try_fold(
+                add(total, count(function.modified_units.len())?)?,
+                |total, requirement| add(total, count(requirement.witnesses.len())?),
+            )
+        })
+}
