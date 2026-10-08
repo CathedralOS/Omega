@@ -407,6 +407,28 @@ impl ProviderPlan {
         hash
     }
 
+    /// The deterministic order selection pipelines apply before replaying or
+    /// reporting chosen plans: name, origin package, provider-type package,
+    /// schema trait package, then the report fingerprint.
+    pub fn selection_order(&self, other: &ProviderPlan) -> std::cmp::Ordering {
+        self.name
+            .cmp(&other.name)
+            .then_with(|| {
+                self.origin_package_identity
+                    .cmp(&other.origin_package_identity)
+            })
+            .then_with(|| {
+                self.provider_type_package_identity
+                    .cmp(&other.provider_type_package_identity)
+            })
+            .then_with(|| {
+                self.schema
+                    .trait_package_identity
+                    .cmp(&other.schema.trait_package_identity)
+            })
+            .then_with(|| self.report_fingerprint().cmp(&other.report_fingerprint()))
+    }
+
     /// PRV2: full structural validation against the schema -- every method
     /// bound exactly once and no stray rows. Returns NAMED errors; empty =
     /// structurally valid.

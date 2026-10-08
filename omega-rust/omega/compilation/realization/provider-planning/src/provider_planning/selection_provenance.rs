@@ -151,24 +151,9 @@ pub fn selected_provider_plan_facts_with_independent_components(
 > {
     let typed = context.typed;
     selected.sort_by(|left, right| {
-        let left = &left.derived.plan;
-        let right = &right.derived.plan;
-        left.name
-            .cmp(&right.name)
-            .then_with(|| {
-                left.origin_package_identity
-                    .cmp(&right.origin_package_identity)
-            })
-            .then_with(|| {
-                left.provider_type_package_identity
-                    .cmp(&right.provider_type_package_identity)
-            })
-            .then_with(|| {
-                left.schema
-                    .trait_package_identity
-                    .cmp(&right.schema.trait_package_identity)
-            })
-            .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
+        left.derived
+            .plan
+            .selection_order(&right.derived.plan)
     });
 
     let mut diagnostics = replay_operator_family_selections(context, &selected);

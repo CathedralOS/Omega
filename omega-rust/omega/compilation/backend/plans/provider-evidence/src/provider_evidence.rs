@@ -78,7 +78,7 @@ impl SelectedProviderPlanFacts {
     /// boundary; every plan here already carries its package-qualified slot,
     /// provider, requirement, and realization provenance.
     pub fn from_selected_plans(mut plans: Vec<ProviderPlan>) -> Result<Self, String> {
-        plans.sort_by(selected_plan_order);
+        plans.sort_by(ProviderPlan::selection_order);
 
         let mut identities = BTreeSet::new();
         let mut boundary_slots = BTreeSet::new();
@@ -195,7 +195,7 @@ impl SelectedProviderPlanFacts {
             ));
         }
         self.plans.push(plan);
-        self.plans.sort_by(selected_plan_order);
+        self.plans.sort_by(ProviderPlan::selection_order);
         self.toolchain_settled_identities.insert(identity);
         self.report_fingerprint = selected_plans_report_fingerprint(&self.plans);
         Ok(self)
@@ -815,25 +815,6 @@ pub struct SelectedRequirementSpecialization {
     /// The specialized provider instance identity Terminal provider
     /// candidates carry as `candidate_identity`.
     pub machine_identity: String,
-}
-
-fn selected_plan_order(left: &ProviderPlan, right: &ProviderPlan) -> std::cmp::Ordering {
-    left.name
-        .cmp(&right.name)
-        .then_with(|| {
-            left.origin_package_identity
-                .cmp(&right.origin_package_identity)
-        })
-        .then_with(|| {
-            left.provider_type_package_identity
-                .cmp(&right.provider_type_package_identity)
-        })
-        .then_with(|| {
-            left.schema
-                .trait_package_identity
-                .cmp(&right.schema.trait_package_identity)
-        })
-        .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
 }
 
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
