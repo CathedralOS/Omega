@@ -37,6 +37,16 @@ pub enum IeeeFloatFormat {
     Binary64,
 }
 
+impl IeeeFloatFormat {
+    /// Interchange byte extent: 4 for binary32, 8 for binary64.
+    pub const fn byte_size(self) -> u16 {
+        match self {
+            Self::Binary32 => 4,
+            Self::Binary64 => 8,
+        }
+    }
+}
+
 /// One exact runtime IEEE interchange value. Raw bits are semantic payload:
 /// signed zero and NaN representation are not reconstructed through a host
 /// floating-point conversion.

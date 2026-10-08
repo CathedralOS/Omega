@@ -1114,12 +1114,7 @@ fn fixed_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::Va
     use calling_conventions::ValueShape;
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-            Some(ValueShape::float(4))
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-            Some(ValueShape::float(8))
-        }
+        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
         ScalarType::Integer(_) => fixed_integer_shape(scalar_type),
     }
 }

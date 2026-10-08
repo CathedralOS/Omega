@@ -505,12 +505,7 @@ pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
         ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
             Some(ValueShape::integer(8, 8))
         }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-            Some(ValueShape::float(4))
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-            Some(ValueShape::float(8))
-        }
+        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer)
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
