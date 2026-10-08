@@ -4,9 +4,7 @@ use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{
-    IeeeFloatFormat, IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId,
-};
+use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use target_operations::{
@@ -45,8 +43,7 @@ pub(super) fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
             crate::lowering::scalar_abi::fixed_native_integer_shape(integer)
         }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(ValueShape::float(4)),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(ValueShape::float(8)),
+        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
     }
 }
 

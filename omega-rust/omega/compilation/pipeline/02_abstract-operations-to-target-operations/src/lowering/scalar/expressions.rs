@@ -22,11 +22,8 @@ pub(in crate::lowering) fn scalar_shape(
             }
             bits.div_ceil(8)
         }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-            return Ok(ValueShape::float(4));
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-            return Ok(ValueShape::float(8));
+        ScalarType::IeeeFloat(format) => {
+            return Ok(ValueShape::float(format.byte_size()));
         }
     };
     Ok(ValueShape::integer(
