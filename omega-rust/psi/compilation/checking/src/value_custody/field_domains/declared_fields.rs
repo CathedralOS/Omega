@@ -114,7 +114,13 @@ fn collect_data_field_domain_rows(
             visited.pop();
             if !element_rows.is_empty() {
                 for index in 0..length {
-                    place_element_rows(path, PlaceSegment::FixedIndex { index }, &element_rows, None, rows);
+                    place_element_rows(
+                        path,
+                        PlaceSegment::FixedIndex { index },
+                        &element_rows,
+                        None,
+                        rows,
+                    );
                 }
                 place_element_rows(path, WHOLE_ELEMENT_EXTENT, &element_rows, Some(true), rows);
             }

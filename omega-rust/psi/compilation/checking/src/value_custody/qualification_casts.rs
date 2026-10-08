@@ -74,7 +74,11 @@ fn judge_qualification_cast(
             // happens to hold. Existing route transport keeps its own owner.
             if !domain.establishment_routes.is_empty()
                 || (!domain.predicate_body.is_present()
-                    && !domain_is_vacuous(program, domain.symbol, &mut Vec::new()))
+                    && !crate::field_domains::domain_is_vacuous(
+                        program,
+                        domain.symbol,
+                        &mut Vec::new(),
+                    ))
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "`as ... in {name}` cannot establish a non-vacuous domain; every \
@@ -183,36 +187,6 @@ fn index_literal(indices: &[(SymbolHandle, i128)], symbol: SymbolHandle) -> Opti
         .iter()
         .find(|(candidate, _)| *candidate == symbol)
         .map(|(_, value)| *value)
-}
-
-fn domain_is_vacuous(
-    program: &dyn crate::CheckingInput,
-    domain_symbol: SymbolHandle,
-    stack: &mut Vec<SymbolHandle>,
-) -> bool {
-    if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
-        return false;
-    }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|candidate| candidate.symbol == domain_symbol)
-    else {
-        return false;
-    };
-    if let Some(alias) = domain.alias.as_ref() {
-        if alias.constituents.is_empty() {
-            return false;
-        }
-        stack.push(domain_symbol);
-        let vacuous = alias
-            .constituents
-            .iter()
-            .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
-        stack.pop();
-        return vacuous;
-    }
-    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
 }
 
 /// The mint's tri-state judgment for one qualification cast.

@@ -590,6 +590,38 @@ pub fn domain_requires_provenance(
     visit(program, symbol, &mut Vec::new())
 }
 
+/// Alias atoms must all be predicate- and route-free. This declaration rule
+/// governs both retained qualification uses and scalar computation eligibility.
+pub fn domain_is_vacuous(
+    program: &dyn crate::CheckingInput,
+    domain_symbol: SymbolHandle,
+    stack: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|candidate| candidate.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    if let Some(alias) = domain.alias.as_ref() {
+        if alias.constituents.is_empty() {
+            return false;
+        }
+        stack.push(domain_symbol);
+        let vacuous = alias
+            .constituents
+            .iter()
+            .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
+        stack.pop();
+        return vacuous;
+    }
+    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+}
+
 /// Every `(place path, domain, instance)` a nominal value of `data` promises by
 /// declaration: the predicate-bearing obligations in the same declaration
 /// roster used for state entry. Payload paths remain conditional on their
