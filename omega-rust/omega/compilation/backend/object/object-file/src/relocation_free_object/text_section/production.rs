@@ -248,7 +248,9 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(0),
-                operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                    semantic_vocabulary::OperationId::new(11).unwrap(),
+                ),
                 boundary,
                 ordinal: 2,
                 call_function_offset: 0,
@@ -270,7 +272,9 @@ mod tests {
                 caller: machine,
                 block: selected_instructions::SelectedBlockId(0),
                 instruction: selected_instructions::SelectedInstructionId(1),
-                operation: semantic_vocabulary::OperationId::new(12).unwrap(),
+                invocation_site: semantic_vocabulary::BoundaryInvocationSite::Operation(
+                    semantic_vocabulary::OperationId::new(12).unwrap(),
+                ),
                 boundary,
                 ordinal: 1,
                 call_function_offset: 5,
