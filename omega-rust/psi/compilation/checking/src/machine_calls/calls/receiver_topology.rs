@@ -226,9 +226,7 @@ pub fn resolve_state_call_target(
     // lookups below cannot help it. The method state lives in the machine
     // attached to that data, the same place a `&mut Data` receiver resolves.
     // A data receiver cannot fall through to a state of an unrelated machine.
-    if program
-        .data_definition_by_symbol(receiver_symbol).is_some()
-    {
+    if program.data_definition_by_symbol(receiver_symbol).is_some() {
         return attached_machine_state_symbol(
             program,
             receiver_symbol,
@@ -262,8 +260,7 @@ pub fn resolve_state_call_target(
 
     // A known data receiver cannot fall through to a state of an unrelated
     // machine. Trait requirements remain a separate checked dispatch family.
-    if program
-        .data_definition_by_symbol(type_symbol).is_some()
+    if program.data_definition_by_symbol(type_symbol).is_some()
         && !trait_machine_signature_symbol(program, target_symbol).is_valid()
     {
         return SymbolHandle::invalid();
@@ -347,9 +344,7 @@ fn attached_machine_state_symbol(
     if !data_symbol.is_valid() {
         return SymbolHandle::invalid();
     }
-    if !program
-        .data_definition_by_symbol(data_symbol).is_some()
-    {
+    if !program.data_definition_by_symbol(data_symbol).is_some() {
         return SymbolHandle::invalid();
     }
     for candidate in program
@@ -506,10 +501,7 @@ pub fn declared_receiver_target(
         return Ok(selected);
     }
     let nominal = crate::machine_symbol_from_type_reference_handle(program, type_reference);
-    if !nominal.is_valid()
-        || !program
-            .data_definition_by_symbol(nominal).is_some()
-    {
+    if !nominal.is_valid() || !program.data_definition_by_symbol(nominal).is_some() {
         return Ok(target);
     }
     let mut candidates = program
@@ -528,10 +520,7 @@ pub fn declared_receiver_target(
             return Ok(target);
         }
         if program.machines().iter().any(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target)
+            typed_trees::state::state_by_symbol(program.machine_states(machine), target).is_some()
         }) {
             return Err(vec![
                 Diagnostic::error(

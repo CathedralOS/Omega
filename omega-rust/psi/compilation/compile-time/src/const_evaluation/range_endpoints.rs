@@ -316,10 +316,11 @@ pub(super) fn resolve_endpoint_callee(
         .machines()
         .iter()
         .find(|machine| {
-            execution
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
+            typed_trees::state::state_by_symbol(
+                execution.machine_states(machine),
+                call.target_symbol,
+            )
+            .is_some()
         })
         .filter(|machine| machine.type_parameters.is_empty())
         .ok_or_else(|| {

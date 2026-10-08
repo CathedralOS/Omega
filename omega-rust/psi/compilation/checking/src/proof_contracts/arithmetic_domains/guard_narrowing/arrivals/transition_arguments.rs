@@ -84,10 +84,7 @@ fn stable_builtin_value(
             else {
                 return false;
             };
-            let is_parameter = program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.symbol == symbol);
+            let is_parameter = program.state_parameter_by_symbol(state, symbol).is_some();
             let is_local = program.state_local_declaration(state, symbol).is_some();
             is_parameter || is_local
         }

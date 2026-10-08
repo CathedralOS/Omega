@@ -670,10 +670,8 @@ pub fn fixed_installation_boundary_service_reach(
             // a target installs its physical binding. The fixed basis belongs
             // to that declaration, not to provider selection.
             !machine.supplies_checked_body()
-                && program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target)
+                && typed_trees::state::state_by_symbol(program.machine_states(machine), target)
+                    .is_some()
         })
         .map(|machine| machine.service_reach_is_installation_bound);
     // Legacy operators publish an empty concrete ceiling: their declaration

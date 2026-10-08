@@ -521,9 +521,8 @@ impl<'a> Admission<'a> {
                 .map(|source| {
                     let owner_state = if self
                         .program
-                        .state_parameters(entry)
-                        .iter()
-                        .any(|parameter| parameter.symbol == source.root)
+                        .state_parameter_by_symbol(entry, source.root)
+                        .is_some()
                     {
                         entry
                     } else {

@@ -18,10 +18,7 @@ pub(in crate::checks::ranges::facts::dependencies) fn root_is_current(
         return false;
     };
     symbol == machine.symbol
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == symbol)
+        || program.state_parameter_by_symbol(state, symbol).is_some()
         || program
             .statement_table
             .statements(state.statement_nodes)

@@ -220,10 +220,7 @@ fn owning_callable_symbol(
         .machines()
         .iter()
         .find(|machine| {
-            checked
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == symbol)
+            typed_trees::state::state_by_symbol(checked.machine_states(machine), symbol).is_some()
         })
         .map_or(symbol, |machine| machine.symbol)
 }

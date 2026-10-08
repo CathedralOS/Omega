@@ -32,9 +32,8 @@ pub fn record_local_disposition(
     let local = statements.get(ordinal as usize)?.as_local_data()?;
     if !local.symbol.is_valid()
         || program
-            .state_parameters(source)
-            .iter()
-            .any(|parameter| parameter.symbol == local.symbol)
+            .state_parameter_by_symbol(source, local.symbol)
+            .is_some()
         || program
             .state_local_declaration(source, local.symbol)
             .is_none()

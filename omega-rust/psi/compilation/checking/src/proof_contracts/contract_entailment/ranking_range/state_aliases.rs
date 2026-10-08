@@ -67,12 +67,7 @@ pub(super) fn premise_symbols(
     for expression in expressions {
         collect(program, expression, &mut symbols, 0)?;
     }
-    symbols.retain(|symbol| {
-        program
-            .state_parameters(root)
-            .iter()
-            .any(|parameter| parameter.symbol == *symbol)
-    });
+    symbols.retain(|symbol| program.state_parameter_by_symbol(root, *symbol).is_some());
     Some(symbols)
 }
 

@@ -231,10 +231,11 @@ fn projection_plan_for_call<'a>(
             return false;
         };
         let target_matches = call.target_symbol == machine.symbol
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
+            || typed_trees::state::state_by_symbol(
+                program.machine_states(machine),
+                call.target_symbol,
+            )
+            .is_some()
             || program
                 .machine_states(machine)
                 .iter()

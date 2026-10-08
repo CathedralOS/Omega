@@ -74,10 +74,11 @@ pub(crate) fn reachable_capability_flows(
                 // for them or infer an implementation from a rendered name.
                 let mut owners = compilation.machines().iter().filter(|candidate| {
                     call.target_state.is_valid()
-                        && compilation
-                            .machine_states(candidate)
-                            .iter()
-                            .any(|state| state.symbol == call.target_state)
+                        && typed_trees::state::state_by_symbol(
+                            compilation.machine_states(candidate),
+                            call.target_state,
+                        )
+                        .is_some()
                 });
                 let owner = owners.next();
                 if owners.next().is_some()

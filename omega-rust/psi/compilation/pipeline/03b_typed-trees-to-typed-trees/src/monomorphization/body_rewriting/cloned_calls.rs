@@ -57,10 +57,8 @@ pub(crate) fn rewrite_cloned_calls(
         .filter_map(|(parameter, target, _)| {
             let declarations = source.unwrap_or(program);
             let machine = declarations.machines().iter().find(|machine| {
-                declarations
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == *target)
+                typed_trees::state::state_by_symbol(declarations.machine_states(machine), *target)
+                    .is_some()
             })?;
             if !machine.attached_data_symbol.is_valid() {
                 return None;

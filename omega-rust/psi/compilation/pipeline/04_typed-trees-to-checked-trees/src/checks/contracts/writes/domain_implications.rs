@@ -577,11 +577,7 @@ fn state_place_is_established(
     let Some(symbol) = state_place_root_symbol(program, source) else {
         return false;
     };
-    if program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == symbol)
-    {
+    if program.state_parameter_by_symbol(state, symbol).is_some() {
         return true;
     }
     program

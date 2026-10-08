@@ -71,10 +71,8 @@ pub(crate) fn contract_call_static_parameter_kinds(
         .machines()
         .iter()
         .filter(|machine| {
-            compilation
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target)
+            typed_trees::state::state_by_symbol(compilation.machine_states(machine), target)
+                .is_some()
         })
         .map(project_machine)
         .collect::<Vec<_>>();

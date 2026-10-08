@@ -177,10 +177,8 @@ fn exact_shared_cohort_observation(
         return false;
     };
     let Some(target_machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target_state.symbol)
+        typed_trees::state::state_by_symbol(program.machine_states(machine), target_state.symbol)
+            .is_some()
     }) else {
         return false;
     };
@@ -400,10 +398,11 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             continue;
         };
         let Some(target_machine) = program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target_state.symbol)
+            typed_trees::state::state_by_symbol(
+                program.machine_states(machine),
+                target_state.symbol,
+            )
+            .is_some()
         }) else {
             continue;
         };

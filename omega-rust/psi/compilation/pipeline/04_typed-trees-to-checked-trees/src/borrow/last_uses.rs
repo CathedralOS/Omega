@@ -104,9 +104,8 @@ pub(super) fn update_state_loan_last_uses(
             }
             if !tracker.owner_path.is_empty()
                 && program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == tracker.owner_symbol)
+                    .state_parameter_by_symbol(state, tracker.owner_symbol)
+                    .is_some()
             {
                 loans.get_mut(tracker.handle).last_use_statement_index =
                     state.statement_nodes.count().saturating_sub(1) as usize;

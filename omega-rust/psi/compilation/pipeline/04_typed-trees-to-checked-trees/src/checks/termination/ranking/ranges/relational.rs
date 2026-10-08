@@ -282,9 +282,8 @@ fn preserved_entry_prefix<'program>(
             // composed initializers are admitted alike.
             let fresh_local = local.symbol.is_valid()
                 && !program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == local.symbol);
+                    .state_parameter_by_symbol(state, local.symbol)
+                    .is_some();
             let pure_initializer = pure_guard(program, machine, state, local.initial_value, 0)
                 && frames.is_some_and(|frames| {
                     frames

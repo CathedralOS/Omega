@@ -72,9 +72,8 @@ fn validate(
             .state_local_declaration(state, local.symbol)
             .is_none()
         || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == local.symbol)
+            .state_parameter_by_symbol(state, local.symbol)
+            .is_some()
         || !(result.type_identity == expected_identity
             || referent_identity.as_ref() == Some(&result.type_identity))
         || result.multiplicity != carrier_multiplicity

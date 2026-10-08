@@ -86,10 +86,8 @@ fn machine_owning_state(
         return None;
     }
     program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target_symbol)
+        typed_trees::state::state_by_symbol(program.machine_states(machine), target_symbol)
+            .is_some()
     })
 }
 

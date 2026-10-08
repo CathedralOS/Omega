@@ -15,13 +15,11 @@ pub(super) fn binary_is_builtin(
 ) -> bool {
     let spelling = match binary.operator {
         BinaryOperator::CaseMembership => {
-            return program
-                .machine(machine)
-                .is_some_and(|machine| {
-                    crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                        program, machine, None, expression, binary,
-                    )
-                });
+            return program.machine(machine).is_some_and(|machine| {
+                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                    program, machine, None, expression, binary,
+                )
+            });
         }
         operator => {
             let Some(spelling) = typed_trees::operator::binary_operator_spelling(operator) else {

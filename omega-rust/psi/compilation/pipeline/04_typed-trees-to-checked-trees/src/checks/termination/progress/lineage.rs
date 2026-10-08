@@ -60,9 +60,8 @@ impl StateParameterLineage {
         if let Some(entry) = states.first() {
             for (subject, value) in &mut values {
                 if program
-                    .state_parameters(entry)
-                    .iter()
-                    .any(|parameter| parameter.symbol == subject.root)
+                    .state_parameter_by_symbol(entry, subject.root)
+                    .is_some()
                 {
                     *value = ParameterLineage::Exact(vec![subject.clone()]);
                 }

@@ -46,9 +46,7 @@ pub(crate) fn validate_equivalence_selection(
         )));
         return;
     }
-    let Some(trait_definition) = program
-        .trait_definition_by_symbol(selection.trait_symbol)
-    else {
+    let Some(trait_definition) = program.trait_definition_by_symbol(selection.trait_symbol) else {
         diagnostics.push(Diagnostic::error(format!(
             "quotient data `{}` static selection retains no exact `Equivalence` trait identity",
             definition.name,
@@ -84,9 +82,7 @@ pub(crate) fn validate_equivalence_selection(
         )));
     }
 
-    let Some(conformance) = program
-        .conformance_by_symbol(selection.conformance_symbol)
-    else {
+    let Some(conformance) = program.conformance_by_symbol(selection.conformance_symbol) else {
         diagnostics.push(Diagnostic::error(format!(
             "quotient data `{}` names unresolved equivalence conformance `{}`",
             definition.name, selection.conformance_name,
@@ -122,9 +118,7 @@ pub(crate) fn validate_equivalence_selection(
         )));
     }
     for row in &conformance.rows {
-        let Some(declaring_trait) = program
-            .trait_definition_by_symbol(row.declaring_trait)
-        else {
+        let Some(declaring_trait) = program.trait_definition_by_symbol(row.declaring_trait) else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` row `{}::{}` has no exact declaring trait",
                 definition.name,
@@ -134,8 +128,8 @@ pub(crate) fn validate_equivalence_selection(
             )));
             continue;
         };
-        let Some(requirement) = program
-            .trait_machine_signature_by_symbol(declaring_trait, row.requirement)
+        let Some(requirement) =
+            program.trait_machine_signature_by_symbol(declaring_trait, row.requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` row `{}::{}` has no exact inherited requirement",
@@ -329,9 +323,7 @@ pub(crate) fn exact_relation_application_matches(
     left_type: TypeReferenceHandle,
     right_type: TypeReferenceHandle,
 ) -> bool {
-    let Some(relation) = program
-        .proposition_definition_by_symbol(relation_symbol)
-    else {
+    let Some(relation) = program.proposition_definition_by_symbol(relation_symbol) else {
         return false;
     };
     if application.proposition != relation.symbol
@@ -478,10 +470,11 @@ pub(super) fn checked_proof_dependency<'program>(
     {
         let Some(callee) = program.machines().iter().find(|candidate| {
             candidate.symbol == dependency
-                || program
-                    .machine_states(candidate)
-                    .iter()
-                    .any(|state| state.symbol == dependency)
+                || typed_trees::state::state_by_symbol(
+                    program.machine_states(candidate),
+                    dependency,
+                )
+                .is_some()
         }) else {
             continue;
         };

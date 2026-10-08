@@ -177,8 +177,7 @@ pub fn call_target_parameters(
         .traits()
         .iter()
         .find_map(|trait_definition| {
-            program
-                .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
+            program.trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
         })
         .map(|signature| program.state_signature_parameters(signature))
 }
@@ -194,10 +193,11 @@ pub fn call_target_type_parameters(
     if let Some(machine) = program.machines().iter().find(|machine| {
         target_state_symbol.is_valid()
             && (machine.symbol == target_state_symbol
-                || program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target_state_symbol))
+                || typed_trees::state::state_by_symbol(
+                    program.machine_states(machine),
+                    target_state_symbol,
+                )
+                .is_some())
     }) {
         return program.machine_type_parameters(machine);
     }

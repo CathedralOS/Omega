@@ -576,9 +576,8 @@ fn validate_data_read(
                 .any(|established| established == receiver_spelling)
             || (receiver_root.is_valid()
                 && program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == receiver_root))
+                    .state_parameter_by_symbol(state, receiver_root)
+                    .is_some())
             || !is_data_rooted(data_binding, receiver_spelling)
     });
     let established = established

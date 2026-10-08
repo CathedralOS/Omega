@@ -496,10 +496,8 @@ fn closed_call_application(
         .machines()
         .iter()
         .find(|machine| {
-            checked
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target_state)
+            typed_trees::state::state_by_symbol(checked.machine_states(machine), target_state)
+                .is_some()
         })
         .ok_or(LoweringError::Unsupported(
             "closed schema call lost its source owner",
@@ -558,10 +556,11 @@ fn closed_call_application(
                     .machines()
                     .iter()
                     .find(|machine| {
-                        checked
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == *selected)
+                        typed_trees::state::state_by_symbol(
+                            checked.machine_states(machine),
+                            *selected,
+                        )
+                        .is_some()
                     })
                     .ok_or(LoweringError::Unsupported(
                         "schema call argument lost its selected owner",

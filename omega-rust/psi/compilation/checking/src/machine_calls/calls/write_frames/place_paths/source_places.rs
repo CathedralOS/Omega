@@ -280,10 +280,7 @@ fn source_owner(
             let machine_symbol = program.symbols.get(state_symbol).parent;
             let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
             let retained = match declaration.kind {
-                SymbolKind::Parameter => program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == root),
+                SymbolKind::Parameter => program.state_parameter_by_symbol(state, root).is_some(),
                 _ => program.state_local_declaration(state, root).is_some(),
             };
             retained.then_some((machine, state))

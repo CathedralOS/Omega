@@ -138,10 +138,11 @@ fn same_condition(
                     .all(|(left, right)| same_condition(program, *left, *right))
                 && program.machines().iter().any(|machine| {
                     proof_only.is_proof_machine(program, machine)
-                        && program
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == left.target_symbol)
+                        && typed_trees::state::state_by_symbol(
+                            program.machine_states(machine),
+                            left.target_symbol,
+                        )
+                        .is_some()
                 });
         }
         _ => {}

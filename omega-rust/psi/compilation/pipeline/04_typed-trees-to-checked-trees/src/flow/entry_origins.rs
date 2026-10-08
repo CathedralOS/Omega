@@ -615,11 +615,7 @@ pub(super) fn rebase_contexts(
             required_roots.sort_by_key(|root| (root.arena_index(), root.generation()));
             required_roots.dedup();
             for root in required_roots {
-                if !program
-                    .state_parameters(entry)
-                    .iter()
-                    .any(|parameter| parameter.symbol == root)
-                {
+                if !program.state_parameter_by_symbol(entry, root).is_some() {
                     continue;
                 }
                 let target = origins

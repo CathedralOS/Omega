@@ -118,10 +118,7 @@ fn expression_belongs_to_state(
     let Some(root) = ranked_expression_root(program, expression) else {
         return false;
     };
-    program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == root)
+    program.state_parameter_by_symbol(state, root).is_some()
 }
 
 fn ranked_expression_root(

@@ -54,10 +54,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                         // every cyclic edge.
                         && !runtime_components.iter().any(|component| {
                             component.states.iter().any(|rank| {
-                                program
-                                    .machine_states(machine)
-                                    .iter()
-                                    .any(|state| state.symbol == rank.state)
+                                typed_trees::state::state_by_symbol(program.machine_states(machine), rank.state).is_some()
                             })
                         })
                         && crate::checks::termination::proven_slice_length_ranks_with_call_frames(

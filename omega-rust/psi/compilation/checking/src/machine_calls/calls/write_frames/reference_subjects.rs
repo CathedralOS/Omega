@@ -549,9 +549,8 @@ pub(super) fn validate_source_projection(
     }
     let reference = carrier_storage_type(program, reference)?;
     if !program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == source.root)
+        .state_parameter_by_symbol(state, source.root)
+        .is_some()
         || source.segments.iter().any(|segment| {
             !matches!(
                 segment,

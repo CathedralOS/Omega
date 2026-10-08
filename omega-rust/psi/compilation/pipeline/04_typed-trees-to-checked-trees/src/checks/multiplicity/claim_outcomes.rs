@@ -751,9 +751,8 @@ fn claim_outcomes_for_owned_selection(
         let source = ownership.selection_sources.get(transfer.source);
         let leaf_path = ownership.segments.span_or_empty(transfer.path);
         let is_parameter = program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == source.symbol);
+            .state_parameter_by_symbol(state, source.symbol)
+            .is_some();
         for claim in ownership
             .selection_transfer_claims
             .span_or_empty(transfer.claims)

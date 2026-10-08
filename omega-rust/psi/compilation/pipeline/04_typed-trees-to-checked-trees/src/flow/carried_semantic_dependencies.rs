@@ -342,9 +342,8 @@ fn event_exposure(
     if entry.symbol == state_symbol
         && (root_symbol == machine.symbol
             || program
-                .state_parameters(entry)
-                .iter()
-                .any(|parameter| parameter.symbol == root_symbol))
+                .state_parameter_by_symbol(entry, root_symbol)
+                .is_some())
     {
         Exposure::PublicInterface
     } else {

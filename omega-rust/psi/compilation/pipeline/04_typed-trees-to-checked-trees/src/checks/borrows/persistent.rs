@@ -137,10 +137,11 @@ fn check_stored_output_relations(
                 };
                 let requires_relation = program.machines().iter().any(|callee| {
                     obligated.contains(&callee.symbol)
-                        && program
-                            .machine_states(callee)
-                            .iter()
-                            .any(|state| state.symbol == call.target_symbol)
+                        && typed_trees::state::state_by_symbol(
+                            program.machine_states(callee),
+                            call.target_symbol,
+                        )
+                        .is_some()
                 });
                 if requires_relation
                     && frames

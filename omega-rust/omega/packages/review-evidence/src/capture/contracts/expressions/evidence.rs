@@ -130,10 +130,7 @@ fn exact_contract_target(
     target: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target)
+        typed_trees::state::state_by_symbol(program.machine_states(machine), target).is_some()
     }) {
         return Some((machine.symbol, target));
     }

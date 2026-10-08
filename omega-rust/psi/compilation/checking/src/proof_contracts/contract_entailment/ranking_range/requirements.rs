@@ -77,10 +77,8 @@ fn prove(
     let target = program.machine_states(callee).first()?;
     let parameters = program.state_parameters(target);
     if parameters.iter().count() != arguments.len()
-        || !program
-            .machine_states(caller)
-            .iter()
-            .any(|state| state.symbol == caller_state.symbol)
+        || !typed_trees::state::state_by_symbol(program.machine_states(caller), caller_state.symbol)
+            .is_some()
     {
         return None;
     }

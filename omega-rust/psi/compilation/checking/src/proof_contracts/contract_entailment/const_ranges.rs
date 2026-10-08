@@ -366,9 +366,8 @@ fn scoped_value_bound(
         return false;
     };
     program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == path.symbol)
+        .state_parameter_by_symbol(state, path.symbol)
+        .is_some()
         || program
             .state_local_declaration(state, path.symbol)
             .is_some()

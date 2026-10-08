@@ -68,8 +68,7 @@ pub(super) fn check_calls(
                     &mut expressions,
                 );
                 for handle in &expressions {
-                    let Some(call) = program.expression_table.call_node(*handle)
-                    else {
+                    let Some(call) = program.expression_table.call_node(*handle) else {
                         continue;
                     };
                     check_target(
@@ -109,10 +108,11 @@ fn check_target(
             // with an exact machine. Its own result declaration is checked normally.
             let concrete = program.machines().iter().any(|candidate| {
                 candidate.symbol == target
-                    || program
-                        .machine_states(candidate)
-                        .iter()
-                        .any(|state| state.symbol == target)
+                    || typed_trees::state::state_by_symbol(
+                        program.machine_states(candidate),
+                        target,
+                    )
+                    .is_some()
             });
             !concrete
                 && validation::named_conformance_target_requirement(program, machine, target)

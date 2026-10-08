@@ -263,8 +263,7 @@ fn generic_machine_index(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<usize> {
-    let machine_index = program
-        .machine_position_by_symbol(machine_symbol)?;
+    let machine_index = program.machine_position_by_symbol(machine_symbol)?;
     (!program
         .machine_type_parameters(&program.machines()[machine_index])
         .is_empty())
@@ -377,10 +376,7 @@ fn machine_specialization_identity(
             .machines()
             .iter()
             .find(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == *state_symbol)
+                typed_trees::state::state_by_symbol(program.machine_states(machine), *state_symbol).is_some()
             })
             .ok_or_else(|| Diagnostic::error(format!(
                 "generic specialization references static machine symbol {:?}, but no owning machine exists",

@@ -200,10 +200,7 @@ pub(super) fn target_run(
                         if !root.is_valid()
                             || (root != machine_symbol
                                 && !caller.is_some_and(|state| {
-                                    program
-                                        .state_parameters(state)
-                                        .iter()
-                                        .any(|parameter| parameter.symbol == root)
+                                    program.state_parameter_by_symbol(state, root).is_some()
                                 }))
                         {
                             return None;

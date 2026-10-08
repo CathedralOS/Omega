@@ -552,11 +552,11 @@ impl<'program> Evaluator<'program> {
             validation::exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
         let realization = self.program.machines().iter().find(|machine| {
             machine.attached_data_symbol == provider_symbol
-                && self
-                    .program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target_symbol)
+                && typed_trees::state::state_by_symbol(
+                    self.program.machine_states(machine),
+                    target_symbol,
+                )
+                .is_some()
         })?;
         let (provider_name, trait_name) = match realization.name.as_str() {
             "ConsoleNativeProvider::read_byte"

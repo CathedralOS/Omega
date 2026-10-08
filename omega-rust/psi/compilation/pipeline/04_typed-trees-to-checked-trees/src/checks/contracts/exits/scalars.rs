@@ -383,9 +383,8 @@ impl ExitScalars<'_, '_> {
         let root = place.root.as_symbol()?;
         if self
             .program
-            .state_parameters(entry)
-            .iter()
-            .any(|parameter| parameter.symbol == root)
+            .state_parameter_by_symbol(entry, root)
+            .is_some()
         {
             let origin = self
                 .facts

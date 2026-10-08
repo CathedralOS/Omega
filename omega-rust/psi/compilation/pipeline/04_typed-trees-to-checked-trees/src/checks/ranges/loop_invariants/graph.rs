@@ -57,11 +57,7 @@ pub(super) fn push_edge(
     else {
         return;
     };
-    if program
-        .machine_states(machine)
-        .iter()
-        .any(|state| state.symbol == path.symbol)
-    {
+    if typed_trees::state::state_by_symbol(program.machine_states(machine), path.symbol).is_some() {
         edges.push(Edge {
             source,
             target: path.symbol,

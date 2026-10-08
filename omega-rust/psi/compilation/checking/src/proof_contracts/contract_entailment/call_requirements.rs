@@ -54,10 +54,8 @@ pub fn structural_call_requirement_entailed(
         return false;
     }
     let Some(callee_machine) = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .iter()
-            .any(|state| state.symbol == callee.symbol)
+        typed_trees::state::state_by_symbol(program.machine_states(candidate), callee.symbol)
+            .is_some()
     }) else {
         return false;
     };

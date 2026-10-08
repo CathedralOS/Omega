@@ -366,9 +366,8 @@ fn condition_belongs_to_state(
             path.symbol.is_valid()
                 && path.head_symbol.is_valid()
                 && ((program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.symbol == path.head_symbol))
+                    .state_parameter_by_symbol(state, path.head_symbol)
+                    .is_some())
                     || (path.symbol == path.head_symbol
                         && program
                             .machine_type_parameters(machine)
@@ -684,9 +683,8 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol.is_valid() => {
                 let root = self
                     .program
-                    .state_parameters(source)
-                    .iter()
-                    .any(|parameter| parameter.symbol == path.head_symbol)
+                    .state_parameter_by_symbol(source, path.head_symbol)
+                    .is_some()
                     || self
                         .program
                         .state_local_declaration(source, path.head_symbol)

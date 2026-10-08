@@ -963,11 +963,7 @@ fn push_edge(
         } => (path.symbol, EdgeArguments::Named(*arguments)),
         _ => return,
     };
-    if program
-        .machine_states(machine)
-        .iter()
-        .any(|state| state.symbol == target)
-    {
+    if typed_trees::state::state_by_symbol(program.machine_states(machine), target).is_some() {
         edges.push(Edge {
             source,
             target,

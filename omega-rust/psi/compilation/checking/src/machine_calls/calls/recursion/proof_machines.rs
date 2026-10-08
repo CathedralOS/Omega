@@ -158,8 +158,7 @@ pub(crate) fn proof_call_has_structural_descent(
             || matches!(program.expression_table.expression(*argument), ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && program.machine_states(machine)[1..].iter().any(|state| {
-                        program.state_parameters(state).iter()
-                            .any(|parameter| parameter.symbol == path.symbol)
+                        program.state_parameter_by_symbol(state, path.symbol).is_some()
                     })
                     && substate_parameter_descends(program, machine, *argument, measure.symbol, None))
     })
