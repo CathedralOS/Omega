@@ -125,12 +125,10 @@ impl TotalScalarExpressionKey {
             | Self::WrappingMultiply(_, left, right)
             | Self::SaturatingAdd(_, left, right)
             | Self::SaturatingSubtract(_, left, right)
-            | Self::SaturatingMultiply(_, left, right) => {
+            | Self::SaturatingMultiply(_, left, right)
+            | Self::WrappingShiftLeft(_, _, left, right)
+            | Self::WrappingShiftRight(_, _, left, right) => {
                 values.contains(&left) || values.contains(&right)
-            }
-            Self::WrappingShiftLeft(_, _, value, count)
-            | Self::WrappingShiftRight(_, _, value, count) => {
-                values.contains(&value) || values.contains(&count)
             }
         }
     }
