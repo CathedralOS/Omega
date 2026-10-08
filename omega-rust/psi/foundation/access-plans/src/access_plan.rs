@@ -124,6 +124,39 @@ pub enum FieldAccess {
     },
 }
 
+impl FieldAccess {
+    /// The operation names a diagnostic reports for this access: stable and
+    /// external reads and writes are `read`/`write`, an external take is
+    /// `take`; atomic and inaccessible fields name no ordinary operations.
+    pub fn operation_names(&self) -> Vec<&'static str> {
+        match self {
+            FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
+            FieldAccess::Stable { read, write, .. } => {
+                let mut operations = Vec::new();
+                if *read {
+                    operations.push("read");
+                }
+                if *write {
+                    operations.push("write");
+                }
+                operations
+            }
+            FieldAccess::External { read, write, .. } => {
+                let mut operations = Vec::new();
+                match read {
+                    ExternalRead::None => {}
+                    ExternalRead::Read => operations.push("read"),
+                    ExternalRead::Take => operations.push("take"),
+                }
+                if *write {
+                    operations.push("write");
+                }
+                operations
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AccessLayoutCommitment(pub(crate) [u8; 32]);
 

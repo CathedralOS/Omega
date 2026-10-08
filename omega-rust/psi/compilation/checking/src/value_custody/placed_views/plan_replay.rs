@@ -44,31 +44,7 @@ pub(super) fn exact_access_entry_for_field<'view>(
 }
 
 fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
-    match access {
-        FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
-        FieldAccess::Stable { read, write, .. } => {
-            let mut operations = Vec::new();
-            if *read {
-                operations.push("read");
-            }
-            if *write {
-                operations.push("write");
-            }
-            operations
-        }
-        FieldAccess::External { read, write, .. } => {
-            let mut operations = Vec::new();
-            match read {
-                access_plans::ExternalRead::None => {}
-                access_plans::ExternalRead::Read => operations.push("read"),
-                access_plans::ExternalRead::Take => operations.push("take"),
-            }
-            if *write {
-                operations.push("write");
-            }
-            operations
-        }
-    }
+    access.operation_names()
 }
 
 /// Independently replay the compiler-derived nominal and stable-member joins

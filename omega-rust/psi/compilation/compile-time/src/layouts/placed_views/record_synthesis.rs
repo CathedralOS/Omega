@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use access_plans::{AccessExposure, ExternalRead, FieldAccess, ValidatedPlacementPlan};
+use access_plans::{AccessExposure, FieldAccess, ValidatedPlacementPlan};
 use arena::{Arena, Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
@@ -246,31 +246,7 @@ pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees) {
 }
 
 pub(super) fn accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
-    match access {
-        FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
-        FieldAccess::Stable { read, write, .. } => {
-            let mut operations = Vec::new();
-            if *read {
-                operations.push("read");
-            }
-            if *write {
-                operations.push("write");
-            }
-            operations
-        }
-        FieldAccess::External { read, write, .. } => {
-            let mut operations = Vec::new();
-            match read {
-                ExternalRead::None => {}
-                ExternalRead::Read => operations.push("read"),
-                ExternalRead::Take => operations.push("take"),
-            }
-            if *write {
-                operations.push("write");
-            }
-            operations
-        }
-    }
+    access.operation_names()
 }
 
 fn clone_accessor_machine(
