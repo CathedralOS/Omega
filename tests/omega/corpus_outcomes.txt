@@ -2723,11 +2723,13 @@ pass/control_flow/projected_field_exhaustive_case_dispatch_exit checked 1171ms c
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms check-target:macos_arm64 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit checked 2994ms check-target:macos_arm64 @36ad3370c97a
+pass/control_flow/runtime_boundary_case_subject_exit checked 2679ms check-target:macos_arm64 @02be27637e24+wt
 pass/control_flow/runtime_branch_parameter_cleanup_exit checked 603ms check-target:macos_arm64 @70f761d06258
 pass/control_flow/runtime_branch_transfer_owned_record_exit checked 2456ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_branching_helper_string checked 635ms check-target:macos_arm64 @58e4f6f8667
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 1328ms check-target:macos_arm64 @2d8ed253669f
+pass/control_flow/runtime_computed_case_subject_call_operand_exit checked 2678ms check-target:macos_arm64 @02be27637e24+wt
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit checked 1563ms check-target:macos_arm64 @15f38e49aac2+wt
 pass/control_flow/runtime_diamond_join_borrowed_record_exit checked 2407ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_diamond_join_owned_record_exit checked 2404ms check-target:macos_arm64 @64c766216f02+wt
@@ -3309,6 +3311,7 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked
 pass/optimizer/rollback_to_no_selection_empty_entry checked 7147ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:0786f0aa6f452e31 rolled-back-semantic:0786f0aa6f452e31 module:same check-target:macos_arm64 @d83ae44b78cd
 pass/optimizer/stored_load_forwarding_selection_exit checked 1159ms check-target:macos_arm64 @7be03351b68c+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
+pass/ownership/copied_parameter_case_field_store_exit checked 1928ms check-target:macos_arm64 @02be27637e24+wt
 pass/ownership/free_machine_record_result_claims_exit checked 1772ms check-target:macos_arm64 @0039283a5d5a+wt
 pass/ownership/linear_ambiguous_state_result_mapping checked 3301ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f

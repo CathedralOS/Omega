@@ -440,10 +440,6 @@ helper that passes does not close an item.
     storage local, with only the Console binding in Main. Preserve the
     later-state/repeated-loan control
     `pass/text/borrowed_bounded_byte_indexed_write_exit` (70).
-  - A case dispatch over a computed call subject evaluates it once
-    (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`),
-    but the state graph still declines it when the subject's operands call or
-    the subject is a boundary call.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the
@@ -2487,25 +2483,6 @@ crash and native exit behavior.
   rather than special-casing one-case chains. Acceptance: one-case and n-case
   projected dispatch with payload forwarding run natively; the existing
   projected-dispatch fixtures are unchanged.
-
-- **LOCAL-COPY-CASE-FIELD-STORE.** (new-scope) A state that copies a
-  by-value parameter into a mutable local and then stores a case-valued field
-  of the copy does not lower: `let mut copy: Item = item; copy.kind = Kind::Second;`
-  (with `Item [copy]` holding `kind: Kind`, a payload-free `[copy]` sum) is
-  refused in stage 04 with "scalar field store sequence: write frame
-  agreement". The recorded and re-inferred write frames agree; both are
-  Opaque, so `frame::matches` (`execution/terminal_unit/structural_scalar_store/frame.rs`)
-  refuses. The opacity enters through a `?` inside the helpers of
-  `checking/src/machine_calls/calls/write_frames/state_write_walk.rs` while it
-  walks the copied local, not through one of that file's explicit early
-  returns. A scalar store into the same copied local (`copy.count = 70`) and
-  the same case store into a local initialized by a construction both lower,
-  so the copied-from-parameter local is the trigger. A copy of a by-value
-  parameter is fresh storage the caller cannot observe; its writes belong in
-  no frame path. The product compiler works around this by building such rows
-  from a constructor (`TypeRow::of`) instead of copying a parameter.
-  Acceptance: the shape above runs natively; writes through a local that
-  borrows caller storage still appear in the frame.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in

@@ -626,11 +626,13 @@ pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 1372ms exi
 pass/control_flow/projected_loan_state_argument_exit built 2223ms exit:11 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 601ms exit:70
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 2111ms exit:70 @36ad3370c97a
+pass/control_flow/runtime_boundary_case_subject_exit built 2694ms exit:70 @02be27637e24+wt
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 4989ms exit:0 @9beb2be72f2d+wt
 pass/control_flow/runtime_branch_transfer_owned_record_exit built 2612ms exit:70 @64c766216f02+wt
 pass/control_flow/runtime_branching_helper_string built 4587ms @4ffed225fc45+wt
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
+pass/control_flow/runtime_computed_case_subject_call_operand_exit built 2779ms exit:70 @02be27637e24+wt
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1592ms exit:70 @15f38e49aac2
 pass/control_flow/runtime_diamond_join_borrowed_record_exit built 2700ms exit:70 @64c766216f02+wt
 pass/control_flow/runtime_diamond_join_owned_record_exit built 2874ms exit:70 @64c766216f02+wt
@@ -1192,6 +1194,7 @@ pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 3
 pass/optimizer/rollback_to_no_selection_empty_entry built 3404ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @693920652f41
 pass/optimizer/stored_load_forwarding_selection_exit built 3222ms exit:0 @9beb2be72f2d+wt
 pass/ownership/conditional_linear_sum checked 210ms
+pass/ownership/copied_parameter_case_field_store_exit built 1978ms exit:70 @02be27637e24+wt
 pass/ownership/free_machine_record_result_claims_exit built 1940ms exit:0 @0039283a5d5a+wt
 pass/ownership/linear_ambiguous_state_result_mapping built 2546ms exit:0 @e007e1d70f35+wt
 pass/ownership/linear_assignment_establishes checked 161ms
