@@ -345,3 +345,20 @@ mod tests {
         assert_eq!(entry_symbol_name(NativeTarget::macos_x64()), "_main");
     }
 }
+
+/// Shared manifest envelope both immutable-lane containers write: magic,
+/// version, the manifest identity bytes, then the manifest content. The
+/// two formats differ only in the magic the caller supplies.
+pub(crate) fn encode_manifest_envelope(
+    magic: &[u8; 8],
+    version: u32,
+    identity: &[u8],
+    content: &[u8],
+) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(44_usize.saturating_add(content.len()));
+    encoded.extend_from_slice(magic);
+    encoded.extend_from_slice(&version.to_le_bytes());
+    encoded.extend_from_slice(identity);
+    encoded.extend_from_slice(content);
+    encoded
+}

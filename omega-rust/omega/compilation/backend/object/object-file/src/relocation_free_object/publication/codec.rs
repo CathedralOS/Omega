@@ -20,13 +20,12 @@ impl FunctionFragmentObjectContainerManifest {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let content = encode_manifest_content(self);
-        let mut encoded = Vec::with_capacity(44_usize.saturating_add(content.len()));
-        encoded.extend_from_slice(MANIFEST_MAGIC);
-        encoded.extend_from_slice(&MANIFEST_VERSION.to_le_bytes());
-        encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        crate::names::encode_manifest_envelope(
+            MANIFEST_MAGIC,
+            MANIFEST_VERSION,
+            &self.identity.bytes(),
+            &encode_manifest_content(self),
+        )
     }
 
     pub fn decode(
