@@ -7,22 +7,17 @@
 //! can describe them with `describe_component_facts` and admit them with
 //! `verify_component`; nothing here is a hand-authored inventory.
 
-use std::collections::BTreeSet;
-
 use effects::SelectedProviderPlanFacts;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, StructuralTypeId,
+    BlockId, ContractId, EdgeId, MachineId,
 };
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract,
-    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Block, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalPsiIdentity, Terminator,
 };
 
 use crate::{
-    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts, ComponentVerificationRequest,
-    VerifiedComponent, describe_component_facts, encode_component_description, verify_component,
+    ComponentDescriptionFacts, describe_component_facts, encode_component_description,
 };
 
 fn machine_id(raw: u64) -> MachineId {

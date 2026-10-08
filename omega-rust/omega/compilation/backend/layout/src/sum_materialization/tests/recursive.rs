@@ -1,20 +1,13 @@
 //! Recursive record/sum projection and replay, including hostile geometry and custody.
 use super::{
-    BuildTimeValue, ByteOrder, DataMember, DataShape, LayoutPlacementReport, NativeTarget,
-    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, typed_fixture, typed_generic_fixture,
-    unique_data_layout,
+    ByteOrder, DataMember, DataShape, NativeTarget, TypeLayoutDescriptor, TypeReferenceNode,
+    typed_fixture, unique_data_layout,
 };
 use crate::project_conventional_record_with_recursive_nested_sums_materialization_layout;
-use build_time_evaluation::ValidatedConstRecordSumChildMaterialization;
-use layout_plans::ConventionalRecordSumChildHop;
-use layout_plans::ConventionalRecordSumChildInterior;
-use layout_plans::ConventionalRecordSumChildLayoutReport;
-use layout_plans::ConventionalRecursiveRecordSumPathsLayoutReport;
-use layout_plans::ConventionalSumLayoutReport;
 use layout_plans::{
-    ConsumptionInstant, DataSymbolId, MaterializationContext, PlacementConstraints, PlacementPhase,
-    RelocationTarget, SymbolicFieldPathSegment, SymbolicFieldValue,
-    derive_symbolic_materialization_with_inner_layouts,
+    ConsumptionInstant, ConventionalRecordSumChildHop, DataSymbolId, MaterializationContext,
+    PlacementConstraints, PlacementPhase, RelocationTarget, SymbolicFieldPathSegment,
+    SymbolicFieldValue, derive_symbolic_materialization_with_inner_layouts,
 };
 
 #[test]
@@ -118,43 +111,8 @@ fn recursive_empty_array_rows_reject_substituted_element_geometry() {
     }
 }
 
-fn first_descendant_mut(
-    mut report: &mut ConventionalRecursiveRecordSumPathsLayoutReport,
-    depth: usize,
-) -> &mut ConventionalRecursiveRecordSumPathsLayoutReport {
-    for _ in 0..depth {
-        report = report
-            .children
-            .iter_mut()
-            .find_map(|child| match &mut child.interior {
-                ConventionalRecordSumChildInterior::Record(inner) => Some(inner),
-                _ => None,
-            })
-            .expect("a record child row");
-    }
-    report
-}
 
-fn sum_layout_mut(
-    child: &mut ConventionalRecordSumChildLayoutReport,
-) -> &mut ConventionalSumLayoutReport {
-    let ConventionalRecordSumChildInterior::Sum(layout) = &mut child.interior else {
-        panic!("expected a sum child row");
-    };
-    layout
-}
 
-fn numbered_rename(report: &mut ConventionalRecursiveRecordSumPathsLayoutReport) {
-    for entry in &mut report.outer_layout.entries {
-        entry.field = format!("renamed_{}", entry.field);
-    }
-    for child in &mut report.children {
-        child.field = format!("renamed_{}", child.field);
-        if let ConventionalRecordSumChildInterior::Record(inner) = &mut child.interior {
-            numbered_rename(inner);
-        }
-    }
-}
 
 fn recursive_source(depth: usize) -> String {
     let mut source = String::from(
@@ -184,27 +142,6 @@ fn recursive_source(depth: usize) -> String {
     source
 }
 
-fn recursive_value(depth: usize, number: Option<i64>) -> BuildTimeValue {
-    let empty = || BuildTimeValue::Case {
-        variant: "Empty".into(),
-        payload: Vec::new(),
-    };
-    let second = number.map_or_else(empty, |value| BuildTimeValue::Case {
-        variant: "Number".into(),
-        payload: vec![("value".into(), BuildTimeValue::Int(value))],
-    });
-    let mut value = BuildTimeValue::Struct {
-        type_name: "Layer0".into(),
-        fields: vec![("first".into(), empty()), ("second".into(), second)],
-    };
-    for layer in 1..depth {
-        value = BuildTimeValue::Struct {
-            type_name: format!("Layer{layer}"),
-            fields: vec![("child".into(), value)],
-        };
-    }
-    value
-}
 
 #[test]
 fn recursive_projection_reports_its_resource_depth_limit() {

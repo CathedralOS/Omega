@@ -1,20 +1,12 @@
 use super::{
-    ConventionalNestedRecordSumPathLayoutReport, DataMember, DataShape, LayoutPlacementReport,
-    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode,
+    DataMember, DataShape, TypeLayoutDescriptor, TypeReferenceNode,
     project_conventional_record_with_nested_sum_record_materialization_layout,
-    project_conventional_record_with_nested_sum_records_materialization_layout,
-    project_conventional_record_with_sum_array_materialization_layout,
-    project_conventional_record_with_sum_arrays_materialization_layout,
-    project_conventional_record_with_sum_materialization_layout,
     project_conventional_sum_materialization_layout, unique_data_layout,
 };
 use build_time_evaluation::{BuildTimeValue, validate_const_materializable_conventional_sum};
 use layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    GenericDataRequest, normalize_generic_data,
-};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -29,17 +21,6 @@ fn typed_fixture(source: &str) -> TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
-/// The same typing path with generic instance synthesis enabled: authored
-/// `T<args>` spellings materialize their closed instance declarations before
-/// resolution, exactly as the connected pipeline does.
-fn typed_generic_fixture(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let syntax =
-        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
-    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 #[test]
 fn projects_exact_authored_case_order_and_overlay_geometry() {
     let typed = typed_fixture(

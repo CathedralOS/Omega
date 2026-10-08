@@ -1,40 +1,4 @@
-use super::{
-    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
-    admitted_native_callback_thunks,
-};
-use crate::callback_placements::tests::{materialized_placement, placement};
-
-fn occurrence(
-    placement_index: usize,
-    placement: &crate::BoundNominalCallbackPlacement,
-) -> TerminalCallbackOccurrenceProposal {
-    let entry = semantic_vocabulary::MachineId::new(1).unwrap();
-    let mut module = terminal_psi::TerminalModule::for_entry(entry);
-    module.machines.push(machine(1, 1));
-    let mut lowering_receipt = receipt(&module);
-    lowering_receipt.source_machine = placement.selected_machine;
-    lowering_receipt.source_entry = placement.selected_entry;
-    TerminalCallbackOccurrenceProposal::new(
-        placement_index,
-        semantic_vocabulary::OperationId::new(7).unwrap(),
-        placement
-            .private_materialization
-            .as_ref()
-            .map(|materialization| {
-                materialization
-                    .destination_parameter_application()
-                    .unwrap()
-                    .clone()
-            }),
-        crate::canonical_callback_thunk_identity(placement_index, placement).unwrap(),
-        TerminalCallbackThunkArtifact::new(
-            crate::canonical_callback_private_symbol(placement),
-            thunk_artifact(&module),
-            lowering_receipt,
-        )
-        .unwrap(),
-    )
-}
+use super::TerminalCallbackThunkArtifact;
 
 fn block(id: u64) -> terminal_psi::Block {
     terminal_psi::Block {

@@ -7,7 +7,7 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_psi::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
+    Block, Operation, OperationKind, OperationResult, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
