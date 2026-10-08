@@ -97,13 +97,7 @@ pub(super) fn fault_discharged_alternative(alternative: &MachineAlternative) -> 
 /// terminator's uses include the function's live-out unit state.
 pub(super) fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool {
     function.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .chain(std::iter::once(
-                selected_instructions::terminator_instruction(&block.terminator),
-            ))
-            .any(|instruction| instruction.implicit_uses.contains(&unit))
+        block_instructions(block).any(|instruction| instruction.implicit_uses.contains(&unit))
     })
 }
 
