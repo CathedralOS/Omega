@@ -275,70 +275,18 @@ pub(crate) fn expression_children(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
-    let table = &program.expression_table;
     let mut children = Vec::new();
-    match table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            children.push(dispatch.subject);
-            for arm in table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    children.push(pattern);
-                }
-                children.push(arm.value);
+    ::validation::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| {
+            if child.is_valid() {
+                children.push(child);
             }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            children.extend(table.expression_handles(*values).iter().copied())
-        }
-        ExpressionNode::Atomic(atomic) => {
-            children.push(atomic.value);
-            if atomic.result.is_valid() {
-                children.push(atomic.result);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            children.push(binary.left);
-            children.push(binary.right);
-        }
-        ExpressionNode::Cast(cast) => children.push(cast.value),
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                children.push(call.receiver);
-            }
-            children.extend(table.expression_handles(call.arguments).iter().copied());
-        }
-        ExpressionNode::Indexed(indexed) => {
-            children.push(indexed.collection);
-            children.push(indexed.index);
-        }
-        ExpressionNode::Member(member) => children.push(member.receiver),
-        ExpressionNode::Borrow(borrow) => children.push(borrow.target),
-        ExpressionNode::Range(range) => {
-            if range.start.is_valid() {
-                children.push(range.start);
-            }
-            if range.end.is_valid() {
-                children.push(range.end);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => children.extend(
-            table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value),
-        ),
-        ExpressionNode::Unary(unary) => children.push(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
+        },
+    );
     children
 }
-
 // Numeric type positions have no implicit machine activation. Check the same
 // source-owned selections as machine expressions, then establish context-free
 // operator meaning through the shared exact query. Never substitute the
