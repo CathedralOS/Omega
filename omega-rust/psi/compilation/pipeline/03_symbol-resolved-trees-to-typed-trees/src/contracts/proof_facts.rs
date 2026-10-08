@@ -4,7 +4,7 @@ use crate::expressions::expression::{
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
 use crate::type_reference::domain_aliases::expand_domain_reference;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
