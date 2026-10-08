@@ -132,29 +132,13 @@ impl BoundaryResultPolicy {
 
 fn origin_matches(
     checked: &CheckedTrees,
-    mut origin: CheckedValueOrigin,
+    origin: CheckedValueOrigin,
     machine: SymbolHandle,
     coordinate: SourceCallCoordinate,
 ) -> bool {
-    let mut parents = Vec::new();
-    while let CheckedValueOrigin::NestedExpression { parent } = origin {
-        if parents.contains(&parent) {
-            return false;
-        }
-        parents.push(parent);
-        let mut origins = checked
-            .facts
-            .values
-            .expression_values(parent)
-            .map(|(_, value)| value.origin);
-        let Some(parent_origin) = origins.next() else {
-            return false;
-        };
-        if origins.any(|candidate| candidate != parent_origin) {
-            return false;
-        }
-        origin = parent_origin;
-    }
+    let Some(origin) = checked.consistent_terminal_origin(origin) else {
+        return false;
+    };
     matches!(origin, CheckedValueOrigin::StateStatement { machine_symbol, state_symbol, statement_index, .. }
         if machine_symbol == machine && state_symbol == coordinate.state && statement_index == coordinate.statement_index)
 }

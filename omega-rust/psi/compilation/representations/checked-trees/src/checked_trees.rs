@@ -240,6 +240,35 @@ impl CheckedTrees {
         self.facts.authored_declaration_selections()
     }
 
+    /// Walks `NestedExpression` parents to the enclosing non-expression origin,
+    /// requiring every value recorded for a parent to agree on that one origin;
+    /// `None` when the chain cycles or a parent carries divergent origins.
+    pub fn consistent_terminal_origin(
+        &self,
+        mut origin: CheckedValueOrigin,
+    ) -> Option<CheckedValueOrigin> {
+        let mut parents = Vec::new();
+        while let CheckedValueOrigin::NestedExpression { parent } = origin {
+            if parents.contains(&parent) {
+                return None;
+            }
+            parents.push(parent);
+            let mut origins = self
+                .facts
+                .values
+                .expression_values(parent)
+                .map(|(_, value)| value.origin);
+            let Some(parent_origin) = origins.next() else {
+                return None;
+            };
+            if origins.any(|candidate| candidate != parent_origin) {
+                return None;
+            }
+            origin = parent_origin;
+        }
+        Some(origin)
+    }
+
     /// Exact authored occurrences, including proof views admitted by checking.
     pub fn authored_selection_occurrences(
         &self,
