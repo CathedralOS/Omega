@@ -130,51 +130,16 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
-            service_reach_keyword_source_spans.push(input.current_source_span());
-            input = input.take_contextual("reaches")?;
-            let service_count_before_clause = service_count;
-            if input.at_punctuation(PunctuationKind::LessEqual) {
-                if service_reach_is_installation_bound || service_count != 0 {
-                    return Err(input.error_here(
-                        "an installation-bound reach row must be declared once as `reaches <= Bound`",
-                    ));
-                }
-                service_reach_is_installation_bound = true;
-                input = input.take_punctuation(PunctuationKind::LessEqual, "<=")?;
-            } else if service_reach_is_installation_bound {
-                return Err(input.error_here(
-                    "an installation-bound reach bound cannot be combined with another `reaches` clause",
-                ));
-            }
-            while !input.at_punctuation(PunctuationKind::LeftBrace)
-                && !input.at_punctuation(PunctuationKind::Semicolon)
-                && !input.at_contextual("requires")
-                && !input.at_contextual("ensures")
-                && !input.at_contextual("terminates")
-                && !input.at_contextual("decreases")
-                && !input.at_contextual("reaches")
-                && !input.at_contextual("effects")
-                && !input.at_contextual("invokes")
-                && !input.at_contextual("suspends")
-                && !input.at_contextual("blocks")
-                && !input.at_contextual("crashes")
-                && !input.at_contextual("boundary")
-                && !input.at_contextual("where")
-                && !input.at_contextual("satisfies")
-            {
-                input = super::take_service_reach_row_member(
-                    input,
-                    syntax_trees,
-                    &mut service_start,
-                    &mut service_count,
-                    "machine service span count overflow",
-                )?;
-            }
-            if service_reach_is_installation_bound && service_count == service_count_before_clause {
-                return Err(input.error_here(
-                    "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
-                ));
-            }
+            input = super::take_operational_reaches_clause(
+                input,
+                syntax_trees,
+                &mut service_reach_keyword_source_spans,
+                &mut service_start,
+                &mut service_count,
+                &mut service_reach_is_installation_bound,
+                "machine service span count overflow",
+                machine_reaches_clause_boundary,
+            )?;
             continue;
         }
 
@@ -668,6 +633,24 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
             && !crate::contracts::facts::starts_machine_contract_following_item(input))
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
+}
+
+fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("terminates")
+        || input.at_contextual("decreases")
+        || input.at_contextual("reaches")
+        || input.at_contextual("effects")
+        || input.at_contextual("invokes")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
+        || input.at_contextual("boundary")
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
 }

@@ -113,48 +113,16 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
-            service_reach_keyword_source_spans.push(input.current_source_span());
-            input = input.take_contextual("reaches")?;
-            let service_count_before_clause = service_count;
-            if input.at_punctuation(PunctuationKind::LessEqual) {
-                if service_reach_is_installation_bound || service_count != 0 {
-                    return Err(input.error_here(
-                        "an installation-bound reach row must be declared once as `reaches <= Bound`",
-                    ));
-                }
-                service_reach_is_installation_bound = true;
-                input = input.take_punctuation(PunctuationKind::LessEqual, "<=")?;
-            } else if service_reach_is_installation_bound {
-                return Err(input.error_here(
-                    "an installation-bound reach bound cannot be combined with another `reaches` clause",
-                ));
-            }
-            while !input.at_punctuation(PunctuationKind::Semicolon)
-                && !input.at_punctuation(PunctuationKind::LeftBrace)
-                && !input.at_contextual("requires")
-                && !input.at_contextual("ensures")
-                && !input.at_contextual("terminates")
-                && !input.at_contextual("reaches")
-                && !input.at_contextual("effects")
-                && !input.at_contextual("invokes")
-                && !input.at_contextual("suspends")
-                && !input.at_contextual("blocks")
-                && !input.at_contextual("crashes")
-                && !input.at_contextual("where")
-            {
-                input = super::take_service_reach_row_member(
-                    input,
-                    syntax_trees,
-                    &mut service_start,
-                    &mut service_count,
-                    "trait machine service span count overflow",
-                )?;
-            }
-            if service_reach_is_installation_bound && service_count == service_count_before_clause {
-                return Err(input.error_here(
-                    "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
-                ));
-            }
+            input = super::take_operational_reaches_clause(
+                input,
+                syntax_trees,
+                &mut service_reach_keyword_source_spans,
+                &mut service_start,
+                &mut service_count,
+                &mut service_reach_is_installation_bound,
+                "trait machine service span count overflow",
+                signature_clause_boundary,
+            )?;
             continue;
         }
 

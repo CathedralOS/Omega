@@ -71,3 +71,54 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
     }
     Ok(input)
 }
+
+/// The whole `reaches <Service> + ...` clause both grammars share: the `<=`
+/// installation-bound rules plus the member loop bounded by the caller's own
+/// clause-boundary set. `service_start`/`service_count` accumulate the
+/// contiguous span the caller drains afterward.
+pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
+    input: crate::input::token_cursor::Input<'tokens, 'source>,
+    syntax_trees: &mut syntax_trees::SyntaxTrees,
+    service_reach_keyword_source_spans: &mut Vec<source::SourceSpan>,
+    service_start: &mut arena::Handle<syntax_trees::identifier::Identifier>,
+    service_count: &mut u32,
+    service_reach_is_installation_bound: &mut bool,
+    service_overflow_message: &'static str,
+    at_clause_boundary: impl Fn(crate::input::token_cursor::Input<'_, '_>) -> bool,
+) -> Result<
+    crate::input::token_cursor::Input<'tokens, 'source>,
+    crate::diagnostics::parse_error::ParseError,
+> {
+    use tokens::PunctuationKind;
+    service_reach_keyword_source_spans.push(input.current_source_span());
+    let mut input = input.take_contextual("reaches")?;
+    let service_count_before_clause = *service_count;
+    if input.at_punctuation(PunctuationKind::LessEqual) {
+        if *service_reach_is_installation_bound || *service_count != 0 {
+            return Err(input.error_here(
+                "an installation-bound reach row must be declared once as `reaches <= Bound`",
+            ));
+        }
+        *service_reach_is_installation_bound = true;
+        input = input.take_punctuation(PunctuationKind::LessEqual, "<=")?;
+    } else if *service_reach_is_installation_bound {
+        return Err(input.error_here(
+            "an installation-bound reach bound cannot be combined with another `reaches` clause",
+        ));
+    }
+    while !at_clause_boundary(input) {
+        input = take_service_reach_row_member(
+            input,
+            syntax_trees,
+            service_start,
+            service_count,
+            service_overflow_message,
+        )?;
+    }
+    if *service_reach_is_installation_bound && *service_count == service_count_before_clause {
+        return Err(input.error_here(
+            "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
+        ));
+    }
+    Ok(input)
+}
