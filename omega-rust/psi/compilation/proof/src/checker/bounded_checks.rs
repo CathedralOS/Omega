@@ -186,12 +186,12 @@ fn assignment_is_overwritten_before_consumption(
     obligation: &BoundedAssignmentObligation,
 ) -> bool {
     let program = proof_plan.program;
-    let Some(state) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine).iter())
-        .find(|state| state.symbol == obligation.state_symbol)
-    else {
+    let Some(state) = program.machines().iter().find_map(|machine| {
+        typed_trees::state::state_by_symbol(
+            program.machine_states(machine),
+            obligation.state_symbol,
+        )
+    }) else {
         return false;
     };
     let Some(window_path) = written_place_path(proof_plan, obligation.target) else {

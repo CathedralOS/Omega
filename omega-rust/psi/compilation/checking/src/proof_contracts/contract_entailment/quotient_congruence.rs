@@ -84,8 +84,7 @@ fn named_parameter_identity(
     program
         .machine_states(machine)
         .iter()
-        .flat_map(|state| program.state_parameters(state))
-        .find(|parameter| parameter.symbol == path.symbol)
+        .find_map(|state| program.state_parameter_by_symbol(state, path.symbol))
         .map(|parameter| (parameter.symbol, parameter.type_reference))
 }
 

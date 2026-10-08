@@ -249,12 +249,9 @@ impl<'a> Elaborator<'a> {
         }
         // `target_symbol` names the callee's entry `State`, not the
         // machine itself.
-        let state = self
-            .program
-            .machines()
-            .iter()
-            .flat_map(|machine| self.program.machine_states(machine))
-            .find(|state| state.symbol == symbol)?;
+        let state = self.program.machines().iter().find_map(|machine| {
+            typed_trees::state::state_by_symbol(self.program.machine_states(machine), symbol)
+        })?;
         self.scalar_carrier_of_type_reference(state.return_type)
     }
 

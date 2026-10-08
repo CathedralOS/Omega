@@ -14,8 +14,7 @@ pub(super) fn partition(
     let parameter = program
         .machine_states(machine)
         .iter()
-        .flat_map(|state| program.state_parameters(state))
-        .find(|parameter| parameter.symbol == subject.root)?;
+        .find_map(|state| program.state_parameter_by_symbol(state, subject.root))?;
     let mut partition = ProgressSubject {
         root: subject.root,
         projections: Vec::new(),
