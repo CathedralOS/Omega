@@ -497,6 +497,23 @@ struct ImportDispatch<'a, 'host> {
     bindings: &'a mut BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
 }
 
+impl<'a, 'host> ImportDispatch<'a, 'host> {
+    /// The adapter bound at `boundary`, or the unbound-slot rejection every
+    /// dispatch arm shares.
+    fn adapter_at(
+        &mut self,
+        boundary: BoundaryMachineId,
+    ) -> Result<&mut (dyn TerminalImportAdapter + 'host), TerminalEffectRejection> {
+        Ok(&mut *self
+            .bindings
+            .get_mut(&boundary)
+            .ok_or_else(|| {
+                TerminalEffectRejection::new("boundary call reached an unbound import slot")
+            })?
+            .adapter)
+    }
+}
+
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
     fn scalar_storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
         self.bindings.get(&boundary).map_or(&[], |binding| {
@@ -512,12 +529,7 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         match effect {
             TerminalEffect::BoundaryCall { boundary, .. } => self
-                .bindings
-                .get_mut(boundary)
-                .ok_or_else(|| {
-                    TerminalEffectRejection::new("boundary call reached an unbound import slot")
-                })?
-                .adapter
+                .adapter_at(*boundary)?
                 .handle_effect_with_buffers(effect, byte_buffers, scalar_buffers),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
@@ -527,14 +539,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
 
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => self
-                .bindings
-                .get_mut(boundary)
-                .ok_or_else(|| {
-                    TerminalEffectRejection::new("boundary call reached an unbound import slot")
-                })?
-                .adapter
-                .handle_effect(effect),
+            TerminalEffect::BoundaryCall { boundary, .. } => {
+                self.adapter_at(*boundary)?.handle_effect(effect)
+            }
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
@@ -548,12 +555,7 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         match effect {
             TerminalEffect::BoundaryCall { boundary, .. } => self
-                .bindings
-                .get_mut(boundary)
-                .ok_or_else(|| {
-                    TerminalEffectRejection::new("boundary call reached an unbound import slot")
-                })?
-                .adapter
+                .adapter_at(*boundary)?
                 .handle_effect_with_byte_buffers(effect, byte_buffers),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
@@ -566,14 +568,9 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         match effect {
-            TerminalEffect::BoundaryCall { boundary, .. } => self
-                .bindings
-                .get_mut(boundary)
-                .ok_or_else(|| {
-                    TerminalEffectRejection::new("boundary call reached an unbound import slot")
-                })?
-                .adapter
-                .handle_effect_result(effect),
+            TerminalEffect::BoundaryCall { boundary, .. } => {
+                self.adapter_at(*boundary)?.handle_effect_result(effect)
+            }
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),
