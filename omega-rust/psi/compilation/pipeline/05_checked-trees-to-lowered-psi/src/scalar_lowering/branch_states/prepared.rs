@@ -133,6 +133,35 @@ pub(crate) struct LoweredScalarBranchState {
     pub(crate) terminator: LoweredScalarBranchTerminator,
 }
 
+impl LoweredScalarBranchState {
+    /// A jump-only expansion state continuing to `target`, binding the
+    /// parameters produced from `argument_types`.
+    pub(crate) fn jumping(
+        target: usize,
+        structural_parameters: Vec<StructuralParameterDeclaration>,
+        parameter_types: Vec<QualifiedScalarType>,
+        argument_types: &[QualifiedScalarType],
+        structural_effects: Vec<LoweredScalarEffect>,
+    ) -> Self {
+        Self {
+            structural_parameters,
+            parameter_types,
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects,
+            terminator: LoweredScalarBranchTerminator::Jump {
+                target,
+                arguments: crate::scalar_graph::scalar_computations::parameters(argument_types),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            },
+        }
+    }
+}
+
 /// An expression expansion reserves target zero for its caller's completion,
 /// then addresses state n at target n + 1.
 fn state_position(target: usize, state_count: usize) -> Result<Option<usize>, LoweringError> {

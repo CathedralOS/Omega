@@ -842,22 +842,13 @@ impl PreparedValue {
             .ok_or(LoweringError::Unsupported(
                 "record construction has no completion",
             ))?;
-        let mut target = computations.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: completed_types.clone(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::Jump {
-                target,
-                arguments: computations::parameters(source_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                cleanup_actions: Vec::new(),
-            },
-        });
+        let mut target = computations.push(LoweredScalarBranchState::jumping(
+            target,
+            Vec::new(),
+            completed_types.clone(),
+            source_types,
+            Vec::new(),
+        ));
         for step in self.steps.into_iter().rev() {
             target = match step {
                 Step::Call { prepared, prefix } => {
@@ -885,22 +876,13 @@ impl PreparedValue {
                     destination,
                     prefix,
                 } => {
-                    let copied = computations.push(LoweredScalarBranchState {
-                        structural_parameters: vec![destination],
-                        parameter_types: prefix.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: Vec::new(),
-                        terminator: LoweredScalarBranchTerminator::Jump {
-                            target,
-                            arguments: computations::parameters(&prefix),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                            cleanup_actions: Vec::new(),
-                        },
-                    });
+                    let copied = computations.push(LoweredScalarBranchState::jumping(
+                        target,
+                        vec![destination],
+                        prefix.clone(),
+                        &prefix,
+                        Vec::new(),
+                    ));
                     computations.push(LoweredScalarBranchState {
                         structural_parameters: Vec::new(),
                         parameter_types: prefix.clone(),
@@ -931,68 +913,43 @@ impl PreparedValue {
                     result_type,
                     target,
                 )?,
-                Step::Establish { effect, prefix } => computations.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    parameter_types: prefix.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    structural_effects: vec![effect],
-                    terminator: LoweredScalarBranchTerminator::Jump {
+                Step::Establish { effect, prefix } => {
+                    computations.push(LoweredScalarBranchState::jumping(
                         target,
-                        arguments: computations::parameters(&prefix),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    },
-                }),
+                        Vec::new(),
+                        prefix.clone(),
+                        &prefix,
+                        vec![effect],
+                    ))
+                }
                 Step::Aggregate {
                     construction,
                     prefix,
-                } => computations.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    parameter_types: prefix.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    structural_effects: vec![LoweredScalarEffect::EstablishAggregate(construction)],
-                    terminator: LoweredScalarBranchTerminator::Jump {
-                        target,
-                        arguments: computations::parameters(&prefix),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    },
-                }),
+                } => computations.push(LoweredScalarBranchState::jumping(
+                    target,
+                    Vec::new(),
+                    prefix.clone(),
+                    &prefix,
+                    vec![LoweredScalarEffect::EstablishAggregate(construction)],
+                )),
                 Step::Zeroed {
                     place,
                     structural_type,
                     multiplicity,
                     claims,
                     prefix,
-                } => computations.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    parameter_types: prefix.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    structural_effects: vec![LoweredScalarEffect::EstablishZeroedStructural {
+                } => computations.push(LoweredScalarBranchState::jumping(
+                    target,
+                    Vec::new(),
+                    prefix.clone(),
+                    &prefix,
+                    vec![LoweredScalarEffect::EstablishZeroedStructural {
                         place,
                         structural_type,
                         multiplicity,
                         claims,
                     }],
-                    terminator: LoweredScalarBranchTerminator::Jump {
-                        target,
-                        arguments: computations::parameters(&prefix),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        cleanup_actions: Vec::new(),
-                    },
-                }),
+                )),
             };
         }
         Ok(target)
