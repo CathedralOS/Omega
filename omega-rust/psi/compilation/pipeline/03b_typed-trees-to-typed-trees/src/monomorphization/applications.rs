@@ -134,6 +134,10 @@ pub(super) fn retain_call(
     };
     program
         .expression_table
+        .static_machine_application_mut(application)
+        .binding_declaration = candidate.template.template_symbol;
+    program
+        .expression_table
         .set_static_machine_application_bindings(application, &candidate_bindings(candidate));
 }
 
@@ -156,6 +160,10 @@ pub(super) fn retain_instance(
         .expression_table
         .static_machine_application_mut(application)
         .lexical_owner = instance;
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .binding_declaration = candidate.template.template_symbol;
     program
         .expression_table
         .set_static_machine_application_bindings(application, &bindings);

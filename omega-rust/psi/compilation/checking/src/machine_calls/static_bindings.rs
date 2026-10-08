@@ -8,9 +8,12 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::{GenericConformanceBound, Machine};
+use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::{
-    StaticMachineApplication, StaticMachineBinding, StaticMachineBindingValue,
+    StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
+    StaticMachineBindingValue,
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -19,22 +22,83 @@ pub fn validate_static_machine_bindings(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
-    for (handle, application) in program.expression_table.static_machine_applications() {
+    let mut judged: Vec<(SymbolHandle, SymbolHandle, StaticMachineApplicationHandle)> = Vec::new();
+    // A private execution graph shares arenas with excluded declarations.
+    // Only live roots own judgments; arena capacity is not an obligation roster.
+    let references = typed_trees::references::collect_program_references(program.typed_program());
+    let mut applications = references
+        .expressions
+        .iter()
+        .filter_map(
+            |expression| match program.expression_table.expression(*expression) {
+                ExpressionNode::Call(call) => Some(call.authored_machine_application),
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            applications.extend(
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| match statement {
+                        StatementNode::Call(call) => Some(call.authored_machine_application),
+                        _ => None,
+                    }),
+            );
+        }
+    }
+    applications.extend(
+        program
+            .machine_specializations
+            .iter()
+            .filter(|specialization| program.machine_by_symbol(specialization.instance).is_some())
+            .map(|specialization| specialization.binding_application),
+    );
+    applications.retain(|handle| handle.is_valid());
+    applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    applications.dedup();
+    for handle in applications {
+        let application = program.expression_table.static_machine_application(handle);
         let bindings = program
             .expression_table
             .static_machine_application_bindings(handle);
         if bindings.is_empty() {
             continue;
         }
-        let Some(machine) = program
-            .machine_by_symbol(application.registration_operation)
-            .or_else(|| program.machine_holding_state(application.registration_operation))
-        else {
-            diagnostics.push(Diagnostic::error(
-                "static tuple lost its original machine declaration",
-            ));
+        let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "static tuple for `{}` lost its original binding declaration",
+                application.target,
+            )));
             continue;
         };
+        // Calls and instances can retain the same exact tuple. Judge it once,
+        // without hashing display strings or aliasing their independently
+        // owned application spans. Only forwarding a lexical const binder
+        // makes the caller declaration an additional input to this judgment.
+        let scope = if bindings.iter().any(|binding| {
+            matches!(binding.value, StaticMachineBindingValue::Const(actual)
+                if matches!(program.type_reference_table.type_reference(actual),
+                    TypeReferenceNode::Named { symbol, .. } if symbol.is_valid()))
+        }) {
+            application.lexical_owner
+        } else {
+            SymbolHandle::invalid()
+        };
+        if judged.iter().any(|(declaration, owner, previous)| {
+            *declaration == machine.symbol
+                && *owner == scope
+                && program
+                    .expression_table
+                    .static_machine_application_bindings(*previous)
+                    == bindings
+        }) {
+            continue;
+        }
+        judged.push((machine.symbol, scope, handle));
         let parameters = program.machine_type_parameters(machine);
         let mut type_bounds_satisfied = true;
         for binding in bindings {

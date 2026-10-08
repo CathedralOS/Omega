@@ -17,7 +17,8 @@ pub type StaticMachineApplicationHandle = Handle<StaticMachineApplication>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticMachineApplication {
-    /// The generic source declaration, never its private executable instance.
+    /// The authored operation, possibly a trait requirement, never its private
+    /// executable realization or instance.
     pub registration_operation: SymbolHandle,
     /// The declaration whose type/lifetime scope authored these operands.
     /// Folding its type root does not transfer that scope to another caller.
@@ -28,6 +29,9 @@ pub struct StaticMachineApplication {
     /// Exact inferred operands, including calls with no spelled static list.
     /// These are derivation data; their source bounds still owe admission.
     pub bindings: HandleSpan<StaticMachineBinding>,
+    /// The original declaration whose binders the derived rows substitute.
+    /// A requirement call's authored operation may instead belong to a trait.
+    pub binding_declaration: SymbolHandle,
 }
 
 /// One known substitution for a source declaration's binder. Missing bindings
@@ -57,7 +61,7 @@ impl Default for StaticMachineBindingValue {
 
 impl StaticMachineBinding {
     pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
-        // The binder belongs to registration_operation, not lexical_owner.
+        // The binder belongs to binding_declaration, not lexical_owner.
         // Remapping it would turn recursive calls into bindings for a private
         // caller's erased telescope. Actual operands do follow caller cloning.
         match &mut self.value {

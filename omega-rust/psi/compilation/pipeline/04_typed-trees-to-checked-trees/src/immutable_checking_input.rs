@@ -57,9 +57,12 @@ fn checking_does_not_reopen_typed_preparation() {
     // Exercise the whole ownership surface, not a hand-maintained roster of
     // files: adding a new query module cannot silently restore ambient state.
     let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let specialization_root =
+        source_root.join("../../03b_typed-trees-to-typed-trees/src/monomorphization");
     let mut directories = vec![
         source_root.clone(),
         source_root.join("../../../checking/src"),
+        specialization_root.clone(),
     ];
     while let Some(directory) = directories.pop() {
         for entry in std::fs::read_dir(directory).expect("checking source directory") {
@@ -72,6 +75,21 @@ fn checking_does_not_reopen_typed_preparation() {
                     .is_none_or(|name| name != "immutable_checking_input.rs")
             {
                 let source = std::fs::read_to_string(&path).expect("checking source text");
+                if path.starts_with(&specialization_root) {
+                    for forbidden in [
+                        "validate_closed_const_argument",
+                        "type_satisfies_declared_property",
+                        "refinement_fit_diagnostics",
+                        "validate_static_machine_bindings",
+                        "validated closed conformance application",
+                    ] {
+                        assert!(
+                            !source.contains(forbidden),
+                            "{} restored tuple admission inside specialization: {forbidden}",
+                            path.display()
+                        );
+                    }
+                }
                 for forbidden in ["thread_local!", "RefCell"] {
                     assert!(
                         !source.contains(forbidden),

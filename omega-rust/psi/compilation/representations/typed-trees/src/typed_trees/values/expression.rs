@@ -285,6 +285,7 @@ impl ExpressionTable {
                 target,
                 arguments,
                 bindings: HandleSpan::empty(),
+                binding_declaration: SymbolHandle::invalid(),
             })
     }
 

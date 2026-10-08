@@ -206,15 +206,11 @@ fn forwarded_result_selection(
                 .machine_type_parameters(caller)
                 .iter()
                 .find(|parameter| parameter.symbol == *symbol)?;
-            let (typed_trees::data::TypeParameterKind::Const { type_reference }
-            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
-            else {
-                return None;
-            };
-            if program.package_qualified_type_identity(type_reference)
-                != program
-                    .package_qualified_type_identity(candidate.template.const_parameters[ordinal].2)
-            {
+            if !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. }
+            ) {
                 return None;
             }
         }

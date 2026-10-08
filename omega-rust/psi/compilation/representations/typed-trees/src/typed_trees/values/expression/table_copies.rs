@@ -81,6 +81,8 @@ impl ExpressionTable {
             &arguments,
         );
         self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
+        self.static_machine_application_mut(copy)
+            .binding_declaration = declaration.binding_declaration;
         self.set_static_machine_application_bindings(copy, &bindings);
         copy
     }
