@@ -196,25 +196,19 @@ impl TerminalExecution<'_> {
         Ok(values)
     }
 
-    /// Enter one structural Unit callee after the operation-specific argument
-    /// checks have succeeded. Ordinary calls and admitted provider dispatch
-    /// share this exact ownership and continuation transition.
-    pub(crate) fn begin_unit_call(
+    /// Enter a callee whose result shape the caller already verified:
+    /// the shared ownership and continuation transition for a prepared call.
+    /// `result` is the suspended frame's completion binding.
+    fn enter_call(
         &mut self,
         callee_id: MachineId,
+        callee: &terminal_psi::TerminalMachine,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
+        result: SuspendedCallResult,
     ) -> Result<(), TerminalInterpretError> {
-        let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines()
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-        if callee.result != TerminalMachineResult::Unit {
-            return Err(malformed());
-        }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
         let mut structural_values = prepared_arguments.values;
@@ -275,7 +269,7 @@ impl TerminalExecution<'_> {
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
-            result: SuspendedCallResult::Unit,
+            result,
         });
         self.values = values;
         self.structural_values = structural_values;
@@ -293,6 +287,36 @@ impl TerminalExecution<'_> {
         self.current = callee.entry;
         self.next_operation = 0;
         Ok(())
+    }
+
+    /// Enter one structural Unit callee after the operation-specific argument
+    /// checks have succeeded. Ordinary calls and admitted provider dispatch
+    /// share this exact ownership and continuation transition.
+    pub(crate) fn begin_unit_call(
+        &mut self,
+        callee_id: MachineId,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[StructuralArgument],
+        prepared_arguments: StructuralCallArguments,
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<(), TerminalInterpretError> {
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines()
+            .get(&callee_id)
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        if callee.result != TerminalMachineResult::Unit {
+            return Err(malformed());
+        }
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
+            structural_arguments,
+            prepared_arguments,
+            claim_transfers,
+            SuspendedCallResult::Unit,
+        )
     }
 
     /// Enter one scalar-result callee after the operation-specific argument
@@ -318,84 +342,15 @@ impl TerminalExecution<'_> {
         if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
             return Err(malformed());
         }
-        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
-        let mut structural_values = prepared_arguments.values;
-        let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &prepared_arguments.descriptor_parameters,
-            &mut structural_values,
-            &mut identity_cursor,
-        )?;
-        let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
-            &callee.structural_parameters,
-            &structural_values,
-            &prepared_arguments.scalar_cases,
-        )?;
-        let (remaining_claims, live_claims) = transfer_claims(
-            &self.live_claims,
-            &self.structural_values,
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
             structural_arguments,
+            prepared_arguments,
             claim_transfers,
-            &callee.structural_parameters,
-            &callee.entry_claims,
-            &callee.content_entry_claims,
-            &structural_values,
-        )?;
-        self.next_operation += 1;
-        self.live_claims = remaining_claims;
-        let mut caller_affine_frontier = std::mem::take(&mut self.live_affine_frontier);
-        for (argument, parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-        {
-            if parameter.multiplicity == StructuralMultiplicity::Affine
-                && argument.access == StructuralAccess::Owned
-            {
-                self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
-            }
-        }
-        let mut caller_structural_values = std::mem::take(&mut self.structural_values);
-        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
-        retire_transferred_call_sources(
-            structural_arguments,
-            &callee.structural_parameters,
-            &caller_affine_frontier,
-            &mut caller_structural_values,
-            &mut caller_scalar_case_values,
-        )?;
-        self.call_stack.push(SuspendedCall {
-            values: std::mem::take(&mut self.values),
-            structural_values: caller_structural_values,
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_case_values: caller_scalar_case_values,
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: caller_affine_frontier,
-            live_claims: std::mem::take(&mut self.live_claims),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result: SuspendedCallResult::Scalar(result.id),
-        });
-        self.values = values;
-        self.structural_values = structural_values;
-        self.byte_sequence_values = byte_sequence_values;
-        self.primitive_loan_values = prepared_arguments.primitive_loans;
-        self.local_structural_identities
-            .commit_cursor(identity_cursor);
-        aggregate_payload.publish(self);
-        self.scalar_array_values = prepared_arguments.scalar_arrays;
-        self.element_view_values = prepared_arguments.element_views;
-        self.scalar_case_values = prepared_arguments.scalar_cases;
-        self.live_affine_frontier = callee_affine_frontier;
-        self.live_claims = live_claims;
-        self.current_machine = callee_id;
-        self.current = callee.entry;
-        self.next_operation = 0;
-        Ok(())
+            SuspendedCallResult::Scalar(result.id),
+        )
     }
 
     pub(crate) fn begin_structural_result_call(
