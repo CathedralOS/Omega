@@ -109,8 +109,18 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
+    SelectedTerminator, terminator_instruction,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
+
+use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{all_edges, function_at, plain_edge};
+use crate::rewrites::unexecuted::dead_path;
+use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
 pub use rewrite::relocate_selected_members_into_confluence;
 pub use validation::validate_confluence_relocation;
@@ -170,3 +180,197 @@ impl std::fmt::Display for ConfluenceRelocationError {
 }
 
 impl std::error::Error for ConfluenceRelocationError {}
+
+
+/// The shared derivation of the run's confluence legality both the
+/// admission and the validator prove: the run's contiguous span in its
+/// block, the lone `Jump` edge it leaves through, the join block it
+/// sinks to, the landing position the destination names, and the
+/// pure-work bar every member meets. The window audit and the step
+/// accounting stay with each side.
+struct ConfluenceDerivation<'source> {
+    plan: &'source SelectedInstructionPlan,
+    function: &'source SelectedFunction,
+    block_index: usize,
+    first_index: usize,
+    last_index: usize,
+    run: &'source [SelectedInstruction],
+    target_index: usize,
+    landing_index: usize,
+    successor: &'source SelectedSuccessor,
+    terminator: &'source SelectedInstruction,
+}
+
+/// Re-derive the confluence relocation's legality from the source
+/// records: the run's span, the `Jump` edge's plain successor, the
+/// join's origin and other-inflow reach, the landing index, and every
+/// member's schedulable and speculatable bar.
+fn derive_confluence_span<'source>(
+    source: &'source impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    first_member: SelectedInstructionId,
+    last_member: SelectedInstructionId,
+    destination: SelectedInstructionId,
+    environment: &'source ValidatedTargetRegisterEnvironment,
+) -> Result<ConfluenceDerivation<'source>, ConfluenceRelocationError> {
+    let plan = source.selected_plan();
+    if plan.target != environment.target() {
+        return Err(ConfluenceRelocationError::SourceMismatch);
+    }
+    let function = function_at(
+        plan,
+        function_index,
+        ConfluenceRelocationError::SourceMismatch,
+    )?;
+    let (block_index, first_index) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == first_member)
+                .map(|first_index| (block_index, first_index))
+        })
+        .ok_or(ConfluenceRelocationError::SourceMismatch)?;
+    let block = &function.blocks[block_index];
+    // The run is the contiguous span the two named members bound in this
+    // block, in the named order; a repeated id or a last member that does
+    // not follow the first names no multi-member run. A single member is
+    // the one-instruction confluence relocation the sibling family
+    // already proves.
+    let last_index = block
+        .instructions
+        .iter()
+        .position(|instruction| instruction.id == last_member)
+        .filter(|position| *position >= first_index)
+        .ok_or(ConfluenceRelocationError::UnsupportedPair)?;
+    let run = &block.instructions[first_index..=last_index];
+    // Only an unconditional semantic jump edge keeps the run's execution
+    // count on this inflow's path: every traversal of the run's block
+    // leaves through it and reaches the join exactly once. A conditional
+    // terminator keeps a second exit the run would still execute on —
+    // the fork, diamond, and triangle families' shapes — and a
+    // terminator naming no successors never reaches a join.
+    let SelectedTerminator::Jump {
+        instruction: terminator,
+        successor,
+    } = &block.terminator
+    else {
+        return Err(ConfluenceRelocationError::UnsupportedPair);
+    };
+    // The crossed edge must be a plain semantic successor: case dispatch,
+    // continuation, structural transfer, and per-edge fuel all carry
+    // boundary effects this step does not cross. Structural bindings may
+    // remain only while every transport is `Unused`, which moves nothing.
+    if !plain_edge(successor) {
+        return Err(ConfluenceRelocationError::UnsupportedPair);
+    }
+    let target_index = function
+        .blocks
+        .iter()
+        .position(|candidate| candidate.id == successor.block)
+        .ok_or(ConfluenceRelocationError::SourceMismatch)?;
+    let target = &function.blocks[target_index];
+    // A self-edge is the in-block family's case with a back-edge
+    // transport reading, not a cross-edge window. The entry block is
+    // reached with no predecessor at all, and an implementation block's
+    // origin carries edge or case work the bounded audit does not cross.
+    if target.id == block.id
+        || target.id == function.entry_block
+        || !matches!(target.origin, SelectedBlockOrigin::Source(_))
+    {
+        return Err(ConfluenceRelocationError::UnsupportedPair);
+    }
+    // At least one edge into the join must leave another block: the
+    // single-predecessor shape is the edge family's case, where no
+    // traversal speculates. Every other inflow — whatever it carries —
+    // runs before the landing index on its own arrivals and never crosses
+    // the run's window; the dead-path audit reads its register surface
+    // where a loop reaches it.
+    if !all_edges(function)
+        .any(|(source_block, edge)| edge.block == target.id && source_block != block.id)
+    {
+        return Err(ConfluenceRelocationError::UnsupportedPair);
+    }
+    // The destination names a position in the join body — the run lands
+    // at its index — or the join's terminator-carried instruction,
+    // landing the run at the body end.
+    let landing_index = target
+        .instructions
+        .iter()
+        .position(|instruction| instruction.id == destination)
+        .or_else(|| {
+            (terminator_instruction(&target.terminator).id == destination)
+                .then_some(target.instructions.len())
+        })
+        .ok_or(ConfluenceRelocationError::UnsupportedPair)?;
+    // The run's execution newly runs on every arrival through the join's
+    // other inflows, so only pure register and condition-state work may
+    // sink — a roster-carrying or unaccounted memory access or a
+    // potentially-faulting kind that ran only on this inflow would run on
+    // every arrival after the move. Every member meets the bar itself;
+    // the run then carries no roster rows at all, so it crosses any
+    // accounted mix of positions without reordering a recorded access.
+    for member in run {
+        if schedulable(function, member) != Some(false) || !speculatable(member) {
+            return Err(ConfluenceRelocationError::UnsupportedInstruction);
+        }
+    }
+
+    Ok(ConfluenceDerivation {
+        plan,
+        function,
+        block_index,
+        first_index,
+        last_index,
+        run,
+        target_index,
+        landing_index,
+        successor,
+        terminator,
+    })
+}
+
+/// The dead-path audit the move owes: every location any member writes
+/// must be dead — unread until rewritten — from the landing index
+/// forward, on the shared continuations every inflow reaches. The run
+/// publishes the union of its members' locations.
+fn run_writes_dead(function: &SelectedFunction, derived: &ConfluenceDerivation<'_>) -> bool {
+    let members: Vec<&SelectedInstruction> = derived.run.iter().collect();
+    dead_path::dead(
+        function,
+        dead_path::Relocation {
+            members: &members,
+            vacated_block: derived.block_index,
+            vacated_first: derived.first_index,
+            vacated_last: derived.last_index,
+            landing_block: derived.target_index,
+            landing_index: derived.landing_index,
+            landing: dead_path::Landing::Speculated,
+            // The vacated span stays silent: every position behind it in
+            // the run's own block is a crossed window position the hazard
+            // audit already owns, and no surviving position sits inside
+            // the span.
+            vacated: dead_path::Vacated::Silent,
+        },
+        dead_path::Start::Block(derived.target_index),
+    )
+}
+
+/// Keeps the family's typed rejection vocabulary over the shared audit's
+/// rejection kinds: an unschedulable member or crossed position is the
+/// instruction-level refusal and every window-level refusal is the pair
+/// kind.
+fn rejection(rejection: RunRelocationRejection) -> ConfluenceRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => ConfluenceRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => ConfluenceRelocationError::UnsupportedPair,
+    }
+}
