@@ -125,6 +125,26 @@ impl<'a> IndexedWriteLeaf<'a> {
         checked: &CheckedTrees,
         state: SymbolHandle,
     ) -> Result<IndexedWriteDecisions, LoweringError> {
+        let (_, target) = self.assignment_and_target(checked, state)?;
+        Ok(IndexedWriteDecisions {
+            index: checked.facts.scalar_index_is_proven(target),
+            write: !matches!(self, Self::ElementView(_))
+                && checked.facts.byte_write_is_proven(target),
+        })
+    }
+
+    /// The write statement and its resolved target expression for this leaf.
+    fn assignment_and_target(
+        self,
+        checked: &CheckedTrees,
+        state: SymbolHandle,
+    ) -> Result<
+        (
+            &TableAssignment,
+            checked_trees::expression::ExpressionHandle,
+        ),
+        LoweringError,
+    > {
         let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
             .statement_table
@@ -134,11 +154,7 @@ impl<'a> IndexedWriteLeaf<'a> {
             return unsupported(self.wording().lost_index);
         };
         let target = indexed_target(checked, state, assignment, self)?;
-        Ok(IndexedWriteDecisions {
-            index: checked.facts.scalar_index_is_proven(target),
-            write: !matches!(self, Self::ElementView(_))
-                && checked.facts.byte_write_is_proven(target),
-        })
+        Ok((assignment, target))
     }
 
     pub(crate) fn statement_index(self) -> u32 {
@@ -158,15 +174,7 @@ impl<'a> IndexedWriteLeaf<'a> {
         checked: &CheckedTrees,
         state: SymbolHandle,
     ) -> Result<Option<CheckedScalarExpressionRole>, LoweringError> {
-        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-        let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
-            .statement_table
-            .statements(authored.statement_nodes)
-            .get(self.statement_index() as usize)
-        else {
-            return unsupported(self.wording().lost_index);
-        };
-        let target = indexed_target(checked, state, assignment, self)?;
+        let (assignment, target) = self.assignment_and_target(checked, state)?;
         let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(target) else {
             return unsupported(self.wording().lost_index);
         };
