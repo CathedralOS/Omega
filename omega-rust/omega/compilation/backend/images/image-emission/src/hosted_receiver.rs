@@ -32,8 +32,7 @@ pub struct HostedReceiverBinding {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-impl crate::ObjectArtifact {
-}
+impl crate::ObjectArtifact {}
 
 impl HostedReceiverBinding {
     pub const fn source(&self) -> &SelectedProgramEntrySourceSignature {
@@ -971,7 +970,7 @@ fn receiver_layout(
     {
         return Err(invalid());
     }
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Err(invalid());
     };
     // Every erased receiver field must rejoin exactly one Fused establishment

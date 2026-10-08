@@ -113,7 +113,7 @@ pub fn receiver_layout(
     if declarations.next().is_some() {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     let mut erased = 0;
@@ -445,7 +445,7 @@ pub fn validate_entry_shape(
     else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    let StructuralTypeShape::Record { fields, .. } = &carrier.shape else {
+    let Some(fields) = carrier.shape.record_fields() else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     // The module names a domain row by its family on its exact carrier; the
@@ -457,7 +457,7 @@ pub fn validate_entry_shape(
         )
         || domain.carrier != carrier.id
         || carrier.identity != image_root.carrier_identity()
-        || !matches!(fields.as_slice(), [base, length]
+        || !matches!(fields, [base, length]
             if base.identity == "base"
                 && base.relevance == BindingRelevance::Relevant
                 && matches!(base.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.is_address())

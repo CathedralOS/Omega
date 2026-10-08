@@ -100,7 +100,7 @@ pub fn canonical_field_storage_region<'a>(
                 ) else {
                     return Vec::new();
                 };
-                let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+                let Some(fields) = declaration.shape.record_fields() else {
                     return Vec::new();
                 };
                 let Some(field) = fields

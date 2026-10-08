@@ -412,7 +412,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         parameter.structural_type,
         parent_path,
     )?;
-    let StructuralTypeShape::Record { fields, .. } = &parent.shape else {
+    let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
     let field = fields
@@ -516,7 +516,7 @@ fn byte_field_predicates_in<'t>(
     };
     let declaration =
         terminal_semantics::runtime_structural_path_tip(types, structural_type, path)?;
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
     let field = fields

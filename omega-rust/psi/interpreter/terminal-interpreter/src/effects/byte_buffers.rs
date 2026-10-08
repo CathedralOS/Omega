@@ -353,10 +353,12 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&parameter.structural_type)
                 .ok_or_else(malformed)?;
-            if declaration.shape.is_bounded_owned_byte_sequence() && matches!(
-                parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) {
+            if declaration.shape.is_bounded_owned_byte_sequence()
+                && matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+            {
                 if argument.access != parameter.access
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.projected_qualifications.is_empty()
@@ -496,7 +498,7 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
-        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        let Some(fields) = declaration.shape.record_fields() else {
             return Err(malformed());
         };
         let field = fields
@@ -613,7 +615,7 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
-        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        let Some(fields) = declaration.shape.record_fields() else {
             return Err(malformed());
         };
         let field = fields

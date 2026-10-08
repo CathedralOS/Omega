@@ -926,7 +926,7 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&record.structural_type)
             .ok_or_else(malformed)?;
-        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        let Some(fields) = declaration.shape.record_fields() else {
             return Ok(None);
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);

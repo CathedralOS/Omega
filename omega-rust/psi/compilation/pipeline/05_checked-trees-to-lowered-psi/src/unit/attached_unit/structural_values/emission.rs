@@ -1645,7 +1645,7 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "view element copy structural type missing",
             ))?;
-        let StructuralTypeShape::Record { fields, .. } = &shape.shape else {
+        let Some(fields) = shape.shape.record_fields() else {
             return unsupported("view element copy establishes a nonrecord");
         };
         let fields = fields.clone();

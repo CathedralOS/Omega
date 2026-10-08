@@ -141,7 +141,7 @@ fn inline_byte_field_capacity<'types>(
         return None;
     };
     let declaration = runtime_structural_path_tip(types.clone(), root_type, prefix)?;
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
     let field = fields

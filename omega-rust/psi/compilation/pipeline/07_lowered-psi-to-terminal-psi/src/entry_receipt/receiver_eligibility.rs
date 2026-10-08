@@ -142,7 +142,7 @@ pub(super) fn derive(
     }
     let owned_receiver_type_identity =
         checked.normalized_nominal_type_identity(definition.symbol)?;
-    let StructuralTypeShape::Record { fields, .. } = &structural_type.shape else {
+    let Some(fields) = structural_type.shape.record_fields() else {
         return None;
     };
     // Plain records and fixed primitive arrays need no initialization program.

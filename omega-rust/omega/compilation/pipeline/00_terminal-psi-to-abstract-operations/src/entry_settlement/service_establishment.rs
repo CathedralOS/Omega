@@ -72,7 +72,7 @@ pub(super) fn validate_terminal_rows(
     let [attachment_type] = attachment_types.as_slice() else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &attachment_type.shape else {
+    let Some(fields) = attachment_type.shape.record_fields() else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
     // The source receiver is semantic identity while the attachment names the
@@ -93,7 +93,7 @@ pub(super) fn validate_terminal_rows(
         // Each route rejoins by walking its own record-field path: every
         // intermediate segment must stay an exact `Structural` record child,
         // and the leaf must land on the erased carrier the row names.
-        let mut current_fields = fields.as_slice();
+        let mut current_fields = fields;
         for (index, segment) in row.field_path().iter().enumerate() {
             let matching_fields = current_fields
                 .iter()

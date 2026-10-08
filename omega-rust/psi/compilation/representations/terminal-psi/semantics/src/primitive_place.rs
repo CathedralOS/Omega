@@ -195,7 +195,7 @@ pub fn primitive_read_field<'a>(
     else {
         return None;
     };
-    let StructuralTypeShape::Record { fields, .. } = &record.shape else {
+    let Some(fields) = record.shape.record_fields() else {
         return None;
     };
     let mut matching = fields.iter().filter(|field| field.identity == *identity);

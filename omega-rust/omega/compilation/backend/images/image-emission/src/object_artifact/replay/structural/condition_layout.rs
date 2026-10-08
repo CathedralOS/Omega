@@ -396,7 +396,7 @@ pub(crate) fn replay_bounded_byte_field(
         structural_type = selected_type;
     }
     let declaration = declarations.get(&structural_type)?;
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
     let mut field_offset = 0_u32;
@@ -506,7 +506,7 @@ pub(crate) fn replay_boolean_field_offset(
     >,
 ) -> Option<(u32, ValueShape)> {
     let declaration = declarations.get(&structural_type)?;
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
     let mut cache = std::collections::BTreeMap::new();

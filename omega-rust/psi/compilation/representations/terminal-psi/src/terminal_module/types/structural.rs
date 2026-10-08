@@ -125,6 +125,14 @@ impl StructuralTypeShape {
         }
     }
 
+    /// The field roster of a record shape.
+    pub fn record_fields(&self) -> Option<&[StructuralFieldDeclaration]> {
+        match self {
+            Self::Record { fields, .. } => Some(fields),
+            _ => None,
+        }
+    }
+
     /// The case roster of a sum or mixed shape.
     pub fn sum_cases(&self) -> Option<&[StructuralCaseDeclaration]> {
         match self {

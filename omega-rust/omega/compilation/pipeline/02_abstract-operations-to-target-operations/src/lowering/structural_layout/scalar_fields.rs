@@ -133,7 +133,7 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
         .map(|common| (common.byte_offset, common.shape.byte_size))
         .ok_or(LoweringError::UnknownStructuralType(structural_type));
     }
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Err(LoweringError::UnknownStructuralType(structural_type));
     };
     let mut offset = 0_u32;

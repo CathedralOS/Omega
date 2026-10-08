@@ -688,7 +688,7 @@ fn field_path(
             .get(&structural_type)
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        let Some(fields) = declaration.shape.record_fields() else {
             return Err(LoweringError::UnknownStructuralType(structural_type));
         };
         let mut local_offset = 0_u32;
@@ -786,7 +786,7 @@ fn byte_sequence_field_geometry(
         .get(&parent_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(parent_type))?;
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Ok(None);
     };
     let mut local_offset = 0_u32;

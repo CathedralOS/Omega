@@ -436,7 +436,7 @@ fn byte_sequence_field_geometry(
         project_static_path(root, prefix, slices)?
     };
     let declaration = declarations.get(&parent).ok_or(InvalidStructuralShape)?;
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Err(InvalidStructuralShape);
     };
     let mut local_offset = 0_u32;
@@ -1077,7 +1077,7 @@ fn record_field_step(
     let declaration = indexed
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
-    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+    let Some(fields) = declaration.shape.record_fields() else {
         return Err(InvalidStructuralShape);
     };
     let mut local_offset = 0_u32;
