@@ -96,24 +96,7 @@ pub fn bundled_standard_library_location() -> String {
         .replace('\\', "/")
 }
 
-/// The `Build::depend` row a synthesized `build.omg` authors to take the
-/// bundled standard library as an ordinary product dependency, indented as a
-/// build-entry statement and newline-terminated.
-pub fn bundled_standard_library_dependency_declaration() -> String {
-    format!(
-        "    Build::depend(builder, Source::Path {{ location: \"{}\" }});\n",
-        bundled_standard_library_location()
-    )
-}
 
-/// The `Build::depend_as` row that takes the bundled standard library under
-/// an authored `alias`.
-pub fn bundled_standard_library_dependency_declaration_as(alias: &str) -> String {
-    format!(
-        "    Build::depend_as(builder, \"{alias}\", Source::Path {{ location: \"{}\" }});\n",
-        bundled_standard_library_location()
-    )
-}
 
 /// One dependency a fixture authored in its own `build.omg`, resolved against
 /// the project that declared it.
@@ -899,13 +882,6 @@ fn dangerous_service_bindings(
     Ok(bindings)
 }
 
-pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
-    let root_owner = hosted_program_entry_owner(target);
-    format!(
-        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"hosted_main_program_entry\");\n{}    Build::bind(builder, {root_owner}::ProgramEntry, Main::main);\n}}\n",
-        fixture_dependency_declarations(canary)
-    )
-}
 
 /// The root-slot owner a scratch build binds `ProgramEntry` under, read from
 /// the target vocabulary. Only profiles with a native realization own a
@@ -921,24 +897,6 @@ pub fn hosted_program_entry_owner(target: &str) -> &'static str {
     profile.root_slot_owner_name()
 }
 
-/// The cross-target application build written for a fixture copied into a
-/// scratch project: binds the compiled target's `ProgramEntry` to `Main::main`
-/// so native production passes exact entry admission, restates the
-/// dependencies the fixture authored through absolute paths, and mirrors the
-/// authored freestanding EFI profile for `uefi_x86_64`.
-pub fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
-    let root_owner = hosted_program_entry_owner(target);
-    let mut build =
-        "machine build(builder: &mut Build) {\n    Build::application(builder, \"cross_target_canary\");\n"
-            .to_owned();
-    build.push_str(&fixture_dependency_declarations(canary));
-    if target == "uefi_x86_64" {
-        build.push_str(
-            "    builder.subsystem = Subsystem::EfiApplication;\n    builder.freestanding = true;\n",
-        );
-    }
-    build.push_str(&format!(
-        "    Build::bind(builder, {root_owner}::ProgramEntry, Main::main);\n}}\n"
     ));
     build
 }
