@@ -479,7 +479,7 @@ fn pure_guard_or_calls(
     else {
         return false;
     };
-    let inert = |expression| {
+    let mut inert = |expression| {
         pure_guard_or_calls(program, machine, state, expression, depth + 1, admit_call)
     };
     match node {
@@ -548,17 +548,9 @@ fn pure_guard_or_calls(
             .expression_handles(*items)
             .iter()
             .all(|item| inert(*item)),
-        ExpressionNode::Match(dispatch) => {
-            inert(dispatch.subject)
-                && program
-                    .expression_table
-                    .match_arms_all(dispatch.arms, |pattern, value| {
-                        !matches!(
-                            pattern,
-                            typed_trees::expression::MatchPattern::Value(pattern) if !inert(pattern)
-                        ) && inert(value)
-                    })
-        }
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_deep_all(dispatch, &mut inert),
         ExpressionNode::Call(call) => {
             // A call admitted by the caller's bar keeps every subterm pure
             // the way transition actuals are; the caller decides which

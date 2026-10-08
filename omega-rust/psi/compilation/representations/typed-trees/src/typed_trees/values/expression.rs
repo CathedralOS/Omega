@@ -216,6 +216,19 @@ impl ExpressionTable {
             .all(|arm| visit(arm.pattern, arm.value))
     }
 
+    /// `visit` holds for the subject, every arm's value, and every `Value`
+    /// pattern — the deep predicate over a dispatch's full handle set.
+    pub fn match_deep_all(
+        &self,
+        dispatch: &TableMatchExpression,
+        mut visit: impl FnMut(ExpressionHandle) -> bool,
+    ) -> bool {
+        visit(dispatch.subject)
+            && self.match_arms_all(dispatch.arms, |pattern, value| {
+                !matches!(pattern, MatchPattern::Value(pattern) if !visit(pattern)) && visit(value)
+            })
+    }
+
     /// The worklist order for a depth-first walk over `dispatch`: arm values
     /// in reverse so the first arm pops first off a stack, each `Value`
     /// pattern after its arm's value, and the subject last.

@@ -1135,20 +1135,12 @@ fn expression_is_inert_or_calls(
     if !expression.is_valid() {
         return true;
     }
-    let inert =
+    let mut inert =
         |expression| expression_is_inert_or_calls(program, machine, state, expression, admit_call);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            inert(dispatch.subject)
-                && program
-                    .expression_table
-                    .match_arms_all(dispatch.arms, |pattern, value| {
-                        !matches!(
-                            pattern,
-                            typed_trees::expression::MatchPattern::Value(pattern) if !inert(pattern)
-                        ) && inert(value)
-                    })
-        }
+        ExpressionNode::Match(dispatch) => program
+            .expression_table
+            .match_deep_all(dispatch, &mut inert),
         ExpressionNode::Atomic(atomic) => inert(atomic.value),
         typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
