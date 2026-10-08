@@ -325,7 +325,7 @@ pub(super) fn dead(
     if locations.is_empty() {
         return true;
     }
-    let index_of = |id: SelectedBlockId| function.blocks.iter().position(|block| block.id == id);
+    let index_of = |id: SelectedBlockId| function.block_index(id);
     let mut entry: Vec<LiveLocations> = (0..function.blocks.len())
         .map(|_| LiveLocations::default())
         .collect();

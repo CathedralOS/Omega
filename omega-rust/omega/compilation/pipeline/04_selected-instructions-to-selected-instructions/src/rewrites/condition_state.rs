@@ -333,7 +333,7 @@ pub(crate) fn instruction_at(function: &SelectedFunction, site: EventSite) -> &S
 /// An edge naming a block the function does not contain participates in
 /// neither: it cannot carry a path into any block the walk visits.
 pub(crate) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
-    let block_index = |id: SelectedBlockId| function.blocks.iter().position(|block| block.id == id);
+    let block_index = |id: SelectedBlockId| function.block_index(id);
     let successors: Vec<Vec<usize>> = function
         .blocks
         .iter()

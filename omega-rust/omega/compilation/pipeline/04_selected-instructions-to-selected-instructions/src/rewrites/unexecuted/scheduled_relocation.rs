@@ -251,7 +251,7 @@ pub(super) fn landing_position(
 }
 
 pub(super) fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
-    function.blocks.iter().position(|block| block.id == id)
+    function.block_index(id)
 }
 
 /// The validator's own reconstruction of the relocation the contract

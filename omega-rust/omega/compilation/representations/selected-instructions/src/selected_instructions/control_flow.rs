@@ -30,6 +30,11 @@ impl SelectedFunction {
         self.blocks.iter().find(|row| row.id == block)
     }
 
+    /// The position of the block keyed `id`, when the function declares it.
+    pub fn block_index(&self, id: SelectedBlockId) -> Option<usize> {
+        self.blocks.iter().position(|block| block.id == id)
+    }
+
     /// Every block's instructions, in block order.
     pub fn instructions(&self) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
