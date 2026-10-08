@@ -12,17 +12,14 @@
 //!   stay until the route items admit the shapes; the validators that only
 //!   re-confirmed a plan row against its source are gone.
 
-use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use super::{CheckedTrees, LoweringError, PrimitiveType};
 
 // Reads: the authored binding, parameter, place or record field a scalar
 // read names.
 pub(crate) mod structural_places;
 
-// Selected comparisons: a comparison's Terminal meaning, and the authored
-// operand of a byte comparison or predicate.
+// Selected comparisons: a comparison's Terminal meaning.
 pub(crate) mod comparisons;
-pub(crate) mod computation_calls;
 
 // Constructed values: structural view carriers and byte literals.
 pub(crate) mod structural;

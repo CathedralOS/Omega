@@ -36,16 +36,18 @@ impl Expansion<'_> {
             .with_structural_observations(self.structural_types)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_literal_comparison(
         &mut self,
-        expression: checked_trees::expression::ExpressionHandle,
+        operand: checked_trees::expression::ExpressionHandle,
+        bytes: &[u8],
+        negated: bool,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
-        let (operand, bytes, negated) = crate::expression_preparation::source_custody::computation_calls::byte_comparisons::operands(self.checked, expression)?;
         let mut range_slot = None;
         let private_bindings;
         let (bindings, root, path) = if let Some(range) = super::subslices::range(subject) {
@@ -169,9 +171,10 @@ impl Expansion<'_> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_predicate(
         &mut self,
-        source_expression: checked_trees::expression::ExpressionHandle,
+        operand: checked_trees::expression::ExpressionHandle,
         predicate: terminal_psi::ByteSequencePredicate,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
@@ -179,10 +182,6 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
-        let operand = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operand(
-            self.checked,
-            source_expression,
-        )?;
         let mut range_slot = None;
         let private_bindings;
         let (bindings, root, path) = if let Some(range) = super::subslices::range(subject) {

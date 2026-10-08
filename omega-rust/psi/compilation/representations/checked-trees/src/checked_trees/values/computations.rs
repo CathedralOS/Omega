@@ -172,6 +172,13 @@ pub enum CheckedScalarComputationKind {
     ByteSequenceLiteralComparison {
         operand_type: typed_trees::types::TypeReferenceHandle,
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// The compared operand: the side of the authored `==`/`!=` that is
+        /// not the literal.
+        operand_expression: typed_trees::expression::ExpressionHandle,
+        /// The finite literal's bytes.
+        literal: std::sync::Arc<[u8]>,
+        /// Whether the authored comparison is `!=`.
+        negated: bool,
         subject: CheckedUnitStructuralArgumentPlan,
     },
     /// Evaluate one declared byte predicate over an evaluated byte carrier at
@@ -181,6 +188,8 @@ pub enum CheckedScalarComputationKind {
         predicate: language_semantics::byte_predicates::ByteSequencePredicate,
         operand_type: typed_trees::types::TypeReferenceHandle,
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// The byte carrier the authored predicate call names.
+        operand_expression: typed_trees::expression::ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
     },
     /// Read one scalar field at its authored evaluation point without moving

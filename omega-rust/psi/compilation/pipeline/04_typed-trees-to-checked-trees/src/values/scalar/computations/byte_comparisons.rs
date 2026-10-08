@@ -23,12 +23,12 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let operand = match (
+        let (operand, literal) = match (
             self.program.expression_table.expression(binary.left),
             self.program.expression_table.expression(binary.right),
         ) {
-            (_, ExpressionNode::String(_)) => binary.left,
-            (ExpressionNode::String(_), _) => binary.right,
+            (_, ExpressionNode::String(bytes)) => (binary.left, bytes.clone()),
+            (ExpressionNode::String(bytes), _) => (binary.right, bytes.clone()),
             _ => return None,
         };
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
@@ -39,6 +39,9 @@ impl Builder<'_, '_> {
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 operand_type: target,
                 source_expression: expression,
+                operand_expression: operand,
+                literal,
+                negated: binary.operator == BinaryOperator::NotEqual,
                 subject,
             },
         ))
@@ -63,6 +66,7 @@ impl Builder<'_, '_> {
                 predicate,
                 operand_type: target,
                 source_expression: expression,
+                operand_expression: operand,
                 subject,
             },
         ))
