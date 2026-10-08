@@ -157,15 +157,7 @@ impl StateGraphEmission<'_, '_> {
                 if let Some(rank) = current_rank {
                     // This private transport is inside the authored state;
                     // returning a projection does not prove a rank decrease.
-                    self.rank_edges.extend(terminator.edges().map(|edge| {
-                        (
-                            edge,
-                            (
-                                rank,
-                                terminal_psi::TerminalNaturalRankComparison::Preserving,
-                            ),
-                        )
-                    }));
+                    self.preserve_edges(terminator.edges(), rank);
                 }
                 evaluation.blocks.push(arrival);
             }
