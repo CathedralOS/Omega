@@ -536,7 +536,7 @@ mod tests {
                 .expect("validated dynamic payload");
             assert_eq!(payload.row_count(), 19);
             assert_eq!(payload.byte_count(), 304);
-            assert_eq!(payload.address_fixup_count(), 9);
+            assert_eq!(payload.contents().address_fixups.len(), 9);
             assert_ne!(
                 payload.non_authoritative_payload_compatibility_fingerprint(),
                 0

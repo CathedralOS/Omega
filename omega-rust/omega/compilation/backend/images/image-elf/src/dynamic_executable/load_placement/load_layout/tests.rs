@@ -10,9 +10,8 @@ use super::{
 use crate::dynamic_executable::load_placement::load_layout::abi_validation::{
     aarch64_page_delta_covers_extent, validate_abi, validate_deferred_constraint_envelope,
 };
-use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::{
-    checked_align, checked_product, checked_sum,
-};
+use crate::dynamic_executable::checked::{checked_product_u64, checked_sum_u64};
+use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::checked_align;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
 use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
 use crate::{
@@ -420,8 +419,8 @@ fn invalid_bss_alignment_rejects_with_exact_relative_layout_custody() {
 
 #[test]
 fn checked_arithmetic_rejects_overflow_and_invalid_alignment() {
-    assert!(checked_sum(u64::MAX, 1, "sum").is_err());
-    assert!(checked_product(u64::MAX, 2, "product").is_err());
+    assert!(checked_sum_u64(u64::MAX, 1, "sum", "Elf64_Addr").is_err());
+    assert!(checked_product_u64(u64::MAX, 2, "product", "Elf64_Addr").is_err());
     assert!(checked_align(u64::MAX, 8, "alignment").is_err());
     assert!(checked_align(7, 3, "alignment").is_err());
 }
