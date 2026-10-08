@@ -51,6 +51,24 @@ pub(crate) struct VerifiedGitRepository {
     pub(crate) objects_identity: CapabilityMetadata,
 }
 
+macro_rules! cache_git {
+    ($method:ident, $result:ty, $runner:ident, $phase:expr) => {
+        pub(crate) fn $method<I, S>(
+            &self,
+            executor: &GitExecutor,
+            arguments: I,
+        ) -> Result<$result, SourceResolveError>
+        where
+            I: IntoIterator<Item = S>,
+            S: AsRef<OsStr>,
+        {
+            self.verify_identity()?;
+            let result = $runner(executor, &self.repository_path, $phase, arguments);
+            reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+        }
+    };
+}
+
 impl VerifiedGitRepository {
     pub(crate) fn open(
         cache_parent: &CapabilityDirectory,
@@ -209,61 +227,17 @@ impl VerifiedGitRepository {
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
 
-    pub(crate) fn run_git<I, S>(
-        &self,
-        executor: &GitExecutor,
-        arguments: I,
-    ) -> Result<(), SourceResolveError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        self.verify_identity()?;
-        let result = run_git(
-            executor,
-            &self.repository_path,
-            ResolverExecutionPhase::Fetch,
-            arguments,
-        );
-        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    cache_git! {
+        run_git, (), run_git, ResolverExecutionPhase::Fetch
     }
-
-    pub(crate) fn run_git_stdout<I, S>(
-        &self,
-        executor: &GitExecutor,
-        arguments: I,
-    ) -> Result<String, SourceResolveError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        self.verify_identity()?;
-        let result = run_git_stdout(
-            executor,
-            &self.repository_path,
-            ResolverExecutionPhase::RepositoryInspection,
-            arguments,
-        );
-        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    cache_git! {
+        run_git_stdout, String, run_git_stdout, ResolverExecutionPhase::RepositoryInspection
     }
-
-    pub(crate) fn run_git_bytes_stdout<I, S>(
-        &self,
-        executor: &GitExecutor,
-        arguments: I,
-    ) -> Result<Vec<u8>, SourceResolveError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        self.verify_identity()?;
-        let result = run_git_bytes_stdout(
-            executor,
-            &self.repository_path,
-            ResolverExecutionPhase::RepositoryInspection,
-            arguments,
-        );
-        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    cache_git! {
+        run_git_bytes_stdout,
+        Vec<u8>,
+        run_git_bytes_stdout,
+        ResolverExecutionPhase::RepositoryInspection
     }
 
     pub(crate) fn open_or_create_snapshots(
