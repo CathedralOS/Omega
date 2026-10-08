@@ -1,98 +1,14 @@
-//! Array construction shares the ordinary structural result namespace. Replay
-//! rejoins each operand to its authored expression before emitting portable values.
-//! Completion uses the sibling structural-completion checker; this module owns
-//! array shape, storage and operand correspondence.
+//! Array construction shares the ordinary structural result namespace: each
+//! element is a checked scalar operand, emitted in order into the array's
+//! place. Completion uses the sibling structural-completion checker; this
+//! module owns array shape and storage.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Operation, OperationKind,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
+    CheckedTrees, LoweringError, Operation, OperationKind, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
-use crate::expression_preparation::source_custody::array_sources::construction_expression;
-use checked_trees::CheckedArrayConstructionSource;
-use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
-
-pub(super) fn validate(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    source: CheckedArrayConstructionSource,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    elements: &[CheckedCallScalarArgument],
-) -> Result<(), LoweringError> {
-    let (expression, reference) =
-        construction_expression(checked, machine, state, result.statement_index, source).ok_or(
-            LoweringError::Unsupported("array constructor does not rejoin its source owner"),
-        )?;
-    validate_shape(checked, reference)?;
-    let array = validation::scalar_array_elements(&checked.typed, machine, expression, reference)
-        .ok_or(LoweringError::Unsupported(
-        "array constructor source is not an exact primitive array",
-    ))?;
-    for projection in array.projections {
-        if let Some(selected) = checked.facts.operators.expression_use(projection)
-            && !selected.resolved_through_builtin_fallback(language_core::OperatorSpelling::Index)
-        {
-            return unsupported("array constructor indexing selection changed");
-        }
-    }
-    let leaves = array.elements;
-    if leaves.len() != elements.len() {
-        return unsupported("array constructor scalar operand count changed");
-    }
-    for (ordinal, element) in elements.iter().enumerate() {
-        let element_ordinal = u32::try_from(ordinal)
-            .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-        let role = CheckedScalarExpressionRole::ArrayElement {
-            source,
-            element_ordinal,
-        };
-        match element {
-            CheckedCallScalarArgument::Pure(_) => {
-                if checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(state, result.statement_index, role)
-                    .is_none()
-                {
-                    return unsupported("array element has no exact pure source binding");
-                }
-                if checked
-                    .facts
-                    .values
-                    .scalar_computations
-                    .roots
-                    .iter()
-                    .any(|(_, root)| {
-                        root.state == state
-                            && root.statement_ordinal == result.statement_index
-                            && root.role == role
-                    })
-                {
-                    return unsupported("array element has conflicting pure and computed owners");
-                }
-            }
-            CheckedCallScalarArgument::Computation(_) => {
-                if !checked
-                    .facts
-                    .values
-                    .scalar_computations
-                    .roots
-                    .iter()
-                    .any(|(_, root)| {
-                        root.state == state
-                            && root.statement_ordinal == result.statement_index
-                            && root.role == role
-                    })
-                {
-                    return unsupported("array element has no exact computation root");
-                }
-            }
-        }
-    }
-    Ok(())
-}
+use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 pub(super) fn validate_shape(
     checked: &CheckedTrees,

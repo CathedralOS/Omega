@@ -45,7 +45,6 @@ use super::{
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 

@@ -41,7 +41,6 @@ impl<'a> Caller<'a> {
 
 pub(super) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
     state: &Caller<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     bindings: &storage::ScalarBindings,
@@ -160,13 +159,6 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit call disagrees with its exact target custody");
     }
-    let _ = crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
-        checked,
-        machine,
-        state.state,
-        *coordinate,
-        *target_state,
-    )?;
     let authored = crate::call_sites::locate(checked, state.state, *coordinate)?;
     let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
     if !checked

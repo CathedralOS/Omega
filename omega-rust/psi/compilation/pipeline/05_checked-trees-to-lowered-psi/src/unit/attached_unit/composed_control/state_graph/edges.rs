@@ -416,19 +416,8 @@ pub(super) fn validate_bindings(
                         ..
                     } => {}
                     checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                        source,
-                        result,
-                        elements,
-                    } => {
-                        super::super::super::scalar_arrays::validate(
-                            checked,
-                            plan.machine,
-                            state.state,
-                            *source,
-                            result,
-                            elements,
-                        )?;
-                    }
+                        ..
+                    } => {}
                     checked_trees::CheckedUnitEffectOperationPlan::Call(_) => {}
                     _ => return unsupported("Unit graph operand is not call preparation"),
                 }

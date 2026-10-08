@@ -20,7 +20,6 @@ pub(crate) struct AuthoredCall {
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
     pub boundary: bool,
-    pub target_state: SymbolHandle,
 }
 
 impl AuthoredCall {}
@@ -128,7 +127,6 @@ pub(crate) fn locate(
         scalar_arguments,
         structural_arguments,
         boundary: target.boundary,
-        target_state: target.state,
     })
 }
 

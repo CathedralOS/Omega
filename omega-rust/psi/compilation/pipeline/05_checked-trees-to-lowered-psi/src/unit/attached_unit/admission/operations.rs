@@ -6,7 +6,6 @@ use super::super::super::{
     unsupported,
 };
 use super::super::bodies::UnitPlans;
-use super::super::scalar_arrays;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
 use symbols::SymbolHandle;
@@ -31,20 +30,7 @@ pub(super) fn validate<'a>(
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 super::super::view_ranges::binding_site(checked, machine.state, operation)?;
             }
-            CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source,
-                result,
-                elements,
-            } => {
-                scalar_arrays::validate(
-                    checked,
-                    machine.machine,
-                    machine.state,
-                    *source,
-                    result,
-                    elements,
-                )?;
-            }
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {}
             CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
             // A scalar callee joins an ordinary body's closure before
             // admission; a composed catalog selects it from the call.

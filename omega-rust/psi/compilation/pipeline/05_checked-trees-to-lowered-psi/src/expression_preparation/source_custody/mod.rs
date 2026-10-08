@@ -19,21 +19,15 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 // Reads and borrows: the authored binding, parameter, place or record field
 // a scalar read names, and primitive local borrows at their checked call
 // occurrence.
-pub(crate) mod borrow_occurrences;
 pub(crate) mod primitive_references;
 pub(crate) mod structural_places;
 
-// Calls and selected comparisons: computed invocations, the checked flow
-// fact behind a Unit scalar call, and the boundary application a selected
-// comparison names.
+// Selected comparisons: a comparison's Terminal meaning, and the authored
+// operand of a byte comparison or predicate.
 pub(crate) mod comparisons;
 pub(crate) mod computation_calls;
-pub(crate) mod flow_calls;
 
-// Constructed values: array and case constructors, structural construction
-// and dispatch, and the literal or operator meaning of retained operations.
-pub(crate) mod array_sources;
-pub(crate) mod case_sources;
+// Constructed values: structural view carriers and byte literals.
 pub(crate) mod structural;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {

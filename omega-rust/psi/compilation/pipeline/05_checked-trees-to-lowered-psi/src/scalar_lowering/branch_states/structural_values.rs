@@ -385,10 +385,6 @@ impl Preparation<'_> {
             return Ok(place);
         }
         if let CheckedStructuralValueKind::Case(subject) = &node.kind {
-            crate::expression_preparation::source_custody::case_sources::construction(
-                self.checked,
-                subject,
-            )?;
             let source = validation::scalar_case_constructor(&self.checked.typed, node.expression)
                 .ok_or(LoweringError::Unsupported(
                     "computed case lost its exact authored constructor",

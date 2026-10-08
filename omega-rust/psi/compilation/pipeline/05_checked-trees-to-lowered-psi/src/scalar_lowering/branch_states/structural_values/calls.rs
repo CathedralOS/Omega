@@ -183,7 +183,6 @@ impl Preparation<'_> {
                     let result = self.result(binding)?;
                     let mut prepared = super::super::unit_operations::prepare(
                         self.checked,
-                        machine.symbol,
                         &caller,
                         operations[operation],
                         self.bindings,

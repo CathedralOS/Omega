@@ -28,8 +28,8 @@ use super::super::super::{
 };
 use super::super::bodies::{UnitBody, UnitEntry, UnitPlans};
 use super::super::{
-    checked_unit_target_reach_matches, retain_exact_flow_call, retain_exact_unit_boundary,
-    structural_calls, unique_unit_boundary,
+    checked_unit_target_reach_matches, retain_exact_unit_boundary, structural_calls,
+    unique_unit_boundary,
 };
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
@@ -109,20 +109,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             for operand in call.operands().iter() {
                 match operand {
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
-                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                        source,
-                        result,
-                        elements,
-                    } => {
-                        super::super::scalar_arrays::validate(
-                            checked,
-                            caller.machine,
-                            caller.state,
-                            *source,
-                            result,
-                            elements,
-                        )?;
-                    }
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {}
                     CheckedUnitEffectOperationPlan::Call(_) => {}
                     _ => {
                         return unsupported(
@@ -157,13 +144,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             CheckedUnitCallRoute::Module { .. },
             CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
         ) => {
-            retain_exact_flow_call(
-                checked,
-                caller.machine,
-                caller.state,
-                planned.coordinate,
-                planned.target.state,
-            )?;
             let target = unit_target(checked, plans, operation)?;
             structural_calls::validate_consumer(
                 checked,
@@ -177,26 +157,11 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             scalar_call(checked, caller, operation)
         }
         // A selector call enters no closure body: the dispatch catalog owns
-        // its selected implementations' rows. Its source occurrence is still
-        // the exact retained flow call.
-        (CheckedUnitCallRoute::Dynamic { .. }, _) => retain_exact_flow_call(
-            checked,
-            caller.machine,
-            caller.state,
-            planned.coordinate,
-            planned.target.state,
-        )
-        .map(|_| ()),
+        // its selected implementations' rows.
+        (CheckedUnitCallRoute::Dynamic { .. }, _) => Ok(()),
         // The three boundary calls differ only in the result their boundary
         // must declare.
         (CheckedUnitCallRoute::Boundary, _) => {
-            retain_exact_flow_call(
-                checked,
-                caller.machine,
-                caller.state,
-                planned.coordinate,
-                planned.target.state,
-            )?;
             let expected = match planned.result() {
                 CheckedUnitCallResult::Unit => CheckedBoundaryMachineResultPlan::Unit,
                 CheckedUnitCallResult::Scalar(result) => {
@@ -276,13 +241,18 @@ fn scalar_call(
     let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
     let service_reach = &call.target.service_reach;
     let scalar_arguments = &call.scalar_arguments;
-    let source_call = retain_exact_flow_call(
-        checked,
-        caller.machine,
-        caller.state,
-        *coordinate,
-        *target_state,
-    )?;
+    let source_call = checked
+        .facts
+        .flow
+        .control
+        .call_at(
+            caller.state,
+            coordinate.statement_index as usize,
+            coordinate.call_ordinal as usize,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "Unit call has no original checked flow occurrence",
+        ))?;
     let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
     let contract = checked
         .facts

@@ -6,7 +6,7 @@
 //! provider authority. Proof-only float equality never supplies executable meaning.
 //! A selected IEEE float or authored-order integer comparison is one binding
 //! whose emission records the occurrence row that joins it back to its use.
-use super::{Expansion, LoweringError, Site, unsupported};
+use super::{Expansion, LoweringError, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody::comparisons::occurrence;
@@ -17,15 +17,8 @@ impl Expansion<'_> {
         operator_use: checked_trees::CheckedOperatorUseHandle,
         left: LoweredDirectExpression,
         right: LoweredDirectExpression,
-        site: &Site<'_>,
     ) -> Result<LoweredScalarBinding, LoweringError> {
-        let occurrence = occurrence(
-            self.checked,
-            operator_use,
-            self.machine,
-            site.state,
-            site.statement,
-        )?;
+        let occurrence = occurrence(self.checked, operator_use)?;
         let expected = occurrence.operand_type();
         if left.scalar_type() != expected || right.scalar_type() != expected {
             return unsupported("selected comparison operand format changed");

@@ -22,7 +22,6 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::computation_graph::fields;
-use crate::expression_preparation::source_custody::case_sources as source;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
@@ -91,7 +90,6 @@ pub(crate) fn prepare(
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            source::construction(checked, subject)?;
             if slots
                 .iter()
                 .any(|slot| slot.expression == subject.expression)

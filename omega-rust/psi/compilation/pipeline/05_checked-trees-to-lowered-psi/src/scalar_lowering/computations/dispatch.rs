@@ -109,7 +109,6 @@ impl Expansion<'_> {
                                 arm.equality_use,
                                 parameter(input_types.len(), subject_type),
                                 parameter(saved_types.len(), subject_type),
-                                site,
                             )?);
                             LoweredBooleanReturnExpression::Parameter {
                                 position: tested_types.len(),

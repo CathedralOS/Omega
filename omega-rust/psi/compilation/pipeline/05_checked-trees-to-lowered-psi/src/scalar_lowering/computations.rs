@@ -489,7 +489,6 @@ impl<'a> Expansion<'a> {
                     operator_use,
                     parameter(input_types.len(), operand_type),
                     parameter(input_types.len() + 1, operand_type),
-                    site,
                 )?;
                 let comparison = self.binding(&tested_types, input_types.len(), target, binding);
                 self.sequence(

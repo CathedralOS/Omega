@@ -1142,20 +1142,7 @@ pub(super) fn validate_arm_call(
     for operand in operands.iter() {
         match operand {
             checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source,
-                result,
-                elements,
-            } => {
-                crate::unit::attached_unit::scalar_arrays::validate(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    *source,
-                    result,
-                    elements,
-                )?;
-            }
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {}
             // The shared call admission handles calls in this sequence with
             // their complete preceding result namespace.
             _ => {}
