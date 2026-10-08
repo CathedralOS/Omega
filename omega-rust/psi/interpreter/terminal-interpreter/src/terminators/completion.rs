@@ -70,24 +70,10 @@ impl TerminalExecution<'_> {
             .0
             .cleanup_receiver
             .map(|place| (place, completed.1.clone()));
-        self.call_stack.push(SuspendedCall {
-            values: std::mem::take(&mut self.values),
-            structural_values: std::mem::take(&mut self.structural_values),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
-            live_claims: std::mem::take(&mut self.live_claims),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result: SuspendedCallResult::NominalCleanups {
-                completed,
-                remaining,
-                continuation,
-            },
+        self.suspend_with(SuspendedCallResult::NominalCleanups {
+            completed,
+            remaining,
+            continuation,
         });
         if let Some((place, value)) = receiver {
             self.structural_values.insert(place, value);
