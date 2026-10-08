@@ -790,38 +790,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             .expression_table
             .expression_handles(call.arguments)
             .to_vec();
-        let expected_arity = match target {
-            "negate"
-            | "square_root"
-            | "classify"
-            | "is_finite"
-            | "is_nan"
-            | "is_infinite"
-            | "is_normal"
-            | "is_subnormal"
-            | "square_root_toward_zero"
-            | "square_root_toward_positive"
-            | "square_root_toward_negative" => 1,
-            "minimum"
-            | "maximum"
-            | "add_toward_zero"
-            | "add_toward_positive"
-            | "add_toward_negative"
-            | "subtract_toward_zero"
-            | "subtract_toward_positive"
-            | "subtract_toward_negative"
-            | "multiply_toward_zero"
-            | "multiply_toward_positive"
-            | "multiply_toward_negative"
-            | "divide_toward_zero"
-            | "divide_toward_positive"
-            | "divide_toward_negative" => 2,
-            "multiply_then_add"
-            | "fused_multiply_add"
-            | "fused_multiply_add_toward_zero"
-            | "fused_multiply_add_toward_positive"
-            | "fused_multiply_add_toward_negative" => 3,
-            _ => return Ok(None),
+        let Some(expected_arity) =
+            numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(target)
+        else {
+            return Ok(None);
         };
         if arguments.len() != expected_arity {
             return Ok(None);

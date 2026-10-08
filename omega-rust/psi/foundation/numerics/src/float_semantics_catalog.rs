@@ -829,6 +829,43 @@ pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
     ),
 ];
 
+/// The leaf names the builtin call dispatch spells by name alone — the
+/// rows a plain leaf selects rather than a signature-matched operator
+/// path. Grouped by call arity; a row's leading `Format` parameter is
+/// the format selection, not a call operand.
+pub const FLOAT_NAMED_CALL_LEAVES: &[&str] = &[
+    "negate",
+    "square_root",
+    "classify",
+    "is_finite",
+    "is_nan",
+    "is_infinite",
+    "is_normal",
+    "is_subnormal",
+    "square_root_toward_zero",
+    "square_root_toward_positive",
+    "square_root_toward_negative",
+    "minimum",
+    "maximum",
+    "add_toward_zero",
+    "add_toward_positive",
+    "add_toward_negative",
+    "subtract_toward_zero",
+    "subtract_toward_positive",
+    "subtract_toward_negative",
+    "multiply_toward_zero",
+    "multiply_toward_positive",
+    "multiply_toward_negative",
+    "divide_toward_zero",
+    "divide_toward_positive",
+    "divide_toward_negative",
+    "multiply_then_add",
+    "fused_multiply_add",
+    "fused_multiply_add_toward_zero",
+    "fused_multiply_add_toward_positive",
+    "fused_multiply_add_toward_negative",
+];
+
 impl FloatSemanticOperation {
     /// Whether the namespace names this catalog at all. A row is never
     /// selected by leaf spelling alone: see [`Self::from_source_identity`].
@@ -858,6 +895,24 @@ impl FloatSemanticOperation {
     pub fn names_a_row(namespace: &str, name: &str) -> bool {
         Self::namespace_matches(namespace)
             && FLOAT_SEMANTIC_OPERATIONS.iter().any(|row| row.name == name)
+    }
+
+    /// The call-operand count for a leaf the builtin call dispatch spells
+    /// by name alone, or `None` when `name` is not one of
+    /// [`FLOAT_NAMED_CALL_LEAVES`]. The count comes from the row's own
+    /// signature: a leading `Format` parameter is the row's format
+    /// selection, not a call operand.
+    pub fn named_call_arity(name: &str) -> Option<usize> {
+        if !FLOAT_NAMED_CALL_LEAVES.contains(&name) {
+            return None;
+        }
+        FLOAT_SEMANTIC_OPERATIONS
+            .iter()
+            .find(|row| row.name == name)
+            .map(|row| {
+                row.parameters.len()
+                    - usize::from(row.parameters.first() == Some(&FloatSemanticValueKind::Format))
+            })
     }
 
     /// The kernel-discharge binding stored beside this row.

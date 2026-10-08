@@ -136,20 +136,9 @@ impl IntrinsicRequirement<'_> {
                 };
                 match parameters {
                     [value]
-                        if matches!(
+                        if numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(
                             operation,
-                            "negate"
-                                | "square_root"
-                                | "square_root_toward_zero"
-                                | "square_root_toward_positive"
-                                | "square_root_toward_negative"
-                                | "classify"
-                                | "is_nan"
-                                | "is_finite"
-                                | "is_infinite"
-                                | "is_normal"
-                                | "is_subnormal"
-                        ) =>
+                        ) == Some(1) =>
                     {
                         if typed.primitive_type_reference(value.type_reference)
                             != Some(expected_primitive)
@@ -158,23 +147,9 @@ impl IntrinsicRequirement<'_> {
                         }
                     }
                     [left, right]
-                        if matches!(
+                        if numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(
                             operation,
-                            "minimum"
-                                | "maximum"
-                                | "add_toward_zero"
-                                | "add_toward_positive"
-                                | "add_toward_negative"
-                                | "subtract_toward_zero"
-                                | "subtract_toward_positive"
-                                | "subtract_toward_negative"
-                                | "multiply_toward_zero"
-                                | "multiply_toward_positive"
-                                | "multiply_toward_negative"
-                                | "divide_toward_zero"
-                                | "divide_toward_positive"
-                                | "divide_toward_negative"
-                        ) =>
+                        ) == Some(2) =>
                     {
                         if typed.primitive_type_reference(left.type_reference)
                             != Some(expected_primitive)
@@ -185,14 +160,9 @@ impl IntrinsicRequirement<'_> {
                         }
                     }
                     [left, right, addend]
-                        if matches!(
+                        if numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(
                             operation,
-                            "multiply_then_add"
-                                | "fused_multiply_add"
-                                | "fused_multiply_add_toward_zero"
-                                | "fused_multiply_add_toward_positive"
-                                | "fused_multiply_add_toward_negative"
-                        ) =>
+                        ) == Some(3) =>
                     {
                         if typed.primitive_type_reference(left.type_reference)
                             != Some(expected_primitive)
