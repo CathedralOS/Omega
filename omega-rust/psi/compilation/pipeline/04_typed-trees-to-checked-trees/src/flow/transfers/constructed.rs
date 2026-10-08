@@ -42,21 +42,13 @@ pub(super) fn append_constructed_field_values(
     else {
         return;
     };
-    let mut reference = capture.type_reference;
+    let reference = capture.type_reference;
     if !reference.is_valid() {
         return;
     }
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                reference = *referee
-            }
-            _ => break,
-        }
-    }
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
     let Some(projections) =
         literal_value_projections(program, capture.expression, reference, &[], true)
     else {

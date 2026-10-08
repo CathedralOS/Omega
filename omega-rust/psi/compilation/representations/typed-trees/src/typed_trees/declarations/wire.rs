@@ -195,31 +195,27 @@ pub fn type_reference_carries_range(
 /// declaration rather than assuming the schema field's less-refined type.
 pub fn data_field_type(
     program: &crate::TypedTrees,
-    mut receiver: TypeReferenceHandle,
+    receiver: TypeReferenceHandle,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
-    loop {
-        receiver = match program.type_reference_table.type_reference(receiver) {
-            crate::types::TypeReferenceNode::Reference { referee, .. } => *referee,
-            crate::types::TypeReferenceNode::Constrained { base_type, .. } => *base_type,
-            crate::types::TypeReferenceNode::Named { symbol, name } => {
-                let data = program.data_definitions().iter().find(|data| {
-                    (symbol.is_valid() && data.symbol == *symbol) || data.name == *name
-                })?;
-                return program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        crate::data::DataMember::Field(field)
-                            if field.name.as_str() == field_name =>
-                        {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    });
-            }
-            _ => return None,
-        };
+    let receiver = program.type_reference_table.peeled_type_reference(receiver);
+    match program.type_reference_table.type_reference(receiver) {
+        crate::types::TypeReferenceNode::Named { symbol, name } => {
+            let data = program
+                .data_definitions()
+                .iter()
+                .find(|data| (symbol.is_valid() && data.symbol == *symbol) || data.name == *name)?;
+            return program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    crate::data::DataMember::Field(field) if field.name.as_str() == field_name => {
+                        Some(field.type_reference)
+                    }
+                    _ => None,
+                });
+        }
+        _ => None,
     }
 }
 
