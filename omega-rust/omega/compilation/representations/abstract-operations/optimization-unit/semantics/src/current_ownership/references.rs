@@ -1812,9 +1812,9 @@ pub(super) fn transferred_ingress_leaf(
     live: &[LiveReference],
     source: &StructuralArgument,
 ) -> Option<ReferenceIdentity> {
-    let parameter = function.structural_parameters.iter().find(|parameter| {
-        parameter.place == source.place && parameter.access == StructuralAccess::Owned
-    })?;
+    let parameter = function
+        .structural_parameter(source.place)
+        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
     if !matches!(
         formal_origin(function, source),
         Some(ReferenceOrigin::IngressLeaf(_))

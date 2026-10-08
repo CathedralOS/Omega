@@ -560,8 +560,7 @@ fn source_contract(
     custody: &Custody,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    if let Some(parameter) = function.structural_parameter(place)
-    {
+    if let Some(parameter) = function.structural_parameter(place) {
         return Some(parameter.structural_type);
     }
     if let Some(parameter) = function
@@ -1446,9 +1445,9 @@ fn transferred_ingress_leaf(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
-    let parameter = function.structural_parameters.iter().find(|parameter| {
-        parameter.place == source.place && parameter.access == StructuralAccess::Owned
-    })?;
+    let parameter = function
+        .structural_parameter(source.place)
+        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
     if matches!(
         find_structural_type(types, parameter.structural_type)?.shape,
         StructuralTypeShape::Reference { .. }
@@ -2392,8 +2391,7 @@ pub(in crate::legalization) fn referent_argument(
     {
         return Err(invalid());
     }
-    let source = if let Some(parameter) = caller.structural_parameter(argument.place)
-    {
+    let source = if let Some(parameter) = caller.structural_parameter(argument.place) {
         let retained = super::structural_parameters(target_caller)
             .and_then(|parameters| {
                 parameters
@@ -2408,7 +2406,8 @@ pub(in crate::legalization) fn referent_argument(
         }
         retained.placement.clone().into()
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
-        block.structural_parameter(argument.place)
+        block
+            .structural_parameter(argument.place)
             .map(|parameter| (block.id, parameter))
     }) {
         if parameter.access != StructuralAccess::Owned
