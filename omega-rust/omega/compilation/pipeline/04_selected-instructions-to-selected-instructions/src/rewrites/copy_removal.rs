@@ -57,7 +57,7 @@ use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
-    CopyRemovalIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    CopyRemovalIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
@@ -142,3 +142,40 @@ impl std::fmt::Display for CopyRemovalError {
 }
 
 impl std::error::Error for CopyRemovalError {}
+
+/// The removal's measured scan: one step per plan instruction, then per
+/// this function's body instructions, terminator edges and their binding
+/// surfaces, and each roster length — the audit's whole walk.
+pub(super) fn copy_scan(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+) -> Option<usize> {
+    crate::rewrites::plan_instruction_scan(plan)
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total
+                    .checked_add(block.instructions.len())?
+                    .checked_add(1)?
+                    .checked_add(
+                        crate::rewrites::block_edges::terminator_successors(&block.terminator)
+                            .into_iter()
+                            .map(|successor| {
+                                successor.bindings.len()
+                                    + successor.structural_bindings.len()
+                                    + successor
+                                        .structural_case
+                                        .as_ref()
+                                        .map_or(0, |case| case.payloads.len() + 1)
+                            })
+                            .sum::<usize>(),
+                    )
+            })
+        })
+        .and_then(|total| {
+            total
+                .checked_add(function.virtual_registers.len())?
+                .checked_add(function.local_storage_slots.len())?
+                .checked_add(function.memory_accesses.len())?
+                .checked_add(function.calls.len())
+        })
+}

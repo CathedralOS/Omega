@@ -371,38 +371,7 @@ pub(super) fn admit<'source>(
             return Err(CopyRemovalError::UnsupportedUse);
         }
     }
-    let steps = crate::rewrites::plan_instruction_scan(plan)
-        .and_then(|total| {
-            // A second scan of this function audits the destination's
-            // mentions across instructions, transports, slots, and the
-            // register roster.
-            function.blocks.iter().try_fold(total, |total, block| {
-                total
-                    .checked_add(block.instructions.len())?
-                    .checked_add(1)?
-                    .checked_add(
-                        terminator_successors(&block.terminator)
-                            .into_iter()
-                            .map(|successor| {
-                                successor.bindings.len()
-                                    + successor.structural_bindings.len()
-                                    + successor
-                                        .structural_case
-                                        .as_ref()
-                                        .map_or(0, |case| case.payloads.len() + 1)
-                            })
-                            .sum::<usize>(),
-                    )
-            })
-        })
-        .and_then(|total| {
-            total
-                .checked_add(function.virtual_registers.len())?
-                .checked_add(function.local_storage_slots.len())?
-                .checked_add(function.memory_accesses.len())?
-                .checked_add(function.calls.len())
-        })
-        .ok_or(CopyRemovalError::IdentityOverflow)?;
+    let steps = super::copy_scan(plan, function).ok_or(CopyRemovalError::IdentityOverflow)?;
     crate::rewrites::charge_steps(
         steps,
         budget,
