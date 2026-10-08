@@ -262,19 +262,9 @@ fn resolve_source(
                         .filter(|position| {
                             let parameter = &checked.state_parameters(state)[*position];
                             !parameter.is_mutable
-                                && matches!(
-                                    checked.primitive_type_reference(parameter.type_reference),
-                                    Some(
-                                        checked_trees::types::PrimitiveType::U8
-                                            | checked_trees::types::PrimitiveType::U16
-                                            | checked_trees::types::PrimitiveType::U32
-                                            | checked_trees::types::PrimitiveType::U64
-                                            | checked_trees::types::PrimitiveType::I8
-                                            | checked_trees::types::PrimitiveType::I16
-                                            | checked_trees::types::PrimitiveType::I32
-                                            | checked_trees::types::PrimitiveType::I64
-                                    )
-                                )
+                                && checked
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some_and(|primitive| primitive.is_fixed_integer())
                         })
                         .map(|position| {
                             checked.state_parameters(state)[..position]
