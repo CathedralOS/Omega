@@ -14,7 +14,7 @@ use crate::custody::{
 use crate::effects::{
     AdmittedAssumedBinding, AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler,
 };
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::MachineBlocks;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
@@ -33,7 +33,9 @@ use crate::values::{
     TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
     TerminalStructuralValue,
 };
-use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, PlaceId, ValueId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, PlaceId, ValueId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
@@ -417,6 +419,27 @@ impl<'artifact> TerminalExecution<'artifact> {
             .get(&value)
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
+    }
+
+    /// The unsigned integer bound to `value`, malformed when its declared
+    /// scalar type differs from `expected_type` or it is not an unsigned
+    /// integer at all.
+    pub(crate) fn unsigned_integer_value(
+        &self,
+        value: ValueId,
+        expected_type: IntegerType,
+    ) -> Result<u64, TerminalInterpretError> {
+        let TerminalScalarValue::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(value),
+        } = self.scalar_value(value)?
+        else {
+            return Err(malformed());
+        };
+        if scalar_type != expected_type {
+            return Err(malformed());
+        }
+        u64::try_from(value).map_err(|_| malformed())
     }
 
     /// Final values of direct primitive structural entry arguments, ordered by

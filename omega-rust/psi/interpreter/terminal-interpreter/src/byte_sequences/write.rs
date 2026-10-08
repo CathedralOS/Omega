@@ -1,6 +1,6 @@
 //! Fixed-extent byte mutation through an exact mutable loan or fresh owned result.
 
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, ValueId};
+use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
 };
@@ -9,7 +9,6 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
-use crate::values::TerminalScalarValue;
 
 pub(crate) enum MutableByteSequenceStorage {
     Owned(PlaceId),
@@ -339,19 +338,9 @@ impl TerminalExecution<'_> {
         operand: ValueId,
         bits: u16,
     ) -> Result<u64, TerminalInterpretError> {
-        let TerminalScalarValue::Integer {
-            scalar_type,
-            value: IntegerValue::Unsigned(value),
-        } = self
-            .values
-            .get(&operand)
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-        else {
-            return Err(malformed());
-        };
-        if *scalar_type != IntegerType::new(IntegerSign::Unsigned, bits).map_err(|_| malformed())? {
-            return Err(malformed());
-        }
-        u64::try_from(*value).map_err(|_| malformed())
+        self.unsigned_integer_value(
+            operand,
+            IntegerType::new(IntegerSign::Unsigned, bits).map_err(|_| malformed())?,
+        )
     }
 }

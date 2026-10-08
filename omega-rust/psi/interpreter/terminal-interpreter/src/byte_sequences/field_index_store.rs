@@ -73,22 +73,7 @@ impl TerminalExecution<'_> {
             self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-        let count = |operand| {
-            let TerminalScalarValue::Integer {
-                scalar_type,
-                value: IntegerValue::Unsigned(value),
-            } = self
-                .values
-                .get(&operand)
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-            else {
-                return Err(malformed());
-            };
-            if *scalar_type != count_type {
-                return Err(malformed());
-            }
-            u64::try_from(*value).map_err(|_| malformed())
-        };
+        let count = |operand| self.unsigned_integer_value(operand, count_type);
         let byte_index = count(*index)?;
         let live_length = count(*length)?;
         let TerminalScalarValue::Integer {
@@ -145,22 +130,7 @@ impl TerminalExecution<'_> {
         }
         let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
-        let count = |operand| {
-            let TerminalScalarValue::Integer {
-                scalar_type,
-                value: IntegerValue::Unsigned(value),
-            } = self
-                .values
-                .get(&operand)
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-            else {
-                return Err(malformed());
-            };
-            if *scalar_type != count_type {
-                return Err(malformed());
-            }
-            u64::try_from(*value).map_err(|_| malformed())
-        };
+        let count = |operand| self.unsigned_integer_value(operand, count_type);
         let byte_index = count(*index)?;
         let live_length = count(*length)?;
         if capacity.is_some_and(|capacity| live_length > capacity) || byte_index >= live_length {
