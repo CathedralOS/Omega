@@ -928,11 +928,14 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
+        // Block entry retired any earlier visit's local, so a value still
+        // here is a second live definition.
         if local_type(machine, result.place) != Some(result.structural_type)
             || !machine.structural_places.iter().any(|place| {
                 place.id == result.place && matches!(place.kind,
                     StructuralPlaceKind::OperationResult { producer, .. } if producer == operation.id)
             })
+            || self.structural_values.contains_key(&result.place)
         {
             return Err(malformed());
         }
@@ -956,12 +959,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
-        // A reentered definition replaces this activation's old local only.
-        // Local results cannot escape through owned arguments or structural returns.
-        if let Some(previous) = self.structural_values.insert(result.place, view.clone()) {
-            self.structural_primitive_storage
-                .remove(&StructuralRuntimePlace::from(&previous));
-        }
+        self.structural_values.insert(result.place, view.clone());
         self.structural_primitive_storage
             .insert(StructuralRuntimePlace::from(&view), scalar);
         Ok(())
@@ -1272,6 +1270,56 @@ impl TerminalExecution<'_> {
             }
         }
     }
+
+    /// Entering a block starts a fresh execution of its operations, so every
+    /// result place they produce is dead at entry: each producer dominates
+    /// its uses, and a value an earlier visit left there authorizes nothing.
+    /// That earlier value owes no cleanup when its custody already ended, and
+    /// its activation-local backing is reclaimed here, just as a return
+    /// reclaims plain locals. A result still in the affine frontier or named
+    /// by a live claim would leak its obligation, so that arrival fails
+    /// closed rather than overwriting it.
+    pub(crate) fn retire_reentered_results(
+        &mut self,
+        target: semantic_vocabulary::BlockId,
+    ) -> Result<(), TerminalInterpretError> {
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
+            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+        )?;
+        let block = machine
+            .block(&target)
+            .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+        for place in block
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .map(|result| result.place)
+        {
+            if self
+                .live_affine_frontier
+                .iter()
+                .any(|entry| entry.place == place)
+                || self
+                    .live_claims
+                    .values()
+                    .any(|claim| claim.place == Some(place))
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            if let Some(previous) = self.structural_values.remove(&place)
+                && local_type(machine, place).is_some()
+            {
+                self.structural_primitive_storage
+                    .remove(&StructuralRuntimePlace::from(&previous));
+            }
+            self.scalar_array_values.remove(&place);
+            self.byte_sequence_values.remove(&place);
+            self.primitive_loan_values.remove(&place);
+            self.element_view_values.remove(&place);
+        }
+        Ok(())
+    }
+
     /// Resolve the machine owning a suspended home frame, rejecting homes
     /// recorded against a different machine.
     fn owned_array_home(

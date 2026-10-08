@@ -85,19 +85,13 @@ impl TerminalExecution<'_> {
             result.structural_type,
         )
         .ok_or_else(malformed)?;
-        // An unrestricted payload can be re-established by a cyclic
-        // traversal: the fresh establishment replaces the stored elements,
-        // matching the per-iteration binding the verifier's cyclic
-        // eligibility admits. Unrestricted copies never alias the stored
-        // slot, so overwriting retires nothing the caller could still see —
-        // unless a live claim still names the place.
+        // A cyclic traversal re-establishes the payload on each visit; block
+        // entry already retired the earlier visit's elements, so a value
+        // still at the place is a second live definition.
         if !result.is_unrestricted_plain()
             || u64::try_from(elements.len()).ok() != Some(count)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
             || self.structural_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
         {
             return Err(malformed());
         }
