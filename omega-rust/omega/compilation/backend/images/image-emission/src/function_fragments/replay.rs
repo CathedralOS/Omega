@@ -27,13 +27,6 @@ impl Eq for FragmentReplay {}
 
 #[cfg(any(test, feature = "test-support"))]
 impl crate::ObjectArtifact {
-    pub fn fragment_source_for_test(
-        &self,
-    ) -> Option<&StagedOptimizedRelocationFreeObjectContainer> {
-        self.fragment_replay
-            .as_ref()
-            .map(|replay| replay.0.as_ref())
-    }
 }
 
 pub(crate) fn entry_source(

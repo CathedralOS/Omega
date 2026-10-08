@@ -549,11 +549,6 @@ pub struct ExecutableImage {
 }
 
 impl ExecutableImage {
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn output_mut_for_test(&mut self) -> &mut EmittedImageOutput {
-        &mut self.output
-    }
-
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

@@ -75,79 +75,6 @@ pub fn bare_module() -> TerminalModule {
         ..TerminalModule::for_entry(machine_id(1))
     }
 }
-
-/// A provider component module: it declares the boundary requirement and
-/// retains one checked candidate machine, attached to the provider type,
-/// realizing that requirement with the given exact coordinates. Those are
-/// the coordinates `VerifiedComponent::realizes_selected_plan` joins against
-/// a selected plan's requirement identity, provider type, and checked
-/// adapter machine identity.
-pub fn provider_module(
-    requirement_identity: &str,
-    provider_identity: &str,
-    candidate_identity: &str,
-) -> TerminalModule {
-    let mut module = bare_module();
-    module.boundary_machines.push(BoundaryMachineDeclaration {
-        unconditional_termination: false,
-        completion: terminal_psi::BoundaryCompletion::NormalReturn,
-        kind: terminal_psi::BoundaryRequirementKind::Trait,
-        scalar_ensures: Vec::new(),
-        scalar_requires: Vec::new(),
-        id: BoundaryMachineId::new(1).expect("boundary identity"),
-        identity: requirement_identity.to_owned(),
-        attachment: None,
-        parameter_order: Vec::new(),
-        scalar_parameters: Vec::new(),
-        crash_routes: Vec::new(),
-        structural_parameters: Vec::new(),
-        result: BoundaryMachineResult::Unit,
-        requires: Vec::new(),
-        program_local_root_introductions: Vec::new(),
-        content_guarantees: Vec::new(),
-        fixed_service_reach: Vec::new(),
-        published_service_ceiling: Vec::new(),
-    });
-    let provider_type = StructuralTypeId::new(1).expect("structural type identity");
-    module.structural_types.push(StructuralTypeDeclaration {
-        id: provider_type,
-        identity: provider_identity.to_owned(),
-        shape: StructuralTypeShape::Record {
-            storage: None,
-            fields: Vec::new(),
-        },
-    });
-    let mut candidate = module.machines[0].clone();
-    candidate.id = machine_id(2);
-    candidate.attachment = Some(provider_type);
-    candidate.contract.id = ContractId::new(2).expect("contract identity");
-    candidate.entry = BlockId::new(2).expect("block identity");
-    candidate.blocks[0].id = candidate.entry;
-    candidate.blocks[0].terminator = Terminator::ReturnUnit {
-        edge: EdgeId::new(2).expect("edge identity"),
-        cleanup_actions: Vec::new(),
-    };
-    module.machines.push(candidate);
-    module
-        .provider_candidates
-        .push(ProviderCandidateConformance {
-            boundary: BoundaryMachineId::new(1).expect("boundary identity"),
-            requirement_identity: requirement_identity.to_owned(),
-            provider_identity: provider_identity.to_owned(),
-            candidate_identity: candidate_identity.to_owned(),
-            candidate: machine_id(2),
-            signature: ProviderSignature {
-                parameters: Vec::new(),
-            },
-            refinement: ProviderRefinement {
-                positional_parameters: Vec::new(),
-                required_domains: Vec::new(),
-                realized_service_ceiling: Vec::new(),
-            },
-        });
-    module
-}
-
 /// The Terminal Psi identity a compilation of `module` observes: the exact
 /// subject a consumer must supply to admit the module's description.
 pub fn module_subject(module: &TerminalModule) -> TerminalPsiIdentity {
@@ -174,15 +101,4 @@ pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
     })
     .expect("component description");
     encode_component_description(&description)
-}
-
-/// Describe and validate one component module under the current schema with no
-/// accepted assumptions, matching the producer/consumer pair a build route runs.
-pub fn verified_component(module: &TerminalModule) -> VerifiedComponent {
-    let request = ComponentVerificationRequest {
-        expected_subject: module_subject(module),
-        accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
-        accepted_assumptions: BTreeSet::new(),
-    };
-    verify_component(&describe_module(module), &request).expect("the component verifies")
 }

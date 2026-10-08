@@ -80,11 +80,6 @@ impl ObjectArtifact {
         self.hosted_receiver.as_ref()
     }
     #[cfg(any(test, feature = "test-support"))]
-    pub fn clear_fragment_replay_for_test(&mut self) {
-        self.fragment_replay = None;
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
     pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
         &mut self.semantic_code_attribution
     }
@@ -98,27 +93,6 @@ impl ObjectArtifact {
     pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
         &mut self.boundary_settlements
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn text_bytes_mut_for_test(&mut self) -> &mut Vec<u8> {
-        &mut self.text_bytes
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn object_mut_for_test(&mut self) -> &mut ObjectPlan {
-        &mut self.object
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn relocations_mut_for_test(&mut self) -> &mut RelocationPlan {
-        &mut self.relocations
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn foreign_calls_mut_for_test(&mut self) -> &mut Vec<ObjectForeignCall> {
-        &mut self.foreign_calls
-    }
-
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

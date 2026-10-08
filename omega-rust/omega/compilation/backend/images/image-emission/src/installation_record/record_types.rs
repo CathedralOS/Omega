@@ -127,98 +127,14 @@ impl InstallationRecord {
     pub fn functions_mut_for_test(&mut self) -> &mut Vec<InstalledFunction> {
         &mut self.functions
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn internal_unit_calls_mut_for_test(&mut self) -> &mut Vec<InstalledInternalUnitCall> {
-        &mut self.internal_unit_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn internal_unit_scalar_calls_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<InstalledInternalUnitScalarCall> {
-        &mut self.internal_unit_scalar_calls
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn structural_returns_mut_for_test(&mut self) -> &mut Vec<InstalledStructuralReturn> {
-        &mut self.structural_returns
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
         &mut self.boundary_settlements
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn private_functions_mut_for_test(&mut self) -> &mut Vec<InstalledCompilerPrivateFunction> {
-        &mut self.private_functions
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
         &mut self.semantic_code_attribution
     }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn port_effects_mut_for_test(&mut self) -> &mut Vec<ObjectPortEffect> {
-        &mut self.port_effects
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn psi_mut_for_test(&mut self) -> &mut TerminalPsiIdentity {
-        &mut self.psi
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn target_mut_for_test(&mut self) -> &mut NativeTarget {
-        &mut self.target
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn subsystem_mut_for_test(&mut self) -> &mut Option<u16> {
-        &mut self.subsystem
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn profile_decision_mut_for_test(&mut self) -> &mut ProfileDecisionId {
-        &mut self.profile_decision
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn selected_provider_plans_mut_for_test(
-        &mut self,
-    ) -> &mut Vec<SelectedProviderPlanReportIdentity> {
-        &mut self.selected_provider_plans
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn component_progress_mut_for_test(&mut self) -> &mut Option<InstalledComponentProgress> {
-        &mut self.component_progress
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn image_mut_for_test(&mut self) -> &mut ImageFingerprint {
-        &mut self.image
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn image_sections_mut_for_test(&mut self) -> &mut InstalledImageSections {
-        &mut self.image_sections
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn compiler_text_validation_mut_for_test(&mut self) -> &mut CompilerTextValidationEvidence {
-        &mut self.compiler_text_validation
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn boundary_opaque_applications_mut_for_test(
-        &mut self,
-    ) -> &mut boundary_applications::BoundaryOpaqueRepresentationApplications {
-        &mut self.boundary_opaque_applications
-    }
-
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

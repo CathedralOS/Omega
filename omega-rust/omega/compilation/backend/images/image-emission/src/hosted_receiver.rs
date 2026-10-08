@@ -33,31 +33,6 @@ pub struct HostedReceiverBinding {
 
 #[cfg(any(test, feature = "test-support"))]
 impl crate::ObjectArtifact {
-    pub fn hosted_receiver_source_mut_for_test(
-        &mut self,
-    ) -> Option<&mut SelectedProgramEntrySourceSignature> {
-        self.hosted_receiver
-            .as_mut()
-            .map(|binding| &mut binding.source)
-    }
-
-    pub fn hosted_receiver_byte_count_mut_for_test(&mut self) -> Option<&mut u64> {
-        self.hosted_receiver
-            .as_mut()
-            .map(|binding| &mut binding.receiver_byte_count)
-    }
-
-    pub fn hosted_receiver_stack_ceiling_mut_for_test(&mut self) -> Option<&mut u64> {
-        self.hosted_receiver
-            .as_mut()
-            .map(|binding| &mut binding.demand.ceiling_bytes)
-    }
-
-    pub fn hosted_receiver_cleanup_occupancy_mut_for_test(&mut self) -> Option<&mut bool> {
-        self.hosted_receiver
-            .as_mut()
-            .map(|binding| &mut binding.cleanup_occupancy)
-    }
 }
 
 impl HostedReceiverBinding {
