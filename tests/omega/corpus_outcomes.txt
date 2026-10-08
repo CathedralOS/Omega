@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 5.86, "load1_start": 5.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 3.83, "load1_start": 3.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -355,6 +355,8 @@ fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expecte
 fail/borrows/record_reference_from_immutable_bytes rejected 203ms expected @69d297ae3ee5
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/record_result_retains_declared_lifetime_origins rejected 363ms expected @32d2d2bb3d26
+	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/record_view_field_backing_write_while_stored rejected 271ms expected @3f51b497f955
 	statement 2 mutates `main.buffer[0]` while local borrow `room` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
@@ -3361,7 +3363,7 @@ pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 1749ms check
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 1749ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms check-target:macos_arm64 @461e97c328e8
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
-pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 1752ms check-target:macos_arm64 @84da89581e65
+pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 1614ms check-target:macos_arm64 @32d2d2bb3d26
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 1365ms check-target:macos_arm64 @4e4bfed13aee+wt
