@@ -30,6 +30,31 @@ use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use validation::validate_sparse_conditional_constant_propagation;
 
+/// Every scalar the machine names and its declared type — machine
+/// parameters and result, then block parameters and operation results.
+fn machine_scalar_value_types(
+    machine: &terminal_psi::TerminalMachine,
+) -> std::collections::BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::ScalarType> {
+    let mut value_types = std::collections::BTreeMap::new();
+    for parameter in &machine.parameters {
+        value_types.insert(parameter.id, parameter.scalar_type);
+    }
+    if let Some(result) = machine.result.scalar() {
+        value_types.insert(result.id, result.scalar_type);
+    }
+    for block in &machine.blocks {
+        for parameter in &block.parameters {
+            value_types.insert(parameter.id, parameter.scalar_type);
+        }
+        for operation in &block.operations {
+            if let Some(result) = operation.result.scalar() {
+                value_types.insert(result.id, result.scalar_type);
+            }
+        }
+    }
+    value_types
+}
+
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
     for machine in &mut after.semantic_module.machines {

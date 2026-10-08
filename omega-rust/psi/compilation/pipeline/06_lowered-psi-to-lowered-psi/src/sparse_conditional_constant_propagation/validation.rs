@@ -57,24 +57,10 @@ pub fn validate_sparse_conditional_constant_propagation(
             }
             continue;
         }
-        let mut value_types = BTreeMap::new();
-        for parameter in &old.parameters {
-            value_types.insert(parameter.id, parameter.scalar_type);
-        }
-        if let Some(result) = old.result.scalar() {
-            value_types.insert(result.id, result.scalar_type);
-        }
+        let value_types = super::machine_scalar_value_types(old);
         let mut block_positions = BTreeMap::new();
         for (position, block) in old.blocks.iter().enumerate() {
             block_positions.insert(block.id, position);
-            for parameter in &block.parameters {
-                value_types.insert(parameter.id, parameter.scalar_type);
-            }
-            for operation in &block.operations {
-                if let Some(result) = operation.result.scalar() {
-                    value_types.insert(result.id, result.scalar_type);
-                }
-            }
         }
         let mut literals: BTreeMap<ValueId, terminal_semantics::ScalarLeafLiteral> =
             BTreeMap::new();

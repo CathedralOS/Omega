@@ -5,7 +5,7 @@
 //! and never removes one, so the scan order cannot change which leaves fold.
 //! The independent verifier replays the relation in graph order.
 
-use semantic_vocabulary::{ScalarType, ValueId};
+use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
 use terminal_psi::{OperationKind, TerminalMachine};
 use terminal_semantics::ScalarLeafLiteral;
@@ -19,23 +19,7 @@ pub(super) fn fold(
     if machine.ranked_scc.is_some() {
         return;
     }
-    let mut value_types: BTreeMap<ValueId, ScalarType> = BTreeMap::new();
-    for parameter in &machine.parameters {
-        value_types.insert(parameter.id, parameter.scalar_type);
-    }
-    if let Some(result) = machine.result.scalar() {
-        value_types.insert(result.id, result.scalar_type);
-    }
-    for block in &machine.blocks {
-        for parameter in &block.parameters {
-            value_types.insert(parameter.id, parameter.scalar_type);
-        }
-        for operation in &block.operations {
-            if let Some(result) = operation.result.scalar() {
-                value_types.insert(result.id, result.scalar_type);
-            }
-        }
-    }
+    let value_types = super::machine_scalar_value_types(machine);
     let mut literals: BTreeMap<ValueId, ScalarLeafLiteral> = machine
         .blocks
         .iter()
