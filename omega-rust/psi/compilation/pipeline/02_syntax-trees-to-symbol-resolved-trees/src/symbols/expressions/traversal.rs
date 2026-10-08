@@ -27,6 +27,31 @@ pub(in crate::symbols) fn assign_static_argument_type_symbols(
     .assign_static_argument_type_symbols(argument);
 }
 
+/// Assign static-argument type symbols for every machine argument the call
+/// carries.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::symbols) fn assign_static_arguments_type_symbols(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    machine_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+) {
+    for argument in machine_arguments {
+        assign_static_argument_type_symbols(
+            symbols,
+            machine,
+            parameters,
+            state_symbol,
+            expression_table,
+            child_type_references,
+            argument,
+        );
+    }
+}
+
 pub(in crate::symbols) fn assign_statement_expression_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,

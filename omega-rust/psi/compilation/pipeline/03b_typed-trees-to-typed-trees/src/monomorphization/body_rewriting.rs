@@ -126,6 +126,27 @@ pub(crate) fn insert_subject_name(
     ))
 }
 
+/// The statement call's retained argument vector plus one `Name` expression
+/// per subject, reinserted as a handle span.
+pub(super) fn insert_arguments_with_subjects(
+    program: &mut TypedTrees,
+    arguments_span: HandleSpan<ExpressionHandle>,
+    subjects: &[(typed_trees::name::Identifier, SymbolHandle)],
+) -> HandleSpan<ExpressionHandle> {
+    let mut arguments = program
+        .statement_table
+        .expression_handles(arguments_span)
+        .to_vec();
+    for (member, symbol) in subjects.iter().cloned() {
+        arguments.push(insert_subject_name(
+            &mut program.expression_table,
+            member,
+            symbol,
+        ));
+    }
+    program.statement_table.insert_expression_handles(arguments)
+}
+
 pub(super) fn rewrite_selected_call_with_name(
     program: &mut TypedTrees,
     site: CallSite,
@@ -148,18 +169,8 @@ pub(super) fn rewrite_selected_call_with_name(
                     &snapshot.machine_arguments,
                 )
             };
-            let mut arguments = program
-                .statement_table
-                .expression_handles(snapshot.arguments)
-                .to_vec();
-            for (member, symbol) in subjects.iter().cloned() {
-                arguments.push(insert_subject_name(
-                    &mut program.expression_table,
-                    member,
-                    symbol,
-                ));
-            }
-            let new_arguments = program.statement_table.insert_expression_handles(arguments);
+            let new_arguments =
+                insert_arguments_with_subjects(program, snapshot.arguments, subjects);
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 unreachable!();
             };

@@ -136,17 +136,15 @@ pub(super) fn assign_statement_symbols(
                 symbols,
             );
             let operand_route = build_operand_route(call.target.as_str(), call.target_symbol);
-            for argument in &call.machine_arguments {
-                crate::symbols::expressions::assign_static_argument_type_symbols(
-                    symbols,
-                    machine,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    argument,
-                );
-            }
+            crate::symbols::expressions::assign_static_arguments_type_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                &call.machine_arguments,
+            );
             for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
                 match operand_route {
                     Some(BuildOperation::RepresentationSelection) => {

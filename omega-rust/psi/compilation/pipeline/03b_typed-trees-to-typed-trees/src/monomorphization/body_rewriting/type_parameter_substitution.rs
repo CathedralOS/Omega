@@ -234,16 +234,7 @@ fn rebind_range_endpoint_names(
     root: TypeReferenceHandle,
     realized: &[(SymbolHandle, SymbolHandle)],
 ) {
-    let mut endpoints = Vec::new();
-    crate::monomorphization::for_each_type_reference(
-        program,
-        &[root],
-        |_, _| false,
-        |_, minimum, maximum| {
-            endpoints.push((minimum, maximum));
-            false
-        },
-    );
+    let endpoints = crate::monomorphization::type_reference_endpoints(program, root);
     for (minimum, maximum) in endpoints {
         program.expression_table.remap_symbols_in(minimum, realized);
         program.expression_table.remap_symbols_in(maximum, realized);

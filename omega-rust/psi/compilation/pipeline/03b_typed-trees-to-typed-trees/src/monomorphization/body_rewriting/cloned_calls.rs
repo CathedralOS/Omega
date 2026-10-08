@@ -132,18 +132,7 @@ pub(crate) fn rewrite_cloned_calls(
             {
                 let subjects = runtime_value_subjects(program, &state, &snapshot.machine_arguments);
                 (!subjects.is_empty()).then(|| {
-                    let mut arguments = program
-                        .statement_table
-                        .expression_handles(snapshot.arguments)
-                        .to_vec();
-                    for (member, symbol) in subjects.iter().cloned() {
-                        arguments.push(insert_subject_name(
-                            &mut program.expression_table,
-                            member,
-                            symbol,
-                        ));
-                    }
-                    program.statement_table.insert_expression_handles(arguments)
+                    super::insert_arguments_with_subjects(program, snapshot.arguments, &subjects)
                 })
             } else {
                 None

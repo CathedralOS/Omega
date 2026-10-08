@@ -385,16 +385,7 @@ fn substitute_named_endpoints(
     root: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, ExpressionHandle)],
 ) {
-    let mut endpoints = Vec::new();
-    crate::monomorphization::for_each_type_reference(
-        program,
-        &[root],
-        |_, _| false,
-        |_, minimum, maximum| {
-            endpoints.push((minimum, maximum));
-            false
-        },
-    );
+    let endpoints = crate::monomorphization::type_reference_endpoints(program, root);
     for endpoint in endpoints
         .into_iter()
         .flat_map(|(minimum, maximum)| [minimum, maximum])
