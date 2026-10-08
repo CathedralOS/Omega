@@ -14,7 +14,8 @@ use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
     CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarComputationRoot, FlowFacts,
+    CheckedScalarComputationPlans, CheckedScalarComputationRoot, CheckedStructuralValueHandle,
+    CheckedStructuralValueRoot, FlowFacts,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -25,6 +26,7 @@ use typed_trees::expression::TableCastExpression;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct Builder<'program, 'plans> {
@@ -152,6 +154,25 @@ impl Builder<'_, '_> {
                 formation_decided,
             },
         ))
+    }
+
+    pub(super) fn push_structural_root(
+        &mut self,
+        statement_ordinal: u32,
+        expression: ExpressionHandle,
+        type_reference: TypeReferenceHandle,
+        root: CheckedStructuralValueHandle,
+    ) {
+        self.structural_values
+            .roots
+            .append(CheckedStructuralValueRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal,
+                expression,
+                type_reference,
+                root,
+            });
     }
 
     pub(super) fn insert(

@@ -158,16 +158,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
                 {
-                    builder.structural_values.roots.append(
-                        checked_trees::CheckedStructuralValueRoot {
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            statement_ordinal,
-                            expression,
-                            type_reference: expected,
-                            root,
-                        },
-                    );
+                    builder.push_structural_root(statement_ordinal, expression, expected, root);
                 }
                 // An uninitialized local of a zero-constructible
                 // type mints its establishment here: the whole declared
@@ -195,15 +186,11 @@ pub(crate) fn build_checked_value_computation_plans(
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},
                         },
                     );
-                    builder.structural_values.roots.append(
-                        checked_trees::CheckedStructuralValueRoot {
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            statement_ordinal,
-                            expression: local.initial_value,
-                            type_reference: local.type_reference,
-                            root,
-                        },
+                    builder.push_structural_root(
+                        statement_ordinal,
+                        local.initial_value,
+                        local.type_reference,
+                        root,
                     );
                 }
                 if let Some((expression, expected)) = construction_destination
@@ -426,15 +413,11 @@ pub(crate) fn build_checked_value_computation_plans(
                             ))
                         && let Some(root) = builder.structural_value(assignment.value, expected)
                     {
-                        builder.structural_values.roots.append(
-                            checked_trees::CheckedStructuralValueRoot {
-                                machine: machine.symbol,
-                                state: state.symbol,
-                                statement_ordinal,
-                                expression: assignment.value,
-                                type_reference: expected,
-                                root,
-                            },
+                        builder.push_structural_root(
+                            statement_ordinal,
+                            assignment.value,
+                            expected,
+                            root,
                         );
                     }
                     if matches!(
@@ -650,15 +633,11 @@ pub(crate) fn build_checked_value_computation_plans(
                             .is_none()
                         && let Some(root) = builder.structural_value(*expression, state.return_type)
                     {
-                        builder.structural_values.roots.append(
-                            checked_trees::CheckedStructuralValueRoot {
-                                machine: machine.symbol,
-                                state: state.symbol,
-                                statement_ordinal,
-                                expression: *expression,
-                                type_reference: state.return_type,
-                                root,
-                            },
+                        builder.push_structural_root(
+                            statement_ordinal,
+                            *expression,
+                            state.return_type,
+                            root,
                         );
                     }
                     if transition.exit == typed_trees::statement::TransitionExit::Ordinary
@@ -786,15 +765,11 @@ pub(crate) fn build_checked_value_computation_plans(
                                 && let Some(root) =
                                     builder.structural_value(*argument, parameter.type_reference)
                             {
-                                builder.structural_values.roots.append(
-                                    checked_trees::CheckedStructuralValueRoot {
-                                        machine: machine.symbol,
-                                        state: state.symbol,
-                                        statement_ordinal,
-                                        expression: *argument,
-                                        type_reference: parameter.type_reference,
-                                        root,
-                                    },
+                                builder.push_structural_root(
+                                    statement_ordinal,
+                                    *argument,
+                                    parameter.type_reference,
+                                    root,
                                 );
                             }
                             continue;
