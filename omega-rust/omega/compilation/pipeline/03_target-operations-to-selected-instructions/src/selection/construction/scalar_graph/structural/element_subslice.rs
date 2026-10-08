@@ -40,11 +40,7 @@ pub(super) fn create(
             .pointers
             .iter()
             .any(|(place, _)| *place == result.place)
-        || builder
-            .transport
-            .element_views
-            .iter()
-            .any(|view| view.place == result.place)
+        || builder.transport.element_view(result.place).is_some()
     {
         return Err(invalid());
     }
@@ -58,12 +54,7 @@ pub(super) fn create(
     }
     let stride = element_stride(function, builder, *source).ok_or_else(|| invalid())?;
     let backing = element_backing_pointer(builder, row, *source)?;
-    let parent = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == *source)
-        .copied();
+    let parent = builder.transport.element_view(*source).copied();
     // Scale the element start into the root's byte units. Bounds give
     // s <= e <= L <= R elements and L * stride <= R * stride <= root bytes, so
     // the stride product cannot overflow either.

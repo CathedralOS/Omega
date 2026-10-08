@@ -434,10 +434,7 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if live.lengths.get(length) != Some(destination)
-        || !(prepared
-            .parameters
-            .iter()
-            .any(|parameter| parameter.place == *destination)
+        || !(prepared.parameter(*destination).is_some()
             || live.block_views.contains(destination)
             || live.views.contains_key(destination)
             || live.structural_homes.contains_key(destination)

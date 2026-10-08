@@ -45,9 +45,7 @@ pub(super) fn projection_base(
     } else {
         builder
             .transport
-            .element_views
-            .iter()
-            .find(|view| view.place == place)
+            .element_view(place)
             .map(|view| view.byte_offset)
     };
     if !byte_view

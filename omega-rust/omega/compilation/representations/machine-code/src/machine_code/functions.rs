@@ -10,6 +10,8 @@ pub use exit_contract::{
     WholeFunctionReturnValueEvidence, exit_policy_tag, whole_function_exit_contract_identity,
 };
 
+use semantic_vocabulary::PlaceId;
+
 use crate::{
     BoundarySettlementRecord, ForeignCallRelocation, InstalledProviderUnitScalarCallRecord,
     InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
@@ -45,6 +47,13 @@ pub struct MachineCodePlanWithPrivateFunctions {
     pub private_functions: Vec<CompilerPrivateMachineCodeFunction>,
 }
 impl MachineCodeFunction {
+    /// The scalar structural parameter arriving at `place`, when declared.
+    pub fn scalar_structural_parameter(&self, place: PlaceId) -> Option<&UnitParameterRecord> {
+        self.scalar_structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+
     /// Every internal Unit call's arguments, in call order.
     pub fn call_arguments(&self) -> impl Iterator<Item = &InternalUnitCallArgumentRecord> + '_ {
         unit_call_arguments(&self.internal_unit_calls)

@@ -155,10 +155,7 @@ pub(super) fn validate_boundary_settlements(
                     && exact_return_edge
                     && installed.settlement.arguments.iter().all(|argument| {
                         argument.path.is_empty()
-                            && function
-                                .scalar_structural_parameters
-                                .iter()
-                                .any(|parameter| parameter.place == argument.place)
+                            && function.scalar_structural_parameter(argument.place).is_some()
                     })
             }
             BoundaryRealization::LinuxWriteLine(_) => {

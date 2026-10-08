@@ -211,9 +211,8 @@ pub(crate) fn direct_port_read_custody(
     if !settlement.arguments.iter().all(|argument| {
         argument.path.is_empty()
             && function
-                .scalar_structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == argument.place)
+                .scalar_structural_parameter(argument.place)
+                .is_some()
     }) {
         return Err("direct port-read D41 settlement changed a structural argument place");
     }

@@ -192,7 +192,9 @@ pub fn find_object_function(
     functions: &[ObjectFunction],
     machine: MachineId,
 ) -> Option<&ObjectFunction> {
-    functions.iter().find(|function| function.machine == machine)
+    functions
+        .iter()
+        .find(|function| function.machine == machine)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,6 +259,16 @@ impl ObjectFunction {
 }
 
 impl ObjectFunction {
+    /// The scalar structural parameter arriving at `place`, when declared.
+    pub fn scalar_structural_parameter(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<&machine_code::UnitParameterRecord> {
+        self.scalar_structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+
     pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
         &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
     }

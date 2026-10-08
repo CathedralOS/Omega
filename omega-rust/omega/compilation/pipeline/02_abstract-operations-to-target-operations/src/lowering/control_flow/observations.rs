@@ -37,10 +37,7 @@ pub(super) fn lower(
             // A live byte-owner address join observes its own storage. The
             // semantic operation, not the pointer layout, determines whether
             // this is a metadata or payload observation.
-            if !prepared
-                .parameters
-                .iter()
-                .any(|parameter| parameter.place == *source)
+            if !prepared.parameter(*source).is_some()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
                 && !bounded_owner_storage(function, structural_types, live, *source)
@@ -91,10 +88,7 @@ pub(super) fn lower(
         AbstractOperation::ElementViewLength { source, .. }
         | AbstractOperation::ElementViewRead { source, .. }
         | AbstractOperation::ElementViewSubslice { source, .. } => {
-            if !prepared
-                .parameters
-                .iter()
-                .any(|parameter| parameter.place == *source)
+            if !prepared.parameter(*source).is_some()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
             {
@@ -693,10 +687,7 @@ fn byte_sequence_operand_gate(
 ) -> Result<(), LoweringError> {
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            if !prepared
-                .parameters
-                .iter()
-                .any(|parameter| parameter.place == *source)
+            if !prepared.parameter(*source).is_some()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
                 && !bounded_owner_storage(function, structural_types, live, *source)

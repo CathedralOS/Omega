@@ -20,12 +20,7 @@ pub(super) fn element_stride(
     builder: &Builder<'_>,
     source: PlaceId,
 ) -> Option<u32> {
-    if let Some(view) = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == source)
-    {
+    if let Some(view) = builder.transport.element_view(source) {
         return Some(view.element_stride);
     }
     let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
@@ -262,13 +257,7 @@ fn element_view_length(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    if let Some(view) = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == source)
-        .copied()
-    {
+    if let Some(view) = builder.transport.element_view(source).copied() {
         builder.emit(
             SelectedInstructionKind::CopyI64,
             builder.constraints.keys.copy_i64,
@@ -317,12 +306,7 @@ pub(super) fn element_backing_pointer(
     row: &LegalizedScalarInstruction,
     source: PlaceId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    if let Some(view) = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == source)
-    {
+    if let Some(view) = builder.transport.element_view(source) {
         return Ok(view.backing_pointer);
     }
     let descriptor = builder

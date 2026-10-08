@@ -5,7 +5,7 @@ use crate::installation_record::codec::fingerprint::write_hex;
 use crate::{ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect};
 use image::{CompilerTextValidationEvidence, FinalImageLayout};
 use machine_code::StructuralReturnRecord;
-use semantic_vocabulary::{MachineId, ProfileDecisionId, StructuralTypeId};
+use semantic_vocabulary::{MachineId, PlaceId, ProfileDecisionId, StructuralTypeId};
 use std::num::NonZeroU64;
 use target::NativeTarget;
 use target_operations::CallSiteOwner;
@@ -304,6 +304,18 @@ pub struct InstalledFunction {
     pub scalar_control_affine_cleanups: Vec<machine_code::UnitAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<machine_code::UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
+}
+
+impl InstalledFunction {
+    /// The scalar structural parameter arriving at `place`, when declared.
+    pub fn scalar_structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&machine_code::UnitParameterRecord> {
+        self.scalar_structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
 }
 
 /// Canonical installation custody for one compiler-private callback thunk.

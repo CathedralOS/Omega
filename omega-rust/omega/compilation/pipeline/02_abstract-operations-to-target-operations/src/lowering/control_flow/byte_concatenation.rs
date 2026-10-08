@@ -47,10 +47,7 @@ pub(super) fn lower(
                 if live.lengths.get(length) != Some(source)
                     || !(live.views.contains_key(source)
                         || live.block_views.contains(source)
-                        || prepared
-                            .parameters
-                            .iter()
-                            .any(|parameter| parameter.place == *source)
+                        || prepared.parameter(*source).is_some()
                         || super::observations::bounded_owner_storage(
                             function, types, live, *source,
                         ))

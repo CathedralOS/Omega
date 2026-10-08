@@ -77,6 +77,11 @@ impl Transport {
     pub(super) fn view(&self, place: PlaceId) -> Option<&ByteViewHomes> {
         self.views.iter().find(|view| view.place == place)
     }
+
+    /// The element view arriving at `place`, when one was registered.
+    pub(super) fn element_view(&self, place: PlaceId) -> Option<&ElementViewHomes> {
+        self.element_views.iter().find(|view| view.place == place)
+    }
 }
 
 #[track_caller]
@@ -130,12 +135,7 @@ pub(super) fn scaled_element_index(
     accepted_fact: AcceptedObligationFactIdentity,
     operation: OperationId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let view = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == place)
-        .copied();
+    let view = builder.transport.element_view(place).copied();
     let stride_register = transport_register(builder, place, 0)?;
     let scaled_index = transport_register(builder, place, 0)?;
     builder.emit(
