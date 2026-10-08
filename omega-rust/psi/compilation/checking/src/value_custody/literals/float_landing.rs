@@ -235,12 +235,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
         }
     }
 
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         collect_result_contract_float_pairs(
             program,
             program.operator_contracts(operator),

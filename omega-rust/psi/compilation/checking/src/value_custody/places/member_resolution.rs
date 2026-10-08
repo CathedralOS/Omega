@@ -438,12 +438,7 @@ fn whole_program_member_type_position(
     // executable state bodies. Their parameters nevertheless have ordinary
     // typed member-place semantics and must resolve through their exact
     // operator declaration.
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         for parameter in program.operator_parameters(operator) {
             if parameter.symbol == symbol {
                 return Some(MemberPosition::Reference(parameter.type_reference));
