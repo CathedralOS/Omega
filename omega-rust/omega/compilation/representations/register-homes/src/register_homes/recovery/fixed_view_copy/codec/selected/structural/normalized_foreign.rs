@@ -602,50 +602,13 @@ mod tests {
         decode_state_plan, encode_call_binding, encode_normalized_foreign_call,
     };
     use crate::register_homes::recovery::fixed_view_copy::codec::primitives::length;
-    use legalized_operations::encode_call_plan;
+    use legalized_operations::{encode_call_plan, encode_locator};
 
     /// A sealed locator coordinate: length-prefixed bytes, the same spelling
     /// the shared call-binding encoder writes.
-    fn encode_coordinate(bytes: &mut Vec<u8>, value: &[u8]) {
-        length(bytes, value.len());
-        bytes.extend_from_slice(value);
-    }
 
     /// The locator prefix of an encoded call binding: target profile name,
     /// candidate case, then each coordinate.
-    fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {
-        encode_string(bytes, locator.target().target_name());
-        match locator.locator() {
-            ForeignLocatorCandidate::PeByName { library, export } => {
-                bytes.push(1);
-                encode_coordinate(bytes, library);
-                encode_coordinate(bytes, export);
-            }
-            ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-                bytes.push(2);
-                encode_coordinate(bytes, library);
-                bytes.extend_from_slice(&ordinal.to_le_bytes());
-            }
-            ForeignLocatorCandidate::ElfVersioned {
-                object,
-                symbol,
-                version,
-            } => {
-                bytes.push(3);
-                encode_coordinate(bytes, object);
-                encode_coordinate(bytes, symbol);
-                encode_coordinate(bytes, version);
-            }
-            ForeignLocatorCandidate::MachODylibSymbol {
-                install_name,
-                symbol,
-            } => {
-                bytes.push(4);
-                encode_coordinate(bytes, install_name);
-                encode_coordinate(bytes, symbol);
-            }
-        }
-    }
     use calling_conventions::encode_state_plan_identity;
     use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, ValueShape};
     use legalized_operations::LegalizedNormalizedForeignCall;
@@ -1053,8 +1016,10 @@ mod tests {
         let mut bytes = Vec::new();
         encode_string(&mut bytes, TargetProfile::LinuxX64.target_name());
         bytes.push(1);
-        encode_coordinate(&mut bytes, b"kernel32.dll");
-        encode_coordinate(&mut bytes, b"Leaf");
+        length(&mut bytes, b"kernel32.dll".len());
+        bytes.extend_from_slice(b"kernel32.dll");
+        length(&mut bytes, b"Leaf".len());
+        bytes.extend_from_slice(b"Leaf");
         assert_eq!(
             decode_locator(&mut Cursor::new(&bytes)),
             Err(FixedViewCopyDecodeError::InvalidForeignLocator)

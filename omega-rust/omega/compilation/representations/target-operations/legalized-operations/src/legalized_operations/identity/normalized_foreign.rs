@@ -182,7 +182,7 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
 /// The normalized locator encodes its exact target profile and every sealed
 /// coordinate; the collision-resistant digest is derived, never substituted
 /// for the structured value.
-fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {
+pub fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocator) {
     encode_string(bytes, locator.target().target_name());
     match locator.locator() {
         ForeignLocatorCandidate::PeByName { library, export } => {

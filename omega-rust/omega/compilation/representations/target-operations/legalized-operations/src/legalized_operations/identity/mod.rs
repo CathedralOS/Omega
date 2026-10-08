@@ -25,7 +25,7 @@ pub use calling::{
     encode_call_plan, encode_callback_materialization, encode_eightbyte_class,
     encode_indirect_pointer, encode_native_place, encode_placement, encode_shape,
 };
-pub use normalized_foreign::{
+pub use normalized_foreign::{encode_locator,
     encode_call_binding, encode_machine_function_identity, encode_native_callback_argument,
 };
 pub use read_byte::encode_hosted_read_byte_identity;
