@@ -85,26 +85,10 @@ pub struct MachineServiceReachRows {
     pub states: HandleSpan<StateServiceReachRows>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateServiceReachRows {
-    pub state: SymbolHandle,
-    pub inferred_direct: ServiceReachRowId,
-    pub inferred_transitive: ServiceReachRowId,
-    pub concrete_direct: ServiceReachRowId,
-    pub concrete_transitive: ServiceReachRowId,
-    pub unresolved_installation_reaches: Vec<flow_effects::InstallationReachRequirement>,
-    pub calls: HandleSpan<CallServiceReachRows>,
-}
+/// The checked-time name of the inference-time row; the payload is identical
+/// and stays owned by `flow_effects`.
+pub type StateServiceReachRows = flow_effects::StateServiceReachInference;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CallServiceReachRows {
-    pub statement_index: usize,
-    pub call_ordinal: usize,
-    pub target_state: SymbolHandle,
-    pub target_machine: SymbolHandle,
-    pub inferred_direct: ServiceReachRowId,
-    pub inferred_transitive: ServiceReachRowId,
-    pub concrete_direct: ServiceReachRowId,
-    pub concrete_transitive: ServiceReachRowId,
-    pub unresolved_installation_reaches: Vec<flow_effects::InstallationReachRequirement>,
-}
+/// The checked-time name of the inference-time row; the payload is identical
+/// and stays owned by `flow_effects`.
+pub type CallServiceReachRows = flow_effects::CallServiceReachInference;
