@@ -28,7 +28,7 @@ use semantic_vocabulary::{BlockId, ClaimId, EdgeId, PlaceId, StructuralTypeId, V
 use std::collections::BTreeMap;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    find_structural_case,    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
     Terminator,
 };
@@ -426,7 +426,7 @@ impl TerminalExecution<'_> {
                 let Ok(inhabited) = self.observe_structural_case(source, &prefix) else {
                     return Ok(false);
                 };
-                let Some(case) = cases.iter().find(|case| case.id == inhabited) else {
+                let Some(case) = find_structural_case(cases, inhabited) else {
                     return Ok(false);
                 };
                 let Some(field) = case.fields.iter().find(|field| field.identity == *identity)

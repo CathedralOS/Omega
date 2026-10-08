@@ -26,7 +26,7 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::TerminalMachine;
 use terminal_psi::{
-    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
+    find_structural_case,    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralResultClaimBinding, StructuralTypeDeclaration, StructuralTypeShape,
@@ -776,7 +776,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         }
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
             let active_case = case_membership(&current).ok_or_else(malformed)?;
-            let selected_case = cases.iter().find(|case| case.id == active_case).ok_or_else(malformed)?;
+            let selected_case = find_structural_case(cases, active_case).ok_or_else(malformed)?;
             let mut selected = None;
             // Common members have their ordinary paths. Payload members live
             // only below this exact Case namespace; the virtual Case itself

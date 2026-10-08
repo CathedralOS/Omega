@@ -453,3 +453,11 @@ pub fn find_structural_type<'types>(
 ) -> Option<&'types StructuralTypeDeclaration> {
     types.iter().find(|declaration| declaration.id == id)
 }
+
+/// The structural case declaration keyed `id` in a case roster.
+pub fn find_structural_case<'cases>(
+    cases: &'cases [StructuralCaseDeclaration],
+    id: StructuralCaseId,
+) -> Option<&'cases StructuralCaseDeclaration> {
+    cases.iter().find(|case| case.id == id)
+}

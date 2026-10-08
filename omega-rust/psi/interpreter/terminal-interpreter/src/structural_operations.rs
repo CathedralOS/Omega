@@ -15,7 +15,7 @@ use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStruct
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    find_structural_case,    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
@@ -129,7 +129,7 @@ impl TerminalExecution<'_> {
             Some(StructuralTypeShape::Mixed { fields, cases }) => (fields.as_slice(), cases),
             _ => return Err(malformed()),
         };
-        let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
+        let Some(selected) = find_structural_case(cases, result_case) else {
             return Err(malformed());
         };
         let roster = common

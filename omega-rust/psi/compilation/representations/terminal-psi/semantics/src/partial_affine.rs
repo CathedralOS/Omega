@@ -6,7 +6,7 @@
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    find_structural_type,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_case,    find_structural_type,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 fn is_partial_affine_path(
@@ -135,7 +135,7 @@ fn visit(
                 Some(StructuralPathSegment::Case(case)) => Some(*case),
                 _ => None,
             })?;
-            let selected = cases.iter().find(|case| case.id == selected_case)?;
+            let selected = find_structural_case(cases, selected_case)?;
             if moved.iter().any(|path| match path.first() {
                 Some(StructuralPathSegment::Case(case)) => *case != selected_case,
                 Some(StructuralPathSegment::Field(_)) => {

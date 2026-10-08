@@ -72,7 +72,7 @@ pub use terminal_module::{
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralReferenceResultSource, StructuralResultClaimBinding,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    find_structural_type,
+    find_structural_case, find_structural_type,
     unique_structural_declaration,
     TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
     TerminalAffineCleanupAction, TerminalBlockNaturalRank, TerminalBorrowBoundarySource,

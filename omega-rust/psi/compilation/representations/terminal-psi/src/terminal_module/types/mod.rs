@@ -15,5 +15,5 @@ pub use scalar_qualifications::{
 pub use structural::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,
     StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape, live_field,
-    find_structural_type, structural_children, unique_structural_declaration,
+    find_structural_case, find_structural_type, structural_children, unique_structural_declaration,
 };

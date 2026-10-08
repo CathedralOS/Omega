@@ -4,7 +4,7 @@
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
+    find_structural_case,    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
@@ -78,7 +78,7 @@ pub(super) fn validate_establish_scalar_case(
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return malformed("scalar case establishment requires a sum type");
     };
-    let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
+    let Some(selected) = find_structural_case(cases, *result_case) else {
         return malformed("scalar case establishment requires an exact member");
     };
     if selected.fields.len() != fields.len() {
@@ -153,7 +153,7 @@ pub(super) fn validate_establish_structural_case(
         }
         _ => return malformed("structural case establishment requires a sum type"),
     };
-    let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
+    let Some(selected) = find_structural_case(cases, *result_case) else {
         return malformed("structural case establishment requires an exact member");
     };
     // Erased payload members take no roster position either.
