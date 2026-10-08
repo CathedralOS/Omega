@@ -5,7 +5,7 @@ use selected_instructions::{
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 pub(super) fn producer(
     function: &AbstractFunction,
@@ -52,10 +52,7 @@ pub(super) fn establishment(
     let (operation, result, value) = producer(function, place)?;
     let size = primitive_size(value.scalar_type)?;
     let contract = selected.structural.as_ref()?;
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
+    if !result.is_unrestricted_plain()
         || contract
             .structural_places
             .iter()

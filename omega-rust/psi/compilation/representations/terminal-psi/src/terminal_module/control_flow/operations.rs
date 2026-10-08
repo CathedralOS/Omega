@@ -94,6 +94,17 @@ pub struct StructuralOperationResult {
     pub claims: Vec<StructuralResultClaimBinding>,
 }
 
+impl StructuralOperationResult {
+    /// Whether the result is an ordinary unrestricted root: no declared or
+    /// projected qualifications and no claim occurrences.
+    pub fn is_unrestricted_plain(&self) -> bool {
+        self.multiplicity == StructuralMultiplicity::Unrestricted
+            && self.qualifications.is_empty()
+            && self.projected_qualifications.is_empty()
+            && self.claims.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralResultClaimBinding {
     pub claim: ClaimId,

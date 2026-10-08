@@ -611,10 +611,7 @@ pub(super) fn lower(
             result,
             value,
         } => {
-            if result.multiplicity != StructuralMultiplicity::Unrestricted
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.claims.is_empty()
+            if !result.is_unrestricted_plain()
                 || !scalar_matches(result.structural_type, value.scalar_type)
                 || super::scalar_sources::source(value.value, function, live)?.scalar_type()
                     != value.scalar_type

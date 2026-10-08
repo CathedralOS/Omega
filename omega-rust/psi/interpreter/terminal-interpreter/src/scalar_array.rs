@@ -92,10 +92,7 @@ impl TerminalExecution<'_> {
         // eligibility admits. Unrestricted copies never alias the stored
         // slot, so overwriting retires nothing the caller could still see —
         // unless a live claim still names the place.
-        if result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
+        if !result.is_unrestricted_plain()
             || u64::try_from(elements.len()).ok() != Some(count)
             || self
                 .live_claims

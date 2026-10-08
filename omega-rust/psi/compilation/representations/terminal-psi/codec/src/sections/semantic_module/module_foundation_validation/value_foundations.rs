@@ -19,10 +19,7 @@ pub(super) fn validate_establish_scalar_array(
     let Some(result) = operation.result.structural() else {
         return malformed("scalar array establishment has no structural result");
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
+    if !result.is_unrestricted_plain()
         || !matches!(
             machine.structural_places.iter().find(|place| place.id == result.place),
             Some(StructuralPlaceDeclaration {
@@ -442,10 +439,7 @@ pub(super) fn validate_establish_primitive_local(
     let Some(result) = operation.result.structural() else {
         return malformed("primitive local has no structural result");
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
+    if !result.is_unrestricted_plain()
         || !machine.structural_places.iter().any(|place| {
             place.id == result.place
                 && matches!(place.kind,
