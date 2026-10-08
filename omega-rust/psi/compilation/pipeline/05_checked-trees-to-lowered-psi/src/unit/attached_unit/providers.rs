@@ -28,14 +28,6 @@ use validation::{TopLevelSymbols, resolve_closed_requirement_application};
 
 mod named;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ProviderBody {
-    Callable,
-    /// A scalar provider emitted exactly as an ordinary scalar call's
-    /// callee: its scalar graph, with its contract, rather than a Unit body.
-    ScalarCallee,
-}
-
 /// Report the exact checked provider whose ordinary body is missing, including
 /// the checker-owned omission. Result shape must not hide that source frontier.
 fn callable_candidate<'program>(
@@ -268,7 +260,10 @@ pub(super) fn checked_unit_provider_candidates(
             if providers.is_empty() {
                 continue;
             }
-            let body = match &boundary.result {
+            // Every result shape is served by the candidate's ordinary callable
+            // body; this match only rejoins the body's result to the
+            // requirement's.
+            match &boundary.result {
                 checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
                     let candidate = callable_candidate(checked, plans, machine)?;
                     if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
@@ -276,7 +271,6 @@ pub(super) fn checked_unit_provider_candidates(
                             "provider result disagrees with its Unit boundary requirement",
                         );
                     }
-                    ProviderBody::Callable
                 }
                 checked_trees::CheckedBoundaryMachineResultPlan::Structural {
                     type_identity,
@@ -312,32 +306,21 @@ pub(super) fn checked_unit_provider_candidates(
                             "provider structural result disagrees with its boundary requirement",
                         );
                     }
-                    ProviderBody::Callable
                 }
                 // A scalar requirement is served by an ordinary callable body
                 // returning the same primitive; installation replays the
                 // call's scalar result like its Unit and structural cousins.
-                // It takes the route an ordinary scalar call to it would:
-                // its scalar owner when it has one (keeping its contract
-                // lowering), otherwise its Unit body's scalar completion.
                 checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
-                    match super::CheckedScalarCallee::find_for_unit_call(checked, machine.symbol)? {
-                        super::CheckedScalarCallee::Operations(_) => {
-                            let candidate = callable_candidate(checked, plans, machine)?;
-                            if candidate.scalar_result_type() != Some(*expected) {
-                                return unsupported(
-                                    "provider result disagrees with its scalar boundary requirement",
-                                );
-                            }
-                            ProviderBody::Callable
-                        }
-                        _ => ProviderBody::ScalarCallee,
+                    let candidate = callable_candidate(checked, plans, machine)?;
+                    if candidate.scalar_result_type() != Some(*expected) {
+                        return unsupported(
+                            "provider result disagrees with its scalar boundary requirement",
+                        );
                     }
                 }
-            };
+            }
             for provider_identity in providers {
                 output.push(CheckedUnitProviderCandidate {
-                    body,
                     boundary: boundary_symbol,
                     candidate: machine.symbol,
                     requirement_identity: requirement_identity.clone(),

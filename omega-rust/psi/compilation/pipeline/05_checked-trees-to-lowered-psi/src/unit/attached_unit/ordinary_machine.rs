@@ -34,7 +34,6 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
@@ -70,7 +69,6 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) plans: UnitPlans<'a>,
     pub(super) closure: &'a [symbols::SymbolHandle],
     pub(super) provider_candidate_plans: &'a [CheckedUnitProviderCandidate],
-    pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub(super) prepared_scalar_qualifications:
@@ -100,7 +98,6 @@ pub(super) struct MachineEmission<'a> {
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     machine_signatures: &'a [MachineSignature],
     closure: &'a [symbols::SymbolHandle],
-    prepared_scalar_machines: &'a [PreparedScalarCallee],
     next_place: u64,
     next_value_identity: u64,
     next_block: u64,
@@ -167,7 +164,6 @@ pub(super) fn emit(
         plans,
         closure,
         provider_candidate_plans,
-        prepared_scalar_machines,
         prepared_scalar_qualifications,
     } = catalog;
     let EmissionCounters {
@@ -440,7 +436,6 @@ pub(super) fn emit(
         lowered_boundary_parameters,
         machine_signatures,
         closure,
-        prepared_scalar_machines,
         next_place,
         next_value_identity,
         next_block,
@@ -1584,7 +1579,6 @@ impl<'a> MachineEmission<'a> {
                 boundaries: self.lowered_boundary_parameters,
                 domain_ids: self.domain_ids,
                 closure: self.closure,
-                prepared_scalar_machines: self.prepared_scalar_machines,
             },
             caller: CallerCustody {
                 erased_scalar_parameters: &self.signature.erased_scalar_parameters,

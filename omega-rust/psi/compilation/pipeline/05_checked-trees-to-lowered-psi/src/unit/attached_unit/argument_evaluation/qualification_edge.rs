@@ -2,13 +2,12 @@
 //! The old source declaration remains unchanged, including when it is still
 //! carried in the prefix. The final destination alone receives added or erased
 //! tags; explicit source-cast replay owns permission for that change.
-use super::{
-    BlockId, LoweringError, MachineId, StructuralArgument, Terminator, ValueDeclaration,
-    unsupported,
-};
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::EdgeId;
+use semantic_vocabulary::{BlockId, MachineId};
+use terminal_psi::{StructuralArgument, Terminator, ValueDeclaration};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(

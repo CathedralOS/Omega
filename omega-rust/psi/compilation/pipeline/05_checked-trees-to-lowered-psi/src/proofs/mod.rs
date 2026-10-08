@@ -13,11 +13,10 @@ use checked_trees::{
     CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarExpression,
     CheckedTrees, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, ContentIdentityReshuffleFact,
-    ContentPartitionCompositionFact,
 };
 use language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentArithmeticOperator,
-    ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
+    ContentConservationOwnerKind, ContentConservationPlan,
     ContentConservationTerm as CheckedContentConservationTerm,
     ContentPlaceRoot as CheckedContentPlaceRoot, ContentPlaceSegment as CheckedContentPlaceSegment,
     ContentPlaceVersion as CheckedContentPlaceVersion,

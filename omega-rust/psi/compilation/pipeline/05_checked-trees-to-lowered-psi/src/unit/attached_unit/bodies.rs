@@ -117,13 +117,6 @@ impl<'a> UnitBody<'a> {
         plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
     }
 
-    pub(crate) fn machine(self) -> symbols::SymbolHandle {
-        match self {
-            Self::Ordinary(plan) => plan.machine,
-            Self::Composed(plan) => plan.machine,
-        }
-    }
-
     /// The primitive scalar this body completes with, when it owns one: an
     /// ordinary body's scalar result binding or scalar control, or a state
     /// graph's scalar result. Such a body is called through the scalar call

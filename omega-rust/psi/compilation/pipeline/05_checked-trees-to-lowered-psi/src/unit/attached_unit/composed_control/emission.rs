@@ -246,7 +246,6 @@ pub(super) fn emit_call_operations(
                 boundaries: &catalogs.boundary_parameters,
                 domain_ids: &catalogs.domain_ids,
                 closure: catalogs.closure,
-                prepared_scalar_machines: catalogs.prepared_scalar_machines,
             },
             caller: CallerCustody {
                 erased_scalar_parameters: erased_parameters,

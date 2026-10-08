@@ -2,23 +2,14 @@
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
-use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
-use crate::emission::boolean_control::{
-    boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,
-    lower_boolean_value_decision,
-};
-use crate::emission::expression_validation::{
-    contains_short_circuit, direct_expression_contains_short_circuit,
-};
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::proofs::crash_routes::{lower_checked_crash_route_buckets, lowered_direct_scalar_term};
-use crate::terminal_identities::block_id;
-use crate::terminal_identities::edge_id;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
-use semantic_vocabulary::{BlockId, MachineId, ObligationId, QualifiedScalarType, ValueId};
-use terminal_psi::{Block, Operation, StructuralArgument, Terminator, ValueDeclaration};
+use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
+use terminal_psi::{Operation, StructuralArgument, ValueDeclaration};
 
 /// The source place is known during preparation; runtime path values and their
 /// bounds obligations belong to the emitting call's actual scalar frame.
@@ -107,15 +98,8 @@ pub(crate) struct LoweredDirectCallBinding {
     /// leaves resolve against this operation's caller namespace at emission.
     pub(crate) erased_proof_arguments: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
-    pub(crate) uses_structural_frame: bool,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ScalarCallCrashScope {
-    CallerValues,
-    Arguments,
 }
 
 pub(crate) struct CallEmissionContext<'a> {
@@ -188,191 +172,6 @@ pub(super) fn emit_scalar_call_binding(
         operations,
         call_emission,
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn emit_staged_scalar_call_binding(
-    call: &LoweredDirectCallBinding,
-    stage_parameters: &[ValueDeclaration],
-    stage_parameter_types: &[QualifiedScalarType],
-    stage_block_parameters: Vec<ValueDeclaration>,
-    stage_block: BlockId,
-    caller_erased_formals: &[ValueDeclaration],
-    next_block_identity: &mut u64,
-    next_value_identity: &mut u64,
-    next_edge_identity: &mut u64,
-    operations: &mut OperationBuffer,
-    call_emission: &mut CallEmissionContext<'_>,
-) -> Result<(BlockId, Vec<Block>), LoweringError> {
-    debug_assert!(
-        call.arguments
-            .iter()
-            .any(direct_expression_contains_short_circuit)
-    );
-    let caller_value_count = stage_parameters.len();
-    let mut current_block = stage_block;
-    let mut current_parameters = stage_parameters.to_vec();
-    let mut current_block_parameters = stage_block_parameters;
-    let mut blocks = Vec::new();
-
-    for (argument_index, argument) in call.arguments.iter().enumerate() {
-        let mut next_stage_types = stage_parameter_types.to_vec();
-        next_stage_types.extend(
-            call.arguments[..=argument_index]
-                .iter()
-                .map(|argument| argument.value_type(stage_parameter_types))
-                .collect::<Result<Vec<_>, _>>()?,
-        );
-        let next_stage_parameters = next_stage_types
-            .into_iter()
-            .map(|scalar_type| {
-                let parameter = ValueDeclaration {
-                    qualifications: scalar_type.qualifications,
-                    id: value_id(*next_value_identity),
-                    scalar_type: scalar_type.scalar_type,
-                };
-                *next_value_identity = next_value_identity
-                    .checked_add(1)
-                    .expect("staged call-argument parameter identities advance");
-                parameter
-            })
-            .collect::<Vec<_>>();
-        let carried_arguments = current_parameters
-            .iter()
-            .map(|parameter| parameter.id)
-            .collect::<Vec<_>>();
-
-        let next_stage = if let LoweredDirectExpression::Boolean { expression } = argument
-            && contains_short_circuit(expression)
-        {
-            let decision = lower_boolean_value_decision(expression);
-            let decision_block_count = boolean_decision_block_count(&decision);
-            let first_child_identity = *next_block_identity;
-            let next_stage = block_id(
-                first_child_identity
-                    .checked_add(
-                        u64::try_from(decision_block_count - 1)
-                            .expect("staged call decision count fits a semantic identity"),
-                    )
-                    .expect("staged call decision block identities advance"),
-            );
-            *next_block_identity = next_stage
-                .get()
-                .checked_add(1)
-                .expect("staged call argument blocks advance");
-            let first_reserved_identity = first_child_identity
-                .checked_sub(1)
-                .expect("staged call decision blocks follow their root");
-            let mut decision_blocks = Vec::with_capacity(decision_block_count);
-            let entry = emit_reserved_boolean_tuple_stage_blocks(
-                &decision,
-                &current_parameters,
-                current_block_parameters,
-                next_stage,
-                &carried_arguments,
-                first_reserved_identity,
-                next_value_identity,
-                next_edge_identity,
-                operations,
-                &mut decision_blocks,
-            );
-            assert_eq!(entry.get(), first_reserved_identity);
-            let mut decision_blocks = decision_blocks
-                .into_iter()
-                .map(|block| block.expect("every staged call decision block is finalized"));
-            let mut root = decision_blocks
-                .next()
-                .expect("a short-circuit call argument has a decision root");
-            root.id = current_block;
-            blocks.push(root);
-            blocks.extend(decision_blocks);
-            next_stage
-        } else {
-            let next_stage = block_id(*next_block_identity);
-            *next_block_identity = next_block_identity
-                .checked_add(1)
-                .expect("staged direct call-argument blocks advance");
-            let operation_start = operations.len();
-            let value = emit_direct_expression(
-                argument,
-                &current_parameters,
-                next_value_identity,
-                operations,
-            );
-            let mut arguments = carried_arguments;
-            arguments.push(value);
-            let edge = edge_id(*next_edge_identity);
-            *next_edge_identity = next_edge_identity
-                .checked_add(1)
-                .expect("staged direct call-argument edge identities advance");
-            blocks.push(Block {
-                structural_parameters: Vec::new(),
-                id: current_block,
-                parameters: current_block_parameters,
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                operations: operations[operation_start..].to_vec(),
-                terminator: Terminator::Jump {
-                    structural_arguments: Vec::new(),
-                    edge,
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    target: next_stage,
-                    arguments,
-                    cleanup_actions: Vec::new(),
-                },
-            });
-            next_stage
-        };
-        current_block = next_stage;
-        current_parameters = next_stage_parameters;
-        current_block_parameters = current_parameters.clone();
-    }
-
-    let continuation = block_id(*next_block_identity);
-    *next_block_identity = next_block_identity
-        .checked_add(1)
-        .expect("staged call continuation block identities advance");
-    let operation_start = operations.len();
-    let arguments = current_parameters[caller_value_count..].to_vec();
-    let result = emit_direct_call_operation(
-        call,
-        &call.parameter_relative_crash_routes,
-        &arguments,
-        &current_parameters[..caller_value_count],
-        caller_erased_formals,
-        &arguments,
-        next_value_identity,
-        operations,
-        call_emission,
-    )?;
-    let mut continuation_arguments = current_parameters[..caller_value_count]
-        .iter()
-        .map(|parameter| parameter.id)
-        .collect::<Vec<_>>();
-    continuation_arguments.push(result);
-    let edge = edge_id(*next_edge_identity);
-    *next_edge_identity = next_edge_identity
-        .checked_add(1)
-        .expect("staged call continuation edge identities advance");
-    blocks.push(Block {
-        structural_parameters: Vec::new(),
-        id: current_block,
-        parameters: current_block_parameters,
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        operations: operations[operation_start..].to_vec(),
-        terminator: Terminator::Jump {
-            structural_arguments: Vec::new(),
-            edge,
-            target: continuation,
-            arguments: continuation_arguments,
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            cleanup_actions: Vec::new(),
-        },
-    });
-    Ok((continuation, blocks))
 }
 
 fn emit_direct_call_operation(
@@ -466,11 +265,7 @@ fn emit_direct_call_operation(
             claim_transfers: Vec::new(),
             requirement_obligations,
             crash_continuations,
-            result: DirectCallResult::Scalar(ScalarCallFrame::for_call(
-                !call.structural_arguments.is_empty(),
-                false,
-                call.uses_structural_frame,
-            )),
+            result: DirectCallResult::Scalar,
         }
         .into_operation_kind(),
     });

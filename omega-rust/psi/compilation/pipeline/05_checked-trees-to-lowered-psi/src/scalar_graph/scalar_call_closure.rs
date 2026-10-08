@@ -7,8 +7,7 @@
 //! the common assembler owns their identities and qualification namespace.
 
 use super::{
-    CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError,
-    PrimitiveType, unsupported,
+    CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError, PrimitiveType, unsupported,
 };
 
 pub(crate) mod callee;

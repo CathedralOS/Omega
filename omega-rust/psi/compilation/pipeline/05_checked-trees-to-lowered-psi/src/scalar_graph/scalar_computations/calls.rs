@@ -4,15 +4,12 @@
 //! attaches this stream only to the selected expression path.
 //! Anonymous argument owners retain their complete homes through the call;
 //! its normal continuation retires the checked ordered residual complement.
-use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
-    Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
-    literals, lower_scalar_call, parameter, produced_values, storage, structural_arguments,
-    subslices, unsupported,
+    Expansion, Handle, LoweringError, QualifiedScalarType, Site, literals, lower_scalar_call,
+    parameter, produced_values, storage, structural_arguments, subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
-use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
@@ -159,122 +156,6 @@ pub(crate) fn consume_pure_call_arguments(
         )?;
     }
     Ok(())
-}
-
-/// Keep a call with completed scalar expressions in its caller block. Splitting
-/// these operands into forwarding blocks would replace live local results with
-/// block parameters and lose their exact suspension storage provenance.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn lower_inline_call(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement: u32,
-    role: CheckedScalarExpressionRole,
-    bindings: &storage::ScalarBindings,
-    input_types: &[QualifiedScalarType],
-    result_type: QualifiedScalarType,
-) -> Result<Option<LoweredDirectCallBinding>, LoweringError> {
-    let plans = &checked.facts.values.scalar_computations;
-    let root = plans
-        .root_at(state, statement, role)
-        .ok_or(LoweringError::Unsupported(
-            "scalar binding has no unique computation root",
-        ))?;
-    if !plans.nodes.is_valid(root.root) {
-        return unsupported("scalar computation has no live root");
-    }
-    let CheckedScalarComputationKind::Call {
-        callee:
-            checked_trees::CheckedScalarCallee::Body {
-                machine: target_machine,
-                state: target_state,
-            },
-        call_ordinal,
-        arguments,
-        structural_arguments,
-        ..
-    } = plans.nodes.get(root.root).kind
-    else {
-        return Ok(None);
-    };
-    let structural = plans
-        .structural_arguments
-        .span(structural_arguments)
-        .ok_or(LoweringError::Unsupported(
-            "computed structural arguments have a stale span",
-        ))?;
-    if !structural.is_empty() {
-        return Ok(None);
-    }
-    let operands = plans
-        .operands
-        .span(arguments)
-        .ok_or(LoweringError::Unsupported(
-            "scalar computation call has an invalid argument span",
-        ))?;
-    let mut arguments = Vec::with_capacity(operands.len());
-    for (argument_ordinal, operand) in operands.iter().enumerate() {
-        if !plans.nodes.is_valid(*operand) {
-            return unsupported("scalar computation has a stale operand");
-        }
-        let CheckedScalarComputationKind::Value(value) = &plans.nodes.get(*operand).kind else {
-            return Ok(None);
-        };
-        let argument = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
-        if direct_expression_contains_short_circuit(&argument) {
-            return Ok(None);
-        }
-        if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = role {
-            let argument_ordinal = u32::try_from(argument_ordinal).map_err(|_| {
-                LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
-            })?;
-            consume_pure_call_argument(
-                checked,
-                bindings,
-                state,
-                statement,
-                binding_ordinal,
-                call_ordinal,
-                argument_ordinal,
-                value,
-            )?;
-        }
-        arguments.push(argument);
-    }
-    if root.machine != machine {
-        return unsupported("scalar binding computation belongs to another machine");
-    }
-    if checked
-        .facts
-        .proof
-        .proof_output_calls
-        .iter()
-        .any(|(_, call)| call.caller_machine_symbol == machine && call.runtime_call.is_some())
-    {
-        return unsupported(
-            "scalar computation calls need exact named proof-output operation custody",
-        );
-    }
-    lower_scalar_call(
-        checked,
-        qualifications,
-        machine,
-        state,
-        statement,
-        target_machine,
-        target_state,
-        call_ordinal,
-        result_type,
-        input_types,
-        bindings,
-        arguments,
-        Vec::new(),
-        ScalarCallCrashScope::CallerValues,
-        crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(checked, machine, state)?,
-    )
-    .map(Some)
 }
 
 impl Expansion<'_> {
@@ -613,7 +494,6 @@ impl Expansion<'_> {
                 site.bindings,
                 scalar_actuals,
                 structural_arguments,
-                ScalarCallCrashScope::Arguments,
                 crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
                     self.checked,
                     self.machine,

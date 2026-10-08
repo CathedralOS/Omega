@@ -6,26 +6,6 @@ use checked_trees::{
 };
 type Computation = checked_trees::CheckedScalarComputationHandle;
 
-/// Original address demands from exact retained computations. This inventory
-/// does not execute a loan or hoist the invocation's operand effects.
-pub(crate) fn borrowed_arguments(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement: Option<u32>,
-) -> Result<Vec<&checked_trees::CheckedUnitStructuralArgumentPlan>, LoweringError> {
-    let plans = &checked.facts.values.scalar_computations;
-    let roots = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| {
-            (root.state == state
-                && statement.is_none_or(|statement| root.statement_ordinal == statement))
-            .then_some(root.root)
-        })
-        .collect::<Vec<_>>();
-    borrowed_arguments_from_roots(checked, &roots)
-}
-
 pub(crate) fn borrowed_arguments_from_roots<'checked>(
     checked: &'checked CheckedTrees,
     roots: &[Computation],

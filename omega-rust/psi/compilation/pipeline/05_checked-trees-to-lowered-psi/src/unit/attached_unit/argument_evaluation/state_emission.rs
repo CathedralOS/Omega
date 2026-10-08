@@ -164,7 +164,7 @@ pub(super) fn emit_state(
             erased_proof_arguments: qualify_erased_proof_arguments,
             structural_arguments: qualify_structural_arguments,
         } => {
-            let mut terminator = crate::scalar_graph::scalar_graph_module::qualifications::emit(
+            let mut terminator = super::qualification_edge::emit(
                 *targets.get(*target).ok_or(LoweringError::Unsupported(
                     "call computation qualification target is absent",
                 ))?,
@@ -697,11 +697,6 @@ pub(super) fn emit_state(
                 source: *source,
                 cases: case_edges,
             }
-        }
-        _ => {
-            return unsupported(
-                "call operand computation cannot return from its enclosing machine",
-            );
         }
     };
     blocks.push(Block {

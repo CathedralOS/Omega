@@ -2649,16 +2649,15 @@ code and preserve check/native behavior for the named customer slices.
   for the callee's Unit-body exit. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
-- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Lower scalar machines through
-  the same body route as Unit machines and delete
-  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.8k lines, part
-  shared with Unit bodies) and the plan-presence matrix in
-  `machine_lowering/machine_dispatch.rs`. A census over the full checked
-  corpus (2026-10-07, a temporary probe on the graph branch of
-  `CheckedScalarCallee::find_for_unit_call`) finds no scalar machine body
-  lowered through a graph: every one has a Unit or composed body. What still
-  reads `facts.flow.terminal_scalar_graphs` (paths under `04_.../src` and
-  `05_.../src`):
+- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Stage 05 lowers every
+  scalar machine through its Unit or composed body; the graph lowering route
+  is deleted and `machine_dispatch.rs` picks the scalar-entry closure by the
+  ordinary body's scalar completion. Delete the stage 04 graph builder
+  `execution/terminal_scalar/` (3.6k lines) and `CheckedScalarGraphPlans`
+  once nothing reads `facts.flow.terminal_scalar_graphs`, and rename
+  `05_.../src/scalar_graph/`, whose 10k remaining lines (computation
+  expansion, contracts, effects, scalar call lowering) all serve Unit
+  bodies. Remaining readers (paths under `04_.../src` and `05_.../src`):
   - stage 04 Unit planning: `state_graph/{guards,returns,terminator}.rs` and
     `control/statement_sequence.rs::returning_terminator` read the
     `guarded_exits`/`guarded_tails` lanes; stage 05
@@ -2669,10 +2668,6 @@ code and preserve check/native behavior for the named customer slices.
   - `terminal_unit/scalar_targets/mod.rs` treats a graph callee as
     `Registered` and takes its signature from graph `states[0]`; without the
     graph it needs the `OrdinaryBody`/`ComposedBody` dependency edges;
-  - `machine_dispatch.rs` routes a machine whose graph states all return
-    scalars to `lower_scalar_effect_closure`, which alone publishes the
-    checked debug map (`DebugPublication::FromCheckedPlan`); the Unit routes
-    omit it although `terminal_debug` needs no graph;
   - `scalar_contracts.rs::caller_erased_proof_roster` and
     `unit_operations.rs::Caller::published` prefer the graph's erased-proof
     roster over the Unit entry's identical one;
@@ -2694,15 +2689,11 @@ code and preserve check/native behavior for the named customer slices.
   formal as an SSA value in its binding prefix, so it refuses the formal's
   later stores and borrows; give it the entry storage an ordinary body
   takes from `CheckedUnitParameterStoragePlan`), crash predicates and float
-  prefix initializers. `scalar_computations`, `scalar_contracts`,
-  `prepared_graph`'s branch and effect types, `guards`, `structural_values`,
-  `unit_operations`, `scalar_graph_effects` and the qualification emitter are
-  shared with Unit bodies and move to a shared owner; the terminator and
-  binding helpers and plan types the Unit plans embed
-  (`CheckedScalarStateTerminator`, `CheckedScalarGuardedExit`,
-  `CheckedScalarBinding`) survive.
+  prefix initializers. The terminator and binding helpers and the plan
+  types the Unit plans embed (`CheckedScalarStateTerminator`,
+  `CheckedScalarGuardedExit`, `CheckedScalarBinding`) survive the builder.
 
-  Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
+  Acceptance: no stage reads `terminal_scalar_graphs`; distinct
   exits returning 20 and 30 under `ensures result >= 20` still hold;
   constant-stack mutual tail fusion and `pass/calls/mutual_cycle_tail_admitted_exit`
   (exit 70) still hold; and the full check corpus and the native corpus are

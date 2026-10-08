@@ -37,14 +37,6 @@ use checked_trees::{
 
 mod calls;
 
-pub(super) struct Prepared {
-    pub(super) symbol: symbols::SymbolHandle,
-    pub(super) place: PlaceId,
-    pub(super) structural_type: StructuralTypeId,
-    pub(super) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
-    value: PreparedValue,
-}
-
 /// Reserved homes are independent of evaluation. The expression expansion and
 /// statement prefix share one construction schedule, without inventing locals
 /// for temporary values or allocating places in a separate namespace.
@@ -169,70 +161,6 @@ enum Field {
         scalar_type: ScalarType,
         bounded: bool,
     },
-}
-
-pub(super) fn prepare(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operation: &CheckedUnitEffectOperationPlan,
-    bindings: &storage::ScalarBindings,
-    value_types: &[QualifiedScalarType],
-    types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
-) -> Result<Prepared, LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        result,
-        value,
-        calls,
-        ..
-    } = operation
-    else {
-        return unsupported("scalar structural statement has no value producer");
-    };
-    let (_, source) = crate::declarations::state_declaration(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return unsupported("scalar structural producer lost its local destination");
-    };
-    // Independently check the local's eventual drop or exact initializer move.
-    // The operation flag does not establish which owner survives to this exit.
-    validation::record_local_disposition(
-        &checked.typed,
-        &checked.facts,
-        machine,
-        state,
-        result.statement_index,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "scalar record lost its exact final disposition",
-    ))?;
-    let reserved = Storage::reserve(checked, *value, next_place)?;
-    let prepared = prepare_value(
-        checked,
-        qualifications,
-        state,
-        facts::PlaceRoot::Symbol(local.symbol),
-        result.statement_index,
-        *value,
-        calls,
-        local.type_reference,
-        bindings,
-        value_types,
-        types,
-        &reserved,
-    )?;
-    Ok(Prepared {
-        symbol: local.symbol,
-        place: prepared.place,
-        structural_type: prepared.structural_type,
-        consumed: prepared.consumed.clone(),
-        value: prepared,
-    })
 }
 
 /// The caller validates source custody and owns publication or disposal of the
@@ -889,20 +817,6 @@ impl Preparation<'_> {
     }
 }
 
-impl Prepared {
-    pub(super) fn finish(
-        self,
-        state: symbols::SymbolHandle,
-        bindings: &storage::ScalarBindings,
-        source_types: &[QualifiedScalarType],
-        target: usize,
-        computations: &mut computations::Expansion<'_>,
-    ) -> Result<usize, LoweringError> {
-        self.value
-            .finish(state, bindings, source_types, target, computations)
-    }
-}
-
 impl PreparedValue {
     pub(crate) fn finish(
         self,
@@ -1217,140 +1131,3 @@ fn attach_result_claims(
     Ok(())
 }
 
-/// Complete selected scalar operands before ending the source locals' lives.
-/// This intermediate edge is necessary even when the destination has no scalar
-/// arguments; cleanup cannot be hoisted before a guard or an argument read.
-pub(super) fn exit_target(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    bindings: &storage::ScalarBindings,
-    parameter_types: &[QualifiedScalarType],
-    structural_arguments: &mut Vec<StructuralArgument>,
-    target: usize,
-    computations: &mut computations::Expansion<'_>,
-    types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
-) -> Result<usize, LoweringError> {
-    let (machine, source) = crate::declarations::state_declaration(checked, state)?;
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .machines
-        .iter()
-        .find(|graph| graph.machine == machine.symbol)
-        .ok_or(LoweringError::Unsupported(
-            "scalar cleanup lost its source graph",
-        ))?;
-    let retained = graph
-        .states
-        .iter()
-        .find(|candidate| candidate.state == state)
-        .ok_or(LoweringError::Unsupported(
-            "scalar cleanup lost its source state",
-        ))?;
-    let mut owners = Vec::new();
-    let mut destinations = Vec::new();
-    for operation in &retained.unit_operations {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = operation
-        else {
-            continue;
-        };
-        if result.multiplicity != Multiplicity::Affine {
-            continue;
-        }
-        if !validation::record_local_disposition(
-            &checked.typed,
-            &checked.facts,
-            machine.symbol,
-            state,
-            result.statement_index,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "scalar cleanup lost its exact local disposition",
-        ))? {
-            continue;
-        }
-        let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-            .statement_table
-            .statements(source.statement_nodes)
-            .get(result.statement_index as usize)
-        else {
-            return unsupported("scalar cleanup lost its authored local");
-        };
-        let argument =
-            bindings.owned_argument(&checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol: local.symbol,
-                },
-                path: Vec::new(),
-                type_identity: result.type_identity.clone(),
-                access: checked_trees::CheckedStructuralAccess::Owned,
-            })?;
-        let structural_type = types
-            .iter()
-            .find(|declaration| declaration.identity == result.type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "scalar cleanup lost its record carrier",
-            ))?
-            .id;
-        owners.push(argument);
-        destinations.push(StructuralParameterDeclaration {
-            place: place_id(allocate_dense(next_place)?),
-            position: u32::try_from(destinations.len())
-                .map_err(|_| LoweringError::Unsupported("local cleanup frontier exceeds u32"))?,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Affine,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        });
-    }
-    if owners.is_empty() {
-        return Ok(target);
-    }
-    // Moves give locals a mixture of operation-result and block-parameter homes.
-    // Bind the final live owners once in declaration order, after selected reads,
-    // so reverse parameter disposal agrees with source order without repeatedly
-    // remapping every survivor at each move. The ordinary edge verifier checks
-    // consumption, fresh binding and the complete resulting frontier.
-    let cleanup_actions = destinations
-        .iter()
-        .rev()
-        .map(|parameter| {
-            crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root(parameter.place)
-        })
-        .collect();
-    let cleanup = computations.push(LoweredScalarBranchState {
-        structural_parameters: destinations,
-        parameter_types: parameter_types.to_vec(),
-        erased_formal_types: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        bindings: Vec::new(),
-        structural_effects: Vec::new(),
-        terminator: LoweredScalarBranchTerminator::Jump {
-            target,
-            arguments: computations::parameters(parameter_types),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: std::mem::take(structural_arguments),
-            cleanup_actions,
-        },
-    });
-    Ok(computations.push(LoweredScalarBranchState {
-        structural_parameters: Vec::new(),
-        parameter_types: parameter_types.to_vec(),
-        erased_formal_types: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        bindings: Vec::new(),
-        structural_effects: Vec::new(),
-        terminator: LoweredScalarBranchTerminator::Jump {
-            target: cleanup,
-            arguments: computations::parameters(parameter_types),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: owners,
-            cleanup_actions: Vec::new(),
-        },
-    }))
-}

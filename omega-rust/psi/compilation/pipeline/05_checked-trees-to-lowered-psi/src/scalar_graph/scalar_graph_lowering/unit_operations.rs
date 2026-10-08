@@ -9,41 +9,11 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredEffectCall;
 
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
-use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
+use checked_trees::CheckedUnitEffectOperationPlan;
 
 pub(super) struct Prepared {
-    pub(super) coordinate: CheckedUnitCallCoordinate,
-    pub(super) arguments: Vec<checked_trees::CheckedCallScalarArgument>,
     pub(super) argument_types: Vec<QualifiedScalarType>,
     pub(super) call: LoweredEffectCall,
-}
-
-pub(super) fn statement_index(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<u32, LoweringError> {
-    match operation {
-        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-            Ok(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-            Ok(result.statement_index)
-        }
-        _ => Ok(coordinate(operation)?.statement_index),
-    }
-}
-
-pub(super) fn coordinate(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<CheckedUnitCallCoordinate, LoweringError> {
-    // A scalar graph retains only ordinary Unit calls.
-    match operation.call() {
-        Some(call)
-            if call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit =>
-        {
-            Ok(call.coordinate)
-        }
-        _ => unsupported("scalar graph retained an unsupported Unit operation"),
-    }
 }
 
 /// Borrow the actual published caller signature, independently of its result representation.
@@ -378,8 +348,6 @@ pub(super) fn prepare(
         }
     }
     Ok(Prepared {
-        coordinate: *coordinate,
-        arguments: scalar_arguments.clone(),
         call: LoweredEffectCall {
             result,
             source_coordinate: SourceCallCoordinate {
@@ -420,34 +388,6 @@ impl Prepared {
         computations: &mut super::computations::Expansion<'_>,
     ) -> usize {
         emit_call(self.call, value_types, value_types, target, computations)
-    }
-
-    pub(super) fn finish(
-        self,
-        state: symbols::SymbolHandle,
-        bindings: &storage::ScalarBindings,
-        value_types: &[QualifiedScalarType],
-        target: usize,
-        computations: &mut super::computations::Expansion<'_>,
-    ) -> Result<usize, LoweringError> {
-        let mut argument_types = value_types.to_vec();
-        argument_types.extend_from_slice(&self.argument_types);
-        let call_block = emit_call(
-            self.call,
-            &argument_types,
-            value_types,
-            target,
-            computations,
-        );
-        computations.call_arguments(
-            state,
-            self.coordinate,
-            &self.arguments,
-            0,
-            bindings,
-            value_types,
-            call_block,
-        )
     }
 }
 

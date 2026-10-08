@@ -13,7 +13,6 @@ use semantic_vocabulary::{
 
 use crate::lowering_error::LoweringError;
 
-pub(crate) const TERMINAL_MACHINE_IDENTITY_STRIDE: u64 = 1_u64 << 32;
 // Structural Unit call requirements occupy the upper half of the module-wide
 // obligation namespace. Existing contract and cleanup producers allocate from
 // the lower half, so composing their proof bundles cannot alias a call site.

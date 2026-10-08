@@ -16,7 +16,6 @@ pub(super) fn validate<'a>(
     plans: UnitPlans<'a>,
     machine: &CheckedUnitEffectMachinePlan,
     closure: &[SymbolHandle],
-    scalar_closure: &[SymbolHandle],
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
     let caller = super::CallerView::ordinary(machine);
@@ -61,13 +60,8 @@ pub(super) fn validate<'a>(
                 if call.is_module() && call.scalar_result().is_some() =>
             {
                 let target_machine = &call.target.machine;
-                if !scalar_closure.contains(target_machine)
-                    && !(closure.contains(target_machine)
-                        && matches!(
-                            CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?,
-                            CheckedScalarCallee::Operations(_)
-                        ))
-                {
+                CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
+                if !closure.contains(target_machine) {
                     return unsupported(
                         "ordinary Unit scalar call target is absent from the checked closure",
                     );

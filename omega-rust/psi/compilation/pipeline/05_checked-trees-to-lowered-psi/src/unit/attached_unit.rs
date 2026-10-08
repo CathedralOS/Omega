@@ -1,17 +1,17 @@
 //! Attached Unit closure assembly.
 //!
 //! `lower_unit_closure` retains exact transitive closure and publication
-//! order. `call_catalog` closes operation/scalar/provider dependencies before
-//! allocation; `admission` retains checked bodies and validates source/call
+//! order. `call_catalog` closes operation, scalar-helper and provider
+//! dependencies before allocation; every scalar helper is a Unit body with a
+//! scalar completion; `admission` retains checked bodies and validates source/call
 //! custody; `boundaries` retains and declares every boundary the closure calls;
 //! `signatures` allocates each machine's formals, claims and requirements.
 //! Emission borrows those records in the single shared namespace:
 //! `ordinary_machine` emits each ordinary body and `composed_control::callable`
 //! each composed one. Both lower their stores, scalar locals, borrowed-storage
 //! windows, continuation cleanup, structural-value construction and calls
-//! through one `operation_frame::OperationFrame`. `scalar_callees` then emits
-//! the scalar machines those bodies call, and `providers` checks each provider
-//! candidate against the boundary it satisfies.
+//! through one `operation_frame::OperationFrame`. `providers` checks each
+//! provider candidate against the boundary it satisfies.
 //!
 //! Replacement has no separate source-shape recognizer. The checked operation
 //! stream already orders production, old-value cleanup and establishment.
@@ -34,11 +34,11 @@ use super::{
     ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
     ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker, allocate_dense, boundary_machine_id, content_conservation, contract_id,
-    dense_identity, direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
-    lookup_claim_id, lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
+    StructuralTypeShape, TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    allocate_dense, boundary_machine_id, content_conservation, contract_id, dense_identity,
+    direct_expression_contains_short_circuit, edge_id, emit_direct_expression, lookup_claim_id,
+    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
     lower_boundary_content_guarantees, lower_boundary_crash_routes,
     lower_checked_crash_route_buckets, lower_placed_view_input,
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
@@ -46,7 +46,7 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
-use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
+use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
@@ -60,7 +60,6 @@ pub(crate) mod catalog;
 mod claims;
 mod entry_requirements;
 mod providers;
-mod scalar_callees;
 mod signatures;
 mod target_families;
 
@@ -107,10 +106,7 @@ pub(crate) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
 };
 use catalog::require_valid_service_row;
-pub(crate) use catalog::{
-    checked_unit_target_reach_matches, collect_installation_machine_contract_services,
-    lower_root_service_reach,
-};
+pub(crate) use catalog::{checked_unit_target_reach_matches, lower_root_service_reach};
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
 pub(crate) use parameters::{
@@ -118,7 +114,7 @@ pub(crate) use parameters::{
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, statement_receiver_path,
 };
-use providers::{ProviderBody, checked_unit_provider_candidates};
+use providers::checked_unit_provider_candidates;
 
 /// The one closure assembly request. `plans` is the Unit roster the closure
 /// resolves bodies and shapes from; `entry` is the exact machine the closure
@@ -198,11 +194,6 @@ pub(crate) fn lower_unit_closure(
     let call_catalog = call_catalog::discover(checked, plans, entry, unit_roots, scalar_entry)?;
     let closure = call_catalog.operations;
     let provider_candidate_plans = call_catalog.providers;
-    let scalar_closure = call_catalog.scalars;
-    let checked_scalar_callees = scalar_closure
-        .iter()
-        .map(|machine| CheckedScalarCallee::find_for_unit_call(checked, *machine))
-        .collect::<Result<Vec<_>, _>>()?;
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
@@ -211,16 +202,7 @@ pub(crate) fn lower_unit_closure(
         let boundary = unique_unit_boundary(plans, symbol)?;
         retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
     }
-    let admitted_bodies =
-        admission::admit(checked, plans, &closure, &scalar_closure, &mut boundaries)?;
-    let mut additional_type_roots = Vec::new();
-    let mut additional_service_roots = Vec::new();
-    scalar_callees::retain_catalog_roots(
-        checked,
-        &checked_scalar_callees,
-        &mut additional_type_roots,
-        &mut additional_service_roots,
-    )?;
+    let admitted_bodies = admission::admit(checked, plans, &closure, &mut boundaries)?;
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("boundary Unit closure contains duplicate canonical identities");
@@ -228,17 +210,8 @@ pub(crate) fn lower_unit_closure(
 
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
-    let (mut structural_types, type_ids) = if !additional_type_roots.is_empty() {
-        catalog::lower_unit_structural_types_including(
-            checked,
-            plans,
-            &closure,
-            &boundaries,
-            &additional_type_roots,
-        )?
-    } else {
-        catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?
-    };
+    let (mut structural_types, type_ids) =
+        catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
@@ -285,24 +258,13 @@ pub(crate) fn lower_unit_closure(
     }
     let (structural_domains, domain_ids) =
         catalog::lower_unit_structural_domains(checked, plans, &closure, &boundaries, &type_ids)?;
-    let (services, service_ids) = if !additional_service_roots.is_empty() {
-        catalog::lower_unit_services_including(
-            checked,
-            plans,
-            &closure,
-            &boundaries,
-            &provider_candidate_plans,
-            &additional_service_roots,
-        )?
-    } else {
-        catalog::lower_unit_services(
-            checked,
-            plans,
-            &closure,
-            &boundaries,
-            &provider_candidate_plans,
-        )?
-    };
+    let (services, service_ids) = catalog::lower_unit_services(
+        checked,
+        plans,
+        &closure,
+        &boundaries,
+        &provider_candidate_plans,
+    )?;
     let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
 
     // Signatures: boundary declarations, then each admitted body's formals,
@@ -318,21 +280,12 @@ pub(crate) fn lower_unit_closure(
         &mut next_place,
     )?;
     // One scalar qualification namespace for every machine the closure
-    // emits; Unit signatures and scalar callees both declare against it.
-    let scalar_sources = checked_scalar_callees
-        .iter()
-        .map(CheckedScalarCallee::source_machine)
-        .collect::<Vec<_>>();
-    let qualified_bodies = closure
-        .iter()
-        .chain(&scalar_sources)
-        .copied()
-        .collect::<Vec<_>>();
+    // emits; every body's signature declares against it.
     let qualifications =
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             checked,
-            &scalar_sources,
-            &qualified_bodies,
+            &[],
+            &closure,
         )?;
     let mut next_value = 1_u64;
     let machine_signatures = signatures::lower(
@@ -347,7 +300,6 @@ pub(crate) fn lower_unit_closure(
     )?;
     let machine_ids = closure
         .iter()
-        .chain(&scalar_closure)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -369,46 +321,21 @@ pub(crate) fn lower_unit_closure(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     placed_view_inputs.sort();
-    let prepared_scalar_callees = scalar_callees::prepare(
-        checked,
-        if scalar_entry {
-            entry
-        } else {
-            symbols::SymbolHandle::default()
-        },
-        qualifications,
-        checked_scalar_callees,
-        &type_ids,
-        &domain_ids,
-        &structural_types,
-        &mut next_place,
-    )?;
     // A call owes one obligation per row of its callee's Terminal `requires`
-    // roster, and the two callee routes publish that roster differently. A
-    // prepared scalar graph publishes its source clauses as one canonical
-    // conjunction (`PreparedScalarContract::requirement_count`: 0 or 1),
-    // while a Unit or composed callee publishes one row per authored clause.
-    // The count therefore follows how the callee itself was lowered, never
-    // the caller's route: every caller of one callee owes the same roster.
-    let scalar_requirement_counts = prepared_scalar_callees
-        .machines
+    // roster: a Unit or composed callee publishes one row per authored clause.
+    let scalar_requirement_counts = machine_signatures
         .iter()
-        .map(|machine| (machine.source_machine(), machine.requirement_count()))
-        .chain(
-            machine_signatures
-                .iter()
-                .map(|signature| (signature.source, signature.requires.len())),
-        )
+        .map(|signature| (signature.source, signature.requires.len()))
         .collect::<Vec<_>>();
 
     // Emission: each Unit body, ordinary or composed, into the shared
-    // namespaces; then the scalar callees.
+    // namespaces.
     let mut scalar_block_invariants = Vec::new();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
-    let mut machines = Vec::with_capacity(closure.len() + scalar_closure.len());
+    let mut machines = Vec::with_capacity(closure.len());
     let mut occurrences = ClosureOccurrences::default();
     let catalog = ordinary_machine::ClosureCatalog {
         type_ids: &type_ids,
@@ -421,8 +348,7 @@ pub(crate) fn lower_unit_closure(
         plans,
         closure: &closure,
         provider_candidate_plans: &provider_candidate_plans,
-        prepared_scalar_machines: &prepared_scalar_callees.machines,
-        prepared_scalar_qualifications: &prepared_scalar_callees.prepared_qualifications,
+        prepared_scalar_qualifications: &qualifications,
     };
     let mut scalar_qualification_coercions = Vec::new();
     for (signature, admitted) in machine_signatures.iter().zip(admitted_bodies) {
@@ -453,9 +379,7 @@ pub(crate) fn lower_unit_closure(
                         signatures: &machine_signatures,
                         scalar_requirement_counts: &scalar_requirement_counts,
                         closure: &closure,
-                        prepared_scalar_machines: &prepared_scalar_callees.machines,
-                        prepared_scalar_qualifications: &prepared_scalar_callees
-                            .prepared_qualifications,
+                        prepared_scalar_qualifications: &qualifications,
                     },
                     composed_control::callable::EmissionCounters {
                         place: &mut next_place,
@@ -524,32 +448,6 @@ pub(crate) fn lower_unit_closure(
         &scalar_requirement_counts,
         &mut next_call_obligation,
     )?;
-    let first_scalar_callee_index = closure.len();
-    let cleanup_receivers = machine_signatures
-        .iter()
-        .filter_map(|signature| {
-            signature
-                .cleanup_receiver
-                .map(|receiver| (signature.source, receiver))
-        })
-        .collect::<Vec<_>>();
-    let mut scalar_output = scalar_callees::emit(
-        checked,
-        prepared_scalar_callees,
-        scalar_callees::EmissionCatalog {
-            cleanup_receivers: &cleanup_receivers,
-            machine_ids: &machine_ids,
-            requirement_counts: &scalar_requirement_counts,
-            boundary_parameters: &lowered_boundary_parameters,
-            structural_types: &structural_types,
-            domain_ids: &domain_ids,
-            service_ids: &service_ids,
-            first_machine_index: first_scalar_callee_index,
-        },
-        &mut next_place,
-        &mut machines,
-        &mut occurrences,
-    )?;
     let provider_candidates = providers::conformances(
         &provider_candidate_plans,
         &lowered_boundary_parameters,
@@ -561,8 +459,7 @@ pub(crate) fn lower_unit_closure(
     // Publication: one module in canonical roster order.
     let target_machine_families =
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
-    scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
-    let mut scalar_qualifications = scalar_output.qualifications;
+    let mut scalar_qualifications = qualifications.catalog().clone();
     scalar_qualifications
         .coercions
         .append(&mut scalar_qualification_coercions);
@@ -643,20 +540,10 @@ impl ClosureOccurrences {
         self.ieee_float_comparisons.extend(ieee_float_comparisons);
         self.integer_comparisons.extend(integer_comparisons);
     }
-
-    /// Take the rows a separately lowered helper module recorded.
-    fn retain_lowered(&mut self, lowered: &mut LoweredPsi) {
-        self.retain(
-            std::mem::take(&mut lowered.source_call_occurrences),
-            std::mem::take(&mut lowered.selected_ieee_float_comparison_occurrences),
-            std::mem::take(&mut lowered.selected_integer_comparison_occurrences),
-        );
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CheckedUnitProviderCandidate {
-    body: ProviderBody,
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
     requirement_identity: String,

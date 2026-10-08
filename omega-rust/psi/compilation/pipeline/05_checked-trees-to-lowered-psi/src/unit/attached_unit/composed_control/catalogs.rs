@@ -4,7 +4,6 @@ use super::super::super::{
 };
 use super::super::{StructuralPlaceDeclaration, StructuralTypeId};
 use super::scalar_calls;
-use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::operation_frame::BoundaryParameters;
 use crate::unit::attached_unit::signatures::MachineSignature;
@@ -12,8 +11,8 @@ use std::borrow::Cow;
 
 /// Standalone roots own their publication tables; shared callees borrow the
 /// already allocated closure. Only owned type tables admit generated carriers.
-/// The call targets (`signatures`, `boundary_parameters`, `closure`,
-/// `prepared_scalar_machines`) are the same records an ordinary body's calls
+/// The call targets (`signatures`, `boundary_parameters`, `closure`) are the
+/// same records an ordinary body's calls
 /// resolve against, so a state's calls emit through the one frame emitter.
 pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
@@ -27,7 +26,6 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(in crate::unit::attached_unit) signatures: Cow<'a, [MachineSignature]>,
     /// The closure's Unit bodies and prepared scalar callees.
     pub(in crate::unit::attached_unit) closure: &'a [symbols::SymbolHandle],
-    pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub(in crate::unit::attached_unit) prepared_scalar_qualifications:

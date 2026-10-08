@@ -1,29 +1,23 @@
-//! Prepared scalar control graph shared by graph emission and call-closure assembly.
+//! Prepared scalar branch states the Unit scalar-completion emitter lowers.
 //!
 //! States retain ordered bindings, structural effects and outgoing transfers. This
 //! is producer working state, not a portable representation or previous-stage wrapper.
 
-use super::{KnownDirectScalar, cycles};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::lowering_error::LoweringError;
-use crate::proofs::content_conservation::LoweredContentIdentityReshuffles;
-use crate::proofs::content_conservation::LoweredContentPartitionCompositions;
 use crate::scalar_graph::scalar_computations;
 use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering;
-use checked_trees::{
-    CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-};
+use checked_trees::CheckedBooleanExpression;
 use semantic_vocabulary::{
-    ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralCaseId, StructuralFieldId,
-    StructuralTypeId,
+    ClaimId, PlaceId, QualifiedScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralParameterDeclaration,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,41 +94,6 @@ pub(crate) enum LoweredScalarBranchTerminator {
         fallback_erased_arguments: Vec<LoweredDirectExpression>,
         fallback_erased_proof_arguments: Vec<LoweredProofTerm>,
     },
-    Return {
-        expression: LoweredDirectExpression,
-    },
-    Crash(LoweredCrashExit),
-}
-
-impl LoweredScalarBranchTerminator {
-    /// The successor state ordinals this terminator can transfer to, in
-    /// target order: none for Return/Crash, and the armed cases following
-    /// the fallback continuation for a case split.
-    pub(crate) fn successors(&self) -> Vec<usize> {
-        match self {
-            Self::Jump { target, .. } | Self::Qualify { target, .. } => vec![*target],
-            Self::Conditional {
-                when_true_target,
-                when_false_target,
-                ..
-            }
-            | Self::CaseDispatch {
-                when_true_target,
-                when_false_target,
-                ..
-            } => vec![*when_true_target, *when_false_target],
-            Self::CaseDispatchSplit {
-                armed,
-                fallback_target,
-                ..
-            } => {
-                let mut successors = vec![*fallback_target];
-                successors.extend(armed.iter().map(|arm| arm.target));
-                successors
-            }
-            Self::Return { .. } | Self::Crash(_) => Vec::new(),
-        }
-    }
 }
 
 /// One armed case of a `CaseDispatchSplit`: `payloads` binds positionally as
@@ -174,32 +133,16 @@ pub(crate) struct LoweredScalarBranchState {
     pub(crate) terminator: LoweredScalarBranchTerminator,
 }
 
-/// Standalone graphs address states directly. Embedded expression expansions
-/// reserve target zero for their caller's completion, then address state n at
-/// target n + 1. This is a target namespace, not an emission-order difference.
-#[derive(Clone, Copy)]
-pub(crate) enum ScalarStateTargets {
-    ZeroBased,
-    CompletionThenStates,
-}
-
-impl ScalarStateTargets {
-    fn state_position(
-        self,
-        target: usize,
-        state_count: usize,
-    ) -> Result<Option<usize>, LoweringError> {
-        let position = match self {
-            Self::ZeroBased => Some(target),
-            Self::CompletionThenStates => target.checked_sub(1),
-        };
-        if position.is_some_and(|position| position >= state_count) {
-            return Err(LoweringError::Unsupported(
-                "scalar graph target has no prepared state",
-            ));
-        }
-        Ok(position)
+/// An expression expansion reserves target zero for its caller's completion,
+/// then addresses state n at target n + 1.
+fn state_position(target: usize, state_count: usize) -> Result<Option<usize>, LoweringError> {
+    let position = target.checked_sub(1);
+    if position.is_some_and(|position| position >= state_count) {
+        return Err(LoweringError::Unsupported(
+            "scalar graph target has no prepared state",
+        ));
     }
+    Ok(position)
 }
 
 /// Allocate producer identities in control-flow order, not backward
@@ -211,9 +154,8 @@ impl ScalarStateTargets {
 pub(crate) fn scalar_state_emission_order(
     states: &[LoweredScalarBranchState],
     entry: usize,
-    targets: ScalarStateTargets,
 ) -> Result<Vec<usize>, LoweringError> {
-    let entry = targets.state_position(entry, states.len())?;
+    let entry = state_position(entry, states.len())?;
     let mut visited = vec![false; states.len()];
     let mut pending = Vec::new();
     let mut component = Vec::new();
@@ -234,7 +176,7 @@ pub(crate) fn scalar_state_emission_order(
             visited[position] = true;
             pending.push((position, true));
             let mut push_target = |target| -> Result<(), LoweringError> {
-                if let Some(position) = targets.state_position(target, states.len())? {
+                if let Some(position) = state_position(target, states.len())? {
                     pending.push((position, false));
                 }
                 Ok(())
@@ -265,8 +207,6 @@ pub(crate) fn scalar_state_emission_order(
                         push_target(arm.target)?;
                     }
                 }
-                LoweredScalarBranchTerminator::Return { .. }
-                | LoweredScalarBranchTerminator::Crash(_) => {}
             }
         }
         order.extend(component.drain(..).rev());
@@ -281,15 +221,6 @@ pub(crate) enum LoweredScalarEffect {
         source: crate::expression_preparation::bindings::PreparedStructuralCopy,
         place: PlaceId,
         structural_type: StructuralTypeId,
-    },
-    StoreScalarField {
-        destination: PlaceId,
-        path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
-        value_position: usize,
-        scalar_type: ScalarType,
-        requires_evidence: bool,
-        range_decided: bool,
     },
     EstablishAggregate(scalar_graph_lowering::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home
@@ -352,71 +283,4 @@ pub(crate) struct LoweredScalarArrayConstruction {
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) elements: Vec<LoweredDirectExpression>,
-}
-
-/// Authored state requirements and their exact structural read namespace.
-/// Synthetic evaluation rows do not acquire another copy of these predicates.
-pub(crate) struct PreparedStateRequirements {
-    pub(crate) clauses: Vec<Option<ClosedScalarContractValue>>,
-    pub(crate) parameters: Vec<(u32, StructuralParameterDeclaration)>,
-}
-
-pub(crate) struct PreparedScalarMachine {
-    pub(crate) source_machine: symbols::SymbolHandle,
-    /// Authored symbols of the leading source rows in `states`, in graph
-    /// order; later rows are synthesized and carry no authored state.
-    pub(crate) state_symbols: Vec<symbols::SymbolHandle>,
-    pub(crate) state_requires: Vec<PreparedStateRequirements>,
-    pub(crate) states: Vec<LoweredScalarBranchState>,
-    pub(crate) result_type: QualifiedScalarType,
-    pub(crate) scalar_qualifications: terminal_psi::ScalarQualificationCatalog,
-    pub(crate) contract: PreparedScalarContract,
-    pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
-    pub(crate) identity_reshuffles: LoweredContentIdentityReshuffles,
-    pub(crate) partition_compositions: LoweredContentPartitionCompositions,
-    /// Reserved byte-literal places declared on the emitted machine; the
-    /// literal ops themselves join `all_operations` through their edges.
-    pub(crate) literal_places: Vec<scalar_computations::literals::Slot>,
-    pub(crate) loop_plan: Option<cycles::ScalarLoopPlan>,
-}
-
-impl PreparedScalarMachine {
-    pub(crate) fn requirement_count(&self) -> usize {
-        self.contract.requirement_count().max(usize::from(
-            self.state_requires
-                .first()
-                .is_some_and(|state| !state.clauses.is_empty()),
-        ))
-    }
-}
-
-pub(crate) enum PreparedScalarContract {
-    Empty,
-    ClosedLiteral(KnownDirectScalar),
-    Predicates(ClosedScalarValueContractPlan),
-}
-
-impl PreparedScalarContract {
-    pub(crate) fn requirement_count(&self) -> usize {
-        match self {
-            Self::Empty => 0,
-            Self::ClosedLiteral(_) => 1,
-            // The predicate plan's source clauses are published as one
-            // canonical conjunction, including implicit integer parameter
-            // ranges. Floating entry range clauses publish no proposition:
-            // they discharge through the retained catalog rows at call
-            // delivery, so a range-only requires tail contributes no
-            // obligation.
-            Self::Predicates(plan) => usize::from(plan.requires().iter().any(|clause| {
-                matches!(
-                    clause,
-                    Some(
-                        ClosedScalarContractValue::Predicate(_)
-                            | ClosedScalarContractValue::Boolean(_)
-                            | ClosedScalarContractValue::Integer(_)
-                    )
-                )
-            })),
-        }
-    }
 }

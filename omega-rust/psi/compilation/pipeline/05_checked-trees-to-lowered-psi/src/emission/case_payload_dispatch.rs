@@ -735,28 +735,6 @@ pub(crate) fn direct_case_reads(
     })
 }
 
-/// The distinct leading cases of `source` observed by deferred expressions.
-/// Both scalar payload slots and copied structural carriers need their
-/// selecting edge; the complete read path stays with the expression.
-pub(crate) fn direct_case_read_cases(
-    expressions: &[LoweredDirectExpression],
-    source: PlaceId,
-) -> std::collections::BTreeSet<StructuralCaseId> {
-    let mut cases = std::collections::BTreeSet::new();
-    for expression in expressions {
-        let mut reads = Vec::new();
-        collect_direct_case_reads(expression, &mut reads);
-        for (root, path) in reads {
-            if root == source
-                && let Some(CanonicalStructuralPathSegment::Case(case)) = path.first()
-            {
-                cases.insert(*case);
-            }
-        }
-    }
-    cases
-}
-
 fn collect_path_case_reads(
     path: &[crate::emission::operation_emission::expressions::LoweredElementPathSegment],
     reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,

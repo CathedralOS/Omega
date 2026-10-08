@@ -57,50 +57,35 @@ pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
-    // A result-bearing machine is an ordinary body: the Unit or scalar closure
-    // below lowers its result with the cleanup after it. The checked return
-    // rosters only describe scalar and claim-free affine callees for call
-    // admission; none of them selects a route of its own.
+    // Cleanup and composed plans lower as their own machines; a
+    // result-bearing ordinary body lowers through a closure below, its
+    // result with the cleanup after it.
     if let Some(plan) = select_unit_plan(checked, selection)? {
         return lower_unit_plan_machine(checked, plan);
     }
-    // Graph presence chooses the closure shape here, not the body. A machine
-    // whose graph states all return scalars lowers through the scalar-entry
-    // closure (`lower_scalar_effect_closure`), which lowers the entry's Unit
-    // body whenever it has one and its graph only otherwise
-    // (`CheckedScalarCallee::find_for_unit_call`), and publishes the checked
-    // debug map. Without such a graph, a free Unit-effect signature, or an
-    // eligible signature with a Unit plan, takes the Unit closure, which
-    // publishes none.
-    // A machine returning a structural value still mints a scalar control
-    // plan — for its guards, locals, and calls — but that plan is control
-    // data for the composed path, not a scalar emission: only a graph whose
-    // states all carry scalar results routes the machine through scalar
-    // lowering. Without the filter, structural machines would take the
-    // scalar route and decline on a missing result slot instead of keeping
-    // their authored Unit-path route and its real wall.
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(selection.machine)
-        .filter(|graph| graph.states.iter().all(|state| state.result_type.is_some()));
+    if selection.signature == CheckedTerminalSignatureEligibility::Unsupported {
+        return unsupported("machine signature is outside the current terminal-Psi source slice");
+    }
+    // An ordinary body with a scalar completion is a scalar entry: the
+    // scalar-entry closure lowers that body with its callees and publishes
+    // the checked debug map. Any other ordinary body takes the Unit closure,
+    // which publishes none. A free Unit-effect signature reaches the Unit
+    // closure even without a plan, so the closure reports the missing body.
+    let scalar_entry =
+        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+            checked,
+            selection.machine,
+        )
+        .is_ok();
     let unit_plan = checked
         .facts
         .flow
         .terminal_unit_effects
         .for_machine(selection.machine)
         .is_some();
-    let unit_closure = match selection.signature {
-        CheckedTerminalSignatureEligibility::FreeUnitEffect => graph.is_none(),
-        CheckedTerminalSignatureEligibility::Eligible => graph.is_none() && unit_plan,
-        CheckedTerminalSignatureEligibility::Unsupported => {
-            return unsupported(
-                "machine signature is outside the current terminal-Psi source slice",
-            );
-        }
-    };
-    if unit_closure {
+    if !scalar_entry
+        && (unit_plan || selection.signature == CheckedTerminalSignatureEligibility::FreeUnitEffect)
+    {
         return Ok(LoweredSelectedMachine::source_mapped(
             lower_unit_effect_closure(checked, selection.machine)?,
             LoweringCompletion {
@@ -109,29 +94,16 @@ pub(crate) fn lower_selected_machine(
             },
         ));
     }
-    if graph.is_none() {
-        let reason = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .declined_reason(selection.machine)
-            .unwrap_or("machine has no source-independent checked scalar control plan");
-        // The scalar decline can be a by-design deferral (e.g. multi-state
-        // structural formals); the operative wall then lives in the Unit
-        // plan's gap, which names the construct at its source.
-        if let Some(gap) = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .gap_diagnostic(selection.machine, &checked.symbols)
-        {
-            return Err(LoweringError::InvalidUnitMachinePlan {
-                machine: checked.symbols.display_path(selection.machine, "::"),
-                reason,
-                gap: Some(gap),
-            });
-        }
-        return unsupported(reason);
+    if !scalar_entry {
+        return Err(LoweringError::InvalidUnitMachinePlan {
+            machine: checked.symbols.display_path(selection.machine, "::"),
+            reason: "machine has no checked executable body",
+            gap: checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .gap_diagnostic(selection.machine, &checked.symbols),
+        });
     }
     Ok(LoweredSelectedMachine::source_mapped(
         crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,

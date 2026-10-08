@@ -69,7 +69,6 @@ use crate::emission::indexed_write::IndexedWriteTarget;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     BoundaryMachineId, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, ScalarType, ServiceId, ServiceReachId,
@@ -160,7 +159,6 @@ pub(super) struct Callees<'f> {
     /// The closure's Unit bodies: a scalar call may name one that completes
     /// with a scalar instead of a prepared scalar callee.
     pub(super) closure: &'f [symbols::SymbolHandle],
-    pub(super) prepared_scalar_machines: &'f [PreparedScalarCallee],
 }
 
 /// What the calling body itself contributes to a call's custody.

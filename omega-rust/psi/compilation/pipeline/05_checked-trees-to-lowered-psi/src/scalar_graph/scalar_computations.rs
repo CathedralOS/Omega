@@ -9,9 +9,9 @@
 //! completes in authored order before the exact invocation binds its result.
 //! Boundary entry plans retain their own contract and foreign ABI custody.
 use super::{
-    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError,
-    PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralArgument,
-    scalar_carriers, unsupported, validate_direct_parameter_types,
+    CheckedScalarExpressionRole, CheckedTrees, IntegerValue, LoweringError,
+    PreparedScalarQualifications, QualifiedScalarType, ScalarType, scalar_carriers, unsupported,
+    validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -31,7 +31,6 @@ pub(crate) mod arrays;
 mod byte_comparisons;
 mod call_signature;
 mod calls;
-pub(crate) use calls::lower_inline_call;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
 pub(crate) mod copies;
@@ -130,34 +129,6 @@ impl<'a> Expansion<'a> {
         self
     }
 
-    /// Rejoin the next source state before expanding any of its operations.
-    /// The enclosing graph keeps its dispatch identity; computation custody
-    /// and source-call lookup use the state's independently resolved owner.
-    pub(crate) fn enter_source_state(
-        &mut self,
-        state: symbols::SymbolHandle,
-    ) -> Result<(), LoweringError> {
-        let (owner, _) = crate::declarations::state_declaration(self.checked, state)?;
-        self.machine = owner.symbol;
-        Ok(())
-    }
-
-    /// Mark the start of one authored state's private expansion.
-    pub(crate) fn private_state_count(&self) -> usize {
-        self.states.len()
-    }
-
-    /// Finish the exact private rows just created for this source state. Their
-    /// erased lanes remain in its scope; authored successor edges keep their
-    /// supplied actuals and never acquire identity substitutions here.
-    pub(crate) fn retain_state_erased_scope(
-        &mut self,
-        private_start: usize,
-        entry: &mut LoweredScalarBranchState,
-    ) -> Result<(), LoweringError> {
-        erased_scope::retain(self.base, private_start, entry, &mut self.states)
-    }
-
     pub(crate) fn finish(self) -> Vec<LoweredScalarBranchState> {
         self.states
     }
@@ -235,80 +206,6 @@ impl<'a> Expansion<'a> {
             });
         }
         self.sequence(&operands, source_types, target, &site, &mut Vec::new())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn successor(
-        &mut self,
-        state: symbols::SymbolHandle,
-        successor: &CheckedScalarSuccessor,
-        bindings: &storage::ScalarBindings,
-        source_types: &[QualifiedScalarType],
-        target: usize,
-        target_types: &[QualifiedScalarType],
-        structural_arguments: &[StructuralArgument],
-        ranges: &[subslices::Scheduled],
-    ) -> Result<Option<usize>, LoweringError> {
-        let scalar_arguments = self
-            .checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .scalar_arguments
-            .span(successor.scalar_arguments)
-            .ok_or(LoweringError::Unsupported(
-                "scalar successor arguments have a stale span",
-            ))?;
-        let roles = scalar_arguments
-            .iter()
-            .map(|argument| argument.argument_ordinal)
-            .map(|argument_ordinal| {
-                if successor.is_continuation {
-                    CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
-                } else {
-                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
-                }
-            })
-            .zip(target_types)
-            .map(|(role, value_type)| (role, *value_type))
-            .collect::<Vec<_>>();
-        self.destination(
-            Site {
-                state,
-                statement: successor.statement_ordinal,
-                bindings,
-            },
-            &roles,
-            source_types,
-            target,
-            structural_arguments,
-            ranges,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn return_value(
-        &mut self,
-        state: symbols::SymbolHandle,
-        statement: u32,
-        role: CheckedScalarExpressionRole,
-        bindings: &storage::ScalarBindings,
-        source_types: &[QualifiedScalarType],
-        result_type: QualifiedScalarType,
-        target: usize,
-    ) -> Result<Option<usize>, LoweringError> {
-        self.destination(
-            Site {
-                state,
-                statement,
-                bindings,
-            },
-            &[(role, result_type)],
-            source_types,
-            target,
-            &[],
-            &[],
-        )
     }
 
     /// Preserve the input prefix while a pure operand's selective expression
@@ -405,146 +302,6 @@ impl<'a> Expansion<'a> {
         // Unlike a state transfer, the following statements retain every prior
         // completed value, including immutable snapshots of overwritten storage.
         self.argument(&argument, source_types, target, &site, &mut Vec::new())
-    }
-
-    fn destination(
-        &mut self,
-        site: Site<'_>,
-        roles: &[(CheckedScalarExpressionRole, QualifiedScalarType)],
-        source_types: &[QualifiedScalarType],
-        target: usize,
-        structural_arguments: &[StructuralArgument],
-        ranges: &[subslices::Scheduled],
-    ) -> Result<Option<usize>, LoweringError> {
-        let plans = &self.checked.facts.values.scalar_computations;
-        if structural_arguments.is_empty()
-            && !plans.roots.iter().any(|(_, root)| {
-                root.state == site.state
-                    && root.statement_ordinal == site.statement
-                    && roles.iter().any(|(role, _)| *role == root.role)
-            })
-        {
-            return Ok(None);
-        }
-        if self
-            .checked
-            .facts
-            .proof
-            .proof_output_calls
-            .iter()
-            .any(|(_, call)| {
-                call.caller_machine_symbol == self.machine && call.runtime_call.is_some()
-            })
-        {
-            return unsupported(
-                "scalar computation calls need exact named proof-output operation custody",
-            );
-        }
-        let mut arguments = Vec::with_capacity(roles.len());
-        let mut argument_types = Vec::with_capacity(roles.len());
-        for &(role, expected_type) in roles {
-            let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-                root.state == site.state
-                    && root.statement_ordinal == site.statement
-                    && root.role == role
-            });
-            let argument = if let Some(root) = roots.next() {
-                if roots.next().is_some() || root.machine != self.machine {
-                    return unsupported(
-                        "scalar computation root custody is duplicated or mismatched",
-                    );
-                }
-                Argument::Computation(root.root)
-            } else {
-                Argument::Value(site.bindings.expression_at(
-                    self.checked,
-                    site.state,
-                    site.statement,
-                    role,
-                )?)
-            };
-            let argument_type = self.argument_type(&argument, &site, source_types)?;
-            if argument_type != expected_type {
-                return unsupported("scalar computation result disagrees with its destination");
-            }
-            arguments.push(argument);
-            argument_types.push(argument_type);
-        }
-        let mut completed_types = source_types.to_vec();
-        completed_types.extend(&argument_types);
-        let completion = self.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            structural_effects: Vec::new(),
-            parameter_types: completed_types.clone(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::Jump {
-                cleanup_actions: Vec::new(),
-                target,
-                structural_arguments: structural_arguments.to_vec(),
-                arguments: parameters(&completed_types)
-                    .into_iter()
-                    .skip(source_types.len())
-                    .collect(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-            },
-        });
-        enum Operand<'a> {
-            Scalar(usize, &'a Argument),
-            Range(&'a subslices::Scheduled),
-        }
-        let mut operands = roles
-            .iter()
-            .enumerate()
-            .map(|(index, (role, _))| {
-                let ordinal = match role {
-                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
-                    | CheckedScalarExpressionRole::TransitionContinuationArgument {
-                        argument_ordinal,
-                    } => *argument_ordinal,
-                    _ => index as u32,
-                };
-                (ordinal, Operand::Scalar(index, &arguments[index]))
-            })
-            .collect::<Vec<_>>();
-        operands.extend(
-            ranges
-                .iter()
-                .map(|range| (range.argument_ordinal, Operand::Range(range))),
-        );
-        operands.sort_by_key(|(ordinal, _)| *ordinal);
-        if operands.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return unsupported("scalar successor repeats an authored operand position");
-        }
-        let mut prefixes = vec![source_types.to_vec()];
-        for (_, operand) in &operands {
-            let mut prefix = prefixes.last().expect("source prefix").clone();
-            if let Operand::Scalar(index, _) = operand {
-                prefix.push(argument_types[*index]);
-            }
-            prefixes.push(prefix);
-        }
-        let mut entry = completion;
-        let mut active = Vec::new();
-        for (index, (_, operand)) in operands.iter().enumerate().rev() {
-            entry = match operand {
-                Operand::Scalar(_, argument) => {
-                    self.argument(argument, &prefixes[index], entry, &site, &mut active)?
-                }
-                Operand::Range(range) => self.subslice(
-                    &range.argument,
-                    &range.slot,
-                    range.site,
-                    &prefixes[index],
-                    entry,
-                    &site,
-                    &mut active,
-                )?,
-            };
-        }
-        Ok(Some(entry))
     }
 
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {

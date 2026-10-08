@@ -304,24 +304,20 @@ fn scalar_call(
         })
         .map(|(_, state)| state.service_reach)
         .collect::<Vec<_>>();
-    let reach_matches = match &target {
-        CheckedScalarCallee::Graph(_) => target_reaches.as_slice() == [*service_reach],
-        CheckedScalarCallee::Operations(body) => {
-            let contract_service_reach = body.entry()?.contract_service_reach;
-            // The body owns its direct effects; an ordinary call contributes
-            // the published callee ceiling transitively. Rejoin each subject
-            // instead of equating their summaries; the caller still retains
-            // its exact source occurrence row.
-            source_call.service_reach == *service_reach
-                && body.retains_checked_reach(checked, &target_reaches)
-                && checked
-                    .facts
-                    .service_reaches
-                    .plan_for_machine(*target_machine)
-                    == Some(contract_service_reach)
-                && checked_unit_target_reach_matches(*service_reach, contract_service_reach)
-        }
-    };
+    // The body owns its direct effects; an ordinary call contributes the
+    // published callee ceiling transitively. Rejoin each subject instead of
+    // equating their summaries; the caller still retains its exact source
+    // occurrence row.
+    let body = target.body();
+    let contract_service_reach = body.entry()?.contract_service_reach;
+    let reach_matches = source_call.service_reach == *service_reach
+        && body.retains_checked_reach(checked, &target_reaches)
+        && checked
+            .facts
+            .service_reaches
+            .plan_for_machine(*target_machine)
+            == Some(contract_service_reach)
+        && checked_unit_target_reach_matches(*service_reach, contract_service_reach);
     if target.entry_state()? != *target_state
         || target.parameter_types()?.len() != scalar_arguments.len()
         || target.result_type()? != terminal_scalar_type(result.primitive_type)?
@@ -331,24 +327,6 @@ fn scalar_call(
     {
         return unsupported(
             "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
-        );
-    }
-    if matches!(target, CheckedScalarCallee::Graph(_))
-        && (!checked
-            .facts
-            .service_reaches
-            .rows
-            .services(service_reach.direct)
-            .is_empty()
-            || !checked
-                .facts
-                .service_reaches
-                .rows
-                .services(service_reach.transitive)
-                .is_empty())
-    {
-        return unsupported(
-            "ordinary Unit scalar call with services requires scalar service lowering",
         );
     }
     Ok(())

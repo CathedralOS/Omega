@@ -1,23 +1,20 @@
-//! Discover all real operation bodies and scalar helpers before allocating identities.
+//! Discover all real operation bodies, scalar helpers included, before
+//! allocating identities.
 //!
-//! A scalar helper can itself own an ordered structural body or graph statements
-//! that call Unit bodies, whose calls and providers reveal further helpers.
-//! Close those dependencies to a
-//! fixed point, then partition owners: operation bodies use the existing ordered
-//! emitter exactly once, while the remaining scalar bodies use their own emitter.
+//! A scalar helper is a Unit body with a scalar completion; its calls and
+//! providers reveal further helpers. Close those dependencies to a fixed
+//! point: every body then uses the one ordered emitter exactly once.
 //! Classification grants no custody; each body and call is validated by assembly.
 
 use super::bodies::UnitPlans;
 use super::{
-    CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitProviderCandidate, LoweringError, ProviderBody, UnitBody,
+    CheckedScalarCallee, CheckedTrees, CheckedUnitProviderCandidate, LoweringError, UnitBody,
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
     checked_unit_provider_candidates, reject_recursive_unit_closure, unsupported,
 };
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) providers: Vec<CheckedUnitProviderCandidate>,
-    pub(super) scalars: Vec<symbols::SymbolHandle>,
     pub(super) boundaries: Vec<symbols::SymbolHandle>,
 }
 
@@ -117,7 +114,6 @@ pub(super) fn discover(
         // source admission and provider-installation evidence requirements.
         let mut new_roots = candidates
             .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Callable)
             .map(|candidate| candidate.candidate)
             .filter(|candidate| !closure.contains(candidate))
             .collect::<Vec<_>>();
@@ -132,23 +128,6 @@ pub(super) fn discover(
                 .is_empty()
             {
                 structural_scalar_roots.push(*root);
-            }
-        }
-        // A scalar provider joins the scalar closure as its call would; one
-        // taking structural operands needs the structural call custody too.
-        for candidate in candidates
-            .iter()
-            .filter(|candidate| candidate.body == ProviderBody::ScalarCallee)
-        {
-            if !ordinary_scalar_roots.contains(&candidate.candidate) {
-                ordinary_scalar_roots.push(candidate.candidate);
-            }
-            if !CheckedScalarCallee::find_for_unit_call(checked, candidate.candidate)?
-                .structural_parameters()
-                .is_empty()
-                && !structural_scalar_roots.contains(&candidate.candidate)
-            {
-                structural_scalar_roots.push(candidate.candidate);
             }
         }
         if scalar_entry {
@@ -208,7 +187,7 @@ pub(super) fn discover(
             }
         }
         let scalar_roots = ordinary_scalar_roots;
-        let mut scalar_closure = checked_scalar_call_closure_with_structural_roots(
+        let scalar_closure = checked_scalar_call_closure_with_structural_roots(
             checked,
             &scalar_roots,
             &structural_scalar_roots,
@@ -242,54 +221,8 @@ pub(super) fn discover(
             }
         }
         for source in &scalar_closure {
-            if let Some(graph) = checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(*source)
-            {
-                for operation in graph
-                    .states
-                    .iter()
-                    .flat_map(|state| &state.unit_operations)
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                {
-                    if matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                    ) {
-                        // Store RHS calls are source-checked computation roots
-                        // in the scalar closure above. The write adds no callee;
-                        // ordered lowering independently validates its destination.
-                        continue;
-                    }
-                    if matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                    ) {
-                        // Construction adds storage; its retained call dependencies
-                        // are separate entries in this same operation inventory.
-                        continue;
-                    }
-                    // Non-scalar call results belong to ordinary operation bodies.
-                    let Some(call) = operation
-                        .call()
-                        .filter(|call| call.is_module() && call.scalar_result().is_none())
-                    else {
-                        return unsupported("scalar graph retained an unsupported Unit effect");
-                    };
-                    let target_machine = call.target.machine;
-                    if !closure.contains(&target_machine) && !new_roots.contains(&target_machine) {
-                        new_roots.push(target_machine);
-                    }
-                }
-            }
-            if matches!(
-                CheckedScalarCallee::find_for_unit_call(checked, *source)?,
-                CheckedScalarCallee::Operations(_)
-            ) && !closure.contains(source)
-                && !new_roots.contains(source)
-            {
+            CheckedScalarCallee::find_for_unit_call(checked, *source)?;
+            if !closure.contains(source) && !new_roots.contains(source) {
                 new_roots.push(*source);
             }
         }
@@ -324,28 +257,17 @@ pub(super) fn discover(
             retained_roots.extend(new_roots);
             continue;
         }
-        // Every overlapping owner must be the operation body we intentionally
-        // routed above. Never hide an ambiguous graph/operation owner by merely
-        // deleting duplicate source identities.
-        for source in scalar_closure
+        // Every scalar helper joined the operation closure above.
+        if scalar_closure
             .iter()
-            .filter(|source| closure.contains(source))
+            .any(|source| !closure.contains(source))
         {
-            if !matches!(
-                CheckedScalarCallee::find_for_unit_call(checked, *source)?,
-                CheckedScalarCallee::Operations(_)
-            ) {
-                return unsupported(
-                    "embedded scalar call overlaps the attached Unit machine closure",
-                );
-            }
+            return unsupported("scalar helper is absent from the Unit machine closure");
         }
-        scalar_closure.retain(|source| !closure.contains(source));
         reject_recursive_unit_closure(plans, &closure)?;
         return Ok(CheckedCallCatalog {
             operations: closure,
             providers: candidates,
-            scalars: scalar_closure,
             boundaries: retained_boundary_roots,
         });
     }

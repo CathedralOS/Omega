@@ -10,7 +10,6 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
-use crate::terminal_identities::{allocate_dense, obligation_id};
 
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],
@@ -84,46 +83,6 @@ pub(crate) fn emit(
                     kind: OperationKind::StructuralLeafCopy {
                         source: source.place,
                         path,
-                    },
-                });
-            }
-            LoweredScalarEffect::StoreScalarField {
-                destination,
-                path,
-                field,
-                value_position,
-                scalar_type,
-                requires_evidence,
-                range_decided,
-            } => {
-                let value = values
-                    .get(*value_position)
-                    .filter(|value| value.scalar_type == *scalar_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "record store lost its completed scalar operand",
-                    ))?;
-                let range_obligation = if *requires_evidence {
-                    Some(obligation_id(allocate_dense(
-                        &mut calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
-                if *range_decided && let Some(obligation) = range_obligation {
-                    operations.source_checked_obligations.push(obligation);
-                }
-                let id = operations.allocate();
-                operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Unit,
-                    kind: OperationKind::StructuralScalarFieldStore {
-                        destination: *destination,
-                        path: path.clone(),
-                        field: *field,
-                        value: value.id,
-                        range_obligation,
                     },
                 });
             }

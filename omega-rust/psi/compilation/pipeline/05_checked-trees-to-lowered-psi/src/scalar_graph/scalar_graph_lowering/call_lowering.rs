@@ -3,68 +3,16 @@
 use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::calls::{
-    LoweredDirectCallBinding, PreparedStructuralArgument, ScalarCallCrashScope,
+    LoweredDirectCallBinding, PreparedStructuralArgument,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
-use crate::scalar_graph::scalar_computations as computations;
-use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
-use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use crate::scalar_graph::{
-    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
-    QualifiedScalarType, StructuralTypeDeclaration, scalar_carriers, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, scalar_carriers,
+    unsupported,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn lower_checked_direct_call_binding(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    caller_machine: symbols::SymbolHandle,
-    caller_state: symbols::SymbolHandle,
-    statement_ordinal: u32,
-    binding_ordinal: u32,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
-    call_ordinal: u32,
-    argument_count: u32,
-    result_type: QualifiedScalarType,
-    caller_value_types: &[QualifiedScalarType],
-    scalar_bindings: &storage::ScalarBindings,
-    caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
-) -> Result<LoweredDirectCallBinding, LoweringError> {
-    let arguments = (0..argument_count)
-        .map(|argument_ordinal| {
-            scalar_bindings.expression_at(
-                checked,
-                caller_state,
-                statement_ordinal,
-                CheckedScalarExpressionRole::CallArgument {
-                    binding_ordinal,
-                    argument_ordinal,
-                },
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    lower_scalar_call(
-        checked,
-        qualifications,
-        caller_machine,
-        caller_state,
-        statement_ordinal,
-        target_machine,
-        target_state,
-        call_ordinal,
-        result_type,
-        caller_value_types,
-        scalar_bindings,
-        arguments,
-        Vec::new(),
-        ScalarCallCrashScope::CallerValues,
-        caller_erased_proof_parameters,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_scalar_call(
@@ -81,7 +29,6 @@ pub(crate) fn lower_scalar_call(
     scalar_bindings: &storage::ScalarBindings,
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<PreparedStructuralArgument>,
-    crash_scope: ScalarCallCrashScope,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
@@ -207,10 +154,7 @@ pub(crate) fn lower_scalar_call(
     // the ceiling the emitted machine contract publishes and the verifier
     // substitutes back at this call.
     let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
-    let crash_continuations = match crash_scope {
-        ScalarCallCrashScope::CallerValues => checked_call.surviving_buckets().to_vec(),
-        ScalarCallCrashScope::Arguments => target_routes.clone(),
-    };
+    let crash_continuations = target_routes.clone();
     // This summary only tells graph preparation whether the checked call can
     // crash; an identity-only predicate suffices for that question. Emission
     // lowers `target_routes` against evaluated arguments, not this refined
@@ -233,240 +177,7 @@ pub(crate) fn lower_scalar_call(
         structural_arguments,
         // The selected body owns storage even when its public signature has
         // only scalars. Graph and ordered-body callers use the same decision.
-        uses_structural_frame: target.requires_structural_frame(),
         crash_continuations,
         parameter_relative_crash_routes: target_routes,
     })
-}
-
-pub(crate) fn lower_scalar_graph_successor(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    states: &[checked_trees::CheckedScalarStateGraph],
-    source_state: symbols::SymbolHandle,
-    source_value_types: &[QualifiedScalarType],
-    successor: &CheckedScalarSuccessor,
-    scalar_bindings: &storage::ScalarBindings,
-    computations: &mut computations::Expansion<'_>,
-    structural_types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
-) -> Result<
-    (
-        usize,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredProofTerm>,
-    ),
-    LoweringError,
-> {
-    let Some(target) = states
-        .iter()
-        .position(|candidate| candidate.state == successor.target)
-    else {
-        return unsupported("scalar graph successor must belong to the selected machine");
-    };
-    let (target_parameter_types, _) =
-        qualifications.scalar_state_types(checked, states[target].state)?;
-    let plans = &checked.facts.flow.terminal_scalar_graphs;
-    let scalar_arguments = plans
-        .scalar_arguments
-        .span(successor.scalar_arguments)
-        .ok_or(LoweringError::Unsupported(
-            "scalar successor argument span is stale",
-        ))?;
-    if scalar_arguments.len() != target_parameter_types.len() {
-        return unsupported(
-            "scalar graph successor bindings must match the target parameter count",
-        );
-    }
-    let source = states
-        .iter()
-        .find(|state| state.state == source_state)
-        .ok_or(LoweringError::Unsupported(
-            "scalar successor lost its source state",
-        ))?;
-    let (source_machine, source_state_typed) =
-        crate::declarations::state_declaration(checked, source_state)?;
-    let mut ranges = Vec::new();
-    let mut structural_arguments = Vec::new();
-    for transfer in plans
-        .structural_transfers
-        .span(successor.structural_transfers)
-        .ok_or(LoweringError::Unsupported(
-            "scalar successor transfer span is stale",
-        ))?
-        .iter()
-    {
-        match transfer.source {
-            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                let parameter = source.structural_parameters.get(index as usize).ok_or(
-                    LoweringError::Unsupported("scalar successor transfer parameter is absent"),
-                )?;
-                // The state's structural namespace is its checked roster in
-                // order, so the transfer's roster index addresses it directly.
-                let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: index,
-                    },
-                    path: Vec::new(),
-                    type_identity: parameter.type_identity.clone(),
-                    access: parameter.access,
-                };
-                structural_arguments.push(match parameter.access {
-                    // A borrowed view forwards its descriptor along the edge:
-                    // the callee re-borrows the same place rather than taking
-                    // ownership the source never had.
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow => scalar_bindings
-                        .borrowed_structural_argument(
-                            &argument,
-                            source_machine,
-                            checked.typed.state_parameters(source_state_typed),
-                        )?,
-                    _ => scalar_bindings.owned_argument(&argument)?,
-                });
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                ..
-            }
-            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                ..
-            } => {
-                let retained_target = states[target]
-                    .structural_parameters
-                    .get(transfer.target_parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar successor subslice target is absent",
-                    ))?;
-                let range = computations::subslices::transfer(
-                    checked,
-                    source_state,
-                    successor.statement_ordinal,
-                    &transfer.source,
-                    retained_target,
-                    scalar_bindings,
-                    structural_types,
-                    next_place,
-                )?;
-                structural_arguments.push(range.completed_argument());
-                ranges.push(range);
-            }
-            _ => {
-                return unsupported("scalar successor cannot lower this structural transfer");
-            }
-        }
-    }
-    // `exit_target` answers a lowered branch-state index: the edge lands on
-    // the cleanup wrapper it may have pushed, not on the checked target's
-    // position in `states`. Keep the two index spaces apart — the erased
-    // proof roster below still reads `states[target]` by checked position.
-    let lowered_target = structural_values::exit_target(
-        checked,
-        source_state,
-        scalar_bindings,
-        &target_parameter_types,
-        &mut structural_arguments,
-        target,
-        computations,
-        structural_types,
-        next_place,
-    )?;
-    if let Some(entry) = computations.successor(
-        source_state,
-        successor,
-        scalar_bindings,
-        source_value_types,
-        lowered_target,
-        &target_parameter_types,
-        &structural_arguments,
-        &ranges,
-    )? {
-        return Ok((
-            entry,
-            computations::parameters(source_value_types),
-            Vec::new(),
-            Vec::new(),
-        ));
-    }
-    let arguments = scalar_arguments
-        .iter()
-        .map(|argument| argument.argument_ordinal)
-        .zip(&target_parameter_types)
-        .map(|(argument_ordinal, target_type)| {
-            let expression = scalar_bindings.expression_at(
-                checked,
-                source_state,
-                successor.statement_ordinal,
-                if successor.is_continuation {
-                    CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
-                } else {
-                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
-                },
-            )?;
-            validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
-            (expression.value_type(source_value_types)? == *target_type)
-                .then_some(expression)
-                .ok_or(LoweringError::Unsupported(
-                    "checked scalar successor expression type must match its target",
-                ))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let erased_arguments = plans
-        .scalar_arguments
-        .span(successor.erased_arguments)
-        .ok_or(LoweringError::Unsupported(
-            "scalar successor erased argument span is stale",
-        ))?
-        .iter()
-        .map(|argument| {
-            let expression = scalar_bindings.expression_at(
-                checked,
-                source_state,
-                successor.statement_ordinal,
-                if successor.is_continuation {
-                    CheckedScalarExpressionRole::TransitionContinuationArgument {
-                        argument_ordinal: argument.argument_ordinal,
-                    }
-                } else {
-                    CheckedScalarExpressionRole::TransitionArgument {
-                        argument_ordinal: argument.argument_ordinal,
-                    }
-                },
-            )?;
-            validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
-            let erased_type: QualifiedScalarType =
-                crate::emission::scalar_types::terminal_scalar_type(argument.primitive_type)?
-                    .into();
-            (expression.value_type(source_value_types)? == erased_type)
-                .then_some(expression)
-                .ok_or(LoweringError::Unsupported(
-                    "checked scalar successor erased expression type must match its target",
-                ))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let erased_proof_arguments = plans
-        .erased_proof_arguments
-        .span(successor.erased_proof_arguments)
-        .ok_or(LoweringError::Unsupported(
-            "scalar successor erased proof span is stale",
-        ))?;
-    let erased_proof_arguments = erased_proof_arguments
-        .iter()
-        .map(|term| {
-            crate::scalar_graph::scalar_contracts::checked_proof_term(
-                checked,
-                term,
-                &source.erased_proof_parameters,
-            )
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    // The edge lands on the lowered successor frontier `exit_target` chose —
-    // the affine-cleanup wrapper when owners had to be rebound — never on the
-    // checked-state position still held by `target`.
-    Ok((
-        lowered_target,
-        arguments,
-        erased_arguments,
-        erased_proof_arguments,
-    ))
 }

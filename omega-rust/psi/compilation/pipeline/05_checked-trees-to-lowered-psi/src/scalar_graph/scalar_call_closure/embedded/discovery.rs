@@ -1,6 +1,6 @@
 //! Exact embedded scalar helper closure and source eligibility.
 
-use super::super::{CheckedScalarBindingValue, CheckedTerminalSignatureEligibility};
+use super::super::CheckedTerminalSignatureEligibility;
 use super::{CheckedTrees, LoweringError, unsupported};
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
@@ -48,57 +48,26 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 checked, machine,
             )?
         };
-        let direct_targets = match callee {
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Graph(graph) => {
-                graph
-                    .states
-                    .iter()
-                    .flat_map(|state| state.bindings.iter())
-                    .filter_map(|binding| match &binding.value {
-                        CheckedScalarBindingValue::DirectCall { target_machine, .. } => {
-                            Some(*target_machine)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
-            }
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Operations(
-                _,
-            ) => Vec::new(),
-        };
         let mut computed = source_checked_computation_targets(checked, machine)?;
         let mut computed_structural =
             crate::expression_preparation::computation_graph::structural_call_targets(
                 checked, machine,
             )?;
-        if let crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Operations(
-            body,
-        ) = callee
-        {
-            for operation in body.operations() {
-                // An ordinary scalar call names a scalar callee.
-                if let Some(call) = operation
-                    .call()
-                    .filter(|call| call.is_module() && call.scalar_result().is_some())
-                {
-                    let target_machine = call.target.machine;
-                    if !computed.contains(&target_machine) {
-                        computed.push(target_machine);
-                    }
-                    if (!call.structural_arguments.is_empty() || !call.claim_transfers().is_empty())
-                        && !computed_structural.contains(&target_machine)
-                    {
-                        computed_structural.push(target_machine);
-                    }
+        for operation in callee.body().operations() {
+            // An ordinary scalar call names a scalar callee.
+            if let Some(call) = operation
+                .call()
+                .filter(|call| call.is_module() && call.scalar_result().is_some())
+            {
+                let target_machine = call.target.machine;
+                if !computed.contains(&target_machine) {
+                    computed.push(target_machine);
                 }
-            }
-        }
-        for target in direct_targets {
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
-                checked, target,
-            )?;
-            if !closure.contains(&target) {
-                closure.push(target);
+                if (!call.structural_arguments.is_empty() || !call.claim_transfers().is_empty())
+                    && !computed_structural.contains(&target_machine)
+                {
+                    computed_structural.push(target_machine);
+                }
             }
         }
         for target in computed {

@@ -3,10 +3,9 @@
 //! their execution schedules differ; normal guarantees still use the declared
 //! result pseudo-value and require independently reconstructed return proofs.
 use super::{
-    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue,
-    ClosedScalarValueContractPlan, IntegerValue, LoweringError, Proposition, ScalarTerm,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
-    unsupported,
+    CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
+    LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -26,39 +25,6 @@ pub(crate) use result_range::with_result_range;
 pub(crate) use source::{
     validate_boundary_guarantees, validate_guarantees, validate_post_state_guarantees,
 };
-
-/// The requires clauses that still discharge as propositions. Each authored
-/// floating entry range occupies its requires-tail position as a `FloatRange`
-/// clause; those rows are delivered through the retained roster instead of
-/// `clauses`. `validate_graph_parameter_ranges` rejoins every authored range
-/// against source row-for-row; what remains here is the clause/roster
-/// correspondence itself. The roster must be present and carry one row per
-/// `FloatRange` clause, so an authored clause that lost its predicate can
-/// never hide behind a floating range: any `None` row or any leftover roster
-/// row disagrees immediately.
-pub(crate) fn covered_requires(
-    plan: &ClosedScalarValueContractPlan,
-) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
-    let mut roster = plan.float_entry_ranges().map(<[_]>::iter);
-    let mut retained = Vec::new();
-    for clause in plan.requires() {
-        match clause {
-            Some(ClosedScalarContractValue::FloatRange(_)) => {
-                if roster.as_mut().and_then(Iterator::next).is_none() {
-                    return unsupported(
-                        "scalar contract floating range lost its retained evidence",
-                    );
-                }
-            }
-            Some(_) => retained.push(clause.clone()),
-            None => return unsupported("scalar contract contains an unsupported clause"),
-        }
-    }
-    if roster.and_then(|mut ranges| ranges.next()).is_some() {
-        return unsupported("scalar contract retains an unauthored floating entry range");
-    }
-    Ok(retained)
-}
 
 /// The structural namespace a closed scalar contract may observe: the
 /// machine's `(source position, declaration)` parameter roster plus the

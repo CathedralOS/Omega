@@ -13,17 +13,12 @@ pub(crate) mod integer;
 pub(crate) mod place_declarations;
 pub(crate) mod view_subslice;
 
-use crate::emission::expression_validation::direct_expression_contains_short_circuit;
-use crate::emission::operation_emission::buffer::{
-    scalar_result_declaration, structural_result_declaration,
-};
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
 use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
 use crate::terminal_identities::value_id;
 pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
-pub(crate) use calls::emit_staged_scalar_call_binding;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
 pub(crate) use expressions::{emit_byte_length, emit_direct_expression};
@@ -31,9 +26,7 @@ use lowered_psi::{
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
 };
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
-use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, ValueDeclaration,
-};
+use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBinding {
@@ -49,11 +42,6 @@ pub(crate) enum LoweredScalarBinding {
     BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
     /// One selector call whose selector and data operands are complete.
     DynamicCall(dynamic_calls::LoweredDynamicCallBinding),
-    /// Retain the evaluated RHS while committing its separate Unit store effect.
-    StoredValue {
-        value: LoweredDirectExpression,
-        destination: crate::emission::store_destination::StoreDestination,
-    },
 }
 
 impl LoweredScalarBinding {
@@ -63,10 +51,7 @@ impl LoweredScalarBinding {
     ) -> Result<QualifiedScalarType, LoweringError> {
         match self {
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
-            Self::Expression(expression)
-            | Self::StoredValue {
-                value: expression, ..
-            } => expression.value_type(parameters),
+            Self::Expression(expression) => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
             Self::BoundaryCall(call) => Ok(call.result_type),
             Self::DynamicCall(call) => Ok(call.result_type),
@@ -79,7 +64,6 @@ impl LoweredScalarBinding {
             Self::DirectCall(call) => call.result_type.scalar_type,
             Self::BoundaryCall(call) => call.result_type.scalar_type,
             Self::DynamicCall(call) => call.result_type.scalar_type,
-            Self::StoredValue { value, .. } => value.scalar_type(),
         }
     }
 }
@@ -221,45 +205,6 @@ pub(crate) fn emit_scalar_binding(
                 kind: OperationKind::BooleanNot { operand: id },
             });
             Ok(negated_id)
-        }
-        LoweredScalarBinding::StoredValue { value, destination } => {
-            use crate::emission::store_destination::StoreDestination;
-            if direct_expression_contains_short_circuit(value) {
-                return unsupported("primitive store requires a completed scalar value");
-            }
-            let value = emit_direct_expression(value, parameters, next_value_identity, operations);
-            let producer = operations.allocate();
-            let (result, kind) = match *destination {
-                StoreDestination::Initialize {
-                    place,
-                    structural_type,
-                } => (
-                    structural_result_declaration(
-                        place,
-                        structural_type,
-                        StructuralMultiplicity::Unrestricted,
-                    ),
-                    OperationKind::EstablishPrimitiveLocal { value },
-                ),
-                StoreDestination::Assign { place } => (
-                    OperationResult::Unit,
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination: place,
-                        path: Vec::new(),
-                        value,
-                    },
-                ),
-            };
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: producer,
-                result,
-                kind,
-            });
-            // The store produces no scalar. Its already evaluated RHS remains
-            // available to private continuation plumbing without another read.
-            Ok(value)
         }
         LoweredScalarBinding::Expression(expression) => Ok(emit_direct_expression(
             expression,

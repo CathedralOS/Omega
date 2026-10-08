@@ -11,14 +11,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerComparisonKind,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility,
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    CheckedComposedUnitControlTerminatorPlan, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -76,11 +75,10 @@ use crate::structural_types::{
     lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };
 use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id,
-    boundary_machine_id, claim_id, contract_id, dense_identity, edge_id, lookup_claim_id,
-    lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id, machine_id,
-    obligation_id, place_id, service_id, structural_domain_id, structural_field_id,
-    structural_type_id, value_id,
+    TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id, boundary_machine_id, claim_id,
+    contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,
+    lookup_service_id, lookup_type_id, machine_id, obligation_id, place_id, service_id,
+    structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
     lower_composed_unit_control_machine, lower_unit_closure, unique_unit_machine,

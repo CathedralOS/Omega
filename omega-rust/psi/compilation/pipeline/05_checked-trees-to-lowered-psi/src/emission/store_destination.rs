@@ -121,13 +121,4 @@ pub(crate) fn descriptor_home(
     ))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StoreDestination {
-    Initialize {
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-    },
-    Assign {
-        place: PlaceId,
-    },
-}
+

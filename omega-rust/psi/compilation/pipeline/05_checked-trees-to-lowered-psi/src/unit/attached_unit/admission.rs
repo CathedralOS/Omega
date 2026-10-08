@@ -41,13 +41,12 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     closure: &[SymbolHandle],
-    scalar_closure: &[SymbolHandle],
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
-    // Computation roots belong to both operation bodies and scalar graphs.
-    // Both use the same exact boundary roster; the body's return shape must
-    // not decide whether a nested application can resolve its declaration.
-    for source in closure.iter().chain(scalar_closure) {
+    // Every body's computation roots use the same exact boundary roster; the
+    // body's return shape must not decide whether a nested application can
+    // resolve its declaration.
+    for source in closure {
         retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
     }
     let mut bodies = Vec::with_capacity(closure.len());
@@ -64,7 +63,7 @@ pub(super) fn admit<'a>(
             }
             UnitBody::Ordinary(plan) => {
                 validate_ordinary(checked, plan)?;
-                operations::validate(checked, plans, plan, closure, scalar_closure, boundaries)?;
+                operations::validate(checked, plans, plan, closure, boundaries)?;
                 AdmittedBody::Ordinary(plan)
             }
         };

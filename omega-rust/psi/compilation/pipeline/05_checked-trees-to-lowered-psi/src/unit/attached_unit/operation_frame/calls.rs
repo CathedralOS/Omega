@@ -13,10 +13,10 @@
 use super::super::parameters::{self, emitted_claim_transfers, lower_structural_arguments};
 use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
-use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
+use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -631,47 +631,19 @@ impl OperationFrame<'_, '_> {
         let realization_state = &call.target.state;
         let source_target = call.target.state;
         let target = CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
-        // Both catalogs have been source-validated before emission.
-        // An operation-body callee uses its real ordered emitter,
-        // not a fabricated PreparedScalarCallee graph.
-        let prepared = self
-            .callees
-            .prepared_scalar_machines
-            .iter()
-            .find(|prepared| prepared.source_machine() == *realization_machine);
+        if !self.callees.closure.contains(realization_machine) {
+            return unsupported("Unit scalar call target is absent from the prepared closure");
+        }
         // The call result republishes the callee's own declared membership,
-        // and operands meet the callee's declared entry formals: a prepared
-        // graph carries both on its prepared signature, and a Unit body on
-        // its allocated `MachineSignature`, tags included.
-        let unit_signature = match prepared {
-            Some(PreparedScalarCallee::Graph(_)) => None,
-            None if self.callees.closure.contains(realization_machine)
-                && matches!(target, CheckedScalarCallee::Operations(_)) =>
-            {
-                Some(super::super::signatures::find(
-                    self.callees.signatures,
-                    *realization_machine,
-                )?)
-            }
-            None => {
-                return unsupported("Unit scalar call target is absent from the prepared closure");
-            }
-        };
-        let (target_result, result_qualifications) = match (prepared, unit_signature) {
-            (Some(PreparedScalarCallee::Graph(graph)), _) => (
-                graph.result_type.scalar_type,
-                graph.result_type.qualifications,
-            ),
-            (_, Some(signature)) => {
-                let result = signature.scalar_result.ok_or(LoweringError::Unsupported(
-                    "Unit scalar call target declares no scalar result",
-                ))?;
-                (result.scalar_type, result.qualifications)
-            }
-            (None, None) => {
-                return unsupported("Unit scalar call target is absent from the prepared closure");
-            }
-        };
+        // and operands meet the callee's declared entry formals: its
+        // allocated `MachineSignature` carries both, tags included.
+        let signature =
+            super::super::signatures::find(self.callees.signatures, *realization_machine)?;
+        let declared_result = signature.scalar_result.ok_or(LoweringError::Unsupported(
+            "Unit scalar call target declares no scalar result",
+        ))?;
+        let (target_result, result_qualifications) =
+            (declared_result.scalar_type, declared_result.qualifications);
         if target.entry_state()? != *realization_state
             || target_result != terminal_scalar_type(result.primitive_type)?
         {
@@ -682,36 +654,19 @@ impl OperationFrame<'_, '_> {
             .iter()
             .map(|primitive| terminal_scalar_type(*primitive))
             .collect::<Result<Vec<_>, _>>()?;
-        let expected_parameter_types = match prepared {
-            Some(PreparedScalarCallee::Graph(graph)) => graph
-                .states
-                .first()
-                .map(|state| state.parameter_types.clone())
-                .ok_or(LoweringError::Unsupported(
-                    "scalar call target lost its prepared entry state",
-                ))?,
-            _ => {
-                let signature = unit_signature.ok_or(LoweringError::Unsupported(
-                    "Unit scalar call target is absent from the prepared closure",
-                ))?;
-                let declared = signature
-                    .scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.value_type())
-                    .collect::<Vec<_>>();
-                if declared.len() != target_parameter_types.len()
-                    || declared
-                        .iter()
-                        .zip(&target_parameter_types)
-                        .any(|(declared, carrier)| declared.scalar_type != *carrier)
-                {
-                    return unsupported(
-                        "Unit scalar call target formals disagree with its signature",
-                    );
-                }
-                declared
-            }
-        };
+        let expected_parameter_types = signature
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.value_type())
+            .collect::<Vec<_>>();
+        if expected_parameter_types.len() != target_parameter_types.len()
+            || expected_parameter_types
+                .iter()
+                .zip(&target_parameter_types)
+                .any(|(declared, carrier)| declared.scalar_type != *carrier)
+        {
+            return unsupported("Unit scalar call target formals disagree with its signature");
+        }
         let (arguments, erased_arguments, erased_proof_arguments) = match (
             call.erased_scalar_arguments(),
             call.erased_proof_arguments(),
@@ -806,17 +761,7 @@ impl OperationFrame<'_, '_> {
         if structural_arguments.len() != target.structural_parameters().len() {
             return unsupported("scalar call arguments disagree with its retained formals");
         }
-        // The frame is chosen from the checked call before its operands are
-        // lowered: only a structural frame lowers structural arguments.
-        let frame = ScalarCallFrame::for_call(
-            !structural_arguments.is_empty(),
-            !claim_transfers.is_empty(),
-            target.requires_structural_frame(),
-        );
-        let (structural_arguments, claim_transfers) = if frame == ScalarCallFrame::Structural {
-            if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
-                return unsupported("structural scalar call has no structural checked body");
-            }
+        let (structural_arguments, claim_transfers) = {
             // Arguments and transfer indices already name retained dense slots.
             // Never remove a receiver or rebase claims during emission.
             let mut selector_values = parameters::mint_runtime_index_selectors(
@@ -850,8 +795,6 @@ impl OperationFrame<'_, '_> {
                 )?,
                 emitted_claim_transfers(claim_transfers, self.calls.claims.bindings())?,
             )
-        } else {
-            (Vec::new(), Vec::new())
         };
         let kind = DirectCall {
             callee,
@@ -862,7 +805,7 @@ impl OperationFrame<'_, '_> {
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-            result: DirectCallResult::Scalar(frame),
+            result: DirectCallResult::Scalar,
         }
         .into_operation_kind();
         self.operations.push(Operation {

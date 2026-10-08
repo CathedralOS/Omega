@@ -7,11 +7,12 @@
 //! from what successful return binds (nothing, one scalar value or one
 //! structural place) and which operand lanes cross the call.
 //! [`DirectCall::into_operation_kind`] is the only place this stage's
-//! lowering produces those five operations. The operation decides the emitted
-//! Terminal bytes, so the choice has exactly two rules, each written once:
-//! [`ScalarCallFrame::for_call`] for a scalar result and
-//! [`DirectCallResult::Structural`] for a structural one. A route whose form
-//! is fixed by construction names that form instead of re-deriving it.
+//! lowering produces those operations. The operation decides the emitted
+//! Terminal bytes. A scalar result always takes `CallStructuralScalar`: every
+//! scalar callee is a Unit body that owns structural storage behind its scalar
+//! signature, so this stage never emits the scalar-only `Call`, which Terminal
+//! still decodes. [`DirectCallResult::Structural`] chooses between the two
+//! structural-result forms.
 //!
 //! Consumers go the other way: [`direct_call_parts`] reads the callee, result
 //! role and operand lanes back from whichever operation a call took, and
@@ -43,8 +44,8 @@ pub(crate) struct DirectCall {
 pub(crate) enum DirectCallResult {
     /// Completion binds nothing: `CallUnit`, which carries every lane.
     Unit,
-    /// Return binds one scalar value through the chosen frame.
-    Scalar(ScalarCallFrame),
+    /// Return binds one scalar value: `CallStructuralScalar`.
+    Scalar,
     /// Return establishes one structural place. A linear result with no
     /// scalar or proof-only actual keeps the scalar-free `CallStructural`
     /// (which owns no erased lane); every other result — affine, unrestricted,
@@ -53,36 +54,6 @@ pub(crate) enum DirectCallResult {
     Structural {
         multiplicity: StructuralMultiplicity,
     },
-}
-
-/// The frame a scalar-result call crosses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ScalarCallFrame {
-    /// Only positional scalar and erased actuals cross: `Call`.
-    ScalarOnly,
-    /// Structural custody crosses, or the callee's body owns structural
-    /// storage behind a scalar signature: `CallStructuralScalar`.
-    Structural,
-}
-
-impl ScalarCallFrame {
-    /// The ordinary rule: any structural argument or claim transfer crossing
-    /// the call, or a callee whose selected body requires a structural frame,
-    /// takes the structural frame. A caller decides this from its checked
-    /// facts before lowering operands, since only a structural frame lowers
-    /// structural arguments and their transfers.
-    pub(crate) fn for_call(
-        crosses_structural_argument: bool,
-        crosses_claim_transfer: bool,
-        callee_requires_structural_frame: bool,
-    ) -> Self {
-        if crosses_structural_argument || crosses_claim_transfer || callee_requires_structural_frame
-        {
-            Self::Structural
-        } else {
-            Self::ScalarOnly
-        }
-    }
 }
 
 impl DirectCall {
@@ -109,32 +80,16 @@ impl DirectCall {
                 requirement_obligations,
                 crash_continuations,
             },
-            DirectCallResult::Scalar(ScalarCallFrame::ScalarOnly) => {
-                debug_assert!(
-                    structural_arguments.is_empty() && claim_transfers.is_empty(),
-                    "a scalar-only call frame carries no structural custody"
-                );
-                OperationKind::Call {
-                    callee,
-                    arguments,
-                    erased_arguments,
-                    erased_proof_arguments,
-                    requirement_obligations,
-                    crash_continuations,
-                }
-            }
-            DirectCallResult::Scalar(ScalarCallFrame::Structural) => {
-                OperationKind::CallStructuralScalar {
-                    callee,
-                    arguments,
-                    erased_arguments,
-                    erased_proof_arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                }
-            }
+            DirectCallResult::Scalar => OperationKind::CallStructuralScalar {
+                callee,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            },
             DirectCallResult::Structural { multiplicity }
                 if multiplicity == StructuralMultiplicity::Linear
                     && arguments.is_empty()

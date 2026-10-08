@@ -8,7 +8,6 @@ use super::super::{
     lookup_machine_id,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
-use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
@@ -45,7 +44,6 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// The closure's Unit bodies and prepared scalar callees, which a
     /// state's scalar calls resolve against exactly as an ordinary body's do.
     pub closure: &'a [symbols::SymbolHandle],
-    pub prepared_scalar_machines: &'a [PreparedScalarCallee],
     /// The closure's scalar qualification namespace; a call's emitted
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:
@@ -88,7 +86,6 @@ pub(in crate::unit::attached_unit) fn emit(
         boundary_parameters: Cow::Borrowed(shared.boundary_parameters),
         signatures: Cow::Borrowed(shared.signatures),
         closure: shared.closure,
-        prepared_scalar_machines: shared.prepared_scalar_machines,
         prepared_scalar_qualifications: Some(shared.prepared_scalar_qualifications),
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
