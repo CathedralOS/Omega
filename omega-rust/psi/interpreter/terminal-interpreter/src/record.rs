@@ -140,7 +140,7 @@ impl TerminalExecution<'_> {
                         {
                             return Err(malformed());
                         }
-                        let transfers_custody = self.stage_unrestricted_operand(
+                        self.stage_unrestricted_operand(
                             argument,
                             &mut frontier,
                             &mut consumed,
