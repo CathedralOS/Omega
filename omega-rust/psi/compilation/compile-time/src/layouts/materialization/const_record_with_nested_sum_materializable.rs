@@ -24,7 +24,6 @@ use layout_plans::{
 };
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
-use typed_trees::types::TypeReferenceNode;
 
 use super::const_materializable::{
     hash_byte, hash_bytes, hash_text, hash_u64, hash_value, unique_data_by_name,
