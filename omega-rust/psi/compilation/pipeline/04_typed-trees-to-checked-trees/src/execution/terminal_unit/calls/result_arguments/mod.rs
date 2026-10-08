@@ -420,10 +420,10 @@ fn argument_contract(
             access,
         });
     }
-    // A whole linear result carries the producer's live claim, not affine
-    // cleanup debt. Its exact qualification and transfer events must agree
-    // with the consumer; projected and borrowed claim joins remain separate.
-    if linear && (projected || access != CheckedStructuralAccess::Owned) {
+    // Owned linear projections still need their exact claim handoff. Lending
+    // storage uses captured loan authority below and transfers no owner claim,
+    // regardless of that owner's multiplicity or how it was established.
+    if linear && projected && access == CheckedStructuralAccess::Owned {
         return None;
     }
     // A completed value's represented contents do not depend on whether a
@@ -544,21 +544,24 @@ fn argument_contract(
                     ExpressionNode::Call(_)
                 )
     );
+    // A projection selects the referent's type, not the containing owner's
+    // multiplicity. Its resolved storage/formal correspondence was checked by
+    // the presentation above; the local declaration separately rejoins the
+    // complete owner below. Whole operands retain their result contract.
+    let selected_multiplicity = if projected_borrow {
+        program.type_multiplicity(storage_type?)
+    } else {
+        result.multiplicity
+    };
     if !storage_identity_matches
-        || (program.type_multiplicity(referent) != result.multiplicity
+        || (program.type_multiplicity(referent) != selected_multiplicity
             // A shared loan presents unrestricted regardless of the referent's
             // own cleanup profile: the viewed element is already rejoined by
             // the projected path's identity check, and the binding stores
             // only the unrestricted descriptor.
             && !(access == CheckedStructuralAccess::SharedBorrow
                 && result.multiplicity == Multiplicity::Unrestricted)
-            // A projected loan of an unrestricted leaf (`&pair.high`) observes
-            // or replaces that leaf in place; the affine root keeps its own
-            // custody and cleanup, so the leaf's multiplicity is not the
-            // root's. Whole loans and moves keep the exact equality above.
-            && !(projected_borrow
-                && program.type_multiplicity(referent) == Multiplicity::Unrestricted
-                && result.multiplicity == Multiplicity::Affine))
+        )
         // Only an owned transfer needs an owned-content classification here.
         // A loan keeps the established source home and its declared member
         // predicates; exact access was rejoined above and the source/result
@@ -623,16 +626,10 @@ fn argument_contract(
                     local.type_reference,
                     validation::ContentsRequirement::PlainOwned,
                 );
-                // Lending established storage does not transfer its contents.
-                // The exact captured access above and declaration identity
-                // below authorize the carrier, while retained reference leaves
-                // keep their own live custody. This route has no linear-claim
-                // handoff; a stored linear owner still needs that contract.
-                if access != CheckedStructuralAccess::Owned
-                    && !validation::linear_claim_frontier(program, local.type_reference).is_empty()
-                {
-                    return None;
-                }
+                // A loan retains the complete owner's claims and disposal debt.
+                // Captured access authorizes this observation, and the exact
+                // declaration below authenticates its home. Only an owned
+                // argument reaches claim-transfer planning after this query.
                 // A borrowed-view binding lends elements through its
                 // descriptor, not through owned contents on its reference
                 // shell: the projected borrow's evidence is the exact
@@ -673,7 +670,8 @@ fn argument_contract(
                 {
                     return None;
                 }
-                if (linear || (unrestricted && access == CheckedStructuralAccess::Owned))
+                if access == CheckedStructuralAccess::Owned
+                    && (linear || unrestricted)
                     && validation::structural_result_qualifications(program, local.type_reference)
                         .ok()?
                         != validation::structural_result_qualifications(program, referent).ok()?

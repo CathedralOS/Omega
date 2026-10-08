@@ -1075,19 +1075,17 @@ pub(crate) fn validate_consumer(
         // Lending a whole local or a projected subtree does not consume its
         // owner. The authored path was rejoined above; a loan either ends at
         // this call or survives in independently reconstructed result custody.
-        // Stored-reference crossings retain that same call custody. The path
-        // replay preserves their descriptors; Terminal independently checks
-        // each live permission instead of recognizing a returned-record form.
+        // Stored-reference crossings retain that same call custody. The root's
+        // multiplicity describes its disposal debt, not the loan's access:
+        // linear claims stay on the original owner. Target entry/transfer rows
+        // below must therefore remain absent for every borrowed operand.
         let lent_access = match argument.access {
             checked_trees::CheckedStructuralAccess::MutableBorrow
             | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             | checked_trees::CheckedStructuralAccess::SharedBorrow => true,
             checked_trees::CheckedStructuralAccess::Owned => false,
         };
-        let borrowed_storage = matches!(
-            result.multiplicity,
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        ) && loan_is_accounted
+        let borrowed_storage = loan_is_accounted
             && argument.path.iter().all(|segment| {
                 matches!(
                     segment,

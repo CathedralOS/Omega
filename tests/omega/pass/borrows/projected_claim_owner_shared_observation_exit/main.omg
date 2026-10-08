@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; stamp: i32; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+machine observe(receipt: &Receipt) -> i32 { receipt.code }
+machine observe_stamp(stamp: &i32) -> i32 { stamp }
+machine update(receipt: &mut Receipt, stamp: i32) { receipt.stamp = stamp; }
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut receipt: Receipt = Receipt {
+        stamp: 0,
+        code: 27,
+    };
+    update(&mut receipt, 43);
+    let observed: i32 = observe(&receipt);
+    let stamp: i32 = observe_stamp(&receipt.stamp);
+    drop(receipt);
+    transition observed == 27 && stamp == 43 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}
