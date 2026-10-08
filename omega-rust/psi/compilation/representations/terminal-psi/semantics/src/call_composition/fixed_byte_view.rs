@@ -131,12 +131,6 @@ pub fn fixed_byte_array_window<'types, 'path>(
     {
         return None;
     }
-    let (backing_path, range) = match argument.path.split_last() {
-        Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
-            (backing, Some((*start, *end)))
-        }
-        _ => (argument.path.as_slice(), None),
-    };
     let bounded_capacity = types.clone().find_map(|declaration| {
         match (
             declaration.id == expected.structural_type,
@@ -155,17 +149,42 @@ pub fn fixed_byte_array_window<'types, 'path>(
     // A `&mut [u8; N]` borrows the whole fixed backing — a ranged
     // presentation or a different declared extent can never satisfy its
     // bound.
-    if bounded_capacity.is_some() && range.is_some() {
+    if bounded_capacity.is_some()
+        && matches!(
+            argument.path.last(),
+            Some(StructuralPathSegment::FixedByteRange { .. })
+        )
+    {
         return None;
     }
+    let window = fixed_byte_storage_window(types, actual.structural_type, &argument.path)?;
+    if bounded_capacity.is_some_and(|capacity| capacity != window.length) {
+        return None;
+    }
+    Some(window)
+}
+
+/// Resolve a region of fixed byte backing without inventing a standalone type
+/// for the region. This is the geometry shared by call presentation and custody
+/// reconstruction, not permission to form a reference, copy, or access bytes.
+pub fn fixed_byte_storage_window<'types, 'path>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &'path [StructuralPathSegment],
+) -> Option<FixedByteArrayWindow<'path>> {
+    let (backing_path, range) = match path.split_last() {
+        Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
+            (backing, Some((*start, *end)))
+        }
+        _ => (path, None),
+    };
     if !backing_path
         .iter()
         .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
     {
         return None;
     }
-    let declaration =
-        runtime_structural_path_tip(types.clone(), actual.structural_type, backing_path)?;
+    let declaration = runtime_structural_path_tip(types.clone(), root, backing_path)?;
     // Inline arrays and already borrowed backing expose the same extent.
     // Window admission is independent of how native code stores the carrier;
     // transport must preserve that separate residence distinction.
@@ -176,9 +195,6 @@ pub fn fixed_byte_array_window<'types, 'path>(
     }
     let (start, end) = range.unwrap_or((0, length));
     if start > end || end > length {
-        return None;
-    }
-    if bounded_capacity.is_some_and(|capacity| capacity != end - start) {
         return None;
     }
     Some(FixedByteArrayWindow {

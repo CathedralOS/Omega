@@ -781,14 +781,14 @@ fn shared_source_compatible(
 /// Rebind ordinary borrowed storage without granting a new reference. Its
 /// operation owns bounds, case and access checks; formation and result mapping
 /// separately retain reference_source_type's stricter eligibility rules.
-fn storage_projection_type(
+fn storage_projection(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Option<StructuralTypeId> {
+) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
     let carrier = source_contract(function, custody, source.place)?;
-    optimization_unit_semantics::structural_projection_type(types.iter(), carrier, &source.path)
+    optimization_unit_semantics::structural_storage_projection(types.iter(), carrier, &source.path)
 }
 
 /// A `.., Referent` source names a suspended child of the located carrier
@@ -807,18 +807,17 @@ fn normalized_source(
         .as_ref()
         .filter(|origins| !origins.is_empty())
         .ok_or(invalid())?;
-    let expected = storage_projection_type(function, custody, types, source).ok_or(invalid())?;
+    let expected = storage_projection(function, custody, types, source).ok_or(invalid())?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        // A fixed byte view arriving from its array's backing names that same
-        // storage (`borrowed_referent_matches`); differing carrier IDs do not
-        // imply different storage.
-        if !storage_projection_type(function, custody, types, &resolved).is_some_and(|actual| {
-            terminal_semantics::borrowed_referent_matches(types.iter(), actual, expected)
-        }) {
+        // Rebinding may change the carrier's presentation, never a window's
+        // original backing or exact interval. Keep every possible origin.
+        if !storage_projection(function, custody, types, &resolved)
+            .is_some_and(|actual| actual.matches(types.iter(), expected))
+        {
             return Err(invalid());
         }
         candidates.push(normalized_direct_source(
@@ -895,7 +894,7 @@ fn normalized_direct_source(
             return Err(invalid());
         }
         Ok((Root::Place(source.place), Vec::new()))
-    } else if storage_projection_type(function, custody, types, source).is_some() {
+    } else if storage_projection(function, custody, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
         if custody.leaves.iter().any(|((carrier, path), leaf)| {
             roots_overlap(&leaf.root, &root)

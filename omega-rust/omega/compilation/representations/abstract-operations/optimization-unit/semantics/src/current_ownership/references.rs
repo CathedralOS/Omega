@@ -12,12 +12,12 @@ use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, access_path_type,
     access_referent_tail, contains_reference, formal_origin, is_reference_projection,
     leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
-    reference_source_type, storage_projection_type,
+    reference_source_type, storage_projection,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::PsiOptimizationFunction;
 use abstract_operations::call_source;
+use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
@@ -462,23 +462,17 @@ fn normalized_source(
         .as_ref()
         .filter(|origins| !origins.is_empty())
         .ok_or_else(invalid)?;
-    let expected =
-        storage_projection_type(function, structural_types, source).ok_or_else(invalid)?;
+    let expected = storage_projection(function, structural_types, source).ok_or_else(invalid)?;
     let mut alternatives = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        // A fixed byte view arriving from its array's backing names that same
-        // storage (`borrowed_referent_matches`); differing carrier IDs do not
-        // imply different storage.
-        if !storage_projection_type(function, structural_types, &resolved).is_some_and(|actual| {
-            terminal_semantics::borrowed_referent_matches(
-                structural_types.values().copied(),
-                actual,
-                expected,
-            )
-        }) {
+        // Rebinding may change the carrier's presentation, never a window's
+        // original backing or exact interval. Keep every possible origin.
+        if !storage_projection(function, structural_types, &resolved)
+            .is_some_and(|actual| actual.matches(structural_types.values().copied(), expected))
+        {
             return Err(invalid());
         }
         alternatives.push(normalized_direct_source(
@@ -586,7 +580,7 @@ fn normalized_direct_source(
         }
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
-    } else if storage_projection_type(function, structural_types, source).is_some() {
+    } else if storage_projection(function, structural_types, source).is_some() {
         let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
             path: source.path.clone(),

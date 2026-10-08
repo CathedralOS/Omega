@@ -490,20 +490,21 @@ pub(crate) fn is_reference_projection(
         && source.access != terminal_psi::StructuralAccess::Owned
 }
 
-/// Type an admitted storage projection without granting reference formation.
+/// Resolve an admitted storage region without granting reference formation.
 /// Ordinary calls retain their own access, case and index obligations; result
 /// formation separately applies `reference_source_type`. Rebinding a borrowed
 /// name must preserve its complete path, including selected payloads and indices.
-pub(crate) fn storage_projection_type(
+pub(crate) fn storage_projection(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     source: &terminal_psi::StructuralArgument,
-) -> Option<StructuralTypeId> {
+) -> Option<super::structural_catalog::StructuralStorageProjection> {
     if source.path.last() == Some(&terminal_psi::StructuralPathSegment::Referent) {
-        return projected_carrier_type(function, types, source);
+        return projected_carrier_type(function, types, source)
+            .map(super::structural_catalog::StructuralStorageProjection::Endpoint);
     }
     let contract = structural_source_contract(function, source.place)?;
-    super::structural_catalog::structural_projection_type(
+    super::structural_catalog::structural_storage_projection(
         types.values().copied(),
         contract.structural_type,
         &source.path,

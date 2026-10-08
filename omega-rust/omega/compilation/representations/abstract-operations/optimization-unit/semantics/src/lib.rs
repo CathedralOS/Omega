@@ -32,6 +32,9 @@ pub use error::OptimizationUnitValidationError;
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
 pub use unit_validation::structural_catalog::structural_projection_type;
+pub use unit_validation::structural_catalog::{
+    StructuralStorageProjection, structural_storage_projection,
+};
 
 /// Current declaration and producer authority for one structural place.
 /// Availability, the selected projection and use-site loan compatibility are

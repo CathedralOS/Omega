@@ -1800,12 +1800,11 @@ then independent claimed restoration slices -> final closure.
   Preserve `time/runtime_clock_shared_import_slots_exit` across those repairs:
   all selected read/wait slots share one invocation's explicitly supplied time
   model, with unchanged checked calibration; simulation is not native latency
-  evidence. Preserve `host/runtime_descriptor_output_streams_exit` and
-  `host/runtime_descriptor_direct_array_exit` while extending host buffers:
-  the direct-array program currently refuses native lowering at
-  `02_abstract-operations-to-target-operations/src/lowering/control_flow/references.rs:988`
-  on macOS AArch64, before either engine executes; restore its admitted storage
-  projection without repinning that refusal as successful execution. Its
+  evidence. Preserve `host/runtime_descriptor_output_streams_exit`,
+  `host/runtime_descriptor_direct_array_exit` and
+  `host/runtime_descriptor_nested_array_window_exit` while extending host buffers:
+  nonzero and empty windows retain the original backing and exact interval,
+  including nested fields forwarded through an ordinary helper. Their
   views transport pointer/length, primitive loans retain their exact extent,
   and stdout/stderr oracles remain independent. Preserve the public-command
   byte handoff in `host/runtime_descriptor_binary_output_exit`: neither stream

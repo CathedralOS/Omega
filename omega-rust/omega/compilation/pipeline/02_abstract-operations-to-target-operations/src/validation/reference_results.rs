@@ -625,7 +625,7 @@ fn normalized_source(
         return normalized_direct_source(function, custody, declarations, source);
     };
     let origins = origins.as_ref().filter(|origins| !origins.is_empty())?;
-    let projected_type = |argument: &StructuralArgument| {
+    let projection = |argument: &StructuralArgument| {
         let (contract, _) = source_contract(function, custody, argument.place)?;
         if argument.path.last() == Some(&StructuralPathSegment::Referent) {
             let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
@@ -639,28 +639,24 @@ fn normalized_source(
                 declarations,
                 contract,
                 &location.path,
-            );
+            )
+            .map(optimization_unit_semantics::StructuralStorageProjection::Endpoint);
         }
-        optimization_unit_semantics::structural_projection_type(
+        optimization_unit_semantics::structural_storage_projection(
             declarations.iter(),
             contract,
             &argument.path,
         )
     };
-    let expected = projected_type(source)?;
+    let expected = projection(source)?;
     let mut roots = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        // A fixed byte view arriving from its array's backing names that same
-        // storage (`borrowed_referent_matches`); differing carrier IDs do not
-        // imply different storage.
-        if !terminal_semantics::borrowed_referent_matches(
-            declarations.iter(),
-            projected_type(&resolved)?,
-            expected,
-        ) {
+        // Rebinding may change the carrier's presentation, never a window's
+        // original backing or exact interval. Keep every possible origin.
+        if !projection(&resolved)?.matches(declarations.iter(), expected) {
             return None;
         }
         roots.push(normalized_direct_source(
@@ -714,7 +710,7 @@ fn normalized_direct_source(
         // contract. A projected local and a projected parameter denote the
         // same custody operation; neither is a callee-local formal origin.
         let (contract, _) = source_contract(function, custody, source.place)?;
-        optimization_unit_semantics::structural_projection_type(
+        optimization_unit_semantics::structural_storage_projection(
             declarations.iter(),
             contract,
             &source.path,

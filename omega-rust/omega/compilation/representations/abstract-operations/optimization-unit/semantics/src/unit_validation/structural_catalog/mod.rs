@@ -3,6 +3,8 @@
 //! Type indexing precedes domain indexing at this entrance. Projection,
 //! declaration, graph, function-local, witness, provider-specialization, and
 //! path mechanics descend into named leaves.
+//! `paths` types standalone endpoints; `storage_projection` retains regions
+//! such as borrowed byte windows without minting a standalone owner type.
 use crate::OptimizationUnitValidationError;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
@@ -13,10 +15,12 @@ mod content_projection;
 mod function_catalog;
 mod paths;
 mod provider_specialization;
+mod storage_projection;
 mod type_declarations;
 mod witnesses;
 
 pub use paths::structural_projection_type;
+pub use storage_projection::{StructuralStorageProjection, structural_storage_projection};
 
 pub(crate) use function_catalog::{structural_root_key, validate_function_structural_catalog};
 pub(crate) use paths::{

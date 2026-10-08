@@ -294,6 +294,7 @@ pass/host/runtime_console_bounded_line_partial_eof_exit built 1282ms exit:22 std
 pass/host/runtime_descriptor_binary_output_exit built 11413ms exit:0 interpreter-exit:0 interpreter:agrees @b5f60150b9b9+wt
 pass/host/runtime_descriptor_direct_array_exit built 14250ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_mutable_view_input_exit built 15268ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @46782946f3c8+wt
+pass/host/runtime_descriptor_nested_array_window_exit built 14806ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cf8f4f487a62+wt
 pass/host/runtime_descriptor_output_streams_exit built 11567ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_record_array_input_exit built 15464ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @46782946f3c8+wt
 pass/host/runtime_descriptor_scalar_input_exit built 11699ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d4c9839eb53d+wt

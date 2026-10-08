@@ -74,8 +74,9 @@ pub use call_composition::{
     boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
     call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
-    fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
-    stored_view_field_presentation, validate_call_composition_semantic_rows,
+    fixed_byte_array_window, fixed_byte_storage_window, fixed_element_array_extent,
+    shared_boundary_buffer_capacity, stored_view_field_presentation,
+    validate_call_composition_semantic_rows,
 };
 pub use collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, collection_backing,
