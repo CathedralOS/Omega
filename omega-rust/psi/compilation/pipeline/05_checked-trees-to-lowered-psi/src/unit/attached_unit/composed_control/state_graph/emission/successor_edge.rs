@@ -843,18 +843,13 @@ impl StateGraphEmission<'_, '_> {
                 self.block_ranks.insert(edge_evaluation.current, rank);
                 self.block_ranks
                     .extend(edge_evaluation.blocks.iter().map(|block| (block.id, rank)));
-                self.rank_edges
-                    .extend(edge_evaluation.blocks.iter().flat_map(|block| {
-                        block.terminator.edges().map(|edge| {
-                            (
-                                edge,
-                                (
-                                    rank,
-                                    terminal_psi::TerminalNaturalRankComparison::Preserving,
-                                ),
-                            )
-                        })
-                    }));
+                self.preserve_edges(
+                    edge_evaluation
+                        .blocks
+                        .iter()
+                        .flat_map(|block| block.terminator.edges()),
+                    rank,
+                );
                 self.rank_edges.insert(
                     selection_edge,
                     (

@@ -10,8 +10,22 @@ use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use semantic_vocabulary::EdgeId;
 
 impl StateGraphEmission<'_, '_> {
+    /// Record every edge in `edges` as rank-preserving at `rank`.
+    fn preserve_edges(&mut self, edges: impl Iterator<Item = EdgeId>, rank: ValueId) {
+        self.rank_edges.extend(edges.map(|edge| {
+            (
+                edge,
+                (
+                    rank,
+                    terminal_psi::TerminalNaturalRankComparison::Preserving,
+                ),
+            )
+        }));
+    }
+
     /// Close the state at `position` with `terminator` and publish its
     /// blocks, edge blocks, counters and occurrence rows.
     pub(super) fn seal_state(
@@ -165,42 +179,24 @@ impl StateGraphEmission<'_, '_> {
                 // none of their edges asserts an authored decrease.
                 self.block_ranks
                     .extend(edge_blocks.iter().map(|block| (block.id, rank)));
-                self.rank_edges.extend(edge_blocks.iter().flat_map(|block| {
-                    block.terminator.edges().map(|edge| {
-                        (
-                            edge,
-                            (
-                                rank,
-                                terminal_psi::TerminalNaturalRankComparison::Preserving,
-                            ),
-                        )
-                    })
-                }));
-                self.rank_edges.extend(terminator.edges().map(|edge| {
-                    (
-                        edge,
-                        (
-                            rank,
-                            terminal_psi::TerminalNaturalRankComparison::Preserving,
-                        ),
-                    )
-                }));
+                self.preserve_edges(
+                    edge_blocks
+                        .iter()
+                        .flat_map(|block| block.terminator.edges()),
+                    rank,
+                );
+                self.preserve_edges(terminator.edges(), rank);
             }
             // Completed evaluation blocks stay inside this authored state.
             // Their private edges preserve its incoming rank; only the state
             // successor constructed above claims an authored strict decrease.
-            self.rank_edges
-                .extend(evaluation.blocks.iter().flat_map(|block| {
-                    block.terminator.edges().map(|edge| {
-                        (
-                            edge,
-                            (
-                                rank,
-                                terminal_psi::TerminalNaturalRankComparison::Preserving,
-                            ),
-                        )
-                    })
-                }));
+            self.preserve_edges(
+                evaluation
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.terminator.edges()),
+                rank,
+            );
         }
         evaluation.remap_transported_call_operands(&mut operations);
         evaluation.blocks.push(Block {
