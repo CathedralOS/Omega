@@ -1,7 +1,6 @@
 //! Independent object replay for fixed-width immediate stores into staged
 //! attached-Unit structural parameter homes.
 
-use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
 use machine_code::{
     InternalUnitScalarArgumentSourceRecord, MachineCodeFunction, SemanticCodeSite,
     UnitStructuralScalarFieldStoreRecord,
@@ -77,71 +76,18 @@ fn validate_store(
             scalar_type,
             location,
         } => {
-            let abi = function.parameter_abi.as_ref()?;
-            let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
-            let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
-            let (scalar_shape, byte_size) =
-                crate::object_artifact::replay::unit::write_only_primitive_store::native_scalar_shape(scalar_type)?;
-            let (expected_location, placed_byte_size) =
-                match scalar_parameter.placement.locations.as_slice() {
-                    [
-                        ValueLocation::Register {
-                            register,
-                            value_byte_offset: 0,
-                            byte_size,
-                        },
-                    ] => (
-                        machine_code::UnitScalarParameterLocationRecord::Register(*register),
-                        *byte_size,
-                    ),
-                    [
-                        ValueLocation::Stack {
-                            stack_byte_offset,
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ] => (
-                        machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                            byte_offset: *stack_byte_offset,
-                        },
-                        *byte_size,
-                    ),
-                    _ => return None,
-                };
-            let mut parameter_shapes = abi
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    let (shape, _) = crate::object_artifact::replay::unit::write_only_primitive_store::native_scalar_shape(
-                        parameter.scalar_type,
-                    )?;
-                    (parameter.placement.shape == shape).then_some(shape)
-                })
-                .collect::<Option<Vec<_>>>()?;
-            parameter_shapes.push(parameter.shape);
-            let expected_plan = evaluate_call_plan(
-                CallingPolicy::native_for_target(target),
-                &CallSignature {
-                    parameters: parameter_shapes,
-                    result: None,
-                },
-            )
-            .ok()?;
-            (
-                function.unit_parameters.len() == 1
-                    && scalar_parameter.value == source_value
-                    && scalar_parameter.scalar_type == scalar_type
-                    && scalar_parameter.placement.shape == scalar_shape
-                    && placed_byte_size == u32::from(byte_size)
-                    && location == expected_location
-                    && abi.call_plan == expected_plan
-                    && abi.call_plan.parameters.get(scalar_parameter_index)
-                        == Some(&scalar_parameter.placement)
-                    && abi.call_plan.parameters.get(abi.parameters.len()) == Some(&home.source),
-                byte_size,
-                None,
-            )
+            let (matches, byte_size) =
+                crate::object_artifact::replay::unit::write_only_primitive_store::scalar_parameter_call_plan_matches(
+                    target,
+                    function,
+                    parameter_index,
+                    scalar_type,
+                    parameter.shape,
+                    source_value,
+                    location,
+                    &home.source,
+                )?;
+            (matches, byte_size, None)
         }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,

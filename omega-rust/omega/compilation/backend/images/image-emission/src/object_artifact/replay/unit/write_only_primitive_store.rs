@@ -1,13 +1,14 @@
 //! Independent object replay for whole-root non-observing primitive stores.
 
 use calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan,
 };
 use machine_code::{
-    MachineCodeFunction, SemanticCodeSite, UnitWriteOnlyPrimitiveStoreRecord,
-    UnitWriteOnlyPrimitiveStoreSourceRecord,
+    MachineCodeFunction, SemanticCodeSite, UnitScalarParameterLocationRecord,
+    UnitWriteOnlyPrimitiveStoreRecord, UnitWriteOnlyPrimitiveStoreSourceRecord,
 };
-use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::{ScalarType, ValueId};
 use target::NativeTarget;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
@@ -52,69 +53,17 @@ fn validate_store(
             scalar_type,
             location,
         } => {
-            let abi = function.parameter_abi.as_ref()?;
-            let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
-            let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
-            let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;
-            let (expected_location, placed_byte_size) =
-                match scalar_parameter.placement.locations.as_slice() {
-                    [
-                        ValueLocation::Register {
-                            register,
-                            value_byte_offset: 0,
-                            byte_size,
-                        },
-                    ] => (
-                        machine_code::UnitScalarParameterLocationRecord::Register(*register),
-                        *byte_size,
-                    ),
-                    [
-                        ValueLocation::Stack {
-                            stack_byte_offset,
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ] => (
-                        machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                            byte_offset: *stack_byte_offset,
-                        },
-                        *byte_size,
-                    ),
-                    _ => return None,
-                };
-            let mut parameter_shapes = abi
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    let (shape, _) = native_scalar_shape(parameter.scalar_type)?;
-                    (parameter.placement.shape == shape).then_some(shape)
-                })
-                .collect::<Option<Vec<_>>>()?;
-            parameter_shapes.push(parameter.shape);
-            let expected_plan = evaluate_call_plan(
-                CallingPolicy::native_for_target(target),
-                &CallSignature {
-                    parameters: parameter_shapes,
-                    result: None,
-                },
-            )
-            .ok()?;
-            (
-                function.unit_parameters.len() == 1
-                    && scalar_parameter.value == source_value
-                    && scalar_parameter.scalar_type == scalar_type
-                    && scalar_parameter.placement.shape == scalar_shape
-                    && placed_byte_size == u32::from(byte_size)
-                    && location == expected_location
-                    && abi.call_plan == expected_plan
-                    && abi.call_plan.parameters.get(scalar_parameter_index)
-                        == Some(&scalar_parameter.placement)
-                    && abi.call_plan.parameters.get(abi.parameters.len()) == Some(&home.source),
+            let (matches, byte_size) = scalar_parameter_call_plan_matches(
+                target,
+                function,
+                parameter_index,
                 scalar_type,
-                byte_size,
-                None,
-            )
+                parameter.shape,
+                source_value,
+                location,
+                &home.source,
+            )?;
+            (matches, scalar_type, byte_size, None)
         }
         UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
             defining_operation,
@@ -407,4 +356,80 @@ fn exact_attribution_count(
                 && row.byte_count == store.byte_count
         })
         .count()
+}
+
+/// Verify the ABI custody of one scalar source that arrived through a call
+/// parameter: the recorded parameter placement must be the plan's own entry
+/// and the trailing argument slot must be the parameter home's source.
+pub(crate) fn scalar_parameter_call_plan_matches(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    parameter_index: u32,
+    scalar_type: ScalarType,
+    parameter_shape: ValueShape,
+    source_value: ValueId,
+    location: UnitScalarParameterLocationRecord,
+    home_source: &ValuePlacement,
+) -> Option<(bool, u16)> {
+    let abi = function.parameter_abi.as_ref()?;
+    let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
+    let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
+    let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;
+    let (expected_location, placed_byte_size) =
+        match scalar_parameter.placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] => (
+                UnitScalarParameterLocationRecord::Register(*register),
+                *byte_size,
+            ),
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => (
+                UnitScalarParameterLocationRecord::IncomingStack {
+                    byte_offset: *stack_byte_offset,
+                },
+                *byte_size,
+            ),
+            _ => return None,
+        };
+    let mut parameter_shapes = abi
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let (shape, _) = native_scalar_shape(parameter.scalar_type)?;
+            (parameter.placement.shape == shape).then_some(shape)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    parameter_shapes.push(parameter_shape);
+    let expected_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: parameter_shapes,
+            result: None,
+        },
+    )
+    .ok()?;
+    Some((
+        function.unit_parameters.len() == 1
+            && scalar_parameter.value == source_value
+            && scalar_parameter.scalar_type == scalar_type
+            && scalar_parameter.placement.shape == scalar_shape
+            && placed_byte_size == u32::from(byte_size)
+            && location == expected_location
+            && abi.call_plan == expected_plan
+            && abi.call_plan.parameters.get(scalar_parameter_index)
+                == Some(&scalar_parameter.placement)
+            && abi.call_plan.parameters.get(abi.parameters.len()) == Some(home_source),
+        byte_size,
+    ))
 }
