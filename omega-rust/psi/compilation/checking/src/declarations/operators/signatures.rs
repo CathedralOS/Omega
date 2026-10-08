@@ -30,10 +30,5 @@ pub(super) fn operator_name(
     program: &dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> String {
-    program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    program.operator_path_string(operator.name)
 }

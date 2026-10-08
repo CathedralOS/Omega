@@ -915,12 +915,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     for operator in program.all_operators() {
-        let name = program
-            .operator_path_members(operator.name)
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("::");
+        let name = program.operator_path_string(operator.name);
         validate_contracts(
             program,
             program.operator_contracts(operator),
