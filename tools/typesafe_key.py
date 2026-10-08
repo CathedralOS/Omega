@@ -4,6 +4,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -55,7 +56,9 @@ def find_key(key_file):
 
 def post(endpoint, key, request, timeout=60):
     """POST one advisory JSON request; the parsed response, or None on
-    transport failure. A response echoing the credential is refused."""
+    transport failure. Failures write one stderr diagnostic (an HTTPError
+    reports the body's detail.error_type); a response echoing the credential
+    is refused."""
     http = urllib.request.Request(
         endpoint, data=json.dumps(request).encode(),
         headers={"Authorization": f"Bearer {key}",
@@ -65,7 +68,16 @@ def post(endpoint, key, request, timeout=60):
                 urllib.request.HTTPRedirectHandler()).open(
                 http, timeout=timeout) as connection:
             response = json.load(connection)
-    except (urllib.error.URLError, TimeoutError, urllib.error.HTTPError):
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        try:
+            detail = json.loads(detail)["detail"]["error_type"]
+        except (KeyError, TypeError, ValueError):
+            detail = detail[:120]
+        print(f"typesafe: HTTP {error.code} {detail}", file=sys.stderr)
+        return None
+    except (urllib.error.URLError, TimeoutError) as error:
+        print(f"typesafe: {type(error).__name__}", file=sys.stderr)
         return None
     if key in json.dumps(response):
         raise RuntimeError("Response contains the credential; refusing output")

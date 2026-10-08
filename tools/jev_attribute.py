@@ -9,13 +9,19 @@ build/experiments/failure-triage/CLASSIFY.md).
 
 Usage:
     jev_attribute.py --signature "TEXT" --window BASE..HEAD [--with-diff 60]
+        [--paths P1,P2,...]
     jev_attribute.py --signature "TEXT" --window SHA1,SHA2,...
+
+A large commit's deciding hunk falls outside the --with-diff excerpt cap
+unless --paths names its file — the window selects commits, --paths selects
+evidence.
 
 Silent no-op exit 2 without TYPESAFE_API_KEY; OMEGA_JEV_OFFLINE=1 suppresses.
 Key resolution: TYPESAFE_API_KEY, build/typesafe.env.txt (in this or the
 main checkout), ~/.config/typesafe/typesafe.env.txt.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -28,9 +34,15 @@ except ImportError:
     import typesafe_key
 
 
+# The API rejects over-limit payloads with HTTP 400 max_tokens_exceeded;
+# 164 KB failed, so keep each request's candidate list well under it.
+BATCH_BUDGET_BYTES = 60_000
+
+
 def git(*args) -> str:
     return subprocess.run(["git"] + list(args), capture_output=True,
-                          text=True, timeout=30, check=True).stdout
+                          text=True, encoding="utf-8", errors="replace",
+                          timeout=30, check=True).stdout
 
 
 def candidates(range_or_commits) -> list:
@@ -52,6 +64,23 @@ def candidates(range_or_commits) -> list:
     return out
 
 
+def batches(cands: list) -> list:
+    """Consecutive batches in window order whose JSON-encoded
+    candidate_commits stays under BATCH_BUDGET_BYTES; one oversize
+    candidate still forms its own batch."""
+    result, current, size = [], [], 0
+    for cand in cands:
+        encoded = len(json.dumps(cand).encode())
+        if current and size + encoded > BATCH_BUDGET_BYTES:
+            result.append(current)
+            current, size = [], 0
+        current.append(cand)
+        size += encoded
+    if current:
+        result.append(current)
+    return result
+
+
 def questions(count: int) -> dict:
     result = {}
     for index in range(count):
@@ -67,7 +96,10 @@ def questions(count: int) -> dict:
                 "excerpt is too truncated or too vague to tell. A commit "
                 "that merely COULD have caused the failure (a merge in "
                 "the same area, a touched file) with no visible evidence "
-                "is 'absent'."),
+                "is 'absent'. A candidate with `touches_excerpt_scope` "
+                "false changed nothing under the files the caller "
+                "implicated; answer 'absent' for it unless the signature "
+                "itself names that commit."),
             "criteria": {
                 "contains": "the excerpt literally shows the offending "
                             "content being added",
@@ -113,6 +145,10 @@ def main() -> int:
                         help="commit range BASE..HEAD or comma-separated SHAs")
     parser.add_argument("--with-diff", type=int, default=0, metavar="LINES",
                         help="include up to N diff lines per candidate")
+    parser.add_argument("--paths", metavar="P1,P2,...",
+                        help="restrict diff excerpts to the files the "
+                             "signature implicates; the window still covers "
+                             "every commit")
     options = parser.parse_args()
 
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
@@ -126,45 +162,57 @@ def main() -> int:
     if not cands:
         print("empty candidate window", file=sys.stderr)
         return 1
+    pathspecs = [path.strip() for path in (options.paths or "").split(",")
+                 if path.strip()] or [".", ":(exclude)*lock*"]
     for cand in cands:
         if options.with_diff:
             raw = git("diff", f"{cand['sha']}^1", cand["sha"],
-                      "--unified=1", "--", ".", ":(exclude)*lock*")
+                      "--unified=1", "--", *pathspecs)
             # Added lines carry the defect evidence; keep a per-hunk header
             # plus added lines so large diffs still surface them first.
             kept = [line for line in raw.splitlines()
                     if line.startswith(("+++", "@@", "+", "diff "))]
-            cand["diff_added_lines"] = "\n".join(
-                kept)[:options.with_diff * 80]
+            excerpt = "\n".join(kept)[:options.with_diff * 80]
+            cand["touches_excerpt_scope"] = bool(excerpt)
+            cand["diff_added_lines"] = (
+                excerpt or "(no changes in the excerpt scope)")
 
-    state = {"failing_signature": options.signature,
-             "candidate_commits": cands}
-    request = {"model": typesafe_key.MODEL, "state": state,
-               "questions": questions(len(cands))}
-    try:
-        response = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
-    except Exception as error:
-        print(f"jev unavailable: {type(error).__name__}", file=sys.stderr)
-        return 2
-    if response is None:
-        print("jev unavailable: no response", file=sys.stderr)
-        return 2
-    answers = response.get("answers", {})
-
+    groups = batches(cands)
     verdicts = {}
-    no_suspect = answers.get("no_suspect", {}).get("noul", 0.5)
-    flagged = []
-    for index, cand in enumerate(cands):
-        verdict = answers.get(f"evidence_{index}", {}).get("choice", "inconclusive")
-        verdicts[cand["sha"]] = verdict
-        if verdict in ("contains", "inconclusive"):
-            flagged.append(cand)
+    no_suspect = 1.0
+    for group in groups:
+        state = {"failing_signature": options.signature,
+                 "candidate_commits": group}
+        request = {"model": typesafe_key.MODEL, "state": state,
+                   "questions": questions(len(group))}
+        try:
+            response = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
+        except Exception as error:
+            print(f"jev unavailable: {type(error).__name__}", file=sys.stderr)
+            return 2
+        if response is None:
+            print("jev unavailable: no response", file=sys.stderr)
+            return 2
+        batch_answers = response.get("answers", {})
+        # The cause is outside the window only if every batch says so.
+        no_suspect = min(no_suspect,
+                         batch_answers.get("no_suspect", {}).get("noul", 0.5))
+        for index, cand in enumerate(group):
+            verdicts[cand["sha"]] = (batch_answers
+                                     .get(f"evidence_{index}", {})
+                                     .get("choice", "inconclusive"))
+
+    flagged = [cand for cand in cands
+               if verdicts[cand["sha"]] in ("contains", "inconclusive")]
 
     # Solo re-asks on flagged candidates: batch labels are contaminated by
     # the worst member (CLASSIFY.md), and a batch 'contains' often belongs
-    # to the one guilty commit contaminating innocent neighbors.
+    # to the one guilty commit contaminating innocent neighbors. A candidate
+    # outside the excerpt scope is never re-asked.
     solo = {}
-    for cand in flagged[:10]:
+    soloable = [cand for cand in flagged
+                if cand.get("touches_excerpt_scope", True)]
+    for cand in soloable[:10]:
         request = {"model": typesafe_key.MODEL,
                    "state": {"failing_signature": options.signature,
                              "candidate_commits": [cand]},
@@ -184,15 +232,16 @@ def main() -> int:
     rank_verdict = {"contains": 2, "inconclusive": 1, "absent": 0}
 
     def rank_key(cand):
+        scope = cand.get("touches_excerpt_scope", True)
         if cand["sha"] in solo:
             verdict, score = solo[cand["sha"]]
-            return (rank_verdict.get(verdict, 1), score)
-        return (rank_verdict.get(verdicts[cand["sha"]], 1), 0.5)
+            return (rank_verdict.get(verdict, 1), score, scope)
+        return (rank_verdict.get(verdicts[cand["sha"]], 1), 0.5, scope)
 
     ranked = sorted(cands, key=rank_key, reverse=True)
 
     print(f"failing signature: {options.signature}")
-    print(f"window: {len(cands)} candidates | "
+    print(f"window: {len(cands)} candidates in {len(groups)} batch(es) | "
           f"cause-outside-window {no_suspect:.2f}")
     for cand in ranked:
         sha = cand["sha"]

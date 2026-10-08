@@ -1,5 +1,6 @@
 """Contract tests for the shared TypeSafe key/request plumbing."""
 
+import contextlib
 import io
 import json
 import os
@@ -51,6 +52,18 @@ class PostTests(unittest.TestCase):
                    side_effect=urllib.error.URLError("down")):
             self.assertIsNone(
                 typesafe_key.post(typesafe_key.ENDPOINT, "key", {}))
+
+    def test_http_error_reports_the_detail_error_type(self):
+        opener = MagicMock()
+        opener.open.side_effect = urllib.error.HTTPError(
+            "url", 400, "Bad Request", hdrs=None,
+            fp=io.BytesIO(b'{"detail":{"error_type":"max_tokens_exceeded"}}'))
+        stderr = io.StringIO()
+        with patch("urllib.request.build_opener", return_value=opener), \
+                contextlib.redirect_stderr(stderr):
+            self.assertIsNone(
+                typesafe_key.post(typesafe_key.ENDPOINT, "key", {}))
+        self.assertIn("HTTP 400 max_tokens_exceeded", stderr.getvalue())
 
     def test_response_echoing_key_is_refused(self):
         opener = MagicMock()

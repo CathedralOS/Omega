@@ -110,12 +110,25 @@ moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
 `--record` refusal), 4 infrastructure failure (runner build failed, no
 binary, runner exited nonzero, unreadable records). `--bisect` remaps for
 `git bisect run`: regressed -> 1 (bad), infrastructure -> 125 (skip),
-anything else -> 0 (good), usage -> 255 (abort). Before bisecting, `python
+anything else -> 0 (good), usage -> 255 (abort). A diagnostics-only move
+on a fixture whose status did not change is `moved`, not `regressed`, so
+`--bisect` reports it good; bisect that class with a probe that greps the
+runner's record for the new diagnostic text. Before bisecting, `python
 tools/jev_attribute.py --signature "<failing test or diagnostic>" --window
-BASE..HEAD --with-diff 60` ranks the window's commits by which could carry
-the failure's evidence (SUSPECT rows first; exit 2 when no key is
-configured, silent under `OMEGA_JEV_OFFLINE=1`), so the bisect or a direct
-check starts at the likely commit. `--json PATH` writes the
+BASE..HEAD --with-diff 60 --paths <implicated files>` ranks the window's
+commits by whose added lines literally show the failure's evidence (SUSPECT
+rows first; exit 2 when no key is configured, silent under
+`OMEGA_JEV_OFFLINE=1`). `--paths` restricts each excerpt to the implicated
+files so a large commit's deciding hunk does not fall outside the
+`--with-diff` cap; a window of thousands of commits must first be narrowed
+with a path filter — `--window "$(git log --first-parent --format=%h
+BASE..HEAD -- <owning directory> | paste -sd,)"` — and the tool batches what
+remains under the API's payload limit. The question is literal: a commit
+that enables a diagnostic without adding its text ranks `absent`, as the
+2026-10-08 dogfood in the typesafe-experiments record shows, so an
+all-`absent` ranking means bisect, not "outside the window". Describe the
+observation only in the signature; naming a suspected file or commit steers
+the answer toward it. `--json PATH` writes the
 full per-fixture verdict document on every outcome, including
 infrastructure failure and record refusal. Diagnostics compare against the
 golden after prefix normalization (`corpus_records.DIAGNOSTIC_PREFIX_ALIASES`),
