@@ -462,9 +462,7 @@ pub(super) fn validate(
             }
         }
         let target = plan
-            .states
-            .iter()
-            .find(|candidate| candidate.state == successor.target_state)
+            .state(successor.target_state)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph successor target is missing",
             ))?;

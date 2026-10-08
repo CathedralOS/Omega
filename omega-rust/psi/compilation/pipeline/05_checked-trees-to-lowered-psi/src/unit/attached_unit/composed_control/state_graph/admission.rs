@@ -339,9 +339,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         } else {
             for successor in state.successors() {
                 let target = plan
-                    .states
-                    .iter()
-                    .find(|candidate| candidate.state == successor.target_state)
+                    .state(successor.target_state)
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph successor target is missing",
                     ))?;

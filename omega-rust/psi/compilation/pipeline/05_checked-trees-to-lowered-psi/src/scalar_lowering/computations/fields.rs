@@ -242,7 +242,7 @@ fn planned_place_loans<'plan>(
     }
     plans
         .composed_for_machine(machine)
-        .and_then(|plan| plan.states.iter().find(|row| row.state == state))
+        .and_then(|plan| plan.state(state))
         .map_or(&[], |row| row.place_loans.as_slice())
 }
 

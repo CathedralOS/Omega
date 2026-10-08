@@ -279,9 +279,7 @@ impl<'a> UnitBody<'a> {
         match self {
             Self::Ordinary(plan) if plan.state == state => Ok(&plan.erased_proof_parameters),
             Self::Composed(plan) => plan
-                .states
-                .iter()
-                .find(|candidate| candidate.state == state)
+                .state(state)
                 .map(|state| state.erased_proof_parameters.as_slice())
                 .ok_or(LoweringError::Unsupported(
                     "Unit body has no published state",

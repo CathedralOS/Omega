@@ -879,6 +879,11 @@ impl CheckedUnitEffectMachinePlan {
 }
 
 impl CheckedComposedUnitControlMachinePlan {
+    /// The state plan keyed `state`.
+    pub fn state(&self, state: SymbolHandle) -> Option<&super::CheckedComposedUnitControlStatePlan> {
+        self.states.iter().find(|candidate| candidate.state == state)
+    }
+
     pub fn callable_entry(&self) -> Option<CheckedUnitCallableEntry<'_>> {
         let state = self.states.first()?;
         Some(CheckedUnitCallableEntry {

@@ -95,7 +95,7 @@ impl<'program> Evaluator<'program> {
             .flow
             .terminal_unit_effects
             .composed_for_machine(machine.symbol)
-            .and_then(|plan| plan.states.iter().find(|row| row.state == state.symbol));
+            .and_then(|plan| plan.state(state.symbol));
         for (_, dependency) in checked.facts.operational.cleanup_dependencies.iter() {
             if dependency.caller_machine == machine.symbol
                 && dependency.caller_state == state.symbol
@@ -153,7 +153,7 @@ impl<'program> Evaluator<'program> {
                     .terminal_unit_effects
                     .composed_for_machine(machine.symbol)
             })
-            .and_then(|plan| plan.states.iter().find(|row| row.state == state.symbol))
+            .and_then(|plan| plan.state(state.symbol))
         {
             let row = plan
                 .normal_exit_cleanups
