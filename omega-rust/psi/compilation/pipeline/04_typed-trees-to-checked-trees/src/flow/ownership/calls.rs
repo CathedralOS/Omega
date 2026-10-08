@@ -92,6 +92,7 @@ pub(in crate::flow) fn append_call_ownership_events(
                 },
                 source,
                 *argument,
+                parameter.type_reference,
             );
             continue;
         }
@@ -121,6 +122,7 @@ pub(in crate::flow) fn append_call_ownership_events(
             state.symbol,
             borrow_call.statement_index,
             *argument,
+            parameter.type_reference,
             operand_source,
         );
     }

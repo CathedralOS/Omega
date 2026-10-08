@@ -38,10 +38,21 @@ pub(super) fn check_storage_move<'program>(
         // A completed rvalue has no preexisting source storage to detach.
         return;
     };
-    let resolved = if path.is_empty() {
+    let endpoint_is_reference = validation::canonical_place_type_reference(
+        program,
+        state.state_symbol,
+        statement.statement_index,
+        &CanonicalPlace {
+            root: event.root,
+            segments: path.to_vec(),
+        },
+    )
+    .is_some_and(|reference| crate::checks::type_reference_is_reference(program, reference));
+    let resolved = if path.is_empty() && !endpoint_is_reference {
         // Moving a whole owned carrier retains its own storage identity here.
         // Loans stored inside it do not turn that transfer into a move of
-        // their referents. Reference values were excluded by classification.
+        // their referents. Consuming a reference's whole referent instead
+        // follows the same captured route as a projected extraction.
         Some(ResolvedAlias {
             place: checked_trees::CapturedPlace {
                 incoming_reference: Default::default(),

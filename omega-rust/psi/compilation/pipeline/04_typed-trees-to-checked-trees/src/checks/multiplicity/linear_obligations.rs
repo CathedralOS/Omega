@@ -198,8 +198,7 @@ pub(super) fn prepare_storage_deaths(
                         event_statement_index(event.source) == Some(statement_index)
                     }) {
                         let path = segments.span_or_empty(event.segments);
-                        if path.is_empty()
-                            || move_event_is_production_target(program, state, event, path)
+                        if move_event_is_production_target(program, state, event, path)
                             || !projected_affine::is_borrowed_place_transfer(
                                 program,
                                 machine.symbol,
@@ -330,15 +329,13 @@ pub(super) fn prepare_storage_deaths(
                     if move_event_is_production_target(program, state, event, path) {
                         continue;
                     }
-                    if !path.is_empty()
-                        && projected_affine::is_borrowed_place_transfer(
-                            program,
-                            machine.symbol,
-                            state,
-                            event,
-                            path,
-                        )
-                    {
+                    if projected_affine::is_borrowed_place_transfer(
+                        program,
+                        machine.symbol,
+                        state,
+                        event,
+                        path,
+                    ) {
                         // Moves evaluated on a transition edge cannot be
                         // repaired before the edge leaves, and a nominal-drop
                         // owner is entitled to a whole value. Both keep the

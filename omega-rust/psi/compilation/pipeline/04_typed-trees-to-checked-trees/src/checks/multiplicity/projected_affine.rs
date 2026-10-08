@@ -123,8 +123,13 @@ pub(in crate::checks) fn transfers_owned_storage(
         root: event.root,
         segments: path.to_vec(),
     };
-    let Some(projected_type) =
-        validation::canonical_place_type_reference(program, state, statement_index, &place)
+    let Some(projected_type) = event
+        .value_type
+        .is_valid()
+        .then_some(event.value_type)
+        .or_else(|| {
+            validation::canonical_place_type_reference(program, state, statement_index, &place)
+        })
     else {
         return false;
     };
@@ -150,9 +155,10 @@ pub(super) fn is_borrowed_place_transfer(
     if !transfers_owned_storage(program, state.symbol, statement_index, event, path) {
         return false;
     }
-    // A reference may occur at the root or inside an owned wrapper. Copying
-    // or moving that reference does not permit taking its referent's value.
-    (0..path.len()).any(|length| {
+    // Include the endpoint: consuming an exact referent can cross a reference
+    // at an empty root path. A descriptor transfer was excluded above by its
+    // selected value type, so this never turns forwarding into referent custody.
+    (0..=path.len()).any(|length| {
         let prefix = validation::CanonicalPlace {
             root: event.root,
             segments: path[..length].to_vec(),

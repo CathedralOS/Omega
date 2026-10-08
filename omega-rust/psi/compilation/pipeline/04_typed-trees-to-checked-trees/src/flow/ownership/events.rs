@@ -24,6 +24,10 @@ pub(crate) struct DiscoveredMoveEvent {
     /// statement/call instead. Equal places at different occurrences are not
     /// interchangeable reads or moves.
     pub(crate) expression: typed_trees::expression::ExpressionHandle,
+    /// The selected operand value, distinct from the place's loan carrier.
+    /// An owned consumption of a reference's exact referent transfers that
+    /// value; forwarding a reference transfers only its descriptor.
+    pub(crate) value_type: typed_trees::types::TypeReferenceHandle,
     pub(crate) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) segments: HandleSpan<facts::PlaceSegment>,
@@ -78,11 +82,13 @@ impl DirectMoveEventSink<'_> {
         place: CanonicalPlace,
         source: FlowOwnershipEventSource,
         expression: typed_trees::expression::ExpressionHandle,
+        value_type: typed_trees::types::TypeReferenceHandle,
     ) {
         self.events.push(DiscoveredMoveEvent {
             source,
             evaluation: self.evaluation,
             expression,
+            value_type,
             source_arm: self.source_arm,
             root: place.root,
             segments: self.segments.insert_many(place.segments),
@@ -95,8 +101,9 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
     expression: typed_trees::expression::ExpressionHandle,
+    value_type: typed_trees::types::TypeReferenceHandle,
 ) {
-    sink.append_move_event(place, source, expression);
+    sink.append_move_event(place, source, expression, value_type);
 }
 
 /// Join a retained call ordinal to its existing authored transition lane.

@@ -135,7 +135,7 @@ fn exclusive_storage_chain(
     if root == facts::PlaceRoot::Symbol(machine.symbol) {
         return false;
     }
-    (0..path.len()).all(|length| {
+    (0..=path.len()).all(|length| {
         let prefix = CanonicalPlace {
             root,
             segments: path[..length].to_vec(),

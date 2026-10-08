@@ -205,13 +205,19 @@ impl BorrowedStorageWindows {
             root: event.root,
             segments: path.to_vec(),
         };
-        let required_type = validation::canonical_place_type_reference(
-            program,
-            state.symbol,
-            statement_index,
-            &event_place,
-        )
-        .unwrap_or_default();
+        let required_type = event
+            .value_type
+            .is_valid()
+            .then_some(event.value_type)
+            .or_else(|| {
+                validation::canonical_place_type_reference(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    &event_place,
+                )
+            })
+            .unwrap_or_default();
         self.open.push(OpenWindow {
             root,
             path: storage_path,

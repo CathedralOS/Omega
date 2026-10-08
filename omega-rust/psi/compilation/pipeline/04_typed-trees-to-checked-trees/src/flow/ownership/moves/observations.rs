@@ -38,6 +38,7 @@ pub(in crate::flow::ownership) fn append(
                 state,
                 statement,
                 indexed.index,
+                Default::default(),
                 source,
             );
         }
@@ -53,7 +54,15 @@ pub(in crate::flow::ownership) fn append(
         ExpressionNode::Borrow(borrow) => {
             append(program, sink, state, statement, borrow.target, source)
         }
-        _ => append_move_events_for_expression(program, sink, state, statement, expression, source),
+        _ => append_move_events_for_expression(
+            program,
+            sink,
+            state,
+            statement,
+            expression,
+            Default::default(),
+            source,
+        ),
     }
 }
 
@@ -101,7 +110,19 @@ pub(super) fn append_indexed_operands(
             policy.positional_transfers(ordinal - 1)
         };
         if transfers {
-            append_move_events_for_expression(program, sink, state, statement, operand, source);
+            append_move_events_for_expression(
+                program,
+                sink,
+                state,
+                statement,
+                operand,
+                if ordinal == 0 {
+                    policy.receiver().value_type
+                } else {
+                    policy.positional(ordinal - 1).value_type
+                },
+                source,
+            );
         } else {
             append(program, sink, state, statement, operand, source);
         }

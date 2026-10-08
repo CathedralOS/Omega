@@ -1,22 +1,5 @@
-use validation::expression_type_reference_in_state;
-
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
-
-pub(in crate::flow::ownership) fn expression_requires_ownership(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-) -> bool {
-    if !expression_is_place_like(program, expression) {
-        return false;
-    }
-
-    expression_type_reference_in_state(program, state_symbol, statement_index, expression)
-        .map(|type_reference| type_requires_ownership(program, type_reference))
-        .unwrap_or(true)
-}
 
 /// The ownership disposition of a value produced by a slice/string/collection
 /// operator result.
@@ -93,7 +76,7 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
             != language_semantics::Multiplicity::Unrestricted
 }
 
-fn expression_is_place_like(
+pub(super) fn expression_is_place_like(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {

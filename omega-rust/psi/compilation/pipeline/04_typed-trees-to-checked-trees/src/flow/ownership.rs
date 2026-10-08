@@ -1,7 +1,12 @@
 //! Ownership move events and borrowed operand events. `discover_state_move_events` walks one
 //! state's statements and borrow calls and returns the moves they make, for the
-//! multiplicity checks and terminal cleanup. Exact place types are read from
-//! validation's independent value-custody projection owner.
+//! multiplicity checks and terminal cleanup. A place's declared type names
+//! storage; the selected operand type names the value transferred from it.
+//! In particular, forwarding an exclusive reference moves its descriptor,
+//! while a consumption of its exact referent opens restoration debt. Carry
+//! that distinction from local, store, call and result contexts through the
+//! same expression walk; a later checker must not guess it from an empty path.
+//! Exact place types stay with validation's value-custody projection owner.
 use validation::canonical_place_from_expression_in_state;
 
 use crate::flow::borrow_state_fact;
@@ -66,6 +71,14 @@ pub(super) fn append_statement_ownership_events(
                 state_symbol,
                 statement_index,
                 assignment.value,
+                validation::expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    assignment.target,
+                )
+                .map(|reference| validation::assignment_value_type(program, reference))
+                .unwrap_or_default(),
                 source,
             );
             // The assignment twin of the `let`-init owned-production seam
@@ -82,7 +95,13 @@ pub(super) fn append_statement_ownership_events(
                     assignment.target,
                 )
             {
-                append_move_event_for_place(sink, place, source, Default::default());
+                append_move_event_for_place(
+                    sink,
+                    place,
+                    source,
+                    Default::default(),
+                    Default::default(),
+                );
             }
         }
         StatementNode::LocalData(local_data) => {
@@ -103,6 +122,7 @@ pub(super) fn append_statement_ownership_events(
                     state_symbol,
                     statement_index,
                     local_data.initial_value,
+                    local_data.type_reference,
                     source,
                 );
                 // An owned binding whose initializer is a value-producing
@@ -116,7 +136,13 @@ pub(super) fn append_statement_ownership_events(
                 if initializer_produces_owned_value(program, local_data.initial_value)
                     && let Some(place) = canonical_place_from_symbol(local_data.symbol)
                 {
-                    append_move_event_for_place(sink, place, source, Default::default());
+                    append_move_event_for_place(
+                        sink,
+                        place,
+                        source,
+                        Default::default(),
+                        local_data.type_reference,
+                    );
                 }
             }
         }
@@ -143,6 +169,7 @@ pub(super) fn append_statement_ownership_events(
                     state_symbol,
                     statement_index,
                     guard,
+                    Default::default(),
                     source,
                 );
             }
@@ -160,6 +187,7 @@ pub(super) fn append_statement_ownership_events(
                         state_symbol,
                         statement_index,
                         *value,
+                        sink.state.return_type,
                         source,
                     );
                 }
@@ -189,6 +217,16 @@ pub(super) fn append_statement_ownership_events(
             state_symbol,
             statement_index,
             *expression,
+            if statement_index + 1
+                == program
+                    .statement_table
+                    .statements(sink.state.statement_nodes)
+                    .len()
+            {
+                sink.state.return_type
+            } else {
+                Default::default()
+            },
             FlowOwnershipEventSource::Statement { statement_index },
         ),
     }
@@ -212,7 +250,8 @@ pub(crate) fn discover_state_move_events(
     let mut call_index = 0usize;
 
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         sink.evaluation = checked_trees::FlowPermissionEvaluation::Statement;
         append_statement_ownership_events(

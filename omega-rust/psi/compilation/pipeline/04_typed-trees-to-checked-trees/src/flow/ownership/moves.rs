@@ -14,12 +14,35 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 pub(super) mod observations;
 
+/// Select the consumed value without confusing a loan descriptor with its
+/// referent. Context only unwraps a reference when the admitted operand names
+/// the exact declared referent type; it cannot supply an unrelated result type.
+fn consumed_value_type(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let actual =
+        validation::expression_type_reference_in_state(program, state, statement, expression)?;
+    if expected.is_valid()
+        && let Some(shell) = validation::reference_shell(program, actual)
+        && program.normalized_type_identity(shell.referee)
+            == program.normalized_type_identity(expected)
+    {
+        return Some(expected);
+    }
+    Some(actual)
+}
+
 pub(super) fn append_move_events_for_expression(
     program: &dyn ::validation::CheckingInput,
     sink: &mut DirectMoveEventSink<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
+    expected_type: typed_trees::types::TypeReferenceHandle,
     source: FlowOwnershipEventSource,
 ) {
     // A case-membership test observes a saved place; it does not extract the
@@ -78,12 +101,18 @@ pub(super) fn append_move_events_for_expression(
         return;
     }
 
-    if type_references::expression_requires_ownership(
+    let value_type = consumed_value_type(
         program,
         state_symbol,
         statement_index,
         expression,
-    ) {
+        expected_type,
+    );
+    if type_references::expression_is_place_like(program, expression)
+        && value_type
+            .map(|reference| type_requires_ownership(program, reference))
+            .unwrap_or(true)
+    {
         if let Some(place) = canonical_place_from_expression_in_state(
             program,
             state_symbol,
@@ -113,7 +142,13 @@ pub(super) fn append_move_events_for_expression(
                     source,
                 );
             } else {
-                append_move_event_for_place(sink, place, source, expression);
+                append_move_event_for_place(
+                    sink,
+                    place,
+                    source,
+                    expression,
+                    value_type.unwrap_or_default(),
+                );
             }
         }
         return;
@@ -136,6 +171,7 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     dispatch.subject,
+                    Default::default(),
                     source,
                 );
             }
@@ -152,6 +188,7 @@ pub(super) fn append_move_events_for_expression(
                         state_symbol,
                         statement_index,
                         pattern,
+                        Default::default(),
                         source,
                     );
                 }
@@ -163,6 +200,7 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     arm.value,
+                    expected_type,
                     source,
                 );
                 sink.source_arm = enclosing_arm;
@@ -174,6 +212,7 @@ pub(super) fn append_move_events_for_expression(
             state_symbol,
             statement_index,
             atomic.value,
+            expected_type,
             source,
         ),
         ExpressionNode::ArrayLiteral(values) => {
@@ -184,6 +223,17 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     *value,
+                    if expected_type.is_valid() {
+                        match program.type_reference_table.type_reference(expected_type) {
+                            typed_trees::types::TypeReferenceNode::FixedArray {
+                                element_type,
+                                ..
+                            } => *element_type,
+                            _ => Default::default(),
+                        }
+                    } else {
+                        Default::default()
+                    },
                     source,
                 );
             }
@@ -195,6 +245,7 @@ pub(super) fn append_move_events_for_expression(
                 state_symbol,
                 statement_index,
                 binary.left,
+                Default::default(),
                 source,
             );
             append_move_events_for_expression(
@@ -203,6 +254,7 @@ pub(super) fn append_move_events_for_expression(
                 state_symbol,
                 statement_index,
                 binary.right,
+                Default::default(),
                 source,
             );
         }
@@ -212,6 +264,7 @@ pub(super) fn append_move_events_for_expression(
             state_symbol,
             statement_index,
             cast.value,
+            Default::default(),
             source,
         ),
         ExpressionNode::Unary(unary) => append_move_events_for_expression(
@@ -220,6 +273,7 @@ pub(super) fn append_move_events_for_expression(
             state_symbol,
             statement_index,
             unary.operand,
+            Default::default(),
             source,
         ),
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -233,6 +287,12 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     field.value,
+                    validation::selected_construction_field_type(
+                        program,
+                        struct_literal,
+                        field.field_symbol,
+                    )
+                    .unwrap_or_default(),
                     source,
                 );
             }
@@ -245,6 +305,7 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     range.start,
+                    Default::default(),
                     source,
                 );
             }
@@ -255,6 +316,7 @@ pub(super) fn append_move_events_for_expression(
                     state_symbol,
                     statement_index,
                     range.end,
+                    Default::default(),
                     source,
                 );
             }
@@ -391,6 +453,7 @@ fn append_move_events_for_call_arguments(
             state_symbol,
             statement_index,
             call.receiver,
+            policy.receiver().value_type,
             source,
         );
     }
@@ -408,6 +471,7 @@ fn append_move_events_for_call_arguments(
             state_symbol,
             statement_index,
             *argument,
+            policy.positional(ordinal).value_type,
             source,
         );
     }
@@ -505,7 +569,13 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
         && policy.receiver_transfers()
         && let Some(place) = canonical_place_from_symbol(call.receiver_symbol)
     {
-        append_move_event_for_place(sink, place, source, Default::default());
+        append_move_event_for_place(
+            sink,
+            place,
+            source,
+            Default::default(),
+            policy.receiver().value_type,
+        );
     }
 
     for (ordinal, argument) in arguments.iter().enumerate() {
@@ -519,6 +589,7 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
             state_symbol,
             statement_index,
             *argument,
+            policy.positional(ordinal).value_type,
             source,
         );
     }
@@ -528,32 +599,52 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
 /// resolved operator definition's declared parameter types. `Unknown` (no
 /// resolved operator) preserves the legacy behavior: every value operand
 /// decides by its own type through the recursive descent.
+#[derive(Clone, Copy)]
+struct OperatorOperandOwnership {
+    value_type: typed_trees::types::TypeReferenceHandle,
+    transfers: bool,
+}
+
+impl OperatorOperandOwnership {
+    fn unknown() -> Self {
+        Self {
+            value_type: Default::default(),
+            transfers: true,
+        }
+    }
+}
+
 enum OperatorCallOwnershipPolicy {
     Unknown,
     Known {
-        receiver_transfers: bool,
-        positional_transfers: Vec<bool>,
+        receiver: OperatorOperandOwnership,
+        positional: Vec<OperatorOperandOwnership>,
     },
 }
 
 impl OperatorCallOwnershipPolicy {
-    fn receiver_transfers(&self) -> bool {
+    fn receiver(&self) -> OperatorOperandOwnership {
         match self {
-            Self::Unknown => true,
-            Self::Known {
-                receiver_transfers, ..
-            } => *receiver_transfers,
+            Self::Unknown => OperatorOperandOwnership::unknown(),
+            Self::Known { receiver, .. } => *receiver,
         }
     }
 
-    fn positional_transfers(&self, ordinal: usize) -> bool {
+    fn positional(&self, ordinal: usize) -> OperatorOperandOwnership {
         match self {
-            Self::Unknown => true,
-            Self::Known {
-                positional_transfers,
-                ..
-            } => positional_transfers.get(ordinal).copied().unwrap_or(true),
+            Self::Unknown => OperatorOperandOwnership::unknown(),
+            Self::Known { positional, .. } => positional
+                .get(ordinal)
+                .copied()
+                .unwrap_or_else(OperatorOperandOwnership::unknown),
         }
+    }
+
+    fn receiver_transfers(&self) -> bool {
+        self.receiver().transfers
+    }
+    fn positional_transfers(&self, ordinal: usize) -> bool {
+        self.positional(ordinal).transfers
     }
 }
 
@@ -576,21 +667,27 @@ fn operator_call_ownership_policy(
     };
 
     let parameters = program.operator_parameters(operator);
-    let positional: Vec<bool> = parameters
+    let positional: Vec<OperatorOperandOwnership> = parameters
         .iter()
-        .map(|parameter| type_requires_ownership(program, parameter.type_reference))
+        .map(|parameter| OperatorOperandOwnership {
+            value_type: parameter.type_reference,
+            transfers: type_requires_ownership(program, parameter.type_reference),
+        })
         .collect();
 
     if has_value_receiver && positional.len() == argument_count + 1 {
         return OperatorCallOwnershipPolicy::Known {
-            receiver_transfers: positional[0],
-            positional_transfers: positional[1..].to_vec(),
+            receiver: positional[0],
+            positional: positional[1..].to_vec(),
         };
     }
 
     OperatorCallOwnershipPolicy::Known {
-        receiver_transfers: false,
-        positional_transfers: positional,
+        receiver: OperatorOperandOwnership {
+            value_type: Default::default(),
+            transfers: false,
+        },
+        positional,
     }
 }
 

@@ -6,6 +6,9 @@
 //! value; an already-open hole must not be read or disposed again. The lowered
 //! emitter feeds these operations through `BorrowedWindowLedger`, and independent
 //! verification reconstructs both restoration debt and the values' custody.
+//! An empty path selects the exclusive parameter's whole referent. It shares
+//! extraction and repair sequencing with a field; a separate whole-root
+//! admission mode would make the value's custody depend on its spelling.
 
 use validation::CanonicalPlace;
 
@@ -27,7 +30,7 @@ use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
-/// Whole-root moves and referent segments open no pinned window; a fixed or
+/// An empty path pins the whole referent, not its loan descriptor; a fixed or
 /// retained runtime element step selects the element the window pins.
 ///
 /// The place is first keyed on the resolved *storage* it names — the same
@@ -46,36 +49,6 @@ pub(in crate::execution::terminal_unit) fn window_place(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     place: &CanonicalPlace,
     target: ExpressionHandle,
-) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
-    window_place_admitting(
-        program,
-        facts,
-        machine,
-        state,
-        statements,
-        statement_index,
-        structural_parameters,
-        place,
-        target,
-        false,
-    )
-}
-
-/// `window_place` admitting a whole-root store target: replacing the
-/// referent of an exclusive borrowed parameter is a legitimate
-/// `StoreStructuralField` destination (`path` empty), while a whole-root
-/// move-out still opens no pinned window.
-pub(in crate::execution::terminal_unit) fn window_place_admitting(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statements: &[StatementNode],
-    statement_index: usize,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    place: &CanonicalPlace,
-    target: ExpressionHandle,
-    admit_whole_root: bool,
 ) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
     let PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
@@ -105,9 +78,6 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
     {
-        return None;
-    }
-    if segments.is_empty() && !admit_whole_root {
         return None;
     }
     let selectors = segments
@@ -435,7 +405,7 @@ impl OpenWindows {
                 occupied,
             )
         } else {
-            let (position, path) = window_place_admitting(
+            let (position, path) = window_place(
                 program,
                 facts,
                 machine,
@@ -445,7 +415,6 @@ impl OpenWindows {
                 structural_parameters,
                 &destination_place,
                 assignment.target,
-                true,
             )?;
             let needs_displacement = !self.open.remove(&(position, path.clone()));
             (
