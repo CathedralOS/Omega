@@ -69,6 +69,7 @@ pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{
     MatchCaseDispatch, MatchCaseDispatchArm, MatchCaseSubject, match_case_dispatch,
 };
+pub use reference_values::domain_membership_implies;
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
