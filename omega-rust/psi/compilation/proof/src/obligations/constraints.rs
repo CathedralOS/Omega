@@ -23,6 +23,15 @@ use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+const RANGE_ARITHMETIC_OPERATORS: [BinaryOperator; 6] = [
+    BinaryOperator::Add,
+    BinaryOperator::Modulo,
+    BinaryOperator::Multiply,
+    BinaryOperator::ShiftLeft,
+    BinaryOperator::ShiftRight,
+    BinaryOperator::Subtract,
+];
+
 pub(crate) fn expression_constraints(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -408,15 +417,7 @@ pub(crate) fn derived_binary_constraints(
 
     if integer_constraints_are_exact(left_constraints)
         && integer_constraints_are_exact(right_constraints)
-        && matches!(
-            operator,
-            BinaryOperator::Add
-                | BinaryOperator::Modulo
-                | BinaryOperator::Multiply
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract
-        )
+        && RANGE_ARITHMETIC_OPERATORS.contains(&operator)
     {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "exact",
@@ -424,15 +425,7 @@ pub(crate) fn derived_binary_constraints(
     }
 
     if integer_constraints_are_wrapping(left_constraints)
-        && matches!(
-            operator,
-            BinaryOperator::Add
-                | BinaryOperator::Modulo
-                | BinaryOperator::Multiply
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract
-        )
+        && RANGE_ARITHMETIC_OPERATORS.contains(&operator)
     {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
             "wrapping",
