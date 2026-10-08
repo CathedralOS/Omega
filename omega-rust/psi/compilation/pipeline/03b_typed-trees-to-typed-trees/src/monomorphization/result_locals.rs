@@ -63,6 +63,7 @@ pub(super) fn refresh_generic_call_results(
     for (body, offset, previous_type, return_type, selection) in updates {
         let candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
+        super::applications::retain_call(program, &candidate, &selection);
         if crate::monomorphization::selection::approved_type_bounds(
             program,
             std::slice::from_ref(&candidate),

@@ -490,6 +490,7 @@ pub(super) fn clone_specialized_machine(
                     .expression_table
                     .static_machine_application_arguments_mut(application)
                     .clone_from_slice(&authored_arguments);
+                copy_application_binding_type_payloads(source, program, application, &symbol_map);
             }
             copy_static_argument_type_payloads(source, program, &mut arguments, &symbol_map);
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
@@ -580,12 +581,15 @@ pub(super) fn clone_specialized_machine(
     program.evidence_forwardings.extend(evidence_forwardings);
     program.push_machine(cloned);
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)?;
+    let binding_application =
+        super::applications::retain_instance(source, program, candidate, instance_symbol);
     program
         .machine_specializations
         .push(typed_trees::typed_trees::MachineSpecialization {
             template: candidate.template.template_symbol,
             instance: instance_symbol,
             template_parameters: source_machine.type_parameters,
+            binding_application,
             type_arguments,
             const_arguments,
             type_argument_identities: type_identities,
@@ -716,6 +720,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 .expression_table
                 .static_machine_application_arguments_mut(application)
                 .clone_from_slice(&authored_arguments);
+            copy_application_binding_type_payloads(source, program, application, symbols);
         }
         copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
@@ -779,6 +784,50 @@ pub(super) fn copy_cloned_expression_type_payloads(
             unreachable!("collected zero-value expression changed kind")
         };
         *current = type_reference;
+    }
+}
+
+fn copy_application_binding_type_payloads(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) {
+    let mut bindings = program
+        .expression_table
+        .static_machine_application_bindings(application)
+        .to_vec();
+    copy_binding_type_payloads(source, program, &mut bindings, symbols);
+    program
+        .expression_table
+        .static_machine_application_bindings_mut(application)
+        .clone_from_slice(&bindings);
+}
+
+pub(super) fn copy_binding_type_payloads(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    bindings: &mut [typed_trees::static_applications::StaticMachineBinding],
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    for binding in bindings {
+        match &mut binding.value {
+            StaticMachineBindingValue::Type(reference)
+            | StaticMachineBindingValue::Const(reference)
+            | StaticMachineBindingValue::RuntimeValue(reference) => {
+                *reference = copy_type_reference(source, program, *reference, symbols);
+            }
+            StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Conformance(argument) => {
+                copy_static_argument_type_payloads(
+                    source,
+                    program,
+                    std::slice::from_mut(argument),
+                    symbols,
+                );
+            }
+        }
     }
 }
 

@@ -72,12 +72,16 @@ impl ExpressionTable {
         let arguments = origin
             .static_machine_application_arguments(application)
             .to_vec();
+        let bindings = origin
+            .static_machine_application_bindings(application)
+            .to_vec();
         let copy = self.retain_static_machine_application(
             declaration.registration_operation,
             declaration.target,
             &arguments,
         );
         self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
+        self.set_static_machine_application_bindings(copy, &bindings);
         copy
     }
 
@@ -169,6 +173,11 @@ impl ExpressionTable {
                         .static_machine_application_arguments_mut(call.authored_machine_application)
                     {
                         argument.remap_symbols(symbols);
+                    }
+                    for binding in self
+                        .static_machine_application_bindings_mut(call.authored_machine_application)
+                    {
+                        binding.remap_symbols(symbols);
                     }
                 }
                 let arguments = self.expression_handles(call.arguments).to_vec();

@@ -67,6 +67,8 @@ pub struct MachineSpecialization {
     /// Rewritten calls use its exact machine-binder identities and declaration
     /// order to rejoin the selected entries in this specialization.
     pub template_parameters: HandleSpan<data::TypeParameter>,
+    /// Exact typed substitution, independent of diagnostic and hash strings.
+    pub binding_application: crate::static_applications::StaticMachineApplicationHandle,
     /// Concrete machine instance produced for this substitution. The first
     /// specialization may reuse `template`; later specializations clone it
     /// under a fresh symbol. Consumers must key executable/elaborated work by

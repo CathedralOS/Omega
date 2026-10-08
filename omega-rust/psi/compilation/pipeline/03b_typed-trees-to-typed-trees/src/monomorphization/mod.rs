@@ -40,6 +40,7 @@ use validation::contract_identities::{
     normalized_machine_identity,
 };
 
+mod applications;
 mod candidate;
 mod selection;
 
@@ -119,6 +120,7 @@ enum CallSite {
 #[derive(Clone)]
 struct CallSelection {
     site: CallSite,
+    lexical_owner: SymbolHandle,
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
@@ -197,6 +199,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         selections.retain(|selection| {
             !const_arguments::has_pending_type_arguments(program, &selection.type_bindings)
         });
+        for selection in &selections {
+            let candidate =
+                candidate_for_selection(&candidates[selection.candidate_index], selection);
+            applications::retain_call(program, &candidate, selection);
+        }
         // A retained generic body still checks each known application argument,
         // including a discarded call with no inferred destination to refresh.
         // The tuple's bounds do not depend on whether we emit a private instance.

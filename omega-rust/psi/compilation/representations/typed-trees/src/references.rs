@@ -164,6 +164,7 @@ impl TypedReferences for ReferenceCollector {
         for argument in call.arguments(program) {
             visit_static_argument(program, &mut description, argument);
         }
+        visit_static_machine_bindings(program, &mut description, call.application());
         self.descriptor_symbols.extend(description.symbols);
         // Selection provenance remains an obligation even when the operand is
         // not a host type or executable machine dependency.
@@ -439,6 +440,35 @@ pub fn visit_static_argument(
     if let Some(application) = &argument.application {
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);
+        }
+    }
+}
+
+/// Inferred operands have the same dependency law as authored operands. The
+/// original binder itself is a declaration description, not executable code.
+pub fn visit_static_machine_bindings(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    application: crate::static_applications::StaticMachineApplicationHandle,
+) {
+    if !application.is_valid() {
+        return;
+    }
+    for binding in program
+        .expression_table
+        .static_machine_application_bindings(application)
+    {
+        use crate::static_applications::StaticMachineBindingValue;
+        match &binding.value {
+            StaticMachineBindingValue::Type(reference)
+            | StaticMachineBindingValue::Const(reference)
+            | StaticMachineBindingValue::RuntimeValue(reference) => {
+                visit_type_reference(program, retained, *reference)
+            }
+            StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Conformance(argument) => {
+                visit_static_argument(program, retained, argument)
+            }
         }
     }
 }
@@ -1079,6 +1109,7 @@ fn visit_call_expression(
         for argument in StaticArgumentCall::Expression(call).arguments(program) {
             visit_static_argument(program, retained, argument);
         }
+        visit_static_machine_bindings(program, retained, call.authored_machine_application);
     }
     if let Some(quotient) = &call.quotient_operation {
         visit_static_argument(program, retained, &quotient.representative_operation);
@@ -1151,6 +1182,7 @@ fn visit_statement(
                 for argument in StaticArgumentCall::Statement(call).arguments(program) {
                     visit_static_argument(program, retained, argument);
                 }
+                visit_static_machine_bindings(program, retained, call.authored_machine_application);
             }
         }
         StatementNode::LocalData(local) => {
@@ -1225,6 +1257,7 @@ pub fn visit_machine(
         .filter(|row| row.instance == machine.symbol)
     {
         visit_type_parameters(program, retained, specialization.template_parameters);
+        visit_static_machine_bindings(program, retained, specialization.binding_application);
         for realization in &specialization.operator_realizations {
             for argument in &realization.arguments {
                 use crate::operator::ClosedOperatorApplicationArgument;

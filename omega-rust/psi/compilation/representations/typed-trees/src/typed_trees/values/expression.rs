@@ -7,7 +7,9 @@
 
 use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::Identifier;
-use crate::static_applications::{StaticMachineApplication, StaticMachineApplicationHandle};
+use crate::static_applications::{
+    StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
+};
 use arena::{Arena, Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
@@ -95,6 +97,7 @@ pub struct ExpressionTable {
     match_arms: Arena<TableMatchArm>,
     static_machine_applications: Arena<StaticMachineApplication>,
     static_machine_arguments: Arena<StaticMachineArgument>,
+    static_machine_bindings: Arena<StaticMachineBinding>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -125,6 +128,7 @@ impl ExpressionTable {
             authored_selection_occurrences,
             static_machine_applications,
             static_machine_arguments,
+            static_machine_bindings,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
@@ -134,6 +138,10 @@ impl ExpressionTable {
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_arguments,
                 &self.static_machine_arguments,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                static_machine_bindings,
+                &self.static_machine_bindings,
             )
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 expression_roots,
@@ -236,6 +244,7 @@ impl ExpressionTable {
             match_arms: Arena::with_capacity(capacity.match_arms),
             static_machine_applications: Arena::default(),
             static_machine_arguments: Arena::default(),
+            static_machine_bindings: Arena::default(),
         }
     }
 
@@ -253,6 +262,7 @@ impl ExpressionTable {
         self.match_arms.reset_retain_capacity();
         self.static_machine_applications.reset_retain_capacity();
         self.static_machine_arguments.reset_retain_capacity();
+        self.static_machine_bindings.reset_retain_capacity();
     }
 
     /// Preserve the source application before folding or specializing its call.
@@ -263,9 +273,8 @@ impl ExpressionTable {
         target: Identifier,
         arguments: &[StaticMachineArgument],
     ) -> StaticMachineApplicationHandle {
-        if arguments.is_empty() {
-            return StaticMachineApplicationHandle::invalid();
-        }
+        // An inferred application may have no authored operands. Its retained
+        // row still owns the exact tuple chosen before executable retargeting.
         let arguments = self
             .static_machine_arguments
             .insert_many(arguments.iter().cloned());
@@ -275,6 +284,7 @@ impl ExpressionTable {
                 lexical_owner: SymbolHandle::invalid(),
                 target,
                 arguments,
+                bindings: HandleSpan::empty(),
             })
     }
 
@@ -290,6 +300,53 @@ impl ExpressionTable {
         application: StaticMachineApplicationHandle,
     ) -> &mut StaticMachineApplication {
         self.static_machine_applications.get_mut(application)
+    }
+
+    pub fn static_machine_applications(
+        &self,
+    ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)> {
+        self.static_machine_applications.iter()
+    }
+
+    pub fn static_machine_application_bindings(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineBinding] {
+        self.static_machine_bindings
+            .span_or_empty(self.static_machine_application(application).bindings)
+    }
+
+    pub fn static_machine_application_bindings_mut(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> &mut [StaticMachineBinding] {
+        let bindings = self.static_machine_applications.get(application).bindings;
+        self.static_machine_bindings.span_mut_or_empty(bindings)
+    }
+
+    /// Refinement updates the same application's rows, rather than appending
+    /// another tuple on every fixed-point round. Copies own independent spans.
+    pub fn set_static_machine_application_bindings(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        bindings: &[StaticMachineBinding],
+    ) {
+        let previous = self.static_machine_applications.get(application).bindings;
+        if self.static_machine_bindings.span_or_empty(previous) == bindings {
+            return;
+        }
+        if previous.len() == bindings.len() {
+            self.static_machine_bindings
+                .span_mut_or_empty(previous)
+                .clone_from_slice(bindings);
+        } else {
+            let bindings = self
+                .static_machine_bindings
+                .insert_many(bindings.iter().cloned());
+            self.static_machine_applications
+                .get_mut(application)
+                .bindings = bindings;
+        }
     }
 
     pub fn static_machine_application_arguments(

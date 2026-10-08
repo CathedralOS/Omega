@@ -415,6 +415,8 @@ pub(super) fn collect_call_selections(
             runtime_value_proposals,
         );
         selection.explicit_argument_overflow = explicit_arguments.is_err();
+        selection.lexical_owner =
+            typed_trees::references::StaticArgumentCall::Expression(call).lexical_owner(program);
         upsert_selection(&mut selections, selection);
     }
 
