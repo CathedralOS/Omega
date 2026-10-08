@@ -907,8 +907,8 @@ fn selected_entry_schema<'program>(
     };
     typed
         .traits()
-        .iter()
-        .find(|definition| definition.symbol == *symbol && definition.is_boundary)
+.iter()
+.find(|definition| definition.symbol == *symbol && definition.is_boundary)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "target entry contract declaration `{schema_name}` is not a boundary schema"
@@ -1145,9 +1145,7 @@ fn arrival_requirement_contract(
                 continue;
             }
             if let Some(parent) = typed
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == parent.symbol)
+                .trait_definition_by_symbol(parent.symbol)
             {
                 inherited.push(parent);
             }

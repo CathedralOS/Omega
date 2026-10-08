@@ -461,8 +461,8 @@ pub(crate) fn collect_boundary_signatures<'a>(
     for requirement in typed.trait_requirements(definition) {
         if let Some(parent) = typed
             .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
+.iter()
+.find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
         {
             let parent_arguments = typed
                 .type_reference_table
@@ -541,14 +541,10 @@ pub(crate) fn call_signature_from_typed(
             continue;
         };
         let trait_definition_row = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == *trait_definition)
+            .trait_definition_by_symbol(*trait_definition)
             .ok_or_else(|| "nominal callback binder lost its declaring trait".to_owned())?;
         let requirement_row = typed
-            .trait_machine_signatures(trait_definition_row)
-            .iter()
-            .find(|candidate| candidate.symbol == *requirement)
+            .trait_machine_signature_by_symbol(trait_definition_row, *requirement)
             .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
         let requirement_identity =
             typed.trait_requirement_callable_identity_text(trait_definition_row, requirement_row);

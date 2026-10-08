@@ -171,9 +171,7 @@ pub(crate) fn named_provider_row<'a>(
     let definition = named_provider(context, plan)?;
     let mut matching = definition.rows.iter().filter(|entry| {
         let Some(owner) = typed
-            .traits()
-            .iter()
-            .find(|owner| owner.symbol == entry.declaring_trait)
+            .trait_definition_by_symbol(entry.declaring_trait)
         else {
             return false;
         };

@@ -195,16 +195,12 @@ fn exact_callback_requirement_catalog(
     let mut catalog = Vec::with_capacity(binders.len());
     for binder in binders {
         let trait_definition = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == binder.requirement_trait)
+            .trait_definition_by_symbol(binder.requirement_trait)
             .ok_or_else(|| {
                 "evaluated callback binder lost its exact requirement trait".to_owned()
             })?;
         let requirement = typed
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|candidate| candidate.symbol == binder.requirement_machine)
+            .trait_machine_signature_by_symbol(trait_definition, binder.requirement_machine)
             .ok_or_else(|| {
                 "evaluated callback binder lost its exact requirement machine".to_owned()
             })?;

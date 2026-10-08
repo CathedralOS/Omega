@@ -278,9 +278,7 @@ fn collect_service_methods(
 
     for requirement in program.trait_requirements(trait_definition) {
         let Some(parent) = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol)
+            .trait_definition_by_symbol(requirement.symbol)
         else {
             continue;
         };
@@ -424,9 +422,7 @@ fn service_progress_establishment_routes(
         })
         .map(|route| {
             let owner = program
-                .traits()
-                .iter()
-                .find(|owner| owner.symbol == route.source_symbol())
+                .trait_definition_by_symbol(route.source_symbol())
                 .expect("normalized progress establishment route must name one trait owner");
             let requirement = program
                 .trait_machine_signatures(owner)
