@@ -390,6 +390,23 @@ class MainVerdicts(unittest.TestCase):
         self.assertEqual(fixtures["pass/a/y"]["verdict"], "moved")
         self.assertIn("golden_provenance", document)
 
+    def test_json_oracle_failure_retains_observed_diagnostics(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "host" / "buffer"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_exit.txt").write_text("0\n")
+        built = record("pass/host/buffer", status="built", facts={"exit": "0"})
+        refused = record("pass/host/buffer", status="rejected",
+                         diagnostics=["borrowed source custody mismatch"])
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [refused], "--native", "--json", str(self.json_path),
+                golden_records=[built]), 3)
+        document = json.loads(self.json_path.read_text())
+        self.assertEqual(document["observations"], [refused])
+        self.assertEqual(document["fixtures"], [])
+        self.assertEqual(document["counts"]["fixtures"], 1)
+        self.assertEqual(self.golden.read_text(), corpus_records.render([built]))
+
     def test_record_stamps_rows_and_subset_preserves_prior_stamps(self):
         prior = [record("pass/a/x", recorded_at="bbbbbbbbbbbb"),
                  record("pass/a/y")]

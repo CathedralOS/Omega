@@ -865,6 +865,7 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         "infrastructure_error": infrastructure_error,
         "golden_provenance": golden_provenance,
         "perf_context": perf_context,
+        "observations": records,
         "fixtures": classified}
     return document
 
