@@ -104,7 +104,7 @@ fn derive_once(
     })
 }
 
-fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
+pub(crate) fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
     match &block.terminator {
         SelectedTerminator::ConditionalBranch {
             instruction,
@@ -128,7 +128,7 @@ fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInstruction, &S
     }
 }
 
-fn widening_candidate(instruction: &SelectedInstruction, row: &SelectedFormEncodingRow) -> bool {
+pub(crate) fn widening_candidate(instruction: &SelectedInstruction, row: &SelectedFormEncodingRow) -> bool {
     matches!(
         instruction.kind,
         SelectedInstructionKind::ConditionalBranchNonZero

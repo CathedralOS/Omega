@@ -8,6 +8,7 @@ mod branch;
 mod function;
 mod order;
 mod plan;
+pub(super) use plan::{conditional_branch, widening_candidate};
 mod policy;
 mod row;
 

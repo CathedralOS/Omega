@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+    SelectedInstructionKind,
 };
 use target::Architecture;
 
@@ -13,6 +13,7 @@ use machine_code::{
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::roster;
+use super::super::super::ordinary::{conditional_branch, widening_candidate};
 
 pub(super) struct LayoutPlan {
     pub(super) block_offsets: BTreeMap<SelectedBlockId, u64>,
@@ -105,46 +106,7 @@ fn derive_once(
     })
 }
 
-fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
-    match &block.terminator {
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            ..
-        } => Some((instruction, when_nonzero)),
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            ..
-        } => Some((instruction, when_less)),
-        SelectedTerminator::Jump { .. }
-        | SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => None,
-    }
-}
 
-fn widening_candidate(instruction: &SelectedInstruction, row: &SelectedFormEncodingRow) -> bool {
-    matches!(
-        instruction.kind,
-        SelectedInstructionKind::ConditionalBranchNonZero
-            | SelectedInstructionKind::ConditionalBranchU64LessThan
-            | SelectedInstructionKind::ConditionalBranchI64LessThan
-    ) && matches!(
-        row.machine_disposition,
-        SelectedFormMachineDisposition::RetainedV1
-    ) && matches!(
-        row.state,
-        SelectedFormEncodingState::DeferredControl {
-            reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-        }
-    )
-}
 
 fn aarch64_branch_overflows_imm19(byte_displacement: i64) -> bool {
     byte_displacement % 4 == 0
