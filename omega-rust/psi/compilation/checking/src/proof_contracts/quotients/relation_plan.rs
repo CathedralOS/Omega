@@ -747,9 +747,7 @@ fn require_checked_proof_closure(
     machine_symbol: SymbolHandle,
     error: RelationPlanError,
 ) -> Result<(), RelationPlanError> {
-    let Some(machine) = program
-        .machine(machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return Err(error);
     };
     super::equivalence_selection::checked_proof_dependency(
@@ -1013,9 +1011,7 @@ fn exact_quotient_relation(
     let Some(metadata) = quotient.quotient.as_ref() else {
         return ExactRelationLookup::NotQuotient;
     };
-    let Some(relation) = program
-        .proposition_definition_by_symbol(metadata.relation_symbol)
-    else {
+    let Some(relation) = program.proposition_definition_by_symbol(metadata.relation_symbol) else {
         return ExactRelationLookup::OpenApplication;
     };
     if !program.proposition_binders(relation).is_empty() {
@@ -1352,7 +1348,7 @@ fn machine_state_label(
         return "an unresolved machine".to_owned();
     };
     let states = program.machine_states(machine);
-    match states.iter().position(|state| state.symbol == state_symbol) {
+    match program.state_position_by_symbol(machine_symbol, state_symbol) {
         Some(position) if position > 0 => {
             format!(
                 "`{}` state `{}`",

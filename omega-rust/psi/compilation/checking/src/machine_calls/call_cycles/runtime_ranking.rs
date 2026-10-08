@@ -109,10 +109,7 @@ fn dispatched_implementations(
                         .as_str()
                         == slot.interface_identity
                 })
-                .filter_map(|selection| {
-                    program
-                        .conformance_by_symbol(selection.implementation)
-                })
+                .filter_map(|selection| program.conformance_by_symbol(selection.implementation))
                 .flat_map(|conformance| {
                     conformance
                         .rows
@@ -367,7 +364,8 @@ pub(super) fn project_component(
                 }
             }
             for (statement_ordinal, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let StatementNode::Transition(transition) = statement else {
                     if prefix::preserves_rank(
@@ -713,10 +711,7 @@ pub(crate) fn ranged_member_site_invariant(
     if !rank.range.is_valid() {
         return None;
     }
-    let states = program.machine_states(machine);
-    let position = states
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)?;
+    let position = program.state_position_by_symbol(machine.symbol, state.symbol)?;
     if position == 0 {
         return None;
     }
@@ -1064,9 +1059,7 @@ pub(crate) fn internal_arrivals<'program>(
                 if let Some((path, arguments)) =
                     program.statement_table.named_transition_target(target)
                 {
-                    if let Some(destination) =
-                        internal_state_index(program, machine, path.symbol)
-                    {
+                    if let Some(destination) = internal_state_index(program, machine, path.symbol) {
                         arrivals.push((
                             source,
                             destination,
@@ -1112,13 +1105,10 @@ fn target_machine(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> O
     if !symbol.is_valid() {
         return None;
     }
-    program
-        .machine_position_by_symbol(symbol)
-        .or_else(|| {
-            let holder = program.machine_holding_state(symbol)?;
-            program
-                .machine_position_by_symbol(holder.symbol)
-        })
+    program.machine_position_by_symbol(symbol).or_else(|| {
+        let holder = program.machine_holding_state(symbol)?;
+        program.machine_position_by_symbol(holder.symbol)
+    })
 }
 
 fn expression_is_inert(
