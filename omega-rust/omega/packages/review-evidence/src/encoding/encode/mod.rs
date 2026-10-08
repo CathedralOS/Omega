@@ -38,3 +38,11 @@ impl std::fmt::Display for PackageReviewEncodingError {
 }
 
 impl std::error::Error for PackageReviewEncodingError {}
+
+pub(super) fn type_identity(
+    encoder: &mut encoder::Encoder,
+    identity: &crate::record::PackageReviewTypeIdentity,
+) -> Result<(), crate::encoding::PackageReviewEncodingError> {
+    encoder.observe_type_identity(identity.canonical())?;
+    encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
+}

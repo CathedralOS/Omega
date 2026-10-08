@@ -1,14 +1,12 @@
 //! Canonical semantic conformance applications, without compiler receipts.
 
-use super::identity::encode_nominal;
+use super::identity::encode_nominal;use super::super::type_identity;
+
 use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::{
-    CONFORMANCE_POLICY_MAGIC, PACKAGE_CONFORMANCE_POLICY_VERSION, PackageReviewEncodingError,
-};
+    CONFORMANCE_POLICY_MAGIC, PACKAGE_CONFORMANCE_POLICY_VERSION, PackageReviewEncodingError};
 use crate::record::{
-    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackageReviewTypeIdentity,
-};
+    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument};
 
 impl PackagePolicyClosedConformanceApplication {
     /// Complete inert application bytes, not a proof or selection receipt.
@@ -81,13 +79,6 @@ fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEnco
     Ok(())
 }
 
-fn type_identity(
-    encoder: &mut Encoder,
-    identity: &PackageReviewTypeIdentity,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.observe_type_identity(identity.canonical())?;
-    encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
-}
 
 fn const_argument(
     encoder: &mut Encoder,
@@ -97,8 +88,7 @@ fn const_argument(
         PackagePolicyConformanceConstArgument::Evaluated {
             parameter_carrier,
             declared_carrier,
-            canonical_value_encoding,
-        } => {
+            canonical_value_encoding} => {
             encoder.tag("evaluated", 0);
             encoder.field("parameter_carrier", |encoder| {
                 type_identity(encoder, parameter_carrier)
@@ -113,8 +103,7 @@ fn const_argument(
         PackagePolicyConformanceConstArgument::CallerBinder {
             parameter_carrier,
             binder,
-            binder_carrier,
-        } => {
+            binder_carrier} => {
             encoder.tag("caller_binder", 1);
             encoder.field("parameter_carrier", |encoder| {
                 type_identity(encoder, parameter_carrier)
