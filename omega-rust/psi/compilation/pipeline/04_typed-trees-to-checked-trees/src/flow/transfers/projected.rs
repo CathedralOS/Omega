@@ -294,21 +294,12 @@ pub(super) fn bound_reference_referent_place(
         }
         _ => return None,
     };
-    let mut reference = type_reference;
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type;
-            }
-            typed_trees::types::TypeReferenceNode::Reference { .. } => break,
-            _ => return None,
-        }
+    let peeled = ::validation::peel_declared_constraints(program, type_reference);
+    if !matches!(
+        program.type_reference_table.type_reference(peeled),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    ) {
+        return None;
     }
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
