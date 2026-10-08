@@ -81,7 +81,7 @@ pub fn collect_parameter_bound_comparisons(
     let Some(argument) = arguments.get(position).copied() else {
         return;
     };
-    let ExpressionNode::Borrow(place) = program.expression_table.expression(argument) else {
+    let Some(place) = program.expression_table.borrow_expression(argument) else {
         return;
     };
     comparisons.push((

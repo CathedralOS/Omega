@@ -161,7 +161,7 @@ pub(crate) fn argument_matches_carrier_with_substitutions(
     // A call may attenuate an explicit mutable borrow to shared access. The
     // referent still passes through ordinary carrier matching; the caller
     // separately proves required domains and validates loan exclusivity.
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(argument)
+    if let Some(borrow) = program.expression_table.borrow_expression(argument)
         && borrow.access == language_semantics::ReferenceAccess::Mutable
         && let TypeReferenceNode::Reference {
             referee,
@@ -217,8 +217,7 @@ fn argument_matches_type_reference_using(
                 )
             });
     }
-    if let ExpressionNode::Borrow(inner_expression) = program.expression_table.expression(argument)
-    {
+    if let Some(inner_expression) = program.expression_table.borrow_expression(argument) {
         let TypeReferenceNode::Reference {
             referee, access, ..
         } = program.type_reference_table.type_reference(type_reference)

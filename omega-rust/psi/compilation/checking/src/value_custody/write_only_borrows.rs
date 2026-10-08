@@ -1260,7 +1260,7 @@ fn validate_call_argument(
     roots: &[WriteOnlyRoot],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+    if let Some(borrow) = program.expression_table.borrow_expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
         && write_only_call_subloan(
             program,

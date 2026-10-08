@@ -388,7 +388,7 @@ fn exclusive_borrow_place(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+    let Some(borrow) = program.expression_table.borrow_expression(expression) else {
         return None;
     };
     if !borrow.access.is_exclusive() {

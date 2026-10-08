@@ -154,8 +154,7 @@ fn argument_contract(
     // including omitted endpoints resolved from the declared backing extent.
     let byte_window = projected_borrow
         .then(|| {
-            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
-            else {
+            let Some(borrow) = program.expression_table.borrow_expression(expression) else {
                 return None;
             };
             if !validation::has_builtin_subslice_meaning(
@@ -496,8 +495,7 @@ fn argument_contract(
             else {
                 return None;
             };
-            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
-            else {
+            let Some(borrow) = program.expression_table.borrow_expression(expression) else {
                 return None;
             };
             if *reference_access != expected_access

@@ -528,7 +528,7 @@ fn selected_shared_borrow_place(
     state: &State,
     value: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value) else {
+    let Some(borrow) = program.expression_table.borrow_expression(value) else {
         return false;
     };
     if borrow.access != language_semantics::ReferenceAccess::Shared

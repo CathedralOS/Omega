@@ -214,4 +214,3 @@ pub fn state_scoped_name_symbol(
             _ => None,
         })
 }
-

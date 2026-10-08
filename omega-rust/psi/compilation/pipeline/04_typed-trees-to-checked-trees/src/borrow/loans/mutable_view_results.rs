@@ -80,7 +80,7 @@ fn mutable_view_source(
             StatementNode::Transition(_) => return None,
             _ => continue,
         };
-        let ExpressionNode::Borrow(borrow) = program.expression_table.expression(returned) else {
+        let Some(borrow) = program.expression_table.borrow_expression(returned) else {
             return None;
         };
         if borrow.access != ReferenceAccess::Mutable {

@@ -173,89 +173,88 @@ pub(super) fn resolve<'a>(
         storage,
         ..
     } = roots;
-            let source_parameters = program.state_parameters(state);
-            // The assignment selects its destination; unrelated borrowed
-            // inputs do not change that root's authority or require it to
-            // occupy position zero.
-            let mut destinations = structural.iter().filter_map(|plan| {
-                let parameter = source_parameters.get(plan.position as usize)?;
-                (parameter.symbol == root_symbol).then_some((plan, parameter))
-            });
-            let Some((plan, parameter)) = destinations.next() else {
-                // A `mut` scalar formal is storage the body establishes at
-                // entry, so its assignment writes that storage exactly as a
-                // `let mut` local's assignment writes the local's.
-                if storage.iter().any(|row| row.symbol == root_symbol) {
-                    let formal = source_parameters
-                        .iter()
-                        .find(|parameter| parameter.symbol == root_symbol)?;
-                    return (dynamic_index.is_none() && place.segments.is_empty()).then(|| {
-                        local_destination(
-                            program,
-                            &facts.operators,
-                            root_symbol,
-                            formal.type_reference,
-                            place,
-                            dynamic_index,
-                            selectors,
-                        )
-                    });
-                }
-                // An established owned structural local roots a field store
-                // without any parameter loan: emission resolves its live home
-                // place through the structural-local roster, so admission here
-                // pins the earlier declaration, not permission to transfer
-                // all its contents. A reference leaf retains its own custody.
-                return borrowed_view_local_root(
+    let source_parameters = program.state_parameters(state);
+    // The assignment selects its destination; unrelated borrowed
+    // inputs do not change that root's authority or require it to
+    // occupy position zero.
+    let mut destinations = structural.iter().filter_map(|plan| {
+        let parameter = source_parameters.get(plan.position as usize)?;
+        (parameter.symbol == root_symbol).then_some((plan, parameter))
+    });
+    let Some((plan, parameter)) = destinations.next() else {
+        // A `mut` scalar formal is storage the body establishes at
+        // entry, so its assignment writes that storage exactly as a
+        // `let mut` local's assignment writes the local's.
+        if storage.iter().any(|row| row.symbol == root_symbol) {
+            let formal = source_parameters
+                .iter()
+                .find(|parameter| parameter.symbol == root_symbol)?;
+            return (dynamic_index.is_none() && place.segments.is_empty()).then(|| {
+                local_destination(
                     program,
-                    facts,
-                    machine,
-                    state,
+                    &facts.operators,
                     root_symbol,
-                    ordinal,
+                    formal.type_reference,
+                    place,
                     dynamic_index,
-                    place.clone(),
-                    selectors.clone(),
+                    selectors,
                 )
-                .or_else(|| {
-                    owned_local_root(
-                        program,
-                        &facts.operators,
-                        state,
-                        root_symbol,
-                        ordinal,
-                        dynamic_index,
-                        place,
-                        selectors,
-                    )
-                });
-            };
-            if destinations.next().is_some() {
-                return None;
-            }
-            let TypeReferenceNode::Reference { referee, .. } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return None;
-            };
-            // A borrowed fixed-array root has no record owner of its
-            // own: its element record resolves through the first carrier
-            // `FixedIndex` hop, so an unresolved owner stays admissible only
-            // behind an index segment.
-            let root_owner =
-                validation::field_domains::data_definition_for_field_type(program, *referee);
-            Some(Destination {
-                root: Root::Parameter { plan, parameter },
-                place,
+            });
+        }
+        // An established owned structural local roots a field store
+        // without any parameter loan: emission resolves its live home
+        // place through the structural-local roster, so admission here
+        // pins the earlier declaration, not permission to transfer
+        // all its contents. A reference leaf retains its own custody.
+        return borrowed_view_local_root(
+            program,
+            facts,
+            machine,
+            state,
+            root_symbol,
+            ordinal,
+            dynamic_index,
+            place.clone(),
+            selectors.clone(),
+        )
+        .or_else(|| {
+            owned_local_root(
+                program,
+                &facts.operators,
+                state,
+                root_symbol,
+                ordinal,
                 dynamic_index,
-                recast_view,
-                view_loan: false,
+                place,
                 selectors,
-                root_type: *referee,
-                root_owner,
-                operators: &facts.operators,
-            })
+            )
+        });
+    };
+    if destinations.next().is_some() {
+        return None;
+    }
+    let TypeReferenceNode::Reference { referee, .. } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    // A borrowed fixed-array root has no record owner of its
+    // own: its element record resolves through the first carrier
+    // `FixedIndex` hop, so an unresolved owner stays admissible only
+    // behind an index segment.
+    let root_owner = validation::field_domains::data_definition_for_field_type(program, *referee);
+    Some(Destination {
+        root: Root::Parameter { plan, parameter },
+        place,
+        dynamic_index,
+        recast_view,
+        view_loan: false,
+        selectors,
+        root_type: *referee,
+        root_owner,
+        operators: &facts.operators,
+    })
 }
 
 /// A store rooted at a declared local: the unique `LocalData` symbol names
@@ -793,7 +792,7 @@ fn rejoin_loan_local(
         initial = cast.value;
         recast = true;
     }
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initial) else {
+    let Some(borrow) = program.expression_table.borrow_expression(initial) else {
         return Some((place, None));
     };
     // A reseatable binding does not denote one place, and a shared loan

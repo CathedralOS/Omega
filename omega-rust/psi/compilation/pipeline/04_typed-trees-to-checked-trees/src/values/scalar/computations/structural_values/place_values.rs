@@ -307,8 +307,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        let ExpressionNode::Borrow(borrow) = self.program.expression_table.expression(expression)
-        else {
+        let Some(borrow) = self.program.expression_table.borrow_expression(expression) else {
             return None;
         };
         if borrow.access != language_semantics::ReferenceAccess::Shared {

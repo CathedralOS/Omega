@@ -276,7 +276,7 @@ pub fn declared_place_type_raw(
     argument: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut handle = argument;
-    if let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
+    if let Some(inner) = program.expression_table.borrow_expression(handle) {
         handle = inner.target;
     }
 

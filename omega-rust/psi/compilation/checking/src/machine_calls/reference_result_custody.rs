@@ -289,7 +289,7 @@ pub fn borrowed_initializer_source(
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) = stored_loan_parts(program, reference)?;
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+    let Some(borrow) = program.expression_table.borrow_expression(expression) else {
         return None;
     };
     let authored_access = match borrow.access {

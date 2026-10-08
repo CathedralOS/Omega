@@ -93,7 +93,7 @@ pub(crate) fn collect_true(
     expression: ExpressionHandle,
     observations: &mut Vec<(ExpressionHandle, FloatPredicate)>,
 ) {
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+    if let Some(borrow) = program.expression_table.borrow_expression(expression) {
         collect_true(
             program,
             machine,

@@ -40,7 +40,7 @@ pub(crate) fn receiving_reference_access_refusal(
     use language_semantics::ReferenceAccess;
     let expected_access = declared_reference_access(program, required);
     let supplied_access = supplied_reference_access(program, value);
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value)
+    if let Some(borrow) = program.expression_table.borrow_expression(value)
         && borrow.access.is_exclusive()
         && let Some(refusal) = explicit_borrow_source_refusal(
             program,

@@ -27,7 +27,7 @@ pub(super) fn declared_case_projection_type(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+    if let Some(borrow) = program.expression_table.borrow_expression(expression) {
         return declared_place_type_raw(program, machine, state, borrow.target);
     }
     declared_case_projection_field(program, machine, state, expression)

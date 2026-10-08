@@ -23,7 +23,7 @@ pub(crate) fn plan(
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let shell = validation::reference_shell(program, reference)?;
     let (referent, access) = (shell.referee, CheckedStructuralAccess::from(shell.access));
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+    let Some(borrow) = program.expression_table.borrow_expression(expression) else {
         return validation::reference_result_custody::initializer_source(
             program, state, expression, reference,
         );

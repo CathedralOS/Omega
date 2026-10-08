@@ -152,7 +152,7 @@ fn expression_proves_comparison(
     expression: ExpressionHandle,
     required: &RequiredComparison,
 ) -> bool {
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+    if let Some(borrow) = program.expression_table.borrow_expression(expression) {
         return expression_proves_comparison(program, operators, owner, borrow.target, required);
     }
     let Some(binary) = comparison(program, expression) else {

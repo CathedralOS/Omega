@@ -352,7 +352,9 @@ fn element_view_local_indexed(
             }
             _ => None,
         })?;
-    let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(local.initial_value)
+    let Some(borrow) = checked
+        .expression_table
+        .borrow_expression(local.initial_value)
     else {
         return None;
     };

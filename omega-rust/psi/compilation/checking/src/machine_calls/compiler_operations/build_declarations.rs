@@ -133,7 +133,7 @@ fn exact_mutable_build_argument(
     if !receiver.is_valid() {
         return false;
     }
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(receiver) {
+    if let Some(borrow) = program.expression_table.borrow_expression(receiver) {
         return borrow.access == language_semantics::ReferenceAccess::Mutable
             && crate::expression_type_symbol(program, borrow.target)
                 .is_some_and(|symbol| exact_build_prelude_data(program, symbol, "Build"));
@@ -186,7 +186,8 @@ pub fn resolve_product_operand(
                     .map(|machine| (machine.symbol, machine.is_public)),
             )
             .chain(
-                program.all_operators()
+                program
+                    .all_operators()
                     .filter(|operator| operator.is_boundary)
                     .map(|operator| (operator.symbol, operator.is_public)),
             )

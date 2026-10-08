@@ -827,7 +827,7 @@ fn borrowed_view_access(
     ) {
         return None;
     }
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+    if let Some(borrow) = program.expression_table.borrow_expression(expression) {
         let authored = match borrow.access {
             language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
             language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,

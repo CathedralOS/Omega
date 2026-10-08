@@ -610,8 +610,7 @@ impl<'program> Coordinate<'program> {
             // An owned actual into a borrowed formal has no reference boundary
             // to read through; only a `&` spelling reaches the record the
             // destination denotes.
-            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
-            else {
+            let Some(borrow) = program.expression_table.borrow_expression(current) else {
                 return None;
             };
             current = borrow.target;

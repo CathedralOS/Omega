@@ -744,7 +744,5 @@ fn realized_scalar_carrier(
         return (!bounded).then_some(PrimitiveType::Selector);
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
-    (!bounded
-        || primitive.is_fixed_integer())
-    .then_some(primitive)
+    (!bounded || primitive.is_fixed_integer()).then_some(primitive)
 }
