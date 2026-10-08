@@ -1,8 +1,9 @@
 //! Canonical package-review framing and semantic row encoding.
 //!
-//! `review` and `rows` assemble the public persistence products. `values`
-//! contains their subordinate evidence-family encoders; it is deliberately a
-//! child of this owner rather than a peer persistence domain.
+//! `policy_rows` projects the receipt-free review rows the public persistence
+//! products carry. `values` contains their subordinate evidence-family
+//! encoders; it is deliberately a child of this owner rather than a peer
+//! persistence domain.
 
 mod baseline;
 mod callable_policy;
@@ -13,7 +14,6 @@ pub(super) mod membership;
 mod policy_rows;
 mod public_api;
 mod representation;
-pub(super) mod rows;
 mod selected_providers;
 mod terminal_permissions;
 mod values;
