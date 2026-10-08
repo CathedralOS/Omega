@@ -154,24 +154,15 @@ fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
             (block.id, targets)
         })
         .collect::<BTreeMap<_, _>>();
-    let mut entered = BTreeSet::from([machine.entry]);
-    let mut finished = Vec::new();
-    let mut pending = vec![(machine.entry, 0usize)];
-    while let Some((block, position)) = pending.last_mut() {
-        let Some(target) = successors
-            .get(block)
-            .and_then(|targets| targets.get(*position))
-            .copied()
-        else {
-            finished.push(*block);
-            pending.pop();
-            continue;
-        };
-        *position += 1;
-        if entered.insert(target) {
-            pending.push((target, 0));
-        }
-    }
+    let mut finished = terminal_semantics::control_graph::finished_order(
+        machine.entry,
+        |block, position| {
+            successors
+                .get(&block)
+                .and_then(|targets| targets.get(position))
+                .copied()
+        },
+    );
     finished.reverse();
     finished
 }

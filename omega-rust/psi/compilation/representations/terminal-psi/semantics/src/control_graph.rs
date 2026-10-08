@@ -29,15 +29,18 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
         .collect()
 }
 
-/// Complete cyclic components in canonical member order. Targets and entry
-/// must have passed ordinary graph validation before this private query.
-pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
-    let outgoing = successors(machine);
-    let mut entered = BTreeSet::from([machine.entry]);
+/// Iterative DFS returning blocks in first-finished order — the shared
+/// pending-stack walk behind `cyclic_components` and `reverse_postorder`.
+/// `successor(block, position)` projects the block's edge table.
+pub fn finished_order(
+    entry: BlockId,
+    successor: impl Fn(BlockId, usize) -> Option<BlockId>,
+) -> Vec<BlockId> {
+    let mut entered = BTreeSet::from([entry]);
     let mut finished = Vec::new();
-    let mut pending = vec![(machine.entry, 0usize)];
+    let mut pending = vec![(entry, 0usize)];
     while let Some((block, position)) = pending.last_mut() {
-        let Some((_, target)) = outgoing[block].get(*position).copied() else {
+        let Some(target) = successor(*block, *position) else {
             finished.push(*block);
             pending.pop();
             continue;
@@ -47,6 +50,16 @@ pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
             pending.push((target, 0));
         }
     }
+    finished
+}
+
+/// Complete cyclic components in canonical member order. Targets and entry
+/// must have passed ordinary graph validation before this private query.
+pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
+    let outgoing = successors(machine);
+    let finished = finished_order(machine.entry, |block, position| {
+        outgoing[&block].get(position).map(|(_, target)| *target)
+    });
     let mut incoming = outgoing
         .keys()
         .map(|block| (*block, Vec::new()))
@@ -134,20 +147,9 @@ fn reverse_postorder_from_successors(
     entry: BlockId,
     outgoing: &BTreeMap<BlockId, Vec<(EdgeId, BlockId)>>,
 ) -> Vec<BlockId> {
-    let mut entered = BTreeSet::from([entry]);
-    let mut finished = Vec::new();
-    let mut pending = vec![(entry, 0usize)];
-    while let Some((block, position)) = pending.last_mut() {
-        let Some((_, target)) = outgoing[block].get(*position).copied() else {
-            finished.push(*block);
-            pending.pop();
-            continue;
-        };
-        *position += 1;
-        if entered.insert(target) {
-            pending.push((target, 0));
-        }
-    }
+    let mut finished = finished_order(entry, |block, position| {
+        outgoing[&block].get(position).map(|(_, target)| *target)
+    });
     finished.reverse();
     finished
 }
