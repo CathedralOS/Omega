@@ -634,14 +634,7 @@ where
                     || !result.claims.is_empty()
                     || !catalogs.types.clone().any(|declaration| {
                         declaration.id == structural_type
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None | Some(StructuralAccess::SharedBorrow)
-                                    }
-                                )
-                            )
+                            && declaration.shape.is_shared_readable_byte_view()
                     })
                 {
                     return None;
@@ -659,15 +652,7 @@ where
                 || !result.claims.is_empty()
                 || !catalogs.types.clone().any(|declaration| {
                     declaration.id == structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None | Some(StructuralAccess::SharedBorrow)
-                                    }
-                            )
-                        )
+                        && declaration.shape.supports_result_qualifications()
                 })
             {
                 return None;

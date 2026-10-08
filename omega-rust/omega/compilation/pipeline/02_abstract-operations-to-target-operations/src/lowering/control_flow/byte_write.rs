@@ -208,11 +208,7 @@ pub(super) fn replace_view_descriptor(
                     structural_types
                         .get(&home.structural_type())
                         .map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        }
-                    ))
+                    Some(declaration) if declaration.is_shared_readable_byte_view()
                 )
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

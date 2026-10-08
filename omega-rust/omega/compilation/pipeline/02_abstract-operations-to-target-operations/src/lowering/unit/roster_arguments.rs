@@ -765,16 +765,7 @@ fn stored_shared_view_field(
     let shared_formal = callee_parameter.access == StructuralAccess::SharedBorrow
         && structural_types
             .get(&callee_parameter.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        }
-                    )
-                )
-            });
+            .is_some_and(|declaration| declaration.shape.is_shared_readable_byte_view());
     let Some((leaf, prefix)) = path.split_last() else {
         return Ok(None);
     };

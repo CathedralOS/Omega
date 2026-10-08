@@ -7,8 +7,7 @@ use crate::LoweringError;
 use checked_trees::{CheckedTrees, types::TypeReferenceHandle};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(crate) fn resolve(
@@ -44,13 +43,10 @@ pub(crate) fn resolve(
             declarations
                 .iter()
                 .find_map(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        })
-                    )
-                    .then_some(declaration.id)
+                    declaration
+                        .shape
+                        .is_shared_readable_byte_view()
+                        .then_some(declaration.id)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "shared byte member has no descriptor carrier",

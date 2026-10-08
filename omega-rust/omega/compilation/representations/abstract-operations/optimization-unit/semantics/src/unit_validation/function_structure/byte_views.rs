@@ -119,14 +119,12 @@ pub(crate) fn byte_view_field_store_is_valid(
         // A standalone view type binds no access; the home's descriptor is
         // shared because every store installs a readable shared source.
         None if path.is_empty() => {
-            declared_descriptor_home(function, *destination).and_then(|home| match structural_types
-                .get(&home.structural_type)?
-                .shape
-            {
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: None | Some(StructuralAccess::SharedBorrow),
-                }) => Some(shared_view),
-                _ => None,
+            declared_descriptor_home(function, *destination).and_then(|home| {
+                structural_types
+                    .get(&home.structural_type)?
+                    .shape
+                    .is_shared_readable_byte_view()
+                    .then_some(shared_view)
             })
         }
         None => None,

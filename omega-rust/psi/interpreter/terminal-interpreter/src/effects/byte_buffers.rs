@@ -630,13 +630,7 @@ impl TerminalExecution<'_> {
             .field_type
             .byte_sequence_carrier()
             .ok_or_else(malformed)?;
-        if !matches!(
-            carrier,
-            ByteSequenceCarrier::BoundedOwned { .. }
-                | ByteSequenceCarrier::BorrowedView {
-                    access: None | Some(StructuralAccess::SharedBorrow)
-                }
-        ) {
+        if !carrier.supports_result_qualifications() {
             return Err(malformed());
         }
         let source = StructuralByteSequenceRuntimeField {

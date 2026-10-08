@@ -1161,32 +1161,19 @@ fn establish_constructor(
         let nested = leaf_type(declarations, root_type, &argument.path)?;
         let source_shape = &lookup(declarations, nested)?.shape;
         let byte_carrier = field_type.byte_sequence_carrier();
-        let descriptor_member = matches!(
-            source_shape,
-            StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    }
-                )
-        );
+        let descriptor_member = source_shape.is_shared_readable_byte_view()
+            || matches!(source_shape, StructuralTypeShape::ElementView { .. });
         let declared_matches = match field_type {
             StructuralFieldType::Structural(expected) => nested == *expected,
             _ => match (byte_carrier, source_shape) {
                 (
                     Some(expected @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }),
                     StructuralTypeShape::ByteSequence(actual),
-                ) => expected == *actual,
-                (
-                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    }),
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        },
-                    ),
-                ) => true,
+                ) => {
+                    expected == *actual
+                        || (expected.is_shared_readable_view()
+                            && source_shape.is_shared_readable_byte_view())
+                }
                 _ => false,
             },
         };

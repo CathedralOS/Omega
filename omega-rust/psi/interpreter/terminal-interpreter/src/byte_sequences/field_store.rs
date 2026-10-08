@@ -156,10 +156,7 @@ impl TerminalExecution<'_> {
                 if !path.is_empty()
                     || !home.path.is_empty()
                     || !matches!(self.program.structural_types().get(&home.structural_type),
-                    Some(declaration) if matches!(declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        })))
+                    Some(declaration) if declaration.shape.is_shared_readable_byte_view())
                 {
                     return Err(malformed());
                 }

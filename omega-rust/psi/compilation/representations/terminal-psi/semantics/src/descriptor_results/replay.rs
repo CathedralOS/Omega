@@ -178,12 +178,10 @@ fn may_contain_descriptor(
             terminal_psi::StructuralFieldType::Structural(ty) => {
                 may_contain_descriptor(types, ty, active)
             }
-            _ => matches!(
-                field.field_type.byte_sequence_carrier(),
-                Some(ByteSequenceCarrier::BorrowedView {
-                    access: None | Some(StructuralAccess::SharedBorrow)
-                })
-            ),
+            _ => field
+                .field_type
+                .byte_sequence_carrier()
+                .is_some_and(|carrier| carrier.is_shared_readable_view()),
         })
     };
     let contains = match &declaration.shape {
@@ -245,12 +243,10 @@ pub fn descriptor_slots(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(types, ty, child, active, result)?
                         }
-                        _ if matches!(
-                            field.field_type.byte_sequence_carrier(),
-                            Some(ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(StructuralAccess::SharedBorrow)
-                            })
-                        ) =>
+                        _ if field
+                            .field_type
+                            .byte_sequence_carrier()
+                            .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
                             result.push(child)
                         }
@@ -292,12 +288,10 @@ pub fn descriptor_slots(
                         terminal_psi::StructuralFieldType::Structural(ty) => {
                             walk(types, ty, child, active, result)?
                         }
-                        _ if matches!(
-                            field.field_type.byte_sequence_carrier(),
-                            Some(ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(StructuralAccess::SharedBorrow)
-                            })
-                        ) =>
+                        _ if field
+                            .field_type
+                            .byte_sequence_carrier()
+                            .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
                         {
                             result.push(child)
                         }

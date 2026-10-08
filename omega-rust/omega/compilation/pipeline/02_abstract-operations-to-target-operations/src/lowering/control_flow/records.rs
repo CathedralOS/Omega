@@ -189,12 +189,9 @@ pub(super) fn establish(
                             )
                         })
                     }
-                    field_type => matches!(
-                        field_type.byte_sequence_carrier(),
-                        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        })
-                    ),
+                    field_type => field_type
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view()),
                 };
                 let nested = match field_type {
                     StructuralFieldType::Structural(nested) => *nested,
@@ -217,14 +214,7 @@ pub(super) fn establish(
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         if !types.get(&nested).is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None | Some(StructuralAccess::SharedBorrow),
-                                    },
-                                )
-                            )
+                            declaration.shape.is_shared_readable_byte_view()
                         }) {
                             return Err(LoweringError::unsupported_control_flow(function.machine));
                         }

@@ -77,13 +77,8 @@ pub fn is_shared_descriptor<'a>(
         return false;
     };
     declarations.next().is_none()
-        && matches!(
-            declaration.shape,
-            StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: None | Some(StructuralAccess::SharedBorrow),
-                })
-        )
+        && (declaration.shape.is_shared_readable_byte_view()
+            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
 }
 
 /// Every possible backing of a normal shared descriptor result. A literal has

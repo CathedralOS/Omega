@@ -39,14 +39,7 @@ pub(super) fn shared_owner_view(
         || declaration.access != StructuralAccess::SharedBorrow
         || !types
             .get(&declaration.structural_type)
-            .is_some_and(|declared| {
-                matches!(
-                    declared.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    })
-                )
-            })
+            .is_some_and(|declared| declared.shape.is_shared_readable_byte_view())
     {
         return Ok(None);
     }

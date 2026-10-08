@@ -146,16 +146,7 @@ impl TerminalExecution<'_> {
             .program
             .structural_types()
             .get(&value.structural_type)
-            .is_some_and(|row| {
-                matches!(
-                    row.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow)
-                        }
-                    )
-                )
-            })
+            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
         {
             return Err(malformed());
         }
@@ -215,16 +206,7 @@ impl TerminalExecution<'_> {
             .program
             .structural_types()
             .get(&value.structural_type)
-            .is_some_and(|row| {
-                matches!(
-                    row.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow)
-                        }
-                    )
-                )
-            })
+            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
         {
             return Ok(None);
         }

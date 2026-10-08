@@ -107,12 +107,11 @@ impl TerminalExecution<'_> {
                             &mut value.projected_qualifications,
                         );
                     }
-                    if matches!(
-                        declaration.field_type.byte_sequence_carrier(),
-                        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        })
-                    ) {
+                    if declaration
+                        .field_type
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+                    {
                         let ConstructorValue::Placed(child) = &child else {
                             return Err(malformed());
                         };
@@ -127,16 +126,7 @@ impl TerminalExecution<'_> {
                                 .program
                                 .structural_types()
                                 .get(&child.structural_type)
-                                .is_some_and(|row| {
-                                    matches!(
-                                        row.shape,
-                                        StructuralTypeShape::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                                access: None | Some(StructuralAccess::SharedBorrow),
-                                            }
-                                        )
-                                    )
-                                })
+                                .is_some_and(|row| row.shape.is_shared_readable_byte_view())
                             || !terminal_semantics::byte_literal_qualifications_hold_in(
                                 self.program.catalogs.structural_domains.iter(),
                                 child.structural_type,

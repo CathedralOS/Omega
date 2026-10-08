@@ -235,18 +235,11 @@ pub(crate) fn field_initializers_match(
                             && source.multiplicity == StructuralMultiplicity::Unrestricted
                             && declared_source.shape == StructuralTypeShape::ByteSequence(carrier)
                     }
-                    Some(ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    }) => {
+                    Some(carrier) if carrier.is_shared_readable_view() => {
                         matches!(
                             source.access,
                             StructuralAccess::Owned | StructuralAccess::SharedBorrow
-                        ) && matches!(
-                            declared_source.shape,
-                            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(StructuralAccess::SharedBorrow),
-                            })
-                        )
+                        ) && declared_source.shape.is_shared_readable_byte_view()
                     }
                     _ => false,
                 };

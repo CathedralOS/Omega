@@ -78,12 +78,7 @@ pub fn stored_view_field_presentation<'types>(
         || !expected.projected_qualifications.is_empty()
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    })
-                )
+                && declaration.shape.is_shared_readable_byte_view()
         })
     {
         return None;

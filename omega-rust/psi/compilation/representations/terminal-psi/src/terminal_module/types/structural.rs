@@ -125,6 +125,15 @@ impl StructuralTypeShape {
         }
     }
 
+    /// Whether this shape is a borrowed `[u8]` view readable through shared
+    /// access: an explicit shared borrow or no bound access at all.
+    pub const fn is_shared_readable_byte_view(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequence(carrier) if carrier.is_shared_readable_view()
+        )
+    }
+
     /// Whether this shape is a borrowed `[u8]` view, whatever access the view
     /// carries. Most readers ask only that -- the descriptor geometry is the
     /// same for a shared and an exclusive view -- and comparing against a
@@ -157,12 +166,7 @@ impl StructuralTypeShape {
     pub const fn supports_result_qualifications(&self) -> bool {
         matches!(
             self,
-            Self::ByteSequence(
-                ByteSequenceCarrier::BoundedOwned { .. }
-                    | ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(crate::StructuralAccess::SharedBorrow),
-                    }
-            )
+            Self::ByteSequence(carrier) if carrier.supports_result_qualifications()
         )
     }
 }
@@ -183,6 +187,29 @@ impl ByteSequenceCarrier {
     /// Whether this carrier reads through borrowed storage at all.
     pub const fn is_borrowed(&self) -> bool {
         matches!(self, Self::BorrowedView { .. } | Self::BoundedView { .. })
+    }
+
+    /// Whether this carrier is a borrowed byte view readable through shared
+    /// access: an explicit shared borrow or no bound access at all.
+    pub const fn is_shared_readable_view(&self) -> bool {
+        matches!(
+            self,
+            Self::BorrowedView {
+                access: None | Some(crate::StructuralAccess::SharedBorrow),
+            }
+        )
+    }
+
+    /// Whether root qualifications may travel on this carrier — a bounded
+    /// owner or a shared-readable view, as on the shape predicate.
+    pub const fn supports_result_qualifications(&self) -> bool {
+        matches!(
+            self,
+            Self::BoundedOwned { .. }
+                | Self::BorrowedView {
+                    access: None | Some(crate::StructuralAccess::SharedBorrow),
+                }
+        )
     }
 }
 

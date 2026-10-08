@@ -1091,15 +1091,7 @@ pub(crate) fn stored_view_field_argument(
             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
         )
         || !declarations.iter().any(|declaration| {
-            declaration.id == view_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow),
-                        }
-                    )
-                )
+            declaration.id == view_type && declaration.shape.is_shared_readable_byte_view()
         })
     {
         return None;

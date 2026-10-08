@@ -245,14 +245,7 @@ pub fn byte_view_call_result<'machine>(
         .iter()
         .any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow)
-                        }
-                    )
-                )
+                && declaration.shape.is_shared_readable_byte_view()
         })
         .then_some(result)
 }
@@ -312,16 +305,7 @@ fn byte_result_predicates(
         .then_some(result)?
     };
     if !module.structural_types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow)
-                        }
-                )
-            )
+        declaration.id == structural_type && declaration.shape.supports_result_qualifications()
     }) {
         return None;
     }
@@ -352,12 +336,11 @@ pub fn shared_byte_field_copy_predicates<'a>(
     let field = fields
         .iter()
         .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-    if !matches!(
-        field.field_type.byte_sequence_carrier(),
-        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: None | Some(StructuralAccess::SharedBorrow)
-        })
-    ) {
+    if !field
+        .field_type
+        .byte_sequence_carrier()
+        .is_some_and(|carrier| carrier.is_shared_readable_view())
+    {
         return None;
     }
     Some(field.field_type.byte_predicates())
@@ -697,14 +680,7 @@ pub fn byte_sequence_source_predicates(
                         || !result.claims.is_empty()
                         || !module.structural_types.iter().any(|declaration| {
                             declaration.id == structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                            access: None | Some(StructuralAccess::SharedBorrow)
-                                        }
-                                    )
-                                )
+                                && declaration.shape.is_shared_readable_byte_view()
                         })
                     {
                         return None;

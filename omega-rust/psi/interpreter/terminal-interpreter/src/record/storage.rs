@@ -15,7 +15,7 @@ use crate::values::{
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeShape};
+use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
@@ -275,16 +275,7 @@ impl ConstructorStorage {
             .program
             .structural_types()
             .get(&child.structural_type)
-            .is_some_and(|row| {
-                matches!(
-                    row.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: None | Some(StructuralAccess::SharedBorrow)
-                        }
-                    )
-                )
-            })
+            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
         {
             let bytes = execution.shared_byte_descriptor(argument, child)?;
             self.byte_arrays

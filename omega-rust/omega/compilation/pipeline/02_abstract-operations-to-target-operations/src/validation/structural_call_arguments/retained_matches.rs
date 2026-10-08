@@ -240,15 +240,7 @@ pub(super) fn matches_stored_view_field(
         _ => false,
     });
     let shared_formal = declarations.iter().any(|declaration| {
-        declaration.id == actual.structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    }
-                )
-            )
+        declaration.id == actual.structural_type && declaration.shape.is_shared_readable_byte_view()
     });
     shared_field
         && shared_formal
