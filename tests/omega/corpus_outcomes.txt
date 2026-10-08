@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.48, "load1_start": 1.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.17, "load1_start": 2.26, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3198,7 +3198,7 @@ pass/host/runtime_descriptor_binding_record_result_exit checked 14931ms check-ta
 pass/host/runtime_descriptor_binding_state_forwarding_input_exit checked 14685ms check-target:macos_arm64 @9be6967d04c3+wt
 pass/host/runtime_descriptor_boolean_loan_output_exit checked 12364ms check-target:macos_arm64 @935b9317809f+wt
 pass/host/runtime_descriptor_direct_array_exit checked 14364ms check-target:macos_arm64 @c6603d3fbbc8+wt
-pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 14692ms check-target:macos_arm64 @38e9996853f7
+pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 16355ms check-target:macos_arm64 @2033017f94e2
 pass/host/runtime_descriptor_float_loan_input_exit checked 37614ms check-target:macos_arm64 @935b9317809f+wt
 pass/host/runtime_descriptor_immutable_primitive_loans_exit checked 39847ms check-target:macos_arm64 @c84aed767336+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 19456ms check-target:macos_arm64 @198156d53e16

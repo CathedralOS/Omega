@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 1.61, "load1_start": 1.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.1, "load1_start": 2.26, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -330,7 +330,7 @@ pass/host/runtime_descriptor_binding_record_result_exit built 12049ms exit:0 std
 pass/host/runtime_descriptor_binding_state_forwarding_input_exit built 11909ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/host/runtime_descriptor_boolean_loan_output_exit built 11761ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @935b9317809f+wt
 pass/host/runtime_descriptor_direct_array_exit built 14250ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
-pass/host/runtime_descriptor_exclusive_atomic_record_exit built 11377ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @38e9996853f7
+pass/host/runtime_descriptor_exclusive_atomic_record_exit built 15899ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @2033017f94e2
 pass/host/runtime_descriptor_float_loan_input_exit built 36010ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @935b9317809f+wt
 pass/host/runtime_descriptor_immutable_primitive_loans_exit built 36830ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @c84aed767336+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit built 19489ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @198156d53e16
