@@ -160,32 +160,15 @@ fn translate_fixup(
     instruction: &SelectedInstruction,
 ) -> Result<Option<FunctionFragmentInternalMachineFixup>, ResolvedFragmentEmissionError> {
     let Some(fixup) = row.internal_machine_fixup else {
-        if matches!(
-            instruction.kind,
-            SelectedInstructionKind::CallScalar {
-                target: selected_instructions::SelectedCallTarget::Machine(_)
-            } | SelectedInstructionKind::CallUnit {
-                target: selected_instructions::SelectedCallTarget::Machine(_)
-            } | SelectedInstructionKind::CallAggregate {
-                target: selected_instructions::SelectedCallTarget::Machine(_)
-            }
-        ) {
+        if instruction.kind.machine_callee().is_some() {
             return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
         return Ok(None);
     };
-    let (SelectedInstructionKind::CallScalar {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }
-    | SelectedInstructionKind::CallUnit {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }
-    | SelectedInstructionKind::CallAggregate {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }) = instruction.kind
-    else {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
-    };
+    let callee = instruction
+        .kind
+        .machine_callee()
+        .ok_or(ResolvedFragmentEmissionError::RootMismatch)?;
     if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
         || fixup.callee != callee
         || row.branch.is_some()

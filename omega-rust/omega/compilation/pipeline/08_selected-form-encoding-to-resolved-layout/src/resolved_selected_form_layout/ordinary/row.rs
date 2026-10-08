@@ -175,16 +175,7 @@ fn validate_internal_fixup(
     bytes: &[u8],
     fixup: SelectedFormInternalMachineFixup,
 ) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
-    let (SelectedInstructionKind::CallScalar {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }
-    | SelectedInstructionKind::CallUnit {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }
-    | SelectedInstructionKind::CallAggregate {
-        target: selected_instructions::SelectedCallTarget::Machine(callee),
-    }) = instruction.kind
-    else {
+    let Some(callee) = instruction.kind.machine_callee() else {
         return unexpected(instruction.id);
     };
     match (architecture, fixup.kind) {
