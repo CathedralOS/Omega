@@ -11,6 +11,20 @@ use super::expressions::{
 use super::scope::MachineScope;
 use super::targets::assign_static_argument_symbols;
 
+macro_rules! assign_calls {
+    ($symbols:ident, $machine:ident, $parameters:ident, $state_symbol:ident, $expression_table:ident, $child_type_references:ident, $expression:expr) => {
+        assign_contract_call_symbols(
+            $symbols,
+            $machine,
+            $parameters,
+            $state_symbol,
+            $expression_table,
+            $child_type_references,
+            $expression,
+        )
+    };
+}
+
 /// Resolve contract value references, call targets, and static machine
 /// arguments in the owning callable's scope. Machine contracts use entry
 /// parameters; state contracts use only that state's explicit parameters.
@@ -263,14 +277,14 @@ fn assign_contract_span(
                     membership.value
                 }
             };
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                expression,
+                expression
             );
         }
     }
@@ -293,86 +307,86 @@ fn assign_contract_call_symbols(
     }
     match expression_table.expression(expression).clone() {
         ExpressionNode::Match(dispatch) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                dispatch.subject,
+                dispatch.subject
             );
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
                 if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                 {
-                    assign_contract_call_symbols(
+                    assign_calls!(
                         symbols,
                         machine,
                         parameters,
                         state_symbol,
                         expression_table,
                         child_type_references,
-                        pattern,
+                        pattern
                     );
                 }
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    arm.value,
+                    arm.value
                 );
             }
         }
         ExpressionNode::ArrayLiteral(values) => {
             let values = expression_table.expression_handles(values).to_vec();
             for value in values {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    value,
+                    value
                 );
             }
         }
         ExpressionNode::Atomic(atomic) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                atomic.value,
+                atomic.value
             );
         }
         ExpressionNode::Binary(binary) => {
             for child in [binary.left, binary.right] {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    child,
+                    child
                 );
             }
         }
         ExpressionNode::Cast(cast) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                cast.value,
+                cast.value
             );
             crate::symbols::type_references::reassign_type_reference_symbols_and_values(
                 symbols,
@@ -396,25 +410,25 @@ fn assign_contract_call_symbols(
             );
         }
         ExpressionNode::Call(call) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                call.receiver,
+                call.receiver
             );
             let arguments = expression_table.expression_handles(call.arguments).to_vec();
             for argument in arguments {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    argument,
+                    argument
                 );
             }
             let target_symbol = resolve_expression_table_call_target_symbol(
@@ -451,26 +465,26 @@ fn assign_contract_call_symbols(
         }
         ExpressionNode::Indexed(indexed) => {
             for child in [indexed.collection, indexed.index] {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    child,
+                    child
                 );
             }
         }
         ExpressionNode::Member(member) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                member.receiver,
+                member.receiver
             );
             assign_member_symbol(
                 symbols,
@@ -483,62 +497,62 @@ fn assign_contract_call_symbols(
             );
         }
         ExpressionNode::Membership(membership) => {
-            assign_contract_call_symbols(
+            assign_calls!(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                membership.value,
+                membership.value
             );
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
         }
-        ExpressionNode::Borrow(inner) => assign_contract_call_symbols(
+        ExpressionNode::Borrow(inner) => assign_calls!(
             symbols,
             machine,
             parameters,
             state_symbol,
             expression_table,
             child_type_references,
-            inner.target,
+            inner.target
         ),
         ExpressionNode::Range(range) => {
             for child in [range.start, range.end] {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    child,
+                    child
                 );
             }
         }
         ExpressionNode::StructLiteral(literal) => {
             let fields = expression_table.struct_fields(literal.fields).to_vec();
             for field in fields {
-                assign_contract_call_symbols(
+                assign_calls!(
                     symbols,
                     machine,
                     parameters,
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    field.value,
+                    field.value
                 );
             }
             assign_struct_literal_symbols(symbols, expression_table, expression);
         }
-        ExpressionNode::Unary(unary) => assign_contract_call_symbols(
+        ExpressionNode::Unary(unary) => assign_calls!(
             symbols,
             machine,
             parameters,
             state_symbol,
             expression_table,
             child_type_references,
-            unary.operand,
+            unary.operand
         ),
         ExpressionNode::ZeroValue(type_reference) => {
             crate::symbols::type_references::reassign_type_reference_symbols_and_values(
