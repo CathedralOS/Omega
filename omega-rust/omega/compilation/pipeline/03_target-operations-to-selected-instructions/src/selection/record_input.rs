@@ -278,20 +278,14 @@ pub(super) fn structural_operand_shape(
                                 || parameter.multiplicity == StructuralMultiplicity::Unrestricted),
                     )
                 })
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.instructions)
-                        .filter_map(|row| {
-                            let result = row.kind.get_structural_result()?;
-                            (result.place == argument.place).then_some((
-                                result.structural_type,
-                                (parent.multiplicity != StructuralMultiplicity::Unrestricted
-                                    || result.multiplicity == StructuralMultiplicity::Unrestricted),
-                            ))
-                        }),
-                );
+                .chain(source.instructions().filter_map(|row| {
+                    let result = row.kind.get_structural_result()?;
+                    (result.place == argument.place).then_some((
+                        result.structural_type,
+                        (parent.multiplicity != StructuralMultiplicity::Unrestricted
+                            || result.multiplicity == StructuralMultiplicity::Unrestricted),
+                    ))
+                }));
             let (child_type, plain_owned) = matches.next()?;
             if matches.next().is_some() || child_type != *nested || !plain_owned {
                 return None;

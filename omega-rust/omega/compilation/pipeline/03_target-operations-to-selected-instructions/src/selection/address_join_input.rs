@@ -307,22 +307,17 @@ pub(super) fn root_type(
             })
             .map(|parameter| parameter.semantic.structural_type);
     }
-    if let Some(result) = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find_map(|row| match &row.kind {
-            legalized_operations::LegalizedScalarInstructionKind::EstablishElementView {
-                result,
-                ..
-            }
-            | legalized_operations::LegalizedScalarInstructionKind::ElementViewSubslice {
-                result,
-                ..
-            } => (result.place == place).then_some(result),
-            _ => None,
-        })
-    {
+    if let Some(result) = source.instructions().find_map(|row| match &row.kind {
+        legalized_operations::LegalizedScalarInstructionKind::EstablishElementView {
+            result,
+            ..
+        }
+        | legalized_operations::LegalizedScalarInstructionKind::ElementViewSubslice {
+            result,
+            ..
+        } => (result.place == place).then_some(result),
+        _ => None,
+    }) {
         return Some(result.structural_type);
     }
     if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {

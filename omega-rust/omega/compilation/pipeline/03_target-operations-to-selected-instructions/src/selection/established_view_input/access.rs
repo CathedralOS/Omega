@@ -91,7 +91,7 @@ pub(in crate::selection) fn view_access(
                 || expected_type.is_some_and(|expected| expected != structural_type)
                 || !signature.structural_types.iter().any(|row|
                     row.id == structural_type && row.shape.is_borrowed_byte_view())
-                || !function.blocks.iter().flat_map(|block| &block.instructions).any(|row|
+                || !function.instructions().any(|row|
                     matches!(&row.kind, I::EstablishByteSequenceLiteral { destination, structural_type: actual, .. }
                         if destination == declaration && actual.id == structural_type)) {
                 return None;
@@ -109,9 +109,7 @@ pub(in crate::selection) fn view_access(
             return None;
         }
         let mut producers = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .filter(|row| row.operation == producer);
         let row = producers.next()?;
         if producers.next().is_some() || row.result.is_some() {

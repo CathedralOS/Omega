@@ -3,8 +3,7 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedOperand, VirtualRegisterId, VirtualRegisterOrigin,
-    terminator_successors,
+    SelectedOperand, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType};
 
@@ -781,15 +780,11 @@ fn auxiliary_zero_defined(
     function: &SelectedFunction,
     register: selected_instructions::VirtualRegisterId,
 ) -> bool {
-    let mut definitions = function
-        .blocks
-        .iter()
-        .flat_map(|block| block.instructions.iter())
-        .filter(|instruction| {
-            instruction.operands.iter().any(|operand| {
-                operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
-            })
-        });
+    let mut definitions = function.instructions().filter(|instruction| {
+        instruction.operands.iter().any(|operand| {
+            operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
+        })
+    });
     let mut saw_definition = false;
     definitions.all(|instruction| {
         saw_definition = true;

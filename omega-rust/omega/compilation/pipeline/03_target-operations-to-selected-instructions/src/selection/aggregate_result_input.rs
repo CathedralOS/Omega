@@ -108,7 +108,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
         call.arguments.iter().any(|argument|
             matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
                 if semantic.place == place && argument_transport_requires_home(target)))));
-    forwarded || dispatched || cleanup_borrow || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
+    forwarded || dispatched || cleanup_borrow || source.instructions().any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
@@ -1108,14 +1108,10 @@ pub(super) fn operation_result(
     semantic_vocabulary::OperationId,
     &terminal_psi::StructuralOperationResult,
 )> {
-    let mut selected = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|row| {
-            let result = row.kind.get_structural_result()?;
-            (result.place == place).then_some((row, result))
-        });
+    let mut selected = source.instructions().filter_map(|row| {
+        let result = row.kind.get_structural_result()?;
+        (result.place == place).then_some((row, result))
+    });
     let (row, result) = selected.next()?;
     let operation = row.operation;
     let mut declarations = source

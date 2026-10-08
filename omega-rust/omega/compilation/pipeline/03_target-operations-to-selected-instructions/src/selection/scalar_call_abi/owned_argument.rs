@@ -52,9 +52,7 @@ pub(super) fn validate_owned_arguments(
                     return None;
                 }
                 let mut producers = source
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
+                    .instructions()
                     .filter(|row| row.operation == psi_operation);
                 let producer = producers.next()?;
                 if producers.next().is_some() {

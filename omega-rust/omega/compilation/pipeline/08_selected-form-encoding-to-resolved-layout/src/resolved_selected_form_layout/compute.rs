@@ -59,9 +59,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             }
         }
         let machine_rows = machine_function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .map(|instruction| (instruction.instruction, instruction))
             .collect::<BTreeMap<_, _>>();
         functions.push(layout(

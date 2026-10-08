@@ -83,6 +83,13 @@ pub struct BlockLiveness {
     pub successors: Vec<SuccessorLiveness>,
 }
 
+impl FunctionLiveness {
+    /// Every block's instruction liveness rows, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &InstructionLiveness> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionLiveness {
     pub position: LivenessPosition,

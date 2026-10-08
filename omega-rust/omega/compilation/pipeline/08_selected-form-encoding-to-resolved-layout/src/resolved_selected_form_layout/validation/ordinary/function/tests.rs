@@ -20,7 +20,8 @@ use physical_instructions::{
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineLatencyKnowledge, MachineSizeKnowledge, SelectedBlock,
-    SelectedBlockId, SelectedFunction, SelectedInstruction,     SelectedInstructionKind, SelectedTerminator,
+    SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
+    SelectedTerminator,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use target::Architecture;
@@ -32,9 +33,6 @@ use crate::resolved_selected_form_layout::{ResolvedBranchEvidence, SelectedFunct
 /// `B.cond` rejects word displacements outside `-(1<<18)..1<<18`; 262,144
 /// four-byte padding rows put the taken edge just past that bound.
 const PAD_BEYOND_IMM19: usize = (1 << 18) + 4;
-
-
-
 
 fn jump(source: u32, destination: u32) -> SelectedTerminator {
     SelectedTerminator::Jump {
@@ -295,9 +293,7 @@ fn produce_and_admit(
     let pre_rows: std::collections::BTreeMap<_, _> =
         rows.iter().map(|row| (row.instruction, row)).collect();
     let machine_rows: std::collections::BTreeMap<_, _> = machine
-        .blocks
-        .iter()
-        .flat_map(|block| block.instructions.iter())
+        .instructions()
         .map(|instruction| (instruction.instruction, instruction))
         .collect();
     let produced = layout(

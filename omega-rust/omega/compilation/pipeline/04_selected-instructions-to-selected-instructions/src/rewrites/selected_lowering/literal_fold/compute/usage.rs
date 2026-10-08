@@ -64,9 +64,7 @@ pub(super) fn fold_usage(
     // keeps the accounting a deterministic function of the input.
     for function in &plan.functions {
         let producers = function
-            .blocks
-            .iter()
-            .flat_map(|block| block.instructions.iter())
+            .instructions()
             .filter(|instruction| {
                 matches!(
                     instruction.kind,

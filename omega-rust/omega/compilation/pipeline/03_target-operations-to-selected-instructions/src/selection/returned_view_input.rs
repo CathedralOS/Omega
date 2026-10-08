@@ -74,9 +74,7 @@ fn collect_calls(
     match declaration.kind {
         StructuralPlaceKind::OperationResult { producer, .. } => {
             let row = source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
+                .instructions()
                 .find(|row| row.operation == producer)
                 .ok_or(SelectedInstructionError::custody())?;
             match &row.kind {

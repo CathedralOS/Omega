@@ -18,18 +18,14 @@ pub(crate) fn local(
     ValueShape,
 )> {
     let signature = source.structural.as_ref()?;
-    let mut candidates = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|row| match &row.kind {
-            Instruction::EstablishPrimitiveLocal {
-                result,
-                value,
-                shape,
-            } if result.place == place => Some((row, result, value, shape)),
-            _ => None,
-        });
+    let mut candidates = source.instructions().filter_map(|row| match &row.kind {
+        Instruction::EstablishPrimitiveLocal {
+            result,
+            value,
+            shape,
+        } if result.place == place => Some((row, result, value, shape)),
+        _ => None,
+    });
     let (row, result, value, shape) = candidates.next()?;
     if candidates.next().is_some()
         || row.result.is_some()

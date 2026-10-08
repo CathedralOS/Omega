@@ -31,10 +31,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 _ => false,
             }
         })
-        || source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+        || source.instructions()
             .any(|row| match &row.kind {
                 // Forming a reference needs the incoming address even when
                 // this activation never reads the referent's contents.

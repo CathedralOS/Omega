@@ -30,6 +30,11 @@ impl SelectedFunction {
         self.blocks.iter().find(|row| row.id == block)
     }
 
+    /// Every block's instructions, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+
     /// Physical entry liveness, after independent source/ABI replay. A hidden
     /// result destination is an ABI input but never a semantic parameter.
     pub fn is_entry_register(&self, register: &VirtualRegister) -> bool {

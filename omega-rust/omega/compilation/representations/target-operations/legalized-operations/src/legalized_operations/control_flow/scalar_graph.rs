@@ -44,6 +44,11 @@ impl LegalizedScalarFunction {
         })
     }
 
+    /// Every block's instructions, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &LegalizedScalarInstruction> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+
     /// Every block's value parameters, in block order.
     pub fn block_parameters(
         &self,

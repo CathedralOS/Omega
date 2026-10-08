@@ -21,9 +21,7 @@ pub(super) fn validate_function(
         });
     }
     let positions = actual
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .map(|instruction| instruction.position.0)
         .collect::<Vec<_>>();
     let expected_position_count =

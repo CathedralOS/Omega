@@ -590,9 +590,7 @@ fn scalar_value_type(source: &LegalizedScalarFunction, value: ValueId) -> Option
         })
         .or_else(|| {
             source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
+                .instructions()
                 .filter_map(|instruction| instruction.result)
                 .find(|result| result.value == value)
                 .map(|result| result.scalar_type)

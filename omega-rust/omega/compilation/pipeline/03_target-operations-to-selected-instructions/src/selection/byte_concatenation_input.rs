@@ -13,32 +13,27 @@ pub(super) fn owned_type(
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     let signature = function.structural.as_ref()?;
-    let mut matching = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|row| {
-            let result = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    result,
-                    ..
-                } => result,
-                LegalizedScalarInstructionKind::Call(call) => {
-                    super::aggregate_result_input::call_result(function, call)?.0
-                }
-                _ => return None,
-            };
-            (result.place == place
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty()
-                && result.claims.is_empty()
-                && signature.structural_types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && declaration.shape.is_bounded_owned_byte_sequence()
-                }))
-            .then_some(result.structural_type)
-        });
+    let mut matching = function.instructions().filter_map(|row| {
+        let result = match &row.kind {
+            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                result, ..
+            } => result,
+            LegalizedScalarInstructionKind::Call(call) => {
+                super::aggregate_result_input::call_result(function, call)?.0
+            }
+            _ => return None,
+        };
+        (result.place == place
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
+            && result.claims.is_empty()
+            && signature.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && declaration.shape.is_bounded_owned_byte_sequence()
+            }))
+        .then_some(result.structural_type)
+    });
     let structural_type = matching.next()?;
     matching.next().is_none().then_some(structural_type)
 }

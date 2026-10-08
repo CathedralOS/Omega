@@ -18,10 +18,7 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 legalized_operations::LegalizedScalarReturnValue::SharedDescriptor { place: returned } if *returned == place)
                 || matches!(&returned.value,
                 legalized_operations::LegalizedScalarReturnValue::Structural { source: legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. } } if result.place == place)))
-        || source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+        || source.instructions()
             .any(|row| match &row.kind {
                 LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument|
                     matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
@@ -128,25 +125,21 @@ fn declared_view_type(
         }
         return Some(parameter.structural_type);
     }
-    source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find_map(|row| {
-            if let Some(result) = row.kind.get_structural_result()
-                && result.place == place
-            {
-                return Some(result.structural_type);
-            }
-            match &row.kind {
-                LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
-                    destination,
-                    structural_type,
-                    ..
-                } if destination.id == place => Some(structural_type.id),
-                _ => None,
-            }
-        })
+    source.instructions().find_map(|row| {
+        if let Some(result) = row.kind.get_structural_result()
+            && result.place == place
+        {
+            return Some(result.structural_type);
+        }
+        match &row.kind {
+            LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                destination,
+                structural_type,
+                ..
+            } if destination.id == place => Some(structural_type.id),
+            _ => None,
+        }
+    })
 }
 
 pub(super) fn accepts(
@@ -405,9 +398,7 @@ pub(in crate::selection) fn descriptor_home(
     let (operation, result) = super::aggregate_result_input::operation_result(source, place)?;
     let signature = source.structural.as_ref()?;
     let row = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|row| row.operation == operation)?;
     (matches!(
         &row.kind,
@@ -447,9 +438,7 @@ pub(super) fn descriptor_result(
         return None;
     }
     let row = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|row| row.operation == operation)?;
     let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return None;
