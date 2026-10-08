@@ -265,12 +265,6 @@ pub(super) fn path_thread_accounting(
             expected_effect = expected_effect.checked_add(1)?;
         }
     }
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), realized))
 }

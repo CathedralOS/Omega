@@ -245,12 +245,6 @@ fn conditional_fold_accounting(
         }
     }
     realized.extend(unreachable);
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), realized))
 }

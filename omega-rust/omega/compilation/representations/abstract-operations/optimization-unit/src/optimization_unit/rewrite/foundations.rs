@@ -80,6 +80,18 @@ pub struct ProvenanceRewrite {
     pub fuel: Vec<FuelSettlement>,
 }
 
+impl ProvenanceRewrite {
+    /// Deterministic realization order: input site, then disposition tag, then
+    /// disposition site.
+    pub fn canonical_sort_key(&self) -> (PsiRealizationSite, u8, PsiRealizationSite) {
+        (
+            self.input,
+            self.disposition.canonical_tag(),
+            self.disposition.site(),
+        )
+    }
+}
+
 /// Canonical byte framing for one rewrite location inside a candidate identity.
 pub fn encode_location(canonical: &mut Vec<u8>, location: NodeLocation) {
     canonical.extend_from_slice(&location.machine.get().to_le_bytes());
