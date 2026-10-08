@@ -165,7 +165,7 @@ pub use output::{
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
-    final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
+    final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
 };
 pub use x86_64_relocations::apply_x86_64_relocations;
 

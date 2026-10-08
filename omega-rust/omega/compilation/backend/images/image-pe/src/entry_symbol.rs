@@ -5,31 +5,7 @@ use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSection, final_image_symbol_name};
 
 pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
-    let entry_symbol = image
-        .symbol_table
-        .symbols
-        .is_valid(image.symbol_table.entry_symbol)
-        .then(|| {
-            image
-                .symbol_table
-                .symbols
-                .get(image.symbol_table.entry_symbol)
-        })
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "PE entry symbol `{}` is missing from the final image",
-                final_image_symbol_name(image, image.symbol_table.entry_symbol)
-            ))
-        })?;
-
-    if entry_symbol.section != FinalImageSection::Text {
-        return Err(Diagnostic::error(format!(
-            "PE entry symbol `{}` is not in the text section",
-            final_image_symbol_name(image, image.symbol_table.entry_symbol)
-        )));
-    }
-
-    Ok(TEXT_RVA + entry_symbol.offset as u32)
+    Ok(TEXT_RVA + image::final_image_entry_symbol(image, "PE")?.offset as u32)
 }
 
 #[cfg(test)]

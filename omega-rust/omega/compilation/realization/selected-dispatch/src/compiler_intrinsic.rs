@@ -374,9 +374,9 @@ macro_rules! bundled_intrinsic_source {
     };
 }
 
-/// Compile-time copy of one admitted bundle's console provider closure. The
-/// path each constant reads is the bundle's `console_source()`; the test
-/// module holds the two in agreement with the checked-in file.
+// Compile-time copy of one admitted bundle's console provider closure. The
+// path each constant reads is the bundle's `console_source()`; the test
+// module holds the two in agreement with the checked-in file.
 bundled_intrinsic_source!(
     bundled_console_source,
     LinuxArm64 => "linux_arm64/console_impl.omg",
@@ -385,8 +385,8 @@ bundled_intrinsic_source!(
     MacosX64 => "macos_x86_64/console_impl.omg",
 );
 
-/// Compile-time copy of one admitted bundle's process-exit provider closure,
-/// paired with `process_exit_source()` the same way as the console copy.
+// Compile-time copy of one admitted bundle's process-exit provider closure,
+// paired with `process_exit_source()` the same way as the console copy.
 bundled_intrinsic_source!(
     bundled_process_exit_source,
     LinuxArm64 => "linux_arm64/process_exit_impl.omg",
