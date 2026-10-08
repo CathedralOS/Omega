@@ -160,21 +160,14 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     let Some(result_shape) = unit_scalar_shape(abi.result.scalar_type) else {
         return false;
     };
-    let Ok(expected) = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar_shapes
-                .iter()
-                .copied()
-                .chain(
-                    abi.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.shape),
-                )
-                .collect(),
-            result: Some(result_shape),
-        },
-    ) else {
+    let Some(expected) =
+        crate::object_artifact::replay::unit::call_custody::mixed_structural_scalar_call_plan(
+            target,
+            &scalar_shapes,
+            abi,
+            result_shape,
+        )
+    else {
         return false;
     };
     let scalar_count = abi.scalar_parameters.len();

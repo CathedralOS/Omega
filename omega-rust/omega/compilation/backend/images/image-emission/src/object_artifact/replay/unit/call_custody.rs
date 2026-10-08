@@ -113,22 +113,8 @@ pub(crate) fn validate_mixed_structural_scalar_abi(
             abi.result.scalar_type,
         )
         .ok_or_else(invalid)?;
-    let expected = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar_shapes
-                .iter()
-                .copied()
-                .chain(
-                    abi.structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.shape),
-                )
-                .collect(),
-            result: Some(result_shape),
-        },
-    )
-    .map_err(|_| invalid())?;
+    let expected = mixed_structural_scalar_call_plan(target, &scalar_shapes, abi, result_shape)
+        .ok_or_else(invalid)?;
     let scalar_count = abi.scalar_parameters.len();
     let structural_count = abi.structural_parameters.len();
     if structural_count == 0
@@ -225,6 +211,32 @@ pub(crate) fn unit_scalar_shape(
         semantic_vocabulary::ScalarType::Integer(integer) => fixed_integer_shape(integer),
         semantic_vocabulary::ScalarType::IeeeFloat(_) => None,
     }
+}
+
+/// The call plan one mixed structural/scalar ABI implies over its scalar
+/// and structural parameter shapes.
+pub(crate) fn mixed_structural_scalar_call_plan(
+    target: NativeTarget,
+    scalar_shapes: &[ValueShape],
+    abi: &target_operations::MixedStructuralScalarFunctionAbi,
+    result_shape: ValueShape,
+) -> Option<calling_conventions::CallPlan> {
+    evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(
+                    abi.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.shape),
+                )
+                .collect(),
+            result: Some(result_shape),
+        },
+    )
+    .ok()
 }
 
 pub(crate) fn structural_result_matches_return(
