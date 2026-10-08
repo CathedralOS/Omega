@@ -367,7 +367,7 @@ fn fragment_scalar_argument_custody_rejoin(
     } else if !floating_control::rejoin(publication, function, block, fragment, record, foreign) {
         return false;
     }
-    let home_offsets = fragment_durable_home_offsets(function);
+    let home_offsets = image_emission::durable_home_offsets(function);
     if !fragment_scalar_result_custody_rejoin(
         function,
         block,
@@ -814,64 +814,5 @@ fn fragment_scalar_result_normalization_kind(
     }
 }
 
-/// The caller's durable scalar-home area, re-derived in emitted instruction
-/// order: every scalar-producing selected call row is one producer whose slot
-/// is 8-aligned and sized by its home shape. Projection and this rejoin share
-/// the rule so `Home` sources and `scalar_result` records name the same slot.
-fn fragment_durable_home_offsets(
-    function: &selected_instructions::SelectedFunction,
-) -> Vec<(semantic_vocabulary::OperationId, u32)> {
-    let mut producers = Vec::new();
-    for contract in &function.calls {
-        if let Some(placement) = &contract.call.result_placement
-            && let Some(operation) = contract.owner.operation()
-        {
-            producers.push((contract.instruction, operation, placement.shape.byte_size));
-        }
-    }
-    for record in &function.normalized_foreign_calls {
-        if let Some(home) = record.call.result.scalar_home() {
-            producers.push((
-                record.instruction,
-                home.defining_operation,
-                home.shape.byte_size,
-            ));
-        }
-        for argument in &record.call.scalar_arguments {
-            if let target_operations::TargetUnitScalarArgumentSource::Home(requirement) =
-                argument.source
-            {
-                let Some(instruction) = image_emission::producer_instruction(
-                    function,
-                    requirement.defining_operation,
-                    requirement.source_value,
-                ) else {
-                    continue;
-                };
-                producers.push((
-                    instruction,
-                    requirement.defining_operation,
-                    requirement.shape.byte_size,
-                ));
-            }
-        }
-    }
-    producers.sort_by_key(|(instruction, _, _)| instruction.0);
-    producers.dedup_by_key(|(_, operation, _)| *operation);
-    let mut cursor = 0u32;
-    let mut offsets = Vec::new();
-    for (_, operation, byte_size) in producers {
-        let Some(aligned) = cursor.checked_add(7).map(|cursor| cursor & !7) else {
-            return Vec::new();
-        };
-        cursor = aligned;
-        offsets.push((operation, cursor));
-        let Some(next) = cursor.checked_add(byte_size) else {
-            return Vec::new();
-        };
-        cursor = next;
-    }
-    offsets
-}
 
 

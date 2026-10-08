@@ -368,7 +368,7 @@ pub fn fragment_instruction_span(
 /// slot 8-aligned and sized by the home shape. Argument `Home` sources and
 /// `scalar_result` records share this map so a consumer rejoins the exact
 /// producer slot.
-fn durable_home_offsets(
+pub fn durable_home_offsets(
     function: &selected_instructions::SelectedFunction,
 ) -> Vec<(semantic_vocabulary::OperationId, u32)> {
     let mut producers = Vec::new();
