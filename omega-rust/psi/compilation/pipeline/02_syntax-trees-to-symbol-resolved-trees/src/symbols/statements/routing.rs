@@ -42,6 +42,40 @@ pub(super) fn assign_local_type_symbols(
     );
 }
 
+/// Assigns symbols across a statement slice so each statement sees only its
+/// stamped predecessors: receivers and locals may name earlier statements,
+/// never their own binding or a later one.
+pub(super) fn assign_statement_slice_symbols(
+    machine_scope: &MachineScope<'_>,
+    statements: &mut [symbol_resolved_trees::statement::Statement],
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &arena::Arena<symbol_resolved_trees::types::TypeConstraint>,
+    statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
+    symbols: &SymbolTable,
+) {
+    for index in 0..statements.len() {
+        let (prior_statements, remaining) = statements.split_at_mut(index);
+        let scope = MachineScope {
+            prior_statements,
+            ..*machine_scope
+        };
+        assign_statement_symbols(
+            &scope,
+            parameters,
+            state_symbol,
+            expression_table,
+            child_type_references,
+            type_constraints,
+            statement_path_members,
+            &mut remaining[0],
+            symbols,
+        );
+    }
+}
+
 pub(super) fn assign_statement_symbols(
     machine: &MachineScope<'_>,
     parameters: &[symbol_resolved_trees::signature::StateParameter],

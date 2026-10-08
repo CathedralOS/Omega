@@ -4,7 +4,6 @@ mod tail_calls;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolTable;
 
-use self::routing::assign_statement_symbols;
 use super::expressions::{assign_expression_span_symbols, assign_statement_expression_symbols};
 use super::scope::MachineScope;
 
@@ -175,24 +174,17 @@ fn assign_machine_references(
                 .iter_mut()
                 .find(|inputs| inputs.machine == machine_symbol && inputs.state == state_handle)
             {
-                for index in 0..inputs.locals.len() {
-                    let (prior_statements, remaining) = inputs.locals.split_at_mut(index);
-                    let scope = MachineScope {
-                        prior_statements,
-                        ..machine_scope
-                    };
-                    assign_statement_symbols(
-                        &scope,
-                        parameters,
-                        state_symbol,
-                        expression_table,
-                        child_type_references,
-                        type_constraints,
-                        statement_path_members,
-                        &mut remaining[0],
-                        symbols,
-                    );
-                }
+                routing::assign_statement_slice_symbols(
+                    &machine_scope,
+                    &mut inputs.locals,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    type_constraints,
+                    statement_path_members,
+                    symbols,
+                );
                 for (preceding, reference) in &mut inputs.types {
                     let scope = MachineScope {
                         prior_statements: &inputs.locals[..*preceding],
@@ -214,24 +206,17 @@ fn assign_machine_references(
                 continue;
             }
             let statements = state_statements.span_mut_or_empty(state.statements);
-            for index in 0..statements.len() {
-                let (prior_statements, remaining) = statements.split_at_mut(index);
-                let scope = MachineScope {
-                    prior_statements,
-                    ..machine_scope
-                };
-                assign_statement_symbols(
-                    &scope,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    type_constraints,
-                    statement_path_members,
-                    &mut remaining[0],
-                    symbols,
-                );
-            }
+            routing::assign_statement_slice_symbols(
+                &machine_scope,
+                statements,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                type_constraints,
+                statement_path_members,
+                symbols,
+            );
             // A value call checks its result against this state's complete
             // destination type. A jump has no value-result check, so only
             // normalize when the full resolved result declarations agree.
