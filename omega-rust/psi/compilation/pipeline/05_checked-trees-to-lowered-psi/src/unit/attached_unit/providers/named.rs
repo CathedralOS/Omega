@@ -30,9 +30,7 @@ pub(super) fn provider_identities(
             return unsupported("named provider repeats an exact boundary requirement row");
         }
         let Some(realization) = typed
-            .machines()
-            .iter()
-            .find(|realization| realization.symbol == row.realization_machine)
+            .machine(row.realization_machine)
         else {
             return unsupported("named provider row has no exact realization machine");
         };

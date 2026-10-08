@@ -90,9 +90,7 @@ impl CheckedTerminationOracle for TypedTrees {
         &self,
         machine: SymbolHandle,
     ) -> Option<language_semantics::TerminationGuarantee> {
-        self.machines()
-            .iter()
-            .find(|candidate| candidate.symbol == machine)
+        self.machine(machine)
             .map(|candidate| candidate.termination_plan.checked_summary.clone())
     }
 

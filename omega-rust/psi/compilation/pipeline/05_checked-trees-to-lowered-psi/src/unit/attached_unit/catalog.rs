@@ -980,9 +980,7 @@ fn lower_establishment_route(
         language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
             let declaration = checked
                 .typed
-                .machines()
-                .iter()
-                .find(|declaration| declaration.symbol == machine)
+                .machine(machine)
                 .ok_or(LoweringError::Unsupported(
                     "domain establishment route names an absent machine",
                 ))?;

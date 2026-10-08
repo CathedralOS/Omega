@@ -139,9 +139,7 @@ impl LoweredMachineProvenance {
         }
         let Some(declaration) = checked
             .typed
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == symbol)
+            .machine(symbol)
         else {
             return;
         };

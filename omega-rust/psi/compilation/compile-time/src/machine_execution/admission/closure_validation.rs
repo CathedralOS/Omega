@@ -117,9 +117,7 @@ fn each_closure_machine(
         }
         visited.push(machine_symbol);
         let Some(found) = program
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == machine_symbol)
+            .machine(machine_symbol)
         else {
             continue;
         };

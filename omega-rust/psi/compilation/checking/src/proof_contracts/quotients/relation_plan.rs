@@ -748,9 +748,7 @@ fn require_checked_proof_closure(
     error: RelationPlanError,
 ) -> Result<(), RelationPlanError> {
     let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == machine_symbol)
+        .machine(machine_symbol)
     else {
         return Err(error);
     };

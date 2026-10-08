@@ -704,9 +704,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     let mut retained_loan_identities = Vec::new();
     for machine in loaned_record_types {
         let Some(source_machine) = program
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == machine)
+            .machine(machine)
         else {
             continue;
         };

@@ -955,9 +955,7 @@ impl<'program> Engine<'program> {
                 // hypotheses.
                 let machine = self
                     .program
-                    .machines()
-                    .iter()
-                    .find(|candidate| candidate.symbol == self.machine_symbol)?;
+                    .machine(self.machine_symbol)?;
                 let root = member_receiver_root_symbol(self.program, expression);
                 if root != Some(self.machine_symbol) && root.is_some() {
                     return None;

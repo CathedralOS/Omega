@@ -865,9 +865,7 @@ impl TypedTrees {
         let symbol = self.symbols.get(state_symbol);
         let parent = symbol.parent;
         if let Some(machine) = self
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == parent)
+            .machine(parent)
             && self
                 .machine_states(machine)
                 .iter()

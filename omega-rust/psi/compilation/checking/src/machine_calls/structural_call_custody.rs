@@ -673,9 +673,7 @@ pub fn reconstruct_structural_parameter_return_claims(
     &'static str,
 > {
     let owner = program
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == machine)
+        .machine(machine)
         .ok_or("structural returned claim has no exact machine")?;
     let destination = program
         .machine_states(owner)

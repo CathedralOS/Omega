@@ -141,9 +141,7 @@ pub(super) fn store_operand_type_identities(
         return Vec::new();
     };
     let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == machine)
+        .machine(machine)
     else {
         return Vec::new();
     };

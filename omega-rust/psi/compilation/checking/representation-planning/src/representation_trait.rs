@@ -20,7 +20,7 @@ pub fn is_compiler_owned_opaque_representation_trait(
     typed: &TypedTrees,
     symbol: SymbolHandle,
 ) -> bool {
-    let Some(definition) = typed.traits().iter().find(|trait_| trait_.symbol == symbol) else {
+    let Some(definition) = typed.trait_definition_by_symbol(symbol) else {
         return false;
     };
     let parameters = typed.trait_type_parameters(definition);

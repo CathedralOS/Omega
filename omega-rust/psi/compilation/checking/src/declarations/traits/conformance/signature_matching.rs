@@ -41,9 +41,7 @@ fn specialized_instance_realized_tail(
         return 0;
     };
     let Some(template) = program
-        .machines()
-        .iter()
-        .find(|template| template.symbol == application.template)
+        .machine(application.template)
     else {
         return 0;
     };

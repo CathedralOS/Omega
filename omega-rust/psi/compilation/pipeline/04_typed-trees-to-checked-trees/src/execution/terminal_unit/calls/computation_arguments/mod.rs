@@ -196,9 +196,7 @@ pub(crate) fn subslice_computation_argument(
     exact_actual(program, call, expression, target)?;
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     let owner = program
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == machine)?;
+        .machine(machine)?;
     let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,

@@ -22,9 +22,7 @@ pub(crate) fn validate_runtime_memberships(
     machine_symbol: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     let machine = checked
-        .machines()
-        .iter()
-        .find(|row| row.symbol == machine_symbol)
+        .machine(machine_symbol)
         .ok_or(LoweringError::Unsupported(
             "runtime membership has no source machine",
         ))?;

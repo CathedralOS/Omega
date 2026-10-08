@@ -24,9 +24,7 @@ pub fn record_local_disposition(
     ordinal: u32,
 ) -> Option<bool> {
     let owner = program
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == machine)?;
+        .machine(machine)?;
     let source = program
         .machine_states(owner)
         .iter()
@@ -170,9 +168,7 @@ fn local_provenance(
                 });
             let Some((position, origin)) = origins.next() else {
                 let parameter = program
-                    .machines()
-                    .iter()
-                    .find(|owner| owner.symbol == machine)
+                    .machine(machine)
                     .and_then(|owner| {
                         program
                             .machine_states(owner)

@@ -1118,9 +1118,7 @@ pub(crate) fn type_roots(
     // A loan used only by array reads has neither a field computation nor a
     // store. Its declared type still owns the projection geometry.
     if let Some(owner) = checked
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == machine)
+        .machine(machine)
     {
         for state in checked.machine_states(owner) {
             for local in checked.facts.state_locals.locals(state.symbol) {
