@@ -13,11 +13,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
         ] {
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let error = parse_syntax_trees(&tokens).expect_err("receiver must reject");
-            assert!(
-                error.message.contains("`self` receivers are retired"),
-                "{source}: {}",
-                error.message
-            );
+            super::expect_error(&error, "`self` receivers are retired");
         }
     }
 }
@@ -33,11 +29,7 @@ fn implicit_self_expressions_and_transition_targets_reject() {
         let source = format!("machine run() {{ {body} }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let error = parse_syntax_trees(&tokens).expect_err("implicit subject must reject");
-        assert!(
-            error.message.contains("implicit `self` is retired"),
-            "{source}: {}",
-            error.message
-        );
+        super::expect_error(&error, "implicit `self` is retired");
     }
 }
 

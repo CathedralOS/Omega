@@ -242,13 +242,7 @@ fn rejects_ranking_witness_on_trait_requirement() {
         "#;
 
     let error = super::parse_source_error(source, "tokenize should succeed", "the witness must be rejected");
-    assert!(
-        error
-            .message
-            .contains("does not belong on a bodyless requirement"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "does not belong on a bodyless requirement");
 }
 
 #[test]

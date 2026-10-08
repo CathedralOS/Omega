@@ -196,13 +196,7 @@ fn rejects_domain_classification_after_requires() {
         established by SchedulerAdmission::grant;
         "#;
     let error = super::parse_source_error(source, "tokenize should succeed", "classification order must reject");
-    assert!(
-        error
-            .message
-            .contains("classification must appear immediately after the domain head"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "classification must appear immediately after the domain head");
 }
 
 #[test]
@@ -214,11 +208,7 @@ fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         "#;
 
     let error = super::parse_source_error(source, "tokenize should succeed", "route bodies must be retired");
-    assert!(
-        error.message.contains("domain route bodies are retired"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "domain route bodies are retired");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
 
@@ -231,13 +221,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         "#;
 
     let error = super::parse_source_error(source, "tokenize should succeed", "body predicates must be retired");
-    assert!(
-        error
-            .message
-            .contains("domain predicates must be written in `requires`"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "domain predicates must be written in `requires`");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
 
@@ -250,13 +234,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
         "#;
 
     let error = super::parse_source_error(source, "tokenize should succeed", "nested operators must be retired");
-    assert!(
-        error
-            .message
-            .contains("domain operators must be ordinary top-level declarations"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "domain operators must be ordinary top-level declarations");
     assert!(
         error
             .message
@@ -873,11 +851,7 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
     for (contract, expected) in cases {
         let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
         let error = super::parse_source_error(&source, "tokenize should succeed", "malformed nominal binder must reject");
-        assert!(
-            error.message.contains(expected),
-            "expected {expected:?}, got: {}",
-            error.message
-        );
+        super::expect_error(&error, expected);
     }
 }
 
@@ -945,13 +919,7 @@ fn rejects_higher_order_parameter_without_nested_contract() {
         }
         "#;
     let error = super::parse_source_error(source, "tokenize should succeed", "missing nested contract must fail");
-    assert!(
-        error
-            .message
-            .contains("machine parameter `Inner` requires an authored declaration-site contract"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "machine parameter `Inner` requires an authored declaration-site contract");
 }
 
 #[test]
@@ -962,13 +930,7 @@ fn rejects_machine_parameter_without_authored_contract() {
         }
         "#;
     let error = super::parse_source_error(source, "tokenize should succeed", "missing contract must fail");
-    assert!(
-        error
-            .message
-            .contains("requires an authored declaration-site contract"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "requires an authored declaration-site contract");
 }
 
 #[test]
@@ -1032,13 +994,7 @@ fn parses_proof_quotient_data_declaration() {
 fn quotient_rejects_runtime_data_properties() {
     let source = "data Quotient [copy] = Carrier % equivalent;";
     let error = super::parse_source_error(source, "tokenize should succeed", "quotient properties must reject");
-    assert!(
-        error
-            .message
-            .contains("quotient data declaration cannot declare runtime data properties"),
-        "got: {}",
-        error.message
-    );
+    super::expect_error(&error, "quotient data declaration cannot declare runtime data properties");
 }
 
 #[test]
@@ -1334,13 +1290,7 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
     .tokenize()
     .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("a `|` alternative has no argument slot");
-    assert!(
-        error
-            .message
-            .contains("indexed domain applications are not carried by `|` proof-fact alternatives"),
-        "{}",
-        error.message
-    );
+    super::expect_error(&error, "indexed domain applications are not carried by `|` proof-fact alternatives");
 }
 
 #[test]
@@ -1355,11 +1305,5 @@ fn proof_fact_carry_permission_rejects_index_arguments() {
     .tokenize()
     .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("carry permissions have no index");
-    assert!(
-        error
-            .message
-            .contains("compiler carry permissions do not take index arguments"),
-        "{}",
-        error.message
-    );
+    super::expect_error(&error, "compiler carry permissions do not take index arguments");
 }

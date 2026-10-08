@@ -339,13 +339,7 @@ fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
     ] {
         let source = format!("data Main {{ value: {type_reference}; }}");
         let error = super::parse_source_error(&source, "tokenize", "named proof constraint must reject");
-        assert!(
-            error
-                .message
-                .contains("named proof constraints in type brackets are retired"),
-            "{type_reference}: {}",
-            error.message,
-        );
+        super::expect_error(&error, "named proof constraints in type brackets are retired");
         assert!(error.message.contains("in Domain"));
         assert!(error.message.contains("contracts"));
     }

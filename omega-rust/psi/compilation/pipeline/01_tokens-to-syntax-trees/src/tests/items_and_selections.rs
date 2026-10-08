@@ -358,11 +358,7 @@ fn source_target_declarations_are_retired() {
         .tokenize()
         .expect("tokenize retired target declaration");
     let error = parse_syntax_trees(&tokens).expect_err("target declarations must not parse");
-    assert!(
-        error.message.contains("`target` declarations are retired"),
-        "unexpected diagnostic: {}",
-        error.message,
-    );
+    super::expect_error(&error, "`target` declarations are retired");
 }
 
 #[test]
@@ -770,11 +766,7 @@ fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
         .tokenize()
         .expect("tokenize declaration");
     let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
-    assert!(
-        error.message.contains("silently private API"),
-        "{}",
-        error.message
-    );
+    super::expect_error(&error, "silently private API");
 }
 
 #[test]

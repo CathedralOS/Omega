@@ -124,11 +124,7 @@ fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
         .err()
         .expect("empty match and destructure arms reject");
         if source.contains("Record") {
-            assert!(
-                error.message.contains("`transition`"),
-                "destructure spelling must name the owning dispatch form: {}",
-                error.message
-            );
+            super::expect_error(&error, "`transition`");
         }
     }
 }

@@ -160,11 +160,7 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
     let error = super::parse_source_error(source, "tokenize should succeed", "compiler intrinsic identity is derived, never authored");
-    assert!(
-        error.message.contains("found punctuation `(`"),
-        "{}",
-        error.message
-    );
+    super::expect_error(&error, "found punctuation `(`");
 }
 
 #[test]
@@ -673,11 +669,7 @@ fn data_subject_satisfaction_is_rejected() {
             "tokenize should succeed",
             "data cannot satisfy a trait",
         );
-        assert!(
-            error.message.contains("data does not satisfy traits"),
-            "unexpected diagnostic for {source}: {}",
-            error.message
-        );
+        super::expect_error(&error, "data does not satisfy traits");
     }
 }
 
@@ -688,11 +680,7 @@ fn qualified_trait_requirement_names_are_rejected() {
         "tokenize should succeed",
         "a requirement has no subject qualifier",
     );
-    assert!(
-        error.message.contains("declares its bare name"),
-        "unexpected diagnostic: {}",
-        error.message
-    );
+    super::expect_error(&error, "declares its bare name");
 }
 
 #[test]
@@ -795,13 +783,7 @@ fn rejects_retired_where_conformance_test() {
     "#;
 
     let error = super::parse_source_error(source, "tokenize should succeed", "a where-satisfies test is retired");
-    assert!(
-        error
-            .message
-            .contains("`where T satisfies Trait` is retired"),
-        "unexpected diagnostic: {}",
-        error.message
-    );
+    super::expect_error(&error, "`where T satisfies Trait` is retired");
 }
 
 #[test]
@@ -837,11 +819,7 @@ fn rejects_subject_spelled_evidence_binder() {
         ) {}
     "#;
     let error = super::parse_source_error(source, "tokenize", "a conformance has no data subject");
-    assert!(
-        error.message.contains("a conformance has no data subject"),
-        "unexpected diagnostic: {}",
-        error.message
-    );
+    super::expect_error(&error, "a conformance has no data subject");
 }
 
 #[test]
@@ -895,11 +873,7 @@ fn rejects_data_carrier_dynamic_selector() {
         .tokenize()
         .expect("tokenize should succeed");
     let error = parse_syntax_trees(&tokens).expect_err("a data-carrier selector is retired");
-    assert!(
-        error.message.contains("`dyn Data::Implementation` is retired"),
-        "{}",
-        error.message
-    );
+    super::expect_error(&error, "`dyn Data::Implementation` is retired");
 }
 
 #[test]

@@ -83,6 +83,15 @@ fn parse_source_error(
     crate::parser::parse_syntax_trees(&tokens).expect_err(error_message)
 }
 
+/// Assert `error`'s message names the expected diagnostic needle.
+fn expect_error(error: &crate::diagnostics::parse_error::ParseError, needle: &str) {
+    assert!(
+        error.message.contains(needle),
+        "unexpected diagnostic: {}",
+        error.message
+    );
+}
+
 /// The first root `trait` item — same shared extraction as `root_machine`.
 fn root_trait<'p>(
     parsed: &'p syntax_trees::SyntaxTrees,

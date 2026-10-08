@@ -212,11 +212,7 @@ fn empty_parameter_list_names_a_nullary_definition() {
 fn top_level_let_requires_a_body_or_boundary() {
     let tokens = Lexer::new("let f(): A;").tokenize().expect("tokenize");
     let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
-    assert!(
-        error.message.contains("boundary let"),
-        "directed error mentions the assumption spelling: {}",
-        error.message
-    );
+    super::expect_error(&error, "boundary let");
 }
 
 #[test]
@@ -225,11 +221,7 @@ fn boundary_let_rejects_a_body() {
         .tokenize()
         .expect("tokenize");
     let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
-    assert!(
-        error.message.contains("`;`"),
-        "bodyless form rejects a body: {}",
-        error.message
-    );
+    super::expect_error(&error, "`;`");
 }
 
 #[test]
