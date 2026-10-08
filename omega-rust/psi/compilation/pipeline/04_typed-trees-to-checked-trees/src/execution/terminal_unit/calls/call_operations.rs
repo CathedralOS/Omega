@@ -140,43 +140,12 @@ pub(in crate::execution) fn build_call_operation(
         });
     }
 
-    // A direct call to a bodyless external leaf is a boundary call on the
-    // leaf's exact satisfied requirement (see `validation`'s
-    // `intrinsic_boundaries` module); the leaf owns no body to call.
     let selected_realization =
         exact_external_leaf_boundary_requirement(program, call.target_symbol);
-    let direct_boundary_target = selected_realization
-        .map(|(requirement, _)| requirement)
-        .unwrap_or(call.target_symbol);
-    // A nominal binder describes an obligation, not a selected boundary body.
-    // Specialization must replace it with the exact executable target before
-    // this pass can produce a call. Projecting its requirement here would make
-    // an open generic entry executable and bypass its selected implementation.
-    let static_boundaries = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(move |signature| signature.symbol == direct_boundary_target)
-                .map(move |signature| (definition, signature))
-        })
-        .collect::<Vec<_>>();
-    // Both declaration spellings retain a requirement edge. The shared
-    // planner sees the authored signature, never its selected provider.
-    let requirement = match static_boundaries.as_slice() {
-        [(definition, signature)] => Some(super::trait_boundary_call::BoundaryRequirement::Trait {
-            definition,
-            signature,
-        }),
-        [] => program
-            .operators()
-            .iter()
-            .find(|operator| operator.is_boundary && operator.symbol == direct_boundary_target)
-            .map(super::trait_boundary_call::BoundaryRequirement::Operator),
-        _ => return None,
+    let requirement = match boundary_requirement(program, call.target_symbol) {
+        BoundaryTarget::Requirement(requirement) => Some(requirement),
+        BoundaryTarget::Body => None,
+        BoundaryTarget::Ambiguous => return None,
     };
     if let Some(requirement) = requirement {
         return super::trait_boundary_call::build(
@@ -606,4 +575,74 @@ pub(in crate::execution) fn build_call_operation(
         })
         .map(CheckedUnitEffectOperationPlan::Call)
     }
+}
+
+/// What a call's authored target completes through.
+pub(super) enum BoundaryTarget<'program> {
+    /// A boundary requirement's call route.
+    Requirement(super::trait_boundary_call::BoundaryRequirement<'program>),
+    /// More than one boundary requirement declares the target.
+    Ambiguous,
+    /// No boundary requirement: a machine body or a dynamic slot.
+    Body,
+}
+
+/// The boundary requirement a call to `target` invokes. A direct call to a
+/// bodyless external leaf is a boundary call on the leaf's exact satisfied
+/// requirement (see `validation`'s `intrinsic_boundaries` module); the leaf
+/// owns no body to call. A nominal binder describes an obligation, not a
+/// selected boundary body: specialization must replace it with the exact
+/// executable target before a call is planned, and projecting its
+/// requirement here would make an open generic entry executable and bypass
+/// its selected implementation. Both declaration spellings retain a
+/// requirement edge; the planner sees the authored signature, never its
+/// selected provider.
+pub(super) fn boundary_requirement(
+    program: &dyn ::validation::CheckingInput,
+    target: SymbolHandle,
+) -> BoundaryTarget<'_> {
+    let direct = exact_external_leaf_boundary_requirement(program, target)
+        .map(|(requirement, _)| requirement)
+        .unwrap_or(target);
+    let static_boundaries = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == direct)
+                .map(move |signature| (definition, signature))
+        })
+        .collect::<Vec<_>>();
+    match static_boundaries.as_slice() {
+        [(definition, signature)] => {
+            BoundaryTarget::Requirement(super::trait_boundary_call::BoundaryRequirement::Trait {
+                definition,
+                signature,
+            })
+        }
+        [] => program
+            .operators()
+            .iter()
+            .find(|operator| operator.is_boundary && operator.symbol == direct)
+            .map_or(BoundaryTarget::Body, |operator| {
+                BoundaryTarget::Requirement(
+                    super::trait_boundary_call::BoundaryRequirement::Operator(operator),
+                )
+            }),
+        _ => BoundaryTarget::Ambiguous,
+    }
+}
+
+/// Whether a call to `target` produces its result through a machine body.
+/// A boundary requirement or a dynamic slot completes through its own call
+/// route, which binds the result to the authored statement instead.
+pub(crate) fn completes_in_machine_body(
+    program: &dyn ::validation::CheckingInput,
+    target: SymbolHandle,
+) -> bool {
+    matches!(boundary_requirement(program, target), BoundaryTarget::Body)
+        && program.dynamic_slot_by_symbol(target).is_none()
 }

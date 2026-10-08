@@ -323,6 +323,15 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression)
         {
             let call_target = validation::call_target_symbol(self.program, call);
+            // Only a machine body produces a structural value here. A boundary
+            // requirement or dynamic slot completes through its own call
+            // route, which binds the result to the authored statement.
+            if !crate::execution::terminal_unit::calls::completes_in_machine_body(
+                self.program,
+                call_target,
+            ) {
+                return None;
+            }
             let returned = validation::call_target_return_type(self.program, call_target)?;
             if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
                 || !(validation::has_contents(
