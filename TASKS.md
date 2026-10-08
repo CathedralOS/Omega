@@ -2248,11 +2248,14 @@ crash and native exit behavior.
     `selected_form_encoding/ieee_float_arithmetic.rs`. Selected-form tag 230
     carries the operation/format ordinal; append identities, never renumber.
     Nearest FMA (ordinal 44) stays AArch64-only until
-    **X86-FMA-PROVIDER-TRANSPORT**. Re-drive
-    `tests/omega/pending/arithmetic/float_computation_no_route` with and
-    without the float-operations import across arithmetic/comparison,
-    field/local/guard positions and f32/f64. Preserve declared operator
-    selection; no spelling-based fallback.
+    **X86-FMA-PROVIDER-TRANSPORT**. With
+    `omega::language::core::float_operations` imported, f32/f64 arithmetic
+    and comparison in local, field and guard positions run natively and in
+    Terminal on macOS ARM64. Without the import, the unchanged
+    `tests/omega/pending/arithmetic/float_computation_no_route` stops in
+    checking at "statement sequence: local data: mutable primitive local:
+    storage initializer". Preserve declared operator selection; no
+    spelling-based fallback.
   - **Receiver-bearing requirements.** Complete a member-call witness through
     borrowed-field argument planning, provider signature refinement and native
     execution, keeping exact receiver/argument correspondence (no blanket
@@ -2497,6 +2500,10 @@ crash and native exit behavior.
   segment or case-dominance check. Choose one route: a primitive read across
   a `Case` step with the same dominance verification, or a float
   structural-field read. Do not copy the payload through a side channel.
+  A whole-root subject (`let sample: Sample = Sample::Reading { value: 2.5 };
+  transition sample { ... }`, f32 or f64) passes Psi and is refused in Omega
+  stage 02 `lowering/control_flow/structural_case.rs`, whose case-edge payload
+  transfer admits only integer scalar types (`UnsupportedControlFlow`).
   Acceptance: f32 and f64 payloads under root and projected dispatch
   subjects, passed to a successor and compared there, run natively; a read
   without a dominating case still rejects.
