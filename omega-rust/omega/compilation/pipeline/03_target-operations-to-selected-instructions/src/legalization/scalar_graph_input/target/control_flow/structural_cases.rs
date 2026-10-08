@@ -119,8 +119,7 @@ fn parameter_available(
     layout: &target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
-    let Some(declaration) = optimized.structural_parameter(expected_source)
-    else {
+    let Some(declaration) = optimized.structural_parameter(expected_source) else {
         return false;
     };
     parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
@@ -142,8 +141,7 @@ fn borrowed_parameter_available(
     layout: &target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
-    let Some(declaration) = optimized.structural_parameter(expected_source)
-    else {
+    let Some(declaration) = optimized.structural_parameter(expected_source) else {
         return false;
     };
     matches!(
@@ -236,8 +234,7 @@ pub(super) fn matches(
     if expected_offset != byte_offset || expected_layout != *layout {
         return false;
     }
-    let Some(declaration) =
-        terminal_psi::find_structural_type(&graph.structural_types, selected)
+    let Some(declaration) = terminal_psi::find_structural_type(&graph.structural_types, selected)
     else {
         return false;
     };

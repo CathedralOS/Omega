@@ -496,12 +496,11 @@ pub(in crate::lowering) fn resolve_byte_view(
         // The semantic declaration is authenticated above. Only physical
         // residence differs: state arrivals name an edge carrier, while an
         // entry arrival must rejoin its exact ABI placement.
-        if let Some(entry) = function.block_entries.iter().find(|entry| {
-            entry
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == place)
-        }) {
+        if let Some(entry) = function
+            .block_entries
+            .iter()
+            .find(|entry| entry.structural_parameter(place).is_some())
+        {
             return Ok((
                 TargetByteView::BlockParameter {
                     block: entry.block,

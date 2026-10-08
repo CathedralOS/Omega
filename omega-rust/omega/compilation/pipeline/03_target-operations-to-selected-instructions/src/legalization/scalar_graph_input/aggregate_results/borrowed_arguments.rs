@@ -85,8 +85,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             plan,
         );
     }
-    let (root, source) = if let Some(parameter) = caller.structural_parameter(argument.place)
-    {
+    let (root, source) = if let Some(parameter) = caller.structural_parameter(argument.place) {
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
@@ -94,7 +93,8 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         {
             return Err(LegalizationError::custody());
         }
-        let retained = native.function(caller.machine)
+        let retained = native
+            .function(caller.machine)
             .and_then(structural_parameters)
             .and_then(|parameters| {
                 parameters

@@ -903,10 +903,7 @@ pub(crate) fn validate_function_references(
             ) || sources
                 .insert((formal.place, formal.path.clone()), shared_descendant)
                 .is_some_and(|previous_shared| !previous_shared || !shared_descendant)
-                || !function
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == formal.place)
+                || !function.structural_parameter(formal.place).is_some()
                 || reference_source_type(function, types, formal) != Some(expected_referent)
                 || !leaf_access_within(types, result.structural_type, path, formal.access)
                 || formal_origin(function, formal).is_none()

@@ -202,13 +202,11 @@ pub(super) fn validate(
                                 )
                                 && graph.call_plan.result.as_ref().is_some_and(|result|
                                     result.shape == calling_conventions::ValueShape::integer(16, 8))
-                                && (optimized.structural_parameters.iter().any(|parameter|
-                                    parameter.place == *place)
+                                && (optimized.structural_parameter(*place).is_some()
                                     || optimized.blocks.iter().any(|producer| {
                                         (producer.id == block.block || sources::dominates(
                                             optimized, producer.id, block.block))
-                                            && (producer.structural_parameters.iter().any(|parameter|
-                                                parameter.place == *place)
+                                            && (producer.structural_parameter(*place).is_some()
                                                 || producer.nodes.iter().any(|node|
                                                     node.operation.structural_result().is_some_and(
                                                         |(_, result)| result.place == *place)

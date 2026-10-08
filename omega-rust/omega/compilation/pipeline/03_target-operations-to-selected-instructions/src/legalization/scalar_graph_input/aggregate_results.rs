@@ -62,7 +62,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                     // payloads, as a membership observation reads its tag.
                     || matches!(&node.operation,
                     AbstractOperation::StructuralCase { source, .. }
-                        if function.structural_parameters.iter().any(|parameter| parameter.place == *source))
+                        if function.structural_parameter(*source).is_some())
             })
 }
 
@@ -145,8 +145,7 @@ pub(super) fn cleanup(
         {
             return None;
         }
-        if let Some(parameter) = function.structural_parameter(place)
-        {
+        if let Some(parameter) = function.structural_parameter(place) {
             return (parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty())
@@ -508,7 +507,8 @@ pub(in crate::legalization) fn call_argument(
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
-        let target_caller = native.function(caller.machine)
+        let target_caller = native
+            .function(caller.machine)
             .ok_or(LegalizationError::custody())?;
         let ordinal = callee
             .scalar_parameter_count()
@@ -611,12 +611,11 @@ pub(in crate::legalization) fn call_argument(
     }
     // Non-block byte views use the same exact literal, parameter and projected
     // fixed-array argument reconstruction as scalar- and Unit-result calls.
-    if !caller.blocks.iter().any(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == argument.place)
-    }) {
+    if !caller
+        .blocks
+        .iter()
+        .any(|block| block.structural_parameter(argument.place).is_some())
+    {
         return super::structural_call::argument_at(
             argument,
             position,
@@ -629,10 +628,10 @@ pub(in crate::legalization) fn call_argument(
             custody,
         );
     }
-    let caller_target = native.function(caller.machine)
+    let caller_target = native
+        .function(caller.machine)
         .ok_or(LegalizationError::custody())?;
-    let (source, binding) = if let Some(source) = caller.structural_parameter(argument.place)
-    {
+    let (source, binding) = if let Some(source) = caller.structural_parameter(argument.place) {
         let retained = super::structural_parameters(caller_target)
             .and_then(|parameters| {
                 parameters
@@ -646,7 +645,8 @@ pub(in crate::legalization) fn call_argument(
             .blocks
             .iter()
             .find_map(|block| {
-                block.structural_parameter(argument.place)
+                block
+                    .structural_parameter(argument.place)
                     .map(|parameter| (block.id, parameter))
             })
             .ok_or(LegalizationError::custody())?;

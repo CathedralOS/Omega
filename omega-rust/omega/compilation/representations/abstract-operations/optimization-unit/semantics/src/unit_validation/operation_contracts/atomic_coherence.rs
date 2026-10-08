@@ -44,10 +44,7 @@ pub(crate) fn validate_function_atomic_coherence(
         |predecessor, successor, root| {
             let predecessor = function.block(predecessor)?;
             let target = function.block(successor)?;
-            let is_parameter = target
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == root);
+            let is_parameter = target.structural_parameter(root).is_some();
             let mut mapped = None;
             for edge in predecessor
                 .successors()

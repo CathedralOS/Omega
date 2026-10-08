@@ -574,10 +574,7 @@ pub(crate) fn place_observation_root_visible(
     preheader: &OptimizationBlock,
     root: PlaceId,
 ) -> bool {
-    function
-        .structural_parameters
-        .iter()
-        .any(|parameter| parameter.place == root)
+    function.structural_parameter(root).is_some()
         || function
             .result
             .structural()
@@ -589,10 +586,7 @@ pub(crate) fn place_observation_root_visible(
                     StructuralPlaceKind::ProviderAttachment { .. }
                 )
         })
-        || preheader
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == root)
+        || preheader.structural_parameter(root).is_some()
         || preheader
             .nodes
             .iter()

@@ -80,11 +80,7 @@ pub(super) fn project(
                 &plan.structural_types,
             ) {
                 LegalizedScalarReturnValue::SharedDescriptor { place: *source }
-            } else if function
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == *source)
-            {
+            } else if function.structural_parameter(*source).is_some() {
                 LegalizedScalarReturnValue::StructuralParameter { place: *source }
             } else {
                 LegalizedScalarReturnValue::Structural {

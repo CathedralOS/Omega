@@ -439,11 +439,7 @@ pub(super) fn returned_descriptor<'a>(
         return Some((*place, placement, None));
     }
     for block in &source.blocks {
-        if block
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == *place)
-        {
+        if block.structural_parameter(*place).is_some() {
             return Some((
                 *place,
                 placement,
