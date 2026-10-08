@@ -1219,15 +1219,6 @@ impl Emission<'_, '_, '_> {
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
             }
-            CheckedStructuralValueKind::ScalarCasePlace { source, .. } => {
-                let authored = crate::declarations::state_declaration(self.checked, self.state)?;
-                let argument = self.structural_bindings().shared_structural_argument(
-                    &source,
-                    authored.0,
-                    self.checked.state_parameters(authored.1),
-                )?;
-                self.projected_case_place(&argument, continuation)
-            }
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
                 self.view_element_copy(&reads, continuation)
             }

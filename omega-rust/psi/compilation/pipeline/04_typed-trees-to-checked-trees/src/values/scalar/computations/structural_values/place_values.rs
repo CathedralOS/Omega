@@ -3,7 +3,7 @@
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
 use super::place_types::{
-    canonical_place_is_borrowable, is_scalar_case_place_value, needs_copied_place_root,
+    canonical_place_is_borrowable, needs_copied_place_root,
     projection_root_expression,
 };
 use super::value_predicates::{
@@ -13,31 +13,6 @@ use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
 impl Builder<'_, '_> {
-    /// One copyable payloadless case leaf projected out of shared-borrowed
-    /// storage: `self.bitness` reads which case the borrowed record currently
-    /// holds. The root and path become a `SharedBorrow` `Place` source exactly
-    /// as `borrowed_place` builds for `&place`, so lowering observes the held
-    /// case and establishes the same constructor fresh rather than moving a
-    /// child out of the loan. Owned roots still move their whole leaf through
-    /// the owned arms.
-    pub(super) fn scalar_case_place(
-        &mut self,
-        expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
-        if !is_scalar_case_place_value(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-            expected,
-        ) {
-            return None;
-        }
-        let (source, leaf) = self.borrowed_leaf_argument(expression, expected)?;
-        Some(CheckedStructuralValueKind::ScalarCasePlace { source, leaf })
-    }
-
     /// One `[copy]` record element copied out of a borrowed view: the same
     /// element selection an element read takes, then one read per scalar
     /// field of the element in declaration order.

@@ -357,8 +357,6 @@ impl Builder<'_, '_> {
                     .expression_handles(call.arguments),
             );
             CheckedStructuralValueKind::Call { source_call }
-        } else if let Some(copy) = self.scalar_case_place(expression, expected) {
-            copy
         } else if let Some(copy) = self.view_element_copy(expression, expected) {
             copy
         } else if let Some(copied) = self.copied_place(expression, expected) {

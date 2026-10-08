@@ -1,16 +1,10 @@
 //! Result completion: the value-join that commits one selected place to
-//! its continuation, whole-loan completion, and projected case-place
-//! materialization. The join binds owner slots positionally against the
-//! same roster both sides already read.
+//! its continuation, and whole-loan completion. The join binds owner slots
+//! positionally against the same roster both sides already read.
 
 use super::super::super::super::{StructuralAccess, StructuralArgument};
 use super::super::super::{
-    LoweringError, OperationKind, PlaceId, StructuralTypeShape, lookup_type_id,
-    lower_structural_path,
-    operation_frame::{
-        allocate_structural_result, operation_result_declaration, structural_type_declaration,
-    },
-    unsupported,
+    LoweringError, PlaceId, lookup_type_id, lower_structural_path, unsupported,
 };
 use super::{Emission, ProjectedMove, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
@@ -219,77 +213,5 @@ impl Emission<'_, '_, '_> {
         )?;
         self.finish_jump(edge, Vec::new());
         Ok(())
-    }
-
-    /// A copyable payloadless case leaf projected out of shared-borrowed
-    /// storage: `self.bitness` observes which case the borrowed record holds
-    /// through `StructuralCaseMembership`, then establishes that same
-    /// constructor fresh under `EstablishScalarCase`. Each non-final case
-    /// guards its own block; the closed sum makes the last case unconditional.
-    /// Owners join untouched exactly as a scalar dispatch's residual frontier.
-    pub(super) fn projected_case_place(
-        &mut self,
-        argument: &StructuralArgument,
-        continuation: Option<&ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
-        let leaf_type = self.structural_type;
-        let StructuralTypeShape::Sum { cases } = &structural_type_declaration(
-            self.structural_types,
-            leaf_type,
-            "projected case copy lost its leaf type",
-        )?
-        .shape
-        else {
-            return unsupported("projected case copy requires a case-sum leaf");
-        };
-        if cases.is_empty() || cases.iter().any(|case| !case.fields.is_empty()) {
-            return unsupported("projected case copy requires payloadless cases");
-        }
-        let cases = cases.clone();
-        let source = argument.place;
-        let path = argument.path.clone();
-        let owned_continuation;
-        let is_root = continuation.is_none();
-        let continuation = if let Some(continuation) = continuation {
-            continuation
-        } else {
-            owned_continuation =
-                self.joined_value_continuation(self.values.clone(), self.owners.clone())?;
-            &owned_continuation
-        };
-        let source_count = self.values.len();
-        for (position, case) in cases.iter().enumerate() {
-            let mut fallback = None;
-            if position + 1 < cases.len() {
-                self.boolean_case_split(
-                    OperationKind::StructuralCaseMembership {
-                        source,
-                        path: path.clone(),
-                        case: case.id,
-                    },
-                    &mut fallback,
-                )?;
-            }
-            self.values.truncate(source_count);
-            let (place, operation) = allocate_structural_result(
-                self.operations,
-                self.next_place,
-                leaf_type,
-                self.multiplicity,
-                Vec::new(),
-                OperationKind::EstablishScalarCase {
-                    result_case: case.id,
-                    fields: Vec::new(),
-                },
-            )?;
-            self.temporary_places
-                .push(operation_result_declaration(place, operation, leaf_type));
-            self.complete_value(place, None, continuation)?;
-            self.restore_fallback(fallback);
-        }
-        if is_root {
-            self.record_root_continuation(continuation);
-        }
-        Ok(continuation.place)
     }
 }

@@ -1064,8 +1064,7 @@ fn value_leaf_type_identities(
             {
                 identities.push(source.type_identity.as_str());
             }
-            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 identities.push(source.type_identity.as_str());
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {

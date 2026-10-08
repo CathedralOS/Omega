@@ -290,7 +290,6 @@ impl CallTransfers<'_> {
             }
             CheckedStructuralValueKind::Place(source)
             | CheckedStructuralValueKind::Reference { source }
-            | CheckedStructuralValueKind::ScalarCasePlace { source, .. }
             | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 self.argument_evaluation(source)
             }

@@ -141,93 +141,11 @@ pub(super) fn symbol_declared_type(
     None
 }
 
-/// A copyable payloadless case-sum leaf: a named `data` whose members are all
-/// variants carrying no payload fields, under `Unrestricted` multiplicity.
-/// Membership observation can reconstruct such a leaf without reading any
-/// storage contents, which is exactly what a `self.bitness`-shape read needs;
-/// anything with payload storage or affine custody needs move semantics.
-pub(super) fn scalar_case_place_type(
-    program: &dyn ::validation::CheckingInput,
-    expected: TypeReferenceHandle,
-) -> bool {
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
-        return false;
-    };
-    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
-        return false;
-    }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return false;
-    };
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)
-    else {
-        return false;
-    };
-    let members = program.data_members(data);
-    !members.is_empty()
-        && members.iter().all(|member| match member {
-            typed_trees::data::DataMember::Variant(variant) => {
-                program.data_payload_fields(variant).is_empty()
-            }
-            _ => false,
-        })
-}
-
-/// `self.bitness`-shape admission: a member/fixed-index projection rooted at
-/// shared-borrowed storage whose leaf is a copyable payloadless case sum. The
-/// value keeps the exact canonical path so lowering can observe the held case
-/// and re-establish it -- never moving borrowed storage.
-pub(in crate::values::scalar::computations) fn is_scalar_case_place_value(
-    program: &dyn ::validation::CheckingInput,
-    state: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    expected: TypeReferenceHandle,
-) -> bool {
-    if !scalar_case_place_type(program, expected) {
-        return false;
-    }
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        expression,
-    ) else {
-        return false;
-    };
-    if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
-        return false;
-    }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return false;
-    };
-    let Some(root) = symbol_declared_type(program, symbol) else {
-        return false;
-    };
-    if !matches!(
-        program.type_reference_table.type_reference(root),
-        TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Shared,
-            ..
-        }
-    ) {
-        return false;
-    }
-    validation::canonical_place_type_reference(program, state, statement_index, &place).is_some_and(
-        |leaf| program.normalized_type_identity(leaf) == program.normalized_type_identity(expected),
-    )
-}
-
-/// A copyable `Unrestricted` leaf of any structural shape: a named `data`
-/// under `Unrestricted` multiplicity. Copying its contents into a fresh
-/// owned place reproduces the read a `self.scan_compare_type`-shape member
-/// access needs where moving or case-fan-out cannot apply; anything affine
-/// still needs move semantics.
+/// A copyable `Unrestricted` leaf of any structural shape, payload-free case
+/// sums included: a named `data` under `Unrestricted` multiplicity. Copying
+/// its contents into a fresh owned place reproduces the read a
+/// `self.scan_compare_type`-shape member access needs without moving borrowed
+/// storage; anything affine still needs move semantics.
 pub(super) fn copied_place_type(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
@@ -287,9 +205,7 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
-    if !copied_place_type(program, expected)
-        || is_scalar_case_place_value(program, state, statement_index, expression, expected)
-    {
+    if !copied_place_type(program, expected) {
         return false;
     }
     let Some(place) = validation::canonical_place_from_expression_in_state(

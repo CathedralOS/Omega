@@ -640,9 +640,6 @@ fn construction_local_uses<'a, 'operation>(
             visited.push(value);
             match &values.nodes.get(value).kind {
                 CheckedStructuralValueKind::Place(argument)
-                | CheckedStructuralValueKind::ScalarCasePlace {
-                    source: argument, ..
-                }
                 | CheckedStructuralValueKind::CopiedStructuralPlace {
                     source: argument, ..
                 } => {

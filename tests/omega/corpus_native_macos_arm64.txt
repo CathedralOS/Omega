@@ -92,6 +92,7 @@ pass/borrows/borrow_domain_window_write_and_call built 11228ms exit:0 @51b2cebdd
 pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd
 pass/borrows/borrow_returned_window_write_and_call built 11228ms exit:0 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
+pass/borrows/borrowed_case_leaf_copy_exit built 3233ms exit:70 @1deda7b27fe0+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 1788ms exit:70 @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 3173ms exit:70 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit built 1252ms exit:70 @011fd400e8c1+wt

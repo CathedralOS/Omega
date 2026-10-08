@@ -2182,6 +2182,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:ma
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 11704ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/borrowed_case_leaf_copy_exit checked 2978ms check-target:macos_arm64 @1deda7b27fe0+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 1715ms check-target:macos_arm64 @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 2717ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms check-target:macos_arm64 @011fd400e8c1+wt

@@ -268,8 +268,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             // When the leaf is itself a borrowed carrier the argument plan
             // names the `ref(...)` identity, so the shell must be registered
             // — `add_type` alone peels the borrow and leaves it missing.
-            checked_trees::CheckedStructuralValueKind::ScalarCasePlace { leaf, .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
                 let binders = machine_binders(program, machine);
                 if crate::execution::terminal_unit::types::borrowed_named_view(program, *leaf) {
                     let _ = shapes.add_view_type(

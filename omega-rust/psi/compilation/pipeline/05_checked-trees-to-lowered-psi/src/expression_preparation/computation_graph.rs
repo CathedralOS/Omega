@@ -358,7 +358,6 @@ pub(crate) fn structural_dependencies(
             | Value::Call { .. }
             | Value::Place(_)
             | Value::ByteLiteralView { .. }
-            | Value::ScalarCasePlace { .. }
             | Value::CopiedStructuralPlace { .. }
             | Value::ViewElementCopy { .. }
             | Value::ZeroedStructural {} => {}

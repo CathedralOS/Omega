@@ -186,10 +186,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         ref source,
                         ..
                     }
-                    | checked_trees::CheckedStructuralValueKind::ScalarCasePlace {
-                        ref source,
-                        ..
-                    }
                     | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
                         ref source,
                         ..

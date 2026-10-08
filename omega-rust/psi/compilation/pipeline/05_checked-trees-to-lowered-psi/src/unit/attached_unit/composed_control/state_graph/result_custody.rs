@@ -135,9 +135,6 @@ fn construction_inputs<'input>(
                     | CheckedStructuralValueKind::MutableSliceView {
                         source: argument, ..
                     }
-                    | CheckedStructuralValueKind::ScalarCasePlace {
-                        source: argument, ..
-                    }
                     | CheckedStructuralValueKind::CopiedStructuralPlace {
                         source: argument, ..
                     } => {
