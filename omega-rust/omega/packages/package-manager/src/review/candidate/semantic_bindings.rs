@@ -7,7 +7,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ServiceMethod, Servi
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use package_compilation::AcceptedSemanticBinding;
 use std::collections::{BTreeMap, BTreeSet};
 use symbols::SymbolHandle;
 use terminal_psi_to_abstract_operations::provider_admission;
@@ -437,26 +437,7 @@ pub(super) fn candidate_target_entry_binding(
     else {
         return Ok(None);
     };
-    let role = match package {
-        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
-            AcceptedSemanticBindingRole::UefiX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
-            AcceptedSemanticBindingRole::MacosArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
-            AcceptedSemanticBindingRole::MacosX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
-            AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
-            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
-            AcceptedSemanticBindingRole::WindowsX64ProgramEntry
-        }
-    };
+    let role = package_compilation::program_entry_semantic_binding_role(package);
     let mut definitions = checked.traits().iter().filter(|definition| {
         definition.is_boundary
             && definition.name.as_str() == schema_name
