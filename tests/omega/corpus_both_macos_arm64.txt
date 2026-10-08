@@ -91,6 +91,7 @@ pass/borrows/runtime_projected_reference_call_return_exit built 11410ms exit:0 i
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 3275ms exit:70 interpreter-exit:70 interpreter:agrees @cfbb6c8709b4+wt
 pass/borrows/runtime_recast_mut_loan_field_write_exit built 1309ms exit:0 interpreter-exit:0 interpreter:agrees @7d0f77ba72b8+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 28339ms exit:50 interpreter-exit:50 interpreter:agrees @faab7e6c1b7d+wt
+pass/borrows/runtime_record_carried_loan_state_return_exit built 1695ms exit:42 interpreter-exit:42 interpreter:agrees @7c8e1cf03bea
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 2444ms exit:70 interpreter-exit:70 interpreter:agrees @9660dd146223
 pass/borrows/runtime_reference_record_array_field_read_exit built 2479ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
 pass/borrows/runtime_reference_record_call_completion_exit built 1929ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt

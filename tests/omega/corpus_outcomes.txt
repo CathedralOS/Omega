@@ -1489,6 +1489,8 @@ fail/ownership/borrowed_storage_boundary_call rejected 204ms expected @c08960bee
 fail/ownership/borrowed_storage_missing_repair_on_branch rejected 244ms expected @c08960bee2b1+wt
 	cannot use `main` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::apply`, state `apply` (statement 0): `main.inventory` must hold a value again before this state's exits consume the borrow
+fail/ownership/borrowed_storage_repair_keeps_carried_loan rejected 363ms expected @7c8e1cf03bea
+	statement 3 mutates `backing` while local borrow `holder` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/ownership/borrowed_storage_stale_read_in_hole rejected 280ms expected @c08960bee2b1+wt
 	cannot use `main.inventory.slots` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 fail/ownership/boundary_cycle_reuses_consumed_owner rejected 354ms expected @04d0fbe9d97c
@@ -2262,6 +2264,7 @@ pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit che
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 2197ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/borrows/runtime_recast_mut_loan_field_write_exit checked 1169ms check-target:macos_arm64 @7d0f77ba72b8+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/runtime_record_carried_loan_state_return_exit checked 1639ms check-target:macos_arm64 @7c8e1cf03bea
 pass/borrows/runtime_record_primitive_reference_capture_exit checked 1590ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_recursive_mutable_array_store_exit checked 1300ms check-target:macos_arm64 @ad65d2640206+wt
 pass/borrows/runtime_recursive_shared_array_read_exit checked 3020ms check-target:macos_arm64 @6d05c993ca61
