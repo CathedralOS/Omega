@@ -16,7 +16,7 @@ use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::PlaceId;
-use terminal_psi::{StructuralAccess, StructuralTypeShape};
+use terminal_psi::{StructuralAccess, StructuralTypeShape, structural_case_position};
 
 /// Entry captures register fragments in an owned local home, but retains an
 /// address for inline-stack and indirect ABI value copies. Semantic ownership
@@ -865,7 +865,7 @@ pub(super) fn fields(
         .filter(|field| !field.relevance.is_erased())
         .collect::<Vec<_>>();
     let common_shapes = live_field_shapes(common.iter().copied(), &signature.structural_types)?;
-    let ordinal = cases.iter().position(|case| case.id == *result_case)?;
+    let ordinal = structural_case_position(cases, *result_case)?;
     if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
         return None;
     }

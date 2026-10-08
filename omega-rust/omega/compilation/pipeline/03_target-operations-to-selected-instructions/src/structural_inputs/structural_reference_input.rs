@@ -6,7 +6,8 @@ use calling_conventions::{
 };
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    find_structural_type,
+    structural_case_position,
+find_structural_type,
 StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
@@ -1547,7 +1548,7 @@ pub(crate) fn case_projection(
         let (next, displacement) = match segment {
             Segment::Case(identity) => {
                 let cases = declaration.shape.sum_cases()?;
-                let case_position = cases.iter().position(|case| case.id == *identity)?;
+                let case_position = structural_case_position(cases, *identity)?;
                 let Segment::Field(field) = segments.next()? else {
                     return None;
                 };
@@ -1815,7 +1816,7 @@ fn project_inner<'a>(
                 Projection::Case(case),
                 StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             ) => {
-                let case_position = cases.iter().position(|candidate| candidate.id == case)?;
+                let case_position = structural_case_position(cases, case)?;
                 let Projection::FieldName(identity) = path.next()? else {
                     return None;
                 };
