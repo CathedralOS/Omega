@@ -385,17 +385,8 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
                 CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
             ),
             facts::PlaceSegment::Field { symbol } => {
-                let mut fields = program
-                    .data_definitions()
-                    .iter()
-                    .flat_map(|owner| program.data_members(owner))
-                    .filter_map(|member| match member {
-                        DataMember::Field(field) if field.symbol == *symbol => Some(field),
-                        _ => None,
-                    });
-                let field = fields.next()?;
-                if fields.next().is_some()
-                    || field.relevance.is_erased()
+                let field = super::super::types::terminal_field_declaration(program, *symbol)?;
+                if field.relevance.is_erased()
                     || !validation::field_domains::domain_constraint_symbols(
                         program,
                         field.type_reference,
@@ -407,6 +398,24 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
                 Some(CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ))
+            }
+            facts::PlaceSegment::Case { variant } => {
+                if !variant.is_valid() {
+                    return None;
+                }
+                let mut cases = program
+                    .data_definitions()
+                    .iter()
+                    .flat_map(|owner| program.data_members(owner))
+                    .filter_map(|member| match member {
+                        DataMember::Variant(case) if case.symbol == *variant => Some(case),
+                        _ => None,
+                    });
+                let case = cases.next()?;
+                cases
+                    .next()
+                    .is_none()
+                    .then(|| CheckedUnitStructuralPathSegment::Case(case.path_identity()))
             }
             _ => None,
         })

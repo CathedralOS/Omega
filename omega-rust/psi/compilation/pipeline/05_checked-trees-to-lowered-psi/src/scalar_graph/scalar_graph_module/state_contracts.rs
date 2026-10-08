@@ -40,6 +40,7 @@ pub(super) fn emit(
             structural_types,
         );
         let views = scalar_contracts::ContractViewNamespace {
+            result: None,
             parameters: &state.parameters,
             structural_types,
             element_views: &element_views,

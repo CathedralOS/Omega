@@ -716,6 +716,7 @@ pub(crate) fn instantiate_citation(
         return established;
     };
     let self_citation = std::ptr::eq(callee, machine);
+    let runtime_invocation = judge.is_some_and(StructuralJudge::has_runtime_body_values);
     let resultless_entry = program
         .machine_states(callee)
         .first()
@@ -726,8 +727,10 @@ pub(crate) fn instantiate_citation(
     // Value-returning recursive calls continue to contribute their IH through
     // the arm's returned value term; treating their lowering-generated local
     // as a second citation would duplicate and prematurely discharge it.
-    if (self_citation && (!allow_self_induction || !resultless_entry))
-        || !classification.is_proof_machine(program, callee)
+    if (runtime_invocation && (self_citation || target.has_static_selection))
+        || (!runtime_invocation
+            && ((self_citation && (!allow_self_induction || !resultless_entry))
+                || !classification.is_proof_machine(program, callee)))
     {
         return established;
     }
@@ -803,6 +806,24 @@ pub(crate) fn instantiate_citation(
                 return established;
             }
         }
+    }
+    if runtime_invocation {
+        // Completion licenses the selected callee's unconditional tag facts,
+        // never equations about replaying its body. A result exists only under
+        // its exact saved binding; resultless calls may still classify their
+        // explicit arguments. Static callable substitution remains unsupported.
+        if target.result_binding.is_valid() {
+            map.push((
+                RESULT_BINDER.to_owned(),
+                StructuralTerm::BoundValue(target.result_binding),
+            ));
+        }
+        if let Some(judge) = judge {
+            for fact in ensures_facts {
+                judge.instantiated_case_guarantees(callee, fact, &map, &mut established.cases);
+            }
+        }
+        return established;
     }
     // `result` in the callee's ensures denotes the application itself at
     // these operands.

@@ -371,11 +371,45 @@ pub(crate) fn lower_structural_field_steps<'a>(
     LoweringError,
 > {
     let (mut field_owner, mut steps) = structural_field_root(root_type, structural_types)?;
+    let mut payload_fields = None;
     for segment in carrier_path {
+        if let CheckedUnitStructuralPathSegment::Case(identity) = segment {
+            if payload_fields.is_some() {
+                return unsupported("field path repeats an unconsumed case namespace");
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &field_owner.shape
+            else {
+                return unsupported("field path case owner is not a sum");
+            };
+            let mut matching = cases.iter().filter(|case| case.identity == *identity);
+            let selected = matching
+                .next()
+                .ok_or(LoweringError::Unsupported("field path case is absent"))?;
+            if matching.next().is_some() {
+                return unsupported("field path case is ambiguous");
+            }
+            payload_fields = Some(selected.fields.as_slice());
+            steps.push(ProjectionStep::Static(StructuralPathSegment::Case(
+                selected.id,
+            )));
+            continue;
+        }
+        if payload_fields.is_some()
+            && !matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+        {
+            return unsupported("field path case must select a payload field");
+        }
         let nested = match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
-                let StructuralTypeShape::Record { fields, .. } = &field_owner.shape else {
-                    return unsupported("structural scalar store carrier is not a record");
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => field_owner
+                        .shape
+                        .direct_fields()
+                        .ok_or(LoweringError::Unsupported(
+                            "structural scalar store carrier has no direct fields",
+                        ))?,
                 };
                 let carriers = fields
                     .iter()
@@ -473,7 +507,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
     }
     // A mixed shape's common fields sit at one offset in every case, so the
     // leaf writes one without a `Case` step, as a read observes it.
-    let Some(fields) = field_owner.shape.direct_fields() else {
+    let Some(fields) = payload_fields.or_else(|| field_owner.shape.direct_fields()) else {
         return unsupported("structural scalar store field owner is not a record");
     };
     let matching = fields

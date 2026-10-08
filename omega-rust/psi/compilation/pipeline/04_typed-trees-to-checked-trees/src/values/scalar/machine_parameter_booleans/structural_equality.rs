@@ -188,11 +188,11 @@ impl Decomposition<'_> {
             let case = variant.path_identity();
             let mut arm = vec![
                 CheckedBooleanExpression::StructuralCaseMembership {
-                    subject: self.left_place(left_path),
+                    subject: self.left_place(left_path).into(),
                     case: case.clone(),
                 },
                 CheckedBooleanExpression::StructuralCaseMembership {
-                    subject: self.right_place(right_path),
+                    subject: self.right_place(right_path).into(),
                     case: case.clone(),
                 },
             ];

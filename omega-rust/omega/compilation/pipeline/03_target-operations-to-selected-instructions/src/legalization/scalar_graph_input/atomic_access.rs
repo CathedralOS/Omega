@@ -110,23 +110,12 @@ pub(in crate::legalization) fn access(
     {
         return None;
     }
-    let (carrier, _, indices) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            parameter.structural_type,
-            &location.path,
-            types,
-        )?;
-    if !indices.is_empty() {
-        return None;
-    }
-    let fields = types
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
-        .direct_fields()?;
-    let field = fields
-        .iter()
-        .find(|field| field.id == location.field && !field.relevance.is_erased())?;
+    let (_, field) = terminal_semantics::static_field_projection(
+        types.iter(),
+        parameter.structural_type,
+        &location.path,
+        location.field,
+    )?;
     // A bounded or qualified leaf owes additional evidence; matching its
     // machine width does not discharge the restriction on an atomic write.
     let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
@@ -149,7 +138,8 @@ pub(in crate::legalization) fn access(
         scalar_type,
         types,
     )?;
-    if !indices.is_empty() || offset % u32::from(byte_size) != 0 {
+    if !indices.is_empty() || byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0
+    {
         return None;
     }
     Some(Access {

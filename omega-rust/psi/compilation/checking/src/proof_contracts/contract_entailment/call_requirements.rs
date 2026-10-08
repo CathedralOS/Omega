@@ -29,6 +29,9 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// Unsupported paths and unknown judgments do not establish the requirement.
 /// Callers must preserve the machine's entry premises and provide the selected
 /// callee state and actual arguments, not a display-name reconstruction.
+/// With `case_facts_only`, callers instead preserve every retained subject's
+/// tag across the traversed prefix. Scalar premises and equations are unavailable
+/// in that mode; incomplete mutation evidence never licenses either judgment.
 #[allow(clippy::too_many_arguments)]
 pub fn structural_call_requirement_entailed(
     program: &dyn crate::CheckingInput,
@@ -39,6 +42,7 @@ pub fn structural_call_requirement_entailed(
     callee: &State,
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
+    case_facts_only: bool,
 ) -> bool {
     let classification = crate::proof_only_classification(program);
     let Some(entry) = program.machine_states(machine).first() else {
@@ -60,11 +64,15 @@ pub fn structural_call_requirement_entailed(
     let runtime_values = !classification.is_proof_machine(program, machine)
         || !classification.is_proof_machine(program, callee_machine);
     let requires = machine_requires_facts(program, machine);
+    if case_facts_only && (!runtime_values || !case_fact_only(program, expression)) {
+        return false;
+    }
     if runtime_values
         && (!runtime_equality_fact(program, callee_machine, callee, expression)
-            || !requires
-                .iter()
-                .all(|fact| runtime_equality_fact(program, machine, entry, *fact)))
+            || (!case_facts_only
+                && !requires
+                    .iter()
+                    .all(|fact| runtime_equality_fact(program, machine, entry, *fact))))
     {
         return false;
     }
@@ -78,13 +86,16 @@ pub fn structural_call_requirement_entailed(
         seen: false,
         proven: true,
     };
-    let judge = if runtime_values {
+    let mut judge = if runtime_values {
         StructuralJudge::from_runtime_requires(program, machine, &requires)
     } else if contains_case_premise(program, expression) {
         StructuralJudge::from_case_requires(program, machine, &requires)
     } else {
         StructuralJudge::from_requires(program, machine, &requires)
     };
+    if case_facts_only {
+        judge.restrict_to_case_facts();
+    }
     let mut diagnostics = Vec::new();
     let recognized = recognize_structural_case_arms_with_requirement(
         program,
@@ -172,9 +183,9 @@ impl CallRequirement<'_> {
     }
 }
 
-/// Structural equations interpret builtin Boolean/integer equality, not an
-/// arbitrary selected operator or IEEE floating equality. Check assumptions as
-/// well as goals: misreading an assumption could manufacture vacuity.
+/// Runtime facts retain exact case membership or builtin Boolean/integer
+/// equality, not arbitrary selected operators or IEEE floating equality. Check
+/// assumptions as well as goals: misreading one could manufacture vacuity.
 fn runtime_equality_fact(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -187,6 +198,18 @@ fn runtime_equality_fact(
             ExpressionNode::Boolean(_)
         );
     };
+    // Authored membership retains its selected meaning on an equality node;
+    // synthesized membership uses an explicit tag operation. Neither is a
+    // structural equation about the payload.
+    if super::structural_terms::is_case_observation(program, expression) {
+        return crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+            binary,
+        );
+    }
     match binary.operator {
         BinaryOperator::And => {
             runtime_equality_fact(program, machine, state, binary.left)
@@ -230,6 +253,20 @@ fn contains_case_premise(program: &dyn crate::CheckingInput, expression: Express
         && (contains_case_premise(program, binary.left) || contains_case_premise(program, binary.right)))
 }
 
+/// Classifier predicates and conjunctions only: tag-preserving writes do not
+/// license scalar equations, even apparently contradictory old assumptions.
+pub(super) fn case_fact_only(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    if super::structural_terms::is_case_observation(program, expression) {
+        return true;
+    }
+    matches!(program.expression_table.expression(expression), ExpressionNode::Binary(binary)
+        if binary.operator == BinaryOperator::And
+        && case_fact_only(program, binary.left) && case_fact_only(program, binary.right))
+}
+
 /// Establish a prior citation before a later branch can refine its arguments.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish_citation(
@@ -246,22 +283,20 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
-    // Proof citations carry their own structural equality vocabulary. Runtime
-    // entry transport currently uses checked scalar assumptions and saved value
-    // identities; it must not import those wider equations or induction rules.
-    if judge.has_runtime_body_values() {
-        return;
-    }
     let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
     guarantees.intake(&mut site_judge);
-    intake_state_induction(
-        program,
-        machine,
-        state,
-        statement_index,
-        environment,
-        &mut site_judge,
-    );
+    // Runtime invocations transport only checked tag guarantees. Their saved
+    // results are individual values, not mathematical applications or an IH.
+    if !judge.has_runtime_body_values() {
+        intake_state_induction(
+            program,
+            machine,
+            state,
+            statement_index,
+            environment,
+            &mut site_judge,
+        );
+    }
     let mut diagnostics = Vec::new();
     let established = instantiate_citation(
         program,

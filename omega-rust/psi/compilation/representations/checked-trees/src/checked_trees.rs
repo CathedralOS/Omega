@@ -214,12 +214,13 @@ pub use values::{
     CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedScalarExpression, CheckedScalarExpressionBindings,
     CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedScalarReadProjection,
-    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralDispatchArm,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
-    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
-    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
-    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts,
-    CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
+    CheckedStructuralCaseSubject, CheckedStructuralDispatchArm, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment, CheckedStructuralRecordField,
+    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+    CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts, CheckedValueHandle,
+    CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

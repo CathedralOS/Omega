@@ -1149,10 +1149,13 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
+            let subject = subject.parameter_field().ok_or(LoweringError::Unsupported(
+                "contract result cannot be used as an executable entry observation",
+            ))?;
             let (source, path, case) =
                 crate::expression_preparation::bindings::structural_cases::resolve(
                     structural_cases,
-                    subject,
+                    &subject,
                     case,
                 )?;
             LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }

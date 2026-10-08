@@ -181,6 +181,8 @@ fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 3ms expe
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 0ms expected @2d8ed253669f
 	tests/omega/fail/atomics/atomic_load_publish_ordering_rejected/main.omg:7:40: atomic load cannot use `Publish` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`
+fail/atomics/case_payload_non_event_write rejected 1474ms expected @0919e048c9f8+wt
+	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/shared_receiver_plain_field_write rejected 108ms expected @c08960bee2b1+wt
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 705ms expected @2d8ed253669f
@@ -1610,6 +1612,14 @@ fail/proofs/ring_law_unproven_rejected rejected 1082ms expected @c5d32a00863
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `Console`
 fail/proofs/ring_rearrange_unlicensed_rejected rejected 312ms expected @2d8ed253669f
 	machine `needs_rearrange` ensures contract proof fact `plus(b, plus(a, c)) == plus(a, plus(b, c))` speaks about proof-only `Peano`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+fail/proofs/runtime_case_atomic_observations_are_distinct rejected 3419ms expected @0919e048c9f8+wt
+	cannot prove requires contract for call require_three from main: second == 3 (needs fact `observation == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/runtime_case_guarantee_replaced_subject rejected 4215ms expected @0919e048c9f8+wt
+	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 3884ms expected @0919e048c9f8+wt
+	cannot prove requires contract for call observe from main: other == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/proofs/runtime_case_guarantee_wrong_return rejected 3897ms expected @0919e048c9f8+wt
+	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
 fail/proofs/structural_ensures_unjudged_rejected rejected 337ms expected @2d8ed253669f
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 280ms expected @2d8ed253669f
@@ -2111,7 +2121,9 @@ pass/atomics/runtime_atomic_after_quoted_write_exit checked 2158ms check-target:
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 3130ms check-target:macos_arm64 @8ed2986d3282
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms check-target:macos_arm64 @2d8ed253669f
+pass/atomics/runtime_case_payload_atomic_events_exit checked 15730ms check-target:macos_arm64 @0919e048c9f8+wt
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 1510ms check-target:macos_arm64 @aea569c35b63
+pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 15659ms check-target:macos_arm64 @0919e048c9f8+wt
 pass/atomics/shared_receiver_atomic_store checked 1429ms check-target:macos_arm64 @835baa6033eb
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms check-target:macos_arm64 @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f

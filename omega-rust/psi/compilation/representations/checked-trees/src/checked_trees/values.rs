@@ -28,7 +28,8 @@ pub use facts::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
     CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
-    CheckedStorageRoot, CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
 mod computations;

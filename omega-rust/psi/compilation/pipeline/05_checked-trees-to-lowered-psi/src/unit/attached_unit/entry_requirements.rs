@@ -89,6 +89,7 @@ pub(crate) fn lower(
         let element_views =
             crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
         let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            result: None,
             parameters: &view_roster,
             structural_types,
             element_views: &element_views,

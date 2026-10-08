@@ -32,8 +32,8 @@ use abstract_operations::{
 };
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType};
 use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralFieldType,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, Terminator,
+    AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, Terminator,
 };
 
 use crate::lowering::LoweringError;
@@ -168,36 +168,8 @@ fn field_type(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ScalarType> {
-    let declaration = |id| {
-        structural_types
-            .iter()
-            .find(|declaration| declaration.id == id)
-    };
-    let mut carrier = root;
-    for segment in path {
-        carrier = match (segment, &declaration(carrier)?.shape) {
-            (terminal_psi::StructuralPathSegment::Field(identity), shape) => match shape
-                .direct_fields()?
-                .iter()
-                .find(|candidate| {
-                    candidate.identity == *identity && !candidate.relevance.is_erased()
-                })?
-                .field_type
-            {
-                StructuralFieldType::Structural(child) => child,
-                _ => return None,
-            },
-            (
-                terminal_psi::StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    let fields = declaration(carrier)?.shape.direct_fields()?;
-    fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+    terminal_semantics::static_field_projection(structural_types.iter(), root, path, field)?
+        .1
         .field_type
         .atomic_scalar_type()
 }

@@ -112,6 +112,48 @@ pub fn observed_field_declaration<'types>(
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
 }
 
+/// Resolve one static field access without interpreting its operation. Common
+/// fields and selected payloads share declaration-local identity; a final Case
+/// qualifies the separate leaf field, while earlier Case/Field pairs descend
+/// through structural payloads. This supplies geometry only, never tag or
+/// mutation authority, and never treats an atomic cell as an ordinary scalar.
+pub fn static_field_projection<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<(
+    Vec<CanonicalStructuralPathSegment>,
+    &'types StructuralFieldDeclaration,
+)> {
+    let (prefix, selected_case) = match path.split_last() {
+        Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (path, None),
+    };
+    let (mut canonical, carrier) = crate::canonical_static_projection(types.clone(), root, prefix)?;
+    let fields = if let Some(case) = selected_case {
+        let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+            &carrier.shape
+        else {
+            return None;
+        };
+        let mut matching = cases.iter().filter(|candidate| candidate.id == case);
+        let selected = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        canonical.push(CanonicalStructuralPathSegment::Case(case));
+        selected.fields.as_slice()
+    } else {
+        carrier.shape.direct_fields()?
+    };
+    let mut matching = fields
+        .iter()
+        .filter(|candidate| candidate.id == field && !candidate.relevance.is_erased());
+    let field = matching.next()?;
+    matching.next().is_none().then_some((canonical, field))
+}
+
 /// Preserve backing authority when observing a field through a canonical path.
 /// Owning an element-view descriptor, even inside an owned record, grants no
 /// exclusive access to the elements it references. A caller must separately
@@ -147,7 +189,33 @@ fn walk_record_fields<'types>(
     let mut structural_type = root;
     let mut runtime_path = Vec::with_capacity(path.len());
     let mut crosses_view = false;
+    let mut payload_fields = None;
     for (index, segment) in path.iter().enumerate() {
+        let declaration = types
+            .clone()
+            .find(|declaration| declaration.id == structural_type)?;
+        if let CanonicalStructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return None;
+            };
+            payload_fields = Some(
+                cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case)?
+                    .fields
+                    .as_slice(),
+            );
+            continue;
+        }
+        if payload_fields.is_some() && !matches!(segment, CanonicalStructuralPathSegment::Field(_))
+        {
+            return None;
+        }
         if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
             // Fixed arrays retain every element identity through nested fields.
             // Views keep their existing terminal-index route: their bound is
@@ -178,8 +246,9 @@ fn walk_record_fields<'types>(
         let declaration = types
             .clone()
             .find(|declaration| declaration.id == structural_type)?;
-        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-            return None;
+        let fields = match payload_fields.take() {
+            Some(fields) => fields,
+            None => declaration.shape.direct_fields()?,
         };
         let field = fields
             .iter()
@@ -189,6 +258,9 @@ fn walk_record_fields<'types>(
         };
         runtime_path.push(StructuralPathSegment::Field(field.identity.clone()));
         structural_type = child;
+    }
+    if payload_fields.is_some() {
+        return None;
     }
     Some((structural_type, runtime_path, crosses_view))
 }

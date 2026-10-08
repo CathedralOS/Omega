@@ -210,10 +210,23 @@ pub(crate) fn lower_structural_sum_subject(
         .ok_or(LoweringError::Unsupported(
             "structural sum predicate names a non-structural parameter",
         ))?;
-    let mut structural_type = parameter.structural_type;
-    let mut terminal_path = Vec::with_capacity(subject.path.len());
+    lower_sum_path(
+        parameter.place,
+        parameter.structural_type,
+        &subject.path,
+        structural_types,
+    )
+}
+
+fn lower_sum_path(
+    root: PlaceId,
+    mut structural_type: StructuralTypeId,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
+    let mut terminal_path = Vec::with_capacity(path.len());
     let mut selected_case_fields = None;
-    for segment in &subject.path {
+    for segment in path {
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
@@ -298,7 +311,61 @@ pub(crate) fn lower_structural_sum_subject(
         return unsupported("structural sum predicate subject is not a sum");
     }
     Ok((
-        StructuralCaseSubject::new(parameter.place, terminal_path),
+        StructuralCaseSubject::new(root, terminal_path),
         structural_type,
     ))
+}
+
+/// Preserve an exact selected case without asserting any payload equation.
+/// Entry requirements, normal guarantees and crash predicates share one path
+/// resolver. Only guarantees supply a declared result; the result is not an
+/// entry parameter and cannot lend a coincidentally equal parameter ordinal.
+pub(crate) fn lower_structural_case_membership(
+    subject: &checked_trees::CheckedStructuralCaseSubject,
+    case_identity: &str,
+    parameters: &[StructuralParameterDeclaration],
+    result: Option<&terminal_psi::StructuralResultDeclaration>,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<semantic_vocabulary::Proposition, LoweringError> {
+    let (root, structural_type) = match subject.root {
+        checked_trees::CheckedStructuralCaseRoot::Parameter { position } => {
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.position == position)
+                .ok_or(LoweringError::Unsupported(
+                    "case membership parameter is absent",
+                ))?;
+            (parameter.place, parameter.structural_type)
+        }
+        checked_trees::CheckedStructuralCaseRoot::Result => {
+            let result = result.ok_or(LoweringError::Unsupported(
+                "case membership result is outside the contract namespace",
+            ))?;
+            (result.place, result.structural_type)
+        }
+    };
+    let (subject, structural_type) =
+        lower_sum_path(root, structural_type, &subject.path, structural_types)?;
+    let declaration = structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "case membership declaration is absent",
+        ))?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return unsupported("case membership declaration is not a sum");
+    };
+    let mut matching = cases.iter().filter(|case| case.identity == case_identity);
+    let case = matching
+        .next()
+        .ok_or(LoweringError::Unsupported("case membership was redirected"))?;
+    if matching.next().is_some() {
+        return unsupported("case membership identity is ambiguous");
+    }
+    Ok(semantic_vocabulary::Proposition::StructuralCaseMembership {
+        subject,
+        case: case.id,
+    })
 }

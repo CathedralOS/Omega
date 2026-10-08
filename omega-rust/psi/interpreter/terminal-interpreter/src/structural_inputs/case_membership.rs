@@ -254,7 +254,14 @@ pub(crate) fn validate_case_projection(
             .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                 source,
             ))?;
-    resolve_structural_path_type(types, root.structural_type, path)?;
+    // Field events carry their final leaf separately. Their last Case selects
+    // its payload namespace rather than a structural child; still validate
+    // that exact discriminator below, without inventing a payload record.
+    let structural_prefix = match path.split_last() {
+        Some((StructuralPathSegment::Case(_), prefix)) => prefix,
+        _ => path,
+    };
+    resolve_structural_path_type(types, root.structural_type, structural_prefix)?;
     for (position, case) in selected {
         let prefix = &path[..position];
         let selected = project_structural_value(types, root, prefix)?;

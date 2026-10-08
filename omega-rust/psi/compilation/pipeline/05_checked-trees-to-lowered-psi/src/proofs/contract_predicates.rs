@@ -11,6 +11,12 @@ pub(crate) use integer_math::validate_namespace as validate_math_namespace;
 pub(crate) trait PredicateTerms {
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
+    fn case_membership(
+        &self,
+        _expression: &CheckedBooleanExpression,
+    ) -> Result<Proposition, LoweringError> {
+        unsupported("contract namespace has no structural case subject")
+    }
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
         Proposition::LessThan(left, right)
     }
@@ -64,6 +70,17 @@ fn proposition_with_polarity(
         "scalar contract Boolean expansion exceeds its lowering budget",
     ))?;
     match predicate {
+        CheckedBooleanExpression::StructuralCaseMembership { .. } => {
+            let membership = terms.case_membership(predicate)?;
+            Ok(if positive {
+                membership
+            } else {
+                Proposition::Implication {
+                    premise: Box::new(membership),
+                    conclusion: Box::new(Proposition::Falsehood),
+                }
+            })
+        }
         CheckedBooleanExpression::IntegerMathComparison { kind, left, right } => {
             let left = integer_math::lower(left, terms, remaining)?;
             let right = integer_math::lower(right, terms, remaining)?;

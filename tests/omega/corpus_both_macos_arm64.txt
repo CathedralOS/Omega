@@ -28,7 +28,9 @@ pass/arithmetic/runtime_transitive_bit_value_exit built 1835ms exit:0 interprete
 pass/arithmetic/runtime_transitive_product_exit built 1835ms exit:0 interpreter-exit:0 interpreter:agrees @04ef5a694099+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 1998ms exit:70 interpreter-exit:70 interpreter:agrees @aea569c35b63
 pass/atomics/runtime_atomic_fetch_add_exit built 1587ms exit:70 interpreter-exit:70 interpreter:agrees @aea569c35b63
+pass/atomics/runtime_case_payload_atomic_events_exit built 14729ms exit:0 interpreter-exit:0 interpreter:agrees @0919e048c9f8+wt
 pass/atomics/runtime_mixed_common_atomic_cell_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @aea569c35b63
+pass/atomics/runtime_nested_case_payload_atomic_event_exit built 14821ms exit:0 interpreter-exit:0 interpreter:agrees @0919e048c9f8+wt
 pass/atomics/shared_receiver_atomic_store built 1667ms exit:70 interpreter-exit:70 interpreter:agrees @aea569c35b63
 pass/borrow/runtime_exclusive_loan_local_write_exit built 5556ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt

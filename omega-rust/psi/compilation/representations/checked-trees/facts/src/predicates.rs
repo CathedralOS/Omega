@@ -436,7 +436,7 @@ pub enum CheckedBooleanExpression {
     /// Exact active-case test over a structural sum subject. The path reaches
     /// the sum itself; payload paths use an explicit following Case segment.
     StructuralCaseMembership {
-        subject: CheckedStructuralParameterField,
+        subject: CheckedStructuralCaseSubject,
         case: String,
     },
     And {
@@ -486,6 +486,44 @@ pub use semantic_vocabulary::IeeeFloatComparisonKind as CheckedIeeeFloatComparis
 pub struct CheckedStructuralParameterField {
     pub parameter_position: u32,
     pub path: Vec<CheckedStructuralPredicatePathSegment>,
+}
+
+/// Case facts name storage, not a dense scalar operand. A normal-return result
+/// has its own declared place; it must never alias an entry parameter ordinal.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedStructuralCaseRoot {
+    Parameter { position: u32 },
+    Result,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedStructuralCaseSubject {
+    pub root: CheckedStructuralCaseRoot,
+    pub path: Vec<CheckedStructuralPredicatePathSegment>,
+}
+
+impl From<CheckedStructuralParameterField> for CheckedStructuralCaseSubject {
+    fn from(field: CheckedStructuralParameterField) -> Self {
+        Self {
+            root: CheckedStructuralCaseRoot::Parameter {
+                position: field.parameter_position,
+            },
+            path: field.path,
+        }
+    }
+}
+
+impl CheckedStructuralCaseSubject {
+    /// Executable entry observations cannot read a contract-only result.
+    pub fn parameter_field(&self) -> Option<CheckedStructuralParameterField> {
+        let CheckedStructuralCaseRoot::Parameter { position } = self.root else {
+            return None;
+        };
+        Some(CheckedStructuralParameterField {
+            parameter_position: position,
+            path: self.path.clone(),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

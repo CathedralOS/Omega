@@ -245,6 +245,7 @@ pub(super) fn emit(
             catalog.structural_types,
         );
         let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            result: None,
             parameters: &graph_parameters.1,
             structural_types: catalog.structural_types,
             element_views: &element_views,

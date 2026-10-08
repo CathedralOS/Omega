@@ -13,14 +13,13 @@
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+    StructuralMultiplicity, StructuralPathSegment,
 };
 
-use crate::custody::resolve_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
-use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
+use crate::values::TerminalScalarValue;
 
 impl TerminalExecution {
     pub(crate) fn execute_atomic_access(
@@ -34,7 +33,7 @@ impl TerminalExecution {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
-        let access = machine
+        machine
             .structural_parameters
             .iter()
             .chain(
@@ -67,33 +66,29 @@ impl TerminalExecution {
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
             })
-            .map(|parameter| parameter.access)
             .ok_or_else(malformed)?;
-        let parent = resolve_structural_arguments(
+        let root = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let (canonical, declaration) = terminal_semantics::static_field_projection(
+            self.program.structural_types.values(),
+            root.structural_type,
+            path,
+            field,
+        )
+        .ok_or_else(malformed)?;
+        let scalar_type = declaration
+            .field_type
+            .atomic_scalar_type()
+            .ok_or_else(malformed)?;
+        // Preserve the original overlay cell, checking each live discriminator
+        // before erasing Case from runtime storage geometry.
+        super::structural_inputs::case_membership::validate_case_projection(
             &self.program.structural_types,
             &self.structural_values,
-            &[StructuralArgument {
-                place,
-                path: path.to_vec(),
-                access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
-        let scalar_type = self
-            .program
-            .structural_types
-            .get(&parent.structural_type)
-            .and_then(|declaration| declaration.shape.direct_fields())
-            .and_then(|fields| {
-                fields
-                    .iter()
-                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-            })
-            .and_then(|field| field.field_type.atomic_scalar_type())
-            .ok_or_else(malformed)?;
-        let cell =
-            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field);
+            &self.structural_cases,
+            place,
+            path,
+        )?;
+        let cell = self.observed_field_cell(place, &canonical, field)?;
         let operand = |value| {
             self.values
                 .get(&value)

@@ -1780,11 +1780,12 @@ then independent claimed restoration slices -> final closure.
   Preserve `calls/runtime_atomic_case_shared_argument_exit` and
   `atomics/runtime_mixed_common_atomic_cell_exit`: completed scalar initializers
   establish owned case cells, and shared helper events mutate their original
-  member backing at the exact post-tag offset. Direct atomic payload access
-  still needs selected-case coordinates and atomic-event lowering; observing
-  such a payload currently declines with
-  `case payload observation requires a scalar payload`. Do not replace that
-  missing event with a scalar dispatch snapshot.
+  member backing at the exact post-tag offset. Preserve
+  `atomics/{runtime_case_payload_atomic_events_exit,runtime_nested_case_payload_atomic_event_exit}`
+  too: case guarantees retain the exact borrowed subject and declared result,
+  and explicit payload events address original backing through nested fields.
+  Tag preservation must not preserve scalar observations, authorize ordinary
+  shared writes, or turn atomic storage into a scalar dispatch snapshot.
   Qualify the ordinary `omega run --both` route for
   `borrows/{indexed_record_field_replacement_exit,runtime_affine_local_case_return_exit}` and
   `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their

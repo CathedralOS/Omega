@@ -10,13 +10,13 @@ use crate::scalar_graph::scalar_contracts::{self, ContractViewNamespace};
 use crate::unit::ContractClause;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
-use terminal_psi::ValueDeclaration;
+use terminal_psi::{TerminalMachineResult, ValueDeclaration};
 
 pub(crate) fn lower(
     checked: &CheckedTrees,
     state: SymbolHandle,
     parameters: &[ValueDeclaration],
-    result: Option<ValueDeclaration>,
+    result: &TerminalMachineResult,
     erased: &[ValueDeclaration],
     views: &ContractViewNamespace<'_>,
     next_obligation: &mut u64,
@@ -34,7 +34,7 @@ pub(crate) fn lower(
     // accepted, leaving memberships and evidence lanes to their owners.
     let refined;
     let post_state;
-    let ensures = if result.is_some() {
+    let ensures = if result.scalar().is_some() {
         scalar_contracts::validate_guarantees(checked, source, source_state)?;
         refined = scalar_contracts::with_result_range(
             checked,
@@ -68,8 +68,17 @@ pub(crate) fn lower(
         }),
     );
     let mut namespace = parameters.to_vec();
-    namespace.extend(result);
-    scalar_contracts::clauses(&guarantees, &namespace, erased, views)?
+    namespace.extend(result.scalar());
+    // The result observation has a distinct structural identity; returning an
+    // owned payload does not turn it into an entry formal or a scalar value.
+    let views = ContractViewNamespace {
+        result: match result {
+            TerminalMachineResult::Structural(declaration) => Some(declaration),
+            _ => None,
+        },
+        ..*views
+    };
+    scalar_contracts::clauses(&guarantees, &namespace, erased, &views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

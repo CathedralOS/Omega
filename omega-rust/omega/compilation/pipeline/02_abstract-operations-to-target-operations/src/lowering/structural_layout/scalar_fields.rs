@@ -4,20 +4,68 @@ use super::LoweringError;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
-pub(in crate::lowering) fn direct_integer_field_offset(
-    structural_type: StructuralTypeId,
-    field: StructuralFieldId,
-    scalar_type: semantic_vocabulary::IntegerType,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<u32, LoweringError> {
-    direct_scalar_field_offset(
-        structural_type,
-        field,
-        ScalarType::Integer(scalar_type),
-        declarations,
-    )
-}
 
+/// One static field address, including a selected payload namespace. Case is
+/// layout data, not permission: Psi has separately checked the live tag. The
+/// field declaration and its physical placement remain paired throughout.
+pub(in crate::lowering) fn static_field_geometry(
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: StructuralFieldId,
+    expected: ScalarType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(u32, u32), LoweringError> {
+    let invalid = || LoweringError::UnknownStructuralType(root);
+    let (_, declaration) = terminal_semantics::static_field_projection(
+        declarations.values().copied(),
+        root,
+        path,
+        field,
+    )
+    .ok_or_else(invalid)?;
+    if declaration.field_type.scalar_type() != Some(expected)
+        || matches!(
+            declaration.storage.as_ref(),
+            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
+        )
+    {
+        return Err(invalid());
+    }
+    let (prefix, selected_case) = match path.split_last() {
+        Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (path, None),
+    };
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let (carrier, _, offset, indices) =
+        super::runtime_projection(root, prefix, declarations, &mut cache, &mut active)?;
+    if !indices.is_empty() {
+        return Err(invalid());
+    }
+    let (displacement, bytes) = if let Some(case) = selected_case {
+        let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+            &declarations.get(&carrier).ok_or_else(invalid)?.shape
+        else {
+            return Err(invalid());
+        };
+        let case_position = cases
+            .iter()
+            .position(|candidate| candidate.id == case)
+            .ok_or_else(invalid)?;
+        let field_position = cases[case_position]
+            .fields
+            .iter()
+            .filter(|candidate| !candidate.relevance.is_erased())
+            .position(|candidate| candidate.id == field)
+            .ok_or_else(invalid)?;
+        let layout = super::structural_sum_layout(carrier, declarations, &mut cache, &mut active)?;
+        let placed = layout.cases[case_position].fields[field_position];
+        (placed.byte_offset, placed.shape.byte_size)
+    } else {
+        direct_scalar_field_geometry(carrier, field, expected, declarations)?
+    };
+    Ok((offset.checked_add(displacement).ok_or_else(invalid)?, bytes))
+}
 pub(in crate::lowering) fn direct_scalar_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,

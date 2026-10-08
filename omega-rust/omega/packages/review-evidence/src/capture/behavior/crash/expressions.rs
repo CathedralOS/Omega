@@ -131,7 +131,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
             PackageReviewBooleanExpression::StructuralCaseMembership {
-                subject: project_structural_field(subject),
+                subject: project_structural_field(&subject.parameter_field()?),
                 case: case.clone(),
             }
         }

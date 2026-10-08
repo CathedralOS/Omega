@@ -348,7 +348,9 @@ fn place(
         || !segments.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Case { .. }
             )
         })
     {

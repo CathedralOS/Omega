@@ -40,10 +40,12 @@ pub struct ClosedIntegerRangeRequirement {
 pub enum ClosedScalarContractValue {
     Boolean(bool),
     Integer(IntegerLiteral),
-    /// Integer contract predicate. Positions name entry scalar parameters in
+    /// Closed contract predicate. Scalar positions name entry parameters in
     /// source order; only ensures may additionally name the result at the
     /// position immediately after the last parameter. Source locals and
-    /// mutable post-state values do not inhabit this namespace.
+    /// mutable post-state values do not inhabit this namespace. Structural
+    /// observations retain their authored parameter root; case guarantees
+    /// additionally have an explicit result root, not a scalar ordinal.
     Predicate(crate::CheckedBooleanExpression),
     /// One authored floating entry range in that same entry-parameter
     /// namespace. The clause keeps IEEE bit-exact endpoints and the authored

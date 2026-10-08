@@ -17,7 +17,7 @@ use checked_trees::{
     CheckedTrees,
 };
 use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
-use terminal_psi::ErasedProofFormal;
+use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
 mod namespace;
 mod result_range;
@@ -67,6 +67,9 @@ pub(crate) fn covered_requires(
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
+    /// Normal guarantees observe the declared result place, never a synthetic
+    /// entry parameter or a returned body-local place.
+    pub result: Option<&'a StructuralResultDeclaration>,
     /// Structural type declarations the parameters' member paths resolve
     /// against; member leaves in contract operands fail closed when absent.
     pub structural_types: &'a [StructuralTypeDeclaration],
@@ -80,6 +83,7 @@ impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
         parameters: &[],
+        result: None,
         structural_types: &[],
         element_views: &EMPTY_ELEMENT_VIEWS,
     };
@@ -342,6 +346,24 @@ struct ScalarContractTerms<'namespace> {
 }
 
 impl PredicateTerms for ScalarContractTerms<'_> {
+    fn case_membership(
+        &self,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<Proposition, LoweringError> {
+        let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
+        else {
+            return unsupported("closed case predicate has no structural subject");
+        };
+        let parameters = self.authored_structural_parameters();
+        crate::proofs::crash_routes::lower_structural_case_membership(
+            subject,
+            case,
+            &parameters,
+            self.views.result,
+            self.views.structural_types,
+        )
+    }
+
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         // Integer operations compose through the shared predicate lowering
         // entry requirements use, so a member leaf below arithmetic

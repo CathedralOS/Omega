@@ -2,6 +2,8 @@
 //! checking. It is a tag observation, never equality against a fabricated
 //! payload value. The current scalar namespace names parameter referents;
 //! constructor and local referents must arrive through ordinary value sequencing.
+//! Normal-return contracts additionally name their authenticated result place,
+//! never a synthetic parameter slot or a constructor-derived assumption.
 use crate::values::scalar::structural_fields::structural_parameter_field_path;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedStructuralParameterField;
@@ -45,18 +47,80 @@ pub(super) fn lower(
                 .then_some((machine, state))
         })
     })?;
-    let case = match program.expression_table.expression(binary.right) {
+    let case = case_identity(program, machine, Some(state), expression, binary, subject)?;
+    Some(CheckedBooleanExpression::StructuralCaseMembership {
+        subject: CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        }
+        .into(),
+        case,
+    })
+}
+
+pub(super) fn lower_result(
+    program: &dyn ::validation::CheckingInput,
+    owner: symbols::SymbolHandle,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let result = validation::reserved_result_place(program, binary.left)?;
+    if result.machine_symbol != owner
+        || validation::reserved_result_owner(program, result.root)? != (owner, result_type)
+    {
+        return None;
+    }
+    let machine = program.machine_by_symbol(owner)?;
+    let case = case_identity(program, machine, None, expression, binary, binary.left)?;
+    let path = result
+        .segments
+        .iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                let field = crate::execution::terminal_unit::types::terminal_field_declaration(
+                    program, *symbol,
+                )?;
+                Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    field.path_identity(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(CheckedBooleanExpression::StructuralCaseMembership {
+        subject: checked_trees::CheckedStructuralCaseSubject {
+            root: checked_trees::CheckedStructuralCaseRoot::Result,
+            path,
+        },
+        case,
+    })
+}
+
+fn case_identity(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    expression: ExpressionHandle,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    subject: ExpressionHandle,
+) -> Option<String> {
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) {
+        return None;
+    }
+    match program.expression_table.expression(binary.right) {
         ExpressionNode::Name(selected) => {
             if !validation::has_exact_case_membership_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-                binary,
+                program, machine, state, expression, binary,
             ) {
                 return None;
             }
-            structural_case_name(program, selected.symbol)?
+            structural_case_name(program, selected.symbol)
         }
         // A payload-free case spelled as a value (`subject == T::Case`) arrives
         // as a construction, not a name: the authored test carries no
@@ -70,10 +134,7 @@ pub(super) fn lower(
                     .is_empty() =>
         {
             if !validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
+                program, machine, state, expression,
             ) {
                 return None;
             }
@@ -91,25 +152,24 @@ pub(super) fn lower(
                         )
                     })
             })?;
-            let subject_type =
-                validation::declared_place_type_raw(program, machine, Some(state), subject)?;
+            let subject_type = validation::declared_place_type_raw(
+                program, machine, state, subject,
+            )
+            .or_else(|| {
+                validation::reserved_result_place(program, subject)
+                    .filter(|place| place.machine_symbol == machine.symbol)
+                    .map(|place| place.type_reference)
+            })?;
             if crate::values::scalar::structural_fields::structural_data(program, subject_type)?
                 .symbol
                 != owner.symbol
             {
                 return None;
             }
-            structural_case_name(program, case_symbol)?
+            structural_case_name(program, case_symbol)
         }
-        _ => return None,
-    };
-    Some(CheckedBooleanExpression::StructuralCaseMembership {
-        subject: CheckedStructuralParameterField {
-            parameter_position,
-            path,
-        },
-        case,
-    })
+        _ => None,
+    }
 }
 
 /// The discriminant key a checked case-membership test stores: the declared

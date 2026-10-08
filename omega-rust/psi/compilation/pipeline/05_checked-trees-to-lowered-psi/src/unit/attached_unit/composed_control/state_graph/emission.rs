@@ -539,6 +539,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &state_values[position],
             &state_erased[position],
             &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+                result: None,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,
                 element_views: &element_views,

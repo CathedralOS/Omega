@@ -561,7 +561,11 @@ pub(crate) fn substitute_checked_boolean_expression(
         // proposition.
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
             CheckedBooleanExpression::StructuralCaseMembership {
-                subject: substitute_structural_parameter_field(subject, fields)?,
+                subject: substitute_structural_parameter_field(
+                    &subject.parameter_field()?,
+                    fields,
+                )?
+                .into(),
                 case: case.clone(),
             }
         }

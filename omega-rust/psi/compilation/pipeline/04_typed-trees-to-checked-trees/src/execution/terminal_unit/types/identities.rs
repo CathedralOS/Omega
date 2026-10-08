@@ -7,14 +7,33 @@ pub(in crate::execution::terminal_unit) fn terminal_field_identity(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<String> {
-    program.data_definitions().iter().find_map(|definition| {
-        program.data_members(definition).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
-            (field.symbol == symbol).then(|| field.path_identity())
+    terminal_field_declaration(program, symbol).map(|field| field.path_identity())
+}
+
+/// Common and payload fields use the same declaration identity. The path's
+/// Case segment, not a spelling search, supplies the payload namespace.
+pub(crate) fn terminal_field_declaration(
+    program: &dyn ::validation::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataField> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let mut fields = program
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| {
+            program
+                .data_members(definition)
+                .iter()
+                .flat_map(|member| match member {
+                    DataMember::Field(field) => std::slice::from_ref(field),
+                    DataMember::Variant(case) => program.data_payload_fields(case),
+                })
         })
-    })
+        .filter(|field| field.symbol == symbol);
+    let field = fields.next()?;
+    fields.next().is_none().then_some(field)
 }
 
 pub(crate) fn is_reference(

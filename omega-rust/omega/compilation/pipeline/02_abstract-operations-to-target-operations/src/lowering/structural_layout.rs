@@ -273,7 +273,7 @@ fn contiguous_primitive_read_projection(
 
 mod scalar_fields;
 pub(super) use scalar_fields::{
-    direct_integer_field_offset, direct_scalar_field_geometry, direct_scalar_field_offset,
+    direct_scalar_field_geometry, direct_scalar_field_offset, static_field_geometry,
 };
 
 /// Existing copy metadata describes the root array, not the final index in a

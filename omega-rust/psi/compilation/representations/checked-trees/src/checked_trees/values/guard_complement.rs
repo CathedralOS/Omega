@@ -93,9 +93,14 @@ pub fn exact_complement(
         ) => {
             first_subject == second_subject
                 && first_case != second_case
-                && declared_cases(first_subject).is_some_and(|cases| {
-                    cases.len() == 2 && cases.contains(first_case) && cases.contains(second_case)
-                })
+                && first_subject
+                    .parameter_field()
+                    .and_then(|subject| declared_cases(&subject))
+                    .is_some_and(|cases| {
+                        cases.len() == 2
+                            && cases.contains(first_case)
+                            && cases.contains(second_case)
+                    })
         }
         _ => false,
     }

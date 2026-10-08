@@ -129,18 +129,6 @@ impl emission::Emission<'_, '_, '_> {
                         value,
                         source_count,
                     )?;
-                    if !matches!(
-                        target.field_type,
-                        StructuralFieldType::Scalar(_)
-                            | StructuralFieldType::IeeeFloat(_)
-                            | StructuralFieldType::BoundedInteger(_)
-                            | StructuralFieldType::RefinedScalar(_)
-                    ) || target.field_type.scalar_type() != Some(evaluated.scalar_type)
-                    {
-                        return unsupported(
-                            "record operand requires its exact scalar carrier and range evidence",
-                        );
-                    }
                     self.scalar_field_value(
                         &target.field_type,
                         evaluated,

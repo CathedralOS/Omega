@@ -988,13 +988,11 @@ pub(super) fn emit(
         checked,
         plan.state,
         &scalar_parameters,
-        match &declared_result {
-            TerminalMachineResult::Scalar(result) => Some(*result),
-            _ => None,
-        },
+        &declared_result,
         &signature.erased_scalar_parameters,
         &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
             parameters: &evaluation.structural_parameters,
+            result: None,
             structural_types,
             element_views: &evaluation.element_views,
         },

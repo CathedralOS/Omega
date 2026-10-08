@@ -1885,6 +1885,15 @@ impl Emission<'_, '_, '_> {
         positions: &mut Vec<(usize, usize)>,
         field_index: usize,
     ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
+        // Construction establishes storage before it can be lent or observed.
+        // An atomic cell accepts its exact scalar initializer here, without
+        // becoming an ordinary scalar field or acquiring event authority.
+        // Records, selected cases and omitted-field zeroes share this check.
+        if field_type.scalar_type() != Some(evaluated.scalar_type) {
+            return unsupported(
+                "field initializer requires its exact scalar carrier and range evidence",
+            );
+        }
         positions.push((field_index, self.values.len()));
         self.values.push(evaluated);
         let range_obligation = if terminal_semantics::scalar_field_requires_evidence(field_type) {

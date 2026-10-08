@@ -356,30 +356,13 @@ impl RouteTerms<'_> {
             return Ok(Proposition::ByteSequenceEqual { left, right });
         }
         if let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression {
-            let (subject, structural_type) =
-                lower_structural_sum_subject(subject, self.parameters, self.structural_types)?;
-            let cases = match &self
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)
-                .expect("sum subject type was resolved")
-                .shape
-            {
-                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                    cases
-                }
-                _ => unreachable!("sum subject resolver returned a sum"),
-            };
-            let case = cases
-                .iter()
-                .find(|candidate| candidate.identity == *case)
-                .ok_or(LoweringError::Unsupported(
-                    "structural sum membership case was redirected",
-                ))?;
-            return Ok(Proposition::StructuralCaseMembership {
+            return super::structural_members::lower_structural_case_membership(
                 subject,
-                case: case.id,
-            });
+                case,
+                self.parameters,
+                None,
+                self.structural_types,
+            );
         }
         if let CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } = expression {
             let (left, left_type) =

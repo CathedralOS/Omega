@@ -71,7 +71,9 @@ pass/atomics/runtime_atomic_after_quoted_write_exit built 2094ms exit:70 @40568c
 pass/atomics/runtime_atomic_bitwise_widths_exit built 3371ms exit:70 @9beb2be72f2d+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 2351ms exit:70 @fb2178def922
 pass/atomics/runtime_atomic_fetch_add_exit built 2588ms exit:70 @fb2178def922
+pass/atomics/runtime_case_payload_atomic_events_exit built 15001ms exit:0 @0919e048c9f8+wt
 pass/atomics/runtime_mixed_common_atomic_cell_exit built 2188ms exit:0 @aea569c35b63
+pass/atomics/runtime_nested_case_payload_atomic_event_exit built 14918ms exit:0 @0919e048c9f8+wt
 pass/atomics/shared_receiver_atomic_store built 1028ms exit:70 @e7aa25bff706+wt
 pass/blockexec/blocking_executor_custody_claims_compile built 335ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 209ms

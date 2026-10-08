@@ -30,6 +30,7 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
         }
         CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. }
         | CheckedBooleanExpression::Constant(_) => Ok(()),
         CheckedBooleanExpression::ByteSequencePredicate { root, .. } => root
             .parameter()
@@ -47,12 +48,9 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
-        | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
-            Err(LoweringError::Unsupported(
-                "closed scalar contract predicate requires a scalar namespace",
-            ))
-        }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => Err(LoweringError::Unsupported(
+            "closed scalar contract predicate requires a scalar namespace",
+        )),
     }
 }
 

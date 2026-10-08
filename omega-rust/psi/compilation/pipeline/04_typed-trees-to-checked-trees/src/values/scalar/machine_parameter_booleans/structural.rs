@@ -328,7 +328,8 @@ fn lower_structural_case_membership(
             subject: CheckedStructuralParameterField {
                 parameter_position,
                 path,
-            },
+            }
+            .into(),
             case,
         },
     )

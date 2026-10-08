@@ -37,24 +37,12 @@ pub(super) fn form(
     {
         return None;
     }
-    let (carrier, _, indices) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            parameter.structural_type,
-            &location.path,
-            &signature.structural_types,
-        )?;
-    if !indices.is_empty() {
-        return None;
-    }
-    let fields = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
-        .direct_fields()?;
-    let declaration = fields
-        .iter()
-        .find(|declaration| declaration.id == *field && !declaration.relevance.is_erased())?;
+    let (_, declaration) = terminal_semantics::static_field_projection(
+        signature.structural_types.iter(),
+        parameter.structural_type,
+        &location.path,
+        *field,
+    )?;
     if declaration.field_type != StructuralFieldType::Atomic(ScalarType::Integer(*scalar_type)) {
         return None;
     }

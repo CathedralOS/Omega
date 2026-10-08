@@ -39,7 +39,7 @@ pub(super) fn build(
 /// it observes, which may be a non-parameter subject such as a local.
 #[derive(PartialEq)]
 enum CaseSubject {
-    Expression(checked_trees::CheckedStructuralParameterField),
+    Expression(checked_trees::CheckedStructuralCaseSubject),
     Computation(checked_trees::CheckedScalarComputationStructuralArgument),
 }
 
@@ -59,7 +59,7 @@ struct TupleRow {
 /// column is a scalar operand the arm pins to a literal.
 #[derive(PartialEq)]
 enum TupleSubject {
-    Case(checked_trees::CheckedStructuralParameterField),
+    Case(checked_trees::CheckedStructuralCaseSubject),
     Boolean(checked_trees::CheckedBooleanExpression),
 }
 
@@ -112,7 +112,7 @@ fn tuple_conjunction(boolean: &checked_trees::CheckedBooleanExpression, row: &mu
             // subject; mixing subjects or non-membership leaves is not a
             // column.
             let mut pending = vec![boolean];
-            let mut subject: Option<&checked_trees::CheckedStructuralParameterField> = None;
+            let mut subject: Option<&checked_trees::CheckedStructuralCaseSubject> = None;
             let mut cases = Vec::new();
             while let Some(node) = pending.pop() {
                 match node {
@@ -200,6 +200,7 @@ fn tuple_rows_cover(
     for subject in &subjects {
         match subject {
             TupleSubject::Case(field) => {
+                let field = field.parameter_field()?;
                 let (_, _, receiver, _) = crate::values::resolve_structural_parameter_path(
                     program,
                     parameters,

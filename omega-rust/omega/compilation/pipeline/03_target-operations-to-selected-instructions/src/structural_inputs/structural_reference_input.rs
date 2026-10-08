@@ -2055,6 +2055,12 @@ pub(crate) fn store(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
+    // A final Case supplies the payload namespace of the separate leaf field.
+    // This is address reconstruction only; callers establish live authority.
+    if let Some((StructuralPathSegment::Case(case), prefix)) = path.split_last() {
+        let (offset, bytes) = case_field_read(root, prefix, *case, field, scalar, declarations)?;
+        return Some((offset, bytes, Vec::new()));
+    }
     // The owner retains the reference carrier and explicit crossing. Layout
     // continues inside its mutable record referent; this supplies geometry,
     // never permission or evidence that the carrier is currently live.
@@ -2079,9 +2085,9 @@ pub(crate) fn store(
     } else {
         (root, path)
     };
-    if !terminal_psi::is_structural_scalar_store_path(path) {
-        return None;
-    }
+    // The carrier resolver checks each declaration-owned segment, including
+    // Case/Field pairs below a selected payload. A second record-only path
+    // grammar would reject that same field solely because of its container.
     // A mixed shape's common field is written in place, beside the tag, with
     // no case knowledge: the same geometry its read observes.
     if let Some((carrier, carrier_offset, elements)) = runtime_projection(root, path, declarations)
@@ -2430,7 +2436,14 @@ pub(crate) fn case_field_read(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32)> {
     if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || path.iter().any(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::RuntimeIndex { .. }
+                    | StructuralPathSegment::Referent
+                    | StructuralPathSegment::FixedByteRange { .. }
+            )
+        })
     {
         return None;
     }

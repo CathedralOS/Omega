@@ -9,7 +9,6 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractFunction};
 use semantic_vocabulary::{OperationId, ScalarType};
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
@@ -107,27 +106,13 @@ pub(super) fn lower(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (carrier, _, prefix, indices) = crate::lowering::structural_layout::runtime_projection(
+    let (_, field) = terminal_semantics::static_field_projection(
+        types.values().copied(),
         parameter.structural_type,
         &location.path,
-        types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
-    // Atomic location identity currently admits static projections only.
-    if !indices.is_empty() {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let fields = types
-        .get(&carrier)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-        .shape
-        .direct_fields()
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let field = fields
-        .iter()
-        .find(|field| field.id == location.field && !field.relevance.is_erased())
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        location.field,
+    )
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
         // A bounded field additionally owes a range proof; an atomic event
         // cannot invent that proof by erasing the field's restriction.
@@ -137,16 +122,14 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let scalar_type = ScalarType::Integer(integer);
-    let offset = crate::lowering::structural_layout::direct_integer_field_offset(
-        carrier,
+    let (field_byte_offset, bytes) = crate::lowering::structural_layout::static_field_geometry(
+        parameter.structural_type,
+        &location.path,
         location.field,
-        integer,
+        scalar_type,
         types,
     )?;
-    let field_byte_offset = prefix
-        .checked_add(offset)
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if field_byte_offset % u32::from(integer.bits() / 8) != 0 {
+    if bytes != u32::from(integer.bits() / 8) || field_byte_offset % bytes != 0 {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let operands = access

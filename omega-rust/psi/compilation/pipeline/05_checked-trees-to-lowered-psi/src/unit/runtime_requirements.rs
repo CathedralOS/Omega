@@ -58,7 +58,8 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
-        | CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
+        | CheckedBooleanExpression::StructuralParameterField { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_namespace(operand),
         CheckedBooleanExpression::Equal { left, right }
         | CheckedBooleanExpression::And { left, right }
@@ -249,6 +250,22 @@ impl RuntimeRequirementTerms<'_> {
 }
 
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
+    fn case_membership(
+        &self,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<Proposition, LoweringError> {
+        let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
+        else {
+            return unsupported("runtime case requirement has no case subject");
+        };
+        crate::proofs::crash_routes::lower_structural_case_membership(
+            subject,
+            case,
+            self.parameters,
+            None,
+            self.structural_types,
+        )
+    }
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(leaf))
     }
@@ -393,6 +410,14 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 substitute_term(right, substitutions)?,
             )?;
             Ok(())
+        }
+        Proposition::StructuralCaseMembership { .. } => Ok(()),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            substitute_runtime_requirement_scalar_values(premise, substitutions)?;
+            substitute_runtime_requirement_scalar_values(conclusion, substitutions)
         }
         Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
             for child in children {

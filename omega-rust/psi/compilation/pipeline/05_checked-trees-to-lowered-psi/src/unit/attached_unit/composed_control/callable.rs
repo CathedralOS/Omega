@@ -158,10 +158,11 @@ pub(in crate::unit::attached_unit) fn emit(
         checked,
         entry.state,
         &machine.parameters,
-        machine.result.scalar(),
+        &machine.result,
         &signature.erased_scalar_parameters,
         &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
             parameters: &view_roster,
+            result: None,
             structural_types: &catalogs.structural_types,
             element_views: &element_views,
         },

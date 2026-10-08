@@ -1,6 +1,8 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
+mod case_preservation;
+
 /// Transient, program-local results of positive entailment judgments. The
 /// runtime place prover need not duplicate structural or integer proof rules,
 /// but absence of a validation error is not evidence for any postcondition.
@@ -253,9 +255,6 @@ pub(super) fn structural_call_requirement(
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
-        return false;
-    }
     let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
@@ -266,6 +265,26 @@ pub(super) fn structural_call_requirement(
     let Some(callee) = program.state_by_symbol(call_flow.target_symbol) else {
         return false;
     };
+    let callee_machine = program
+        .machine_by_symbol(call_flow.target_symbol)
+        .or_else(|| {
+            validation::find_machine_by_entry_state(program, call_flow.target_symbol)
+                .map(|(machine, _)| machine)
+        });
+    let runtime_values = !classification.is_proof_machine(program, machine)
+        || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
+    let case_facts_only = runtime_values
+        && callee_machine.is_some_and(|machine| {
+            case_preservation::is_case_requirement(program, machine, callee, expression)
+        });
+    let preserved = if case_facts_only {
+        case_preservation::body_preserves_case_tags(program, facts, machine)
+    } else {
+        entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)
+    };
+    if !preserved {
+        return false;
+    }
     let Some(call_site) = validation::find_call_site(
         program,
         machine.symbol,
@@ -293,6 +312,7 @@ pub(super) fn structural_call_requirement(
         callee,
         arguments,
         expression,
+        case_facts_only,
     )
 }
 

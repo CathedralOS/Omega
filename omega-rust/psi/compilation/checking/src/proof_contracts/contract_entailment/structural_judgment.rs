@@ -147,6 +147,7 @@ pub(super) struct StructuralJudge<'program> {
     machine_symbol: SymbolHandle,
     resolve_applications: bool,
     runtime_body_values: bool,
+    case_facts_only: bool,
     pub(super) substitutions: Vec<(String, StructuralTerm)>,
     /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
     /// equations with an application side orient REDUCING -- the inductive
@@ -175,6 +176,7 @@ impl Clone for StructuralJudge<'_> {
             machine_symbol: self.machine_symbol,
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
+            case_facts_only: self.case_facts_only,
             substitutions: self.substitutions.clone(),
             rewrites: self.rewrites.clone(),
             case_facts: self.case_facts.clone(),
@@ -224,6 +226,15 @@ impl<'program> StructuralJudge<'program> {
         self.runtime_body_values
     }
 
+    /// Tag preservation does not preserve scalar premises or payload equations.
+    pub(super) fn restrict_to_case_facts(&mut self) {
+        self.case_facts_only = true;
+        self.substitutions.clear();
+        self.rewrites.clear();
+        self.case_substitutions.clear();
+        self.hypotheses_contradictory = false;
+    }
+
     fn from_requires_with_resolution(
         program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
@@ -245,6 +256,7 @@ impl<'program> StructuralJudge<'program> {
             machine_symbol: judged_machine.symbol,
             resolve_applications,
             runtime_body_values: false,
+            case_facts_only: false,
             substitutions: Vec::new(),
             rewrites: Vec::new(),
             case_facts: Vec::new(),
@@ -293,7 +305,7 @@ impl<'program> StructuralJudge<'program> {
                 self.intake(program, binary.left);
                 self.intake(program, binary.right);
             }
-            BinaryOperator::Equal => {
+            BinaryOperator::Equal if !self.case_facts_only => {
                 let (Some(left), Some(right)) = (
                     structural_term(program, binary.left),
                     structural_term(program, binary.right),
@@ -317,7 +329,7 @@ impl<'program> StructuralJudge<'program> {
         right: StructuralTerm,
         depth: usize,
     ) {
-        if depth >= 32 {
+        if self.case_facts_only || depth >= 32 {
             return;
         }
         let left = self.resolve(left);
@@ -1215,6 +1227,15 @@ impl<'program> StructuralJudge<'program> {
                     arguments,
                 })
             }
+            // A checked borrow selects its referent; it does not create a new
+            // case-bearing value. Preserve aliases to the same saved subject.
+            ExpressionNode::Borrow(borrow) => self.callee_term_with_machines(
+                borrow.target,
+                environment,
+                machine_environment,
+                scope,
+                depth + 1,
+            ),
             ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
                 data: "bool".to_owned(),
                 case: value.to_string(),
@@ -1396,6 +1417,9 @@ impl<'program> StructuralJudge<'program> {
         program: &dyn crate::CheckingInput,
         fact: ExpressionHandle,
     ) -> StructuralJudgment {
+        if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
+            return StructuralJudgment::Unknown;
+        }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
             // A boolean-valued proof call is itself a proposition. Resolve a
             // closed checked application exactly as `call == true`; N6
@@ -1764,7 +1788,7 @@ impl<'program> StructuralJudge<'program> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        if depth >= 32 {
+        if self.case_facts_only || depth >= 32 {
             return StructuralJudgment::Unknown;
         }
         if left == right {

@@ -147,11 +147,6 @@ impl emission::Emission<'_, '_, '_> {
                         value,
                         source_count,
                     )?;
-                    if target.field_type.scalar_type() != Some(evaluated.scalar_type) {
-                        return unsupported(
-                            "case operand requires its exact scalar carrier and range evidence",
-                        );
-                    }
                     self.scalar_field_value(
                         &target.field_type,
                         evaluated,

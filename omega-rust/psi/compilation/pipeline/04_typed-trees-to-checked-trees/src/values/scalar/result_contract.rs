@@ -493,6 +493,22 @@ impl ContractPredicates<'_, '_> {
         }
         *self.remaining -= 1;
         let program = self.program;
+        if let Some(membership) =
+            super::case_membership::lower(program, self.parameters, expression).or_else(|| {
+                self.allow_result
+                    .then(|| {
+                        super::case_membership::lower_result(
+                            program,
+                            self.owner,
+                            self.result_type,
+                            expression,
+                        )
+                    })
+                    .flatten()
+            })
+        {
+            return Some(membership);
+        }
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)

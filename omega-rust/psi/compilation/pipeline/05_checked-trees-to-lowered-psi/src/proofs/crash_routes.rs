@@ -20,7 +20,9 @@ pub(crate) use scalar_terms::{
     checked_boolean_scalar_term, checked_scalar_term, checked_scalar_term_with_views,
     lowered_direct_scalar_term,
 };
-pub(crate) use structural_members::{lower_structural_member_path, lower_structural_member_term};
+pub(crate) use structural_members::{
+    lower_structural_case_membership, lower_structural_member_path, lower_structural_member_term,
+};
 pub(crate) use structural_route_buckets::{
     lower_structural_crash_route_buckets, substitute_structural_crash_route_roots,
 };
