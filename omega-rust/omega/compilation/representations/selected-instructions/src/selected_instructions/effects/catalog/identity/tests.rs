@@ -310,9 +310,7 @@ fn byte_copy_catalog_identity_binds_key_and_both_dynamic_pointers() {
             changed.selected_keys.copy_bytes = None;
         } else {
             let declaration = changed
-                .declarations
-                .iter_mut()
-                .find(|declaration| declaration.semantic == MachineSemanticKind::CopyBytes)
+                .declaration_by_semantic_mut(MachineSemanticKind::CopyBytes)
                 .unwrap();
             declaration.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
                 source_pointer_operand: if mutation == 1 { 1 } else { 0 },
