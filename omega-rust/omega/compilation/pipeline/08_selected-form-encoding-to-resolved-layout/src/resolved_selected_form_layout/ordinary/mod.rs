@@ -8,7 +8,10 @@ mod branch;
 mod function;
 mod order;
 mod plan;
-pub(super) use plan::{conditional_branch, widening_candidate};
+pub(super) use plan::{
+    aarch64_branch_overflows_imm19, branch_size, byte_displacement,
+    conditional_branch, unexpected, widening_candidate,
+};
 mod policy;
 mod row;
 

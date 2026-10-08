@@ -145,12 +145,12 @@ pub(crate) fn widening_candidate(instruction: &SelectedInstruction, row: &Select
     )
 }
 
-fn aarch64_branch_overflows_imm19(byte_displacement: i64) -> bool {
+pub(crate) fn aarch64_branch_overflows_imm19(byte_displacement: i64) -> bool {
     byte_displacement % 4 == 0
         && !(-(1_i64 << 18)..(1_i64 << 18)).contains(&(byte_displacement / 4))
 }
 
-fn byte_displacement(
+pub(crate) fn byte_displacement(
     target: u64,
     base: u64,
 ) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
@@ -268,14 +268,14 @@ fn instruction_size(
     }
 }
 
-const fn branch_size(architecture: Architecture) -> u64 {
+pub(crate) const fn branch_size(architecture: Architecture) -> u64 {
     match architecture {
         Architecture::X86_64 => 6,
         Architecture::Aarch64 => 4,
     }
 }
 
-fn unexpected<T>(
+pub(crate) fn unexpected<T>(
     instruction: &SelectedInstruction,
 ) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
     Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id))

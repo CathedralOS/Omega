@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use super::super::ordinary::branch_size;
 
 use isa_aarch64::{
     validate_aarch64_selected_i64_less_than_branch_form,
@@ -311,15 +312,6 @@ fn decode(
     };
     Ok((footprint.register_reads, footprint.encoded))
 }
-
-
-fn branch_size(architecture: Architecture) -> u64 {
-    match architecture {
-        Architecture::X86_64 => 6,
-        Architecture::Aarch64 => 4,
-    }
-}
-
 fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
     i64::try_from(i128::from(target) - i128::from(base))
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)

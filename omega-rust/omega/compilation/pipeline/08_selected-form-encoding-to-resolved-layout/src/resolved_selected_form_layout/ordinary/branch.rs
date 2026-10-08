@@ -20,6 +20,7 @@ use selected_instructions::{
 };
 use target::Architecture;
 
+use super::plan::branch_size;
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence, declared_size_matches,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
@@ -322,15 +323,6 @@ fn encode(
         }
     }
 }
-
-
-const fn branch_size(architecture: Architecture) -> u64 {
-    match architecture {
-        Architecture::X86_64 => 6,
-        Architecture::Aarch64 => 4,
-    }
-}
-
 fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
     i64::try_from(i128::from(target) - i128::from(base))
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)

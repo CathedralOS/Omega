@@ -13,7 +13,10 @@ use machine_code::{
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::roster;
-use super::super::super::ordinary::{conditional_branch, widening_candidate};
+use super::super::super::ordinary::{
+    aarch64_branch_overflows_imm19, branch_size, byte_displacement,
+    conditional_branch, unexpected, widening_candidate,
+};
 
 pub(super) struct LayoutPlan {
     pub(super) block_offsets: BTreeMap<SelectedBlockId, u64>,
@@ -108,19 +111,6 @@ fn derive_once(
 
 
 
-fn aarch64_branch_overflows_imm19(byte_displacement: i64) -> bool {
-    byte_displacement % 4 == 0
-        && !(-(1_i64 << 18)..(1_i64 << 18)).contains(&(byte_displacement / 4))
-}
-
-fn byte_displacement(
-    target: u64,
-    base: u64,
-) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
-    i64::try_from(i128::from(target) - i128::from(base))
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
-}
-
 fn instruction_size(
     architecture: Architecture,
     instruction: &SelectedInstruction,
@@ -207,15 +197,3 @@ fn instruction_size(
     }
 }
 
-fn branch_size(architecture: Architecture) -> u64 {
-    match architecture {
-        Architecture::X86_64 => 6,
-        Architecture::Aarch64 => 4,
-    }
-}
-
-fn unexpected<T>(
-    instruction: &SelectedInstruction,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id))
-}
