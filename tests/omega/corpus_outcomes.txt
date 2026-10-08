@@ -268,8 +268,8 @@ fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected 
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_payload_borrowed_affine_copy rejected 225ms expected @53e6e3215d6a
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 1)
-fail/borrows/case_payload_duplicate_transfer rejected 2571ms expected @53e6e3215d6a
-	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
+fail/borrows/case_payload_duplicate_transfer rejected 2890ms expected @94f3c704bf39+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "projected custody overlaps an earlier transfer or release", gap: None })
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297ae3ee5
@@ -1103,10 +1103,10 @@ fail/drops/local_cleanup_unmet_prerequisite rejected 309ms expected @9beb2be72f2
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/nested_cleanup_parent_mutates_child_prerequisite rejected 959ms expected @04d0fbe9d97c
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: owner.token does not establish Token::drop clause `token.value == 7`
-fail/drops/overlapping_projected_reference_transition rejected 2442ms expected @9beb2be72f2d+wt
-	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
-fail/drops/overlapping_projected_transition rejected 2541ms expected @9beb2be72f2d+wt
-	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
+fail/drops/overlapping_projected_reference_transition rejected 2425ms expected @94f3c704bf39+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise", reason: "projected custody overlaps an earlier transfer or release", gap: None })
+fail/drops/overlapping_projected_transition rejected 2419ms expected @94f3c704bf39+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "projected custody overlaps an earlier transfer or release", gap: None })
 fail/drops/owned_replacement_old_hook_prerequisite rejected 428ms expected @04d0fbe9d97c
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
 fail/drops/owned_replacement_transferred_source_read rejected 336ms expected @04d0fbe9d97c

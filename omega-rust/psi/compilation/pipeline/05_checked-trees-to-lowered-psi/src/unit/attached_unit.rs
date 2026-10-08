@@ -348,6 +348,16 @@ pub(crate) fn lower_unit_closure(
         let body = admitted.source();
         let plan = body.entry()?;
         let terminal_machine = lookup_machine_id(&machine_ids, plan.machine)?;
+        // A body's refusal names the machine it lowers: a closure emits every
+        // callee, so the bare reason would not say which body stopped.
+        let attributed = |error| match error {
+            LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
+                machine: checked.symbols.display_path(plan.machine, "::"),
+                reason,
+                gap: None,
+            },
+            error => error,
+        };
         let parameters = &signature.parameters;
         let scalar_parameters = signature.scalar_parameters.clone();
         if let admission::AdmittedBody::Composed {
@@ -382,7 +392,8 @@ pub(crate) fn lower_unit_closure(
                         edge: &mut next_edge,
                         call_obligation: &mut next_call_obligation,
                     },
-                )?;
+                )
+                .map_err(attributed)?;
             machines.push(machine);
             occurrences.retain(
                 composed.source_calls,
@@ -413,7 +424,8 @@ pub(crate) fn lower_unit_closure(
                 edge: &mut next_edge,
                 call_obligation: &mut next_call_obligation,
             },
-        )?;
+        )
+        .map_err(attributed)?;
         scalar_block_invariants.extend(emitted.scalar_block_invariants);
         scalar_qualification_coercions.extend(emitted.qualification_coercions);
         machines.push(emitted.machine);
