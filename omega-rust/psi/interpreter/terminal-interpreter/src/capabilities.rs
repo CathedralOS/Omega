@@ -202,6 +202,7 @@ mod tests {
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
         TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     };
+    use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine};
 
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
         let result = if selected_origins == 0 {
@@ -353,6 +354,20 @@ mod tests {
         }
     }
 
+    fn install_process_exit_caller(
+        program: &mut AdmittedTerminalProgram<'_>,
+        caller: u64,
+    ) -> BoundaryMachineId {
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        mark_boundary_external_completion(program, boundary, ExternalCompletionKind::ProcessExit);
+        set_machine(
+            program,
+            MachineId::new(caller).unwrap(),
+            machine(0, vec![boundary_call(boundary)]),
+        );
+        boundary
+    }
+
     fn mark_boundary_external_completion(
         program: &mut AdmittedTerminalProgram<'_>,
         boundary: BoundaryMachineId,
@@ -381,17 +396,7 @@ mod tests {
     #[test]
     fn capability_graph_refuses_external_completion_before_provider_dispatch() {
         let mut program = program();
-        let boundary = BoundaryMachineId::new(1).unwrap();
-        mark_boundary_external_completion(
-            &mut program,
-            boundary,
-            ExternalCompletionKind::ProcessExit,
-        );
-        set_machine(
-            &mut program,
-            MachineId::new(1).unwrap(),
-            machine(0, vec![boundary_call(boundary)]),
-        );
+        let boundary = install_process_exit_caller(&mut program, 1);
         add_provider(&mut program, boundary);
         assert_eq!(
             check(&program, None),
@@ -407,17 +412,7 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_external_completion() {
         let mut program = program();
-        let boundary = BoundaryMachineId::new(1).unwrap();
-        mark_boundary_external_completion(
-            &mut program,
-            boundary,
-            ExternalCompletionKind::ProcessExit,
-        );
-        set_machine(
-            &mut program,
-            MachineId::new(2).unwrap(),
-            machine(0, vec![boundary_call(boundary)]),
-        );
+        let boundary = install_process_exit_caller(&mut program, 2);
         assert!(check(&program, None).unwrap().imports.is_empty());
     }
 
@@ -623,17 +618,7 @@ mod tests {
     fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
         let mut program = dynamic_program();
         program.catalogs.to_mut().dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
-        let boundary = BoundaryMachineId::new(1).unwrap();
-        mark_boundary_external_completion(
-            &mut program,
-            boundary,
-            ExternalCompletionKind::ProcessExit,
-        );
-        set_machine(
-            &mut program,
-            MachineId::new(2).unwrap(),
-            machine(0, vec![boundary_call(boundary)]),
-        );
+        let boundary = install_process_exit_caller(&mut program, 2);
         assert_eq!(
             check(&program, None),
             Err(TerminalInterpretError::UnsupportedCapability(
