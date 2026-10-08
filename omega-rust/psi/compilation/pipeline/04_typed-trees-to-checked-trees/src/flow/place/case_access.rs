@@ -196,11 +196,11 @@ impl CaseAccess<'_> {
         required: bool,
         depth: usize,
     ) -> bool {
-        if depth >= 128
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+        if self
+            .program
+            .expression_table
+            .expression_at_depth(expression, depth)
+            .is_none()
         {
             return false;
         }

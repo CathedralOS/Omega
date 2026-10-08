@@ -342,11 +342,11 @@ impl ScalarReturnProof<'_> {
         depth: usize,
     ) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
-        if depth >= 128
-            || !self
-                .program
-                .expression_table
-                .expression_is_valid(expression)
+        if self
+            .program
+            .expression_table
+            .expression_at_depth(expression, depth)
+            .is_none()
         {
             return false;
         }
