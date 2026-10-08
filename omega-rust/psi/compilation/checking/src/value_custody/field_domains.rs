@@ -257,6 +257,30 @@ pub fn data_field_type_by_name(
         })
 }
 
+/// The field in `data` whose retained `member_symbol` matches when live, else
+/// whose `member_name` matches — the member spelling retained references
+/// carry. Unlike [`data_field_type_by_name`], the returned handle is not
+/// validity-gated.
+pub fn data_field_type_by_symbol_or_name(
+    program: &dyn crate::CheckingInput,
+    data_definition: &typed_trees::data::DataDefinition,
+    member_symbol: SymbolHandle,
+    member_name: &typed_trees::name::Identifier,
+) -> Option<TypeReferenceHandle> {
+    program
+        .data_members(data_definition)
+        .iter()
+        .find_map(|member| {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+
+            ((member_symbol.is_valid() && field.symbol == member_symbol)
+                || field.name == *member_name)
+                .then_some(field.type_reference)
+        })
+}
+
 /// The readable form of a declared type: peel `&`/`&mut` reference shells and
 /// domain `Constrained` wrappers. A write-only reference exposes no readable
 /// storage and returns `None`; fixed-array elements and nominal fields are

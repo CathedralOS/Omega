@@ -230,12 +230,22 @@ fn data_field_type_reference(
             ..
         } => data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
             |data_definition| {
-                data_field_in_definition(program, data_definition, member_symbol, member_name)
+                ::validation::field_domains::data_field_type_by_symbol_or_name(
+                    program,
+                    data_definition,
+                    member_symbol,
+                    member_name,
+                )
             },
         ),
         TypeReferenceNode::Named { symbol, name } => {
             data_definition_by_symbol_or_name(program, *symbol, name).and_then(|data_definition| {
-                data_field_in_definition(program, data_definition, member_symbol, member_name)
+                ::validation::field_domains::data_field_type_by_symbol_or_name(
+                    program,
+                    data_definition,
+                    member_symbol,
+                    member_name,
+                )
             })
         }
         TypeReferenceNode::DynamicTrait { .. }
@@ -254,26 +264,6 @@ fn data_definition_by_symbol_or_name<'program>(
     program.data_definitions().iter().find(|data_definition| {
         (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
     })
-}
-
-pub(crate) fn data_field_in_definition(
-    program: &dyn ::validation::CheckingInput,
-    data_definition: &typed_trees::data::DataDefinition,
-    member_symbol: SymbolHandle,
-    member_name: &Identifier,
-) -> Option<TypeReferenceHandle> {
-    program
-        .data_members(data_definition)
-        .iter()
-        .find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
-
-            ((member_symbol.is_valid() && field.symbol == member_symbol)
-                || field.name == *member_name)
-                .then_some(field.type_reference)
-        })
 }
 
 pub(crate) fn call_expression_return_type(
