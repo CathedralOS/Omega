@@ -67,21 +67,17 @@ impl Builder<'_, '_> {
         }) {
             return None;
         }
-        let statement_ordinal = u32::try_from(self.statement_index).ok()?;
         let mut elements = Vec::with_capacity(array.elements.len());
         for (element_ordinal, (leaf, primitive_type)) in array.elements.into_iter().enumerate() {
             let root = self.expression(leaf, primitive_type)?;
             self.plans.nodes.get_mut(root).authored_root = leaf;
-            self.plans.roots.append(CheckedScalarComputationRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal,
-                role: CheckedScalarExpressionRole::StructuralArrayElement {
+            self.push_scalar_root(
+                CheckedScalarExpressionRole::StructuralArrayElement {
                     expression,
                     element_ordinal: u32::try_from(element_ordinal).ok()?,
                 },
                 root,
-            });
+            )?;
             elements.push(root);
         }
         Some(CheckedStructuralValueKind::ScalarArray { elements })
@@ -287,16 +283,13 @@ impl Builder<'_, '_> {
             let value = if let Some(primitive) = self.program.primitive_type_reference(declared) {
                 let root = self.expression(initializer.value, primitive)?;
                 self.plans.nodes.get_mut(root).authored_root = initializer.value;
-                self.plans.roots.append(CheckedScalarComputationRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                    role: CheckedScalarExpressionRole::RecordField {
+                self.push_scalar_root(
+                        CheckedScalarExpressionRole::RecordField {
                         expression,
                         field_ordinal: u32::try_from(ordinal).ok()?,
                     },
-                    root,
-                });
+                        root,
+                    )?;
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
             } else {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(
@@ -392,16 +385,13 @@ impl Builder<'_, '_> {
             let value = if let Some(primitive) = self.program.primitive_type_reference(declared) {
                 let root = self.expression(value_expression, primitive)?;
                 self.plans.nodes.get_mut(root).authored_root = value_expression;
-                self.plans.roots.append(CheckedScalarComputationRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                    role: CheckedScalarExpressionRole::StructuralValueField {
+                self.push_scalar_root(
+                        CheckedScalarExpressionRole::StructuralValueField {
                         expression,
                         field_ordinal: u32::try_from(ordinal).ok()?,
                     },
-                    root,
-                });
+                        root,
+                    )?;
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
             } else {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(
