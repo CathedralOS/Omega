@@ -1,5 +1,6 @@
 //! Human rendering projected from the authoritative manifest record.
 
+use optimization_core::hex;
 use std::fmt::Write;
 
 use super::{PostAllocationOptimizationManifest, PostAllocationSelectedTransformation};
@@ -150,10 +151,3 @@ impl PostAllocationOptimizationManifest {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").unwrap();
-    }
-    output
-}

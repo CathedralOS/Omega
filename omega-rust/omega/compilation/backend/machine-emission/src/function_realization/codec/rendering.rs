@@ -1,6 +1,7 @@
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
 };
+use optimization_core::hex;
 use super::target::{architecture_name, object_format_name};
 use machine_code::SelectedFunctionLayoutPolicy;
 use std::fmt::Write;
@@ -220,10 +221,3 @@ pub(super) fn render_manifest(
     output
 }
 
-fn hex(bytes: &[u8]) -> String {
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").unwrap();
-    }
-    output
-}

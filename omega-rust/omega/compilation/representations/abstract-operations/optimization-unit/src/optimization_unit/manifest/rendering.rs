@@ -3,6 +3,7 @@ use super::{
     PrePhysicalOptimizationManifest, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
     PsiRealizationSite,
 };
+use optimization_core::hex;
 use std::fmt::Write;
 
 impl PrePhysicalOptimizationManifest {
@@ -199,13 +200,6 @@ fn decision_counts(manifests: &[OptimizationPassManifestRecord]) -> (usize, usiz
         )
 }
 
-fn hex(bytes: &[u8]) -> String {
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").unwrap();
-    }
-    output
-}
 
 fn render_fact(fact: OptimizationFactReference) -> String {
     match fact {
