@@ -421,6 +421,20 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
+        // An element selected through a live element view (`&mut cells[2]`
+        // for `cells: &mut [Cell]`) lives in the view's original collection:
+        // the window offsets the index, and the view's own access bounds the
+        // requested authority. The descriptor never owns its elements.
+        if let Some(view) = self.element_view_values.get(&place)
+            && matches!(path.first(), Some(StructuralPathSegment::FixedIndex(_)))
+        {
+            if !view.matches_descriptor_home(owner) || !access_covers(view.access(), access) {
+                return Err(malformed());
+            }
+            let (collection, selected) =
+                view.structural_projection(path, access != StructuralAccess::SharedBorrow)?;
+            return self.resolve_reference_path(&collection, &selected, access);
+        }
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
             if !access_covers(authority, access) {
