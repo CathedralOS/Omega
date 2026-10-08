@@ -277,3 +277,153 @@ pub(super) fn nonzero_flag_resolution(
     }
     Ok(())
 }
+
+/// The site-and-outcome derive the admission producer and the replay
+/// validator compute identically: locate the terminator-carried
+/// instruction, check the flag-reader shape, partition the implicit uses
+/// under the flag universe, require the one compare site whose reaching
+/// events cover every used unit, and decide the outcome on the compare's
+/// operand poles. `map` converts the shared walk's own rejection — each
+/// caller names its conversion so the other's cannot relabel it.
+pub(super) struct BoundaryBranchDerivation<'source> {
+    pub(super) block_index: usize,
+    pub(super) provenance: selected_instructions::SelectedInstructionProvenance,
+    pub(super) implicit_uses: usize,
+    pub(super) flag_universe: std::collections::BTreeSet<register_model::RegisterUnitId>,
+    pub(super) jump_surface: std::collections::BTreeSet<register_model::RegisterUnitId>,
+    pub(super) successors: Vec<Vec<usize>>,
+    pub(super) compare_defs: usize,
+    pub(super) outcome: Outcome,
+    pub(super) row: Option<&'source register_model::RegisterInstructionConstraint>,
+}
+
+pub(super) fn derive_branch_fold<'source>(
+    function: &'source selected_instructions::SelectedFunction,
+    branch: selected_instructions::SelectedInstructionId,
+    environment: &'source register_environment::ValidatedTargetRegisterEnvironment,
+    map: impl Fn(crate::rewrites::condition_state::ConditionStateError) -> BoundaryBranchError + Copy,
+) -> Result<BoundaryBranchDerivation<'source>, BoundaryBranchError> {
+    use crate::rewrites::condition_state::{
+        adjacency, backward_cone, boundary_operands, entry_index, instruction_at, reaching_event,
+    };
+    use selected_instructions::terminator_instruction;
+
+    // The branch names its terminator-carried instruction: the block whose
+    // terminator instruction carries the id holds the read position at the
+    // end of its body stream.
+    let block_index = function
+        .blocks
+        .iter()
+        .position(|block| terminator_instruction(&block.terminator).id == branch)
+        .ok_or(BoundaryBranchError::SourceMismatch)?;
+    let block = &function.blocks[block_index];
+    let branch_instruction = terminator_instruction(&block.terminator);
+    // The terminator must be the emitted zero-operand strict-ordering flag
+    // reader: the variant/kind pairing must match, explicit operands are
+    // never present, and a use roster holding no flag unit has no
+    // condition to decide.
+    let signed = branch_domain(&block.terminator, branch_instruction)
+        .ok_or(BoundaryBranchError::UnsupportedInstruction)?;
+    if !branch_instruction.operands.is_empty() || branch_instruction.implicit_uses.is_empty() {
+        return Err(BoundaryBranchError::UnsupportedInstruction);
+    }
+    let keys = environment.selected_keys();
+    let mut flag_universe = std::collections::BTreeSet::new();
+    for key in [
+        keys.compare_i64,
+        keys.compare_i64_immediate,
+        keys.compare_i64_zero,
+    ] {
+        flag_universe.extend(
+            environment
+                .constraint(key)
+                .ok_or(BoundaryBranchError::ConstraintMismatch)?
+                .implicit_defs
+                .iter()
+                .copied(),
+        );
+    }
+    let jump_row = environment
+        .constraint(keys.jump)
+        .ok_or(BoundaryBranchError::ConstraintMismatch)?;
+    let jump_surface: std::collections::BTreeSet<register_model::RegisterUnitId> = jump_row
+        .implicit_uses
+        .iter()
+        .chain(jump_row.implicit_defs.iter())
+        .chain(jump_row.clobbers.iter())
+        .copied()
+        .collect();
+    let (successors, predecessors) = adjacency(function);
+    let entry = entry_index(function).ok_or(BoundaryBranchError::SourceMismatch)?;
+    let cone = backward_cone(&predecessors, block_index);
+    let read_position = block.instructions.len();
+    let mut flag_uses = 0usize;
+    let mut compare_site = None;
+    for unit in &branch_instruction.implicit_uses {
+        if !flag_universe.contains(unit) {
+            continue;
+        }
+        flag_uses += 1;
+        let event = reaching_event(
+            function,
+            entry,
+            &successors,
+            &cone,
+            block_index,
+            read_position,
+            *unit,
+        )
+        .map_err(map)?;
+        if compare_site.is_some_and(|site| site != event) {
+            return Err(BoundaryBranchError::UnsupportedUse);
+        }
+        compare_site = Some(event);
+    }
+    if flag_uses == 0 {
+        return Err(BoundaryBranchError::UnsupportedInstruction);
+    }
+    let compare_site = compare_site.ok_or(BoundaryBranchError::UnsupportedUse)?;
+    let compare_instruction = instruction_at(function, compare_site);
+    if branch_instruction
+        .implicit_uses
+        .iter()
+        .filter(|unit| flag_universe.contains(unit))
+        .any(|unit| !compare_instruction.implicit_defs.contains(unit))
+    {
+        return Err(BoundaryBranchError::UnsupportedUse);
+    }
+    let (left, right) = boundary_operands(function, compare_instruction).map_err(map)?;
+    let outcome = outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
+    let row = match outcome {
+        Outcome::Constant(_) => {
+            constant_row(jump_row, branch_instruction, &flag_universe, &jump_surface)?
+        }
+        Outcome::NonZero => {
+            nonzero_flag_resolution(
+                function,
+                entry,
+                &successors,
+                &cone,
+                block_index,
+                read_position,
+                &flag_universe,
+                branch_instruction,
+                compare_instruction,
+                compare_site,
+                &keys,
+            )?;
+            None
+        }
+    };
+    Ok(BoundaryBranchDerivation {
+        block_index,
+        provenance: branch_instruction.provenance.clone(),
+        implicit_uses: branch_instruction.implicit_uses.len(),
+        flag_universe,
+        jump_surface,
+        successors,
+        compare_defs: compare_instruction.implicit_defs.len(),
+        outcome,
+        row,
+    })
+}

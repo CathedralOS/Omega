@@ -16,11 +16,9 @@
 //! settlement, and function included. A producer admission error
 //! therefore fails validation even when the proposal is exactly what that
 //! producer emitted.
-use std::collections::BTreeSet;
-
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterUnitId};
+use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator,
@@ -32,9 +30,6 @@ use super::{
     outcome,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::condition_state::{
-    adjacency, backward_cone, boundary_operands, entry_index, instruction_at, reaching_event,
-};
 use crate::rewrites::sealed;
 
 /// The validator's own reconstruction of the fold the contract permits:
@@ -88,142 +83,20 @@ fn reconstruct<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             BoundaryBranchError::SourceMismatch
         })?;
-    // The branch names its terminator-carried instruction: the block whose
-    // terminator instruction carries the id holds the read position at the
-    // end of its body stream.
-    let block_index = function
-        .blocks
-        .iter()
-        .position(|block| terminator_instruction(&block.terminator).id == branch)
-        .ok_or(BoundaryBranchError::SourceMismatch)?;
-    let block = &function.blocks[block_index];
-    let branch_instruction = terminator_instruction(&block.terminator);
-    // The terminator must be the emitted zero-operand strict-ordering flag
-    // reader: the variant/kind pairing must match — a
-    // `ConditionalBranchU64LessThan` terminator carrying a nonzero kind is
-    // not the shape selection emits — explicit operands are never present,
-    // and a use roster holding no flag unit has no condition to decide.
-    let signed = branch_domain(&block.terminator, branch_instruction)
-        .ok_or(BoundaryBranchError::UnsupportedInstruction)?;
-    if !branch_instruction.operands.is_empty() || branch_instruction.implicit_uses.is_empty() {
-        return Err(BoundaryBranchError::UnsupportedInstruction);
-    }
-    let keys = environment.selected_keys();
-    // The flag universe partitions the branch's implicit uses: the units
-    // the target's three compare rows publish are the condition state the
-    // fold decides, and every other observed unit must survive on the jump
-    // row's own implicit surface when the fold lands on `Jump`.
-    let mut flag_universe = BTreeSet::new();
-    for key in [
-        keys.compare_i64,
-        keys.compare_i64_immediate,
-        keys.compare_i64_zero,
-    ] {
-        flag_universe.extend(
-            environment
-                .constraint(key)
-                .ok_or(BoundaryBranchError::ConstraintMismatch)?
-                .implicit_defs
-                .iter()
-                .copied(),
-        );
-    }
-    let jump_row = environment
-        .constraint(keys.jump)
-        .ok_or(BoundaryBranchError::ConstraintMismatch)?;
-    let jump_surface: BTreeSet<RegisterUnitId> = jump_row
-        .implicit_uses
-        .iter()
-        .chain(jump_row.implicit_defs.iter())
-        .chain(jump_row.clobbers.iter())
-        .copied()
-        .collect();
-    // The flag walk crosses block boundaries: build the block-indexed
-    // adjacency once, locate the entry block whose unseeded condition
-    // state bounds every path, and mark the cone of blocks that can reach
-    // the branch's block — only their entry sets can feed the result.
-    let (successors, predecessors) = adjacency(function);
-    let entry = entry_index(function).ok_or(BoundaryBranchError::SourceMismatch)?;
-    let cone = backward_cone(&predecessors, block_index);
-    // Every flag unit the branch reads must reach from the same compare:
-    // on every execution path to the terminator, the last event touching
-    // each used flag unit is that one instruction, and the unit is among
-    // its published definitions — a clobber there would leave the
-    // observed value unknown. The validator resolves each unit's reaching
-    // event on its own, so a producer that admitted divergent sites or an
-    // uncovered unit cannot pass validation.
-    let read_position = block.instructions.len();
-    let mut flag_uses = 0usize;
-    let mut compare_site = None;
-    for unit in &branch_instruction.implicit_uses {
-        if !flag_universe.contains(unit) {
-            continue;
-        }
-        flag_uses += 1;
-        let event = reaching_event(
-            function,
-            entry,
-            &successors,
-            &cone,
-            block_index,
-            read_position,
-            *unit,
-        )
-        .map_err(BoundaryBranchError::from)?;
-        if compare_site.is_some_and(|site| site != event) {
-            return Err(BoundaryBranchError::UnsupportedUse);
-        }
-        compare_site = Some(event);
-    }
-    if flag_uses == 0 {
-        return Err(BoundaryBranchError::UnsupportedInstruction);
-    }
-    let compare_site = compare_site.ok_or(BoundaryBranchError::UnsupportedUse)?;
-    let compare_instruction = instruction_at(function, compare_site);
-    if branch_instruction
-        .implicit_uses
-        .iter()
-        .filter(|unit| flag_universe.contains(unit))
-        .any(|unit| !compare_instruction.implicit_defs.contains(unit))
-    {
-        return Err(BoundaryBranchError::UnsupportedUse);
-    }
-    let (left, right) =
-        boundary_operands(function, compare_instruction).map_err(BoundaryBranchError::from)?;
-    let outcome = outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
-    let row = match outcome {
-        Outcome::Constant(_) => {
-            super::constant_row(jump_row, branch_instruction, &flag_universe, &jump_surface)?
-        }
-        Outcome::NonZero => {
-            super::nonzero_flag_resolution(
-                function,
-                entry,
-                &successors,
-                &cone,
-                block_index,
-                read_position,
-                &flag_universe,
-                branch_instruction,
-                compare_instruction,
-                compare_site,
-                &keys,
-            )?;
-            None
-        }
-    };
+    let derivation =
+        super::derive_branch_fold(function, branch, environment, BoundaryBranchError::from)?;
     Ok(Reconstructed {
         function,
-        block_index,
+        block_index: derivation.block_index,
         branch_id: branch,
-        provenance: branch_instruction.provenance.clone(),
-        outcome,
-        row,
-        successors,
-        implicit_uses: branch_instruction.implicit_uses.len(),
-        flag_universe: flag_universe.len(),
-        jump_surface: jump_surface.len(),
-        compare_defs: compare_instruction.implicit_defs.len(),
+        provenance: derivation.provenance,
+        outcome: derivation.outcome,
+        row: derivation.row,
+        successors: derivation.successors,
+        implicit_uses: derivation.implicit_uses,
+        flag_universe: derivation.flag_universe.len(),
+        jump_surface: derivation.jump_surface.len(),
+        compare_defs: derivation.compare_defs,
     })
 }
 
