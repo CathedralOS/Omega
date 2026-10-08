@@ -50,17 +50,9 @@ fn exact_integer_primitive(
     else {
         return None;
     };
-    let primitive = match program.symbols.builtin_type_atom(*symbol)? {
-        symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
-        symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
-        symbols::BuiltinTypeAtom::U32 => PrimitiveType::U32,
-        symbols::BuiltinTypeAtom::U64 => PrimitiveType::U64,
-        symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
-        symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
-        symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
-        symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
-        _ => return None,
-    };
+    let primitive = PrimitiveType::from_builtin_atom(
+        program.symbols.builtin_type_atom(*symbol)?,
+    )?;
     if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
         return None;
     }

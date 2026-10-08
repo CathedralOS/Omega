@@ -305,22 +305,11 @@ fn exact_integer_carrier(
                 carrier = *base_type;
             }
             TypeReferenceNode::Named { symbol, name } => {
-                use symbols::BuiltinTypeAtom;
                 let atom = program.symbols.builtin_type_atom(*symbol)?;
                 if name.as_str() != atom.symbol_name() {
                     return None;
                 }
-                return Some(match atom {
-                    BuiltinTypeAtom::U8 => PrimitiveType::U8,
-                    BuiltinTypeAtom::U16 => PrimitiveType::U16,
-                    BuiltinTypeAtom::U32 => PrimitiveType::U32,
-                    BuiltinTypeAtom::U64 => PrimitiveType::U64,
-                    BuiltinTypeAtom::I8 => PrimitiveType::I8,
-                    BuiltinTypeAtom::I16 => PrimitiveType::I16,
-                    BuiltinTypeAtom::I32 => PrimitiveType::I32,
-                    BuiltinTypeAtom::I64 => PrimitiveType::I64,
-                    _ => return None,
-                });
+                return PrimitiveType::from_builtin_atom(atom);
             }
             _ => return None,
         }

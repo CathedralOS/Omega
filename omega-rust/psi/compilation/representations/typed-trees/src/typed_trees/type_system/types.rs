@@ -942,6 +942,23 @@ pub enum PrimitiveType {
 }
 
 impl PrimitiveType {
+    /// The primitive a fixed-width integer [`BuiltinTypeAtom`] names; the
+    /// arbitrary-width `Int`/`UInt`, `Address`, and every non-integer atom
+    /// map to `None`.
+    pub fn from_builtin_atom(atom: symbols::BuiltinTypeAtom) -> Option<Self> {
+        Some(match atom {
+            symbols::BuiltinTypeAtom::I8 => Self::I8,
+            symbols::BuiltinTypeAtom::I16 => Self::I16,
+            symbols::BuiltinTypeAtom::I32 => Self::I32,
+            symbols::BuiltinTypeAtom::I64 => Self::I64,
+            symbols::BuiltinTypeAtom::U8 => Self::U8,
+            symbols::BuiltinTypeAtom::U16 => Self::U16,
+            symbols::BuiltinTypeAtom::U32 => Self::U32,
+            symbols::BuiltinTypeAtom::U64 => Self::U64,
+            _ => return None,
+        })
+    }
+
     #[inline]
     pub fn from_name(name: &str) -> Option<Self> {
         // Every primitive and atomic spelling starts with one of these bytes;
