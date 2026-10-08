@@ -332,17 +332,7 @@ pub(super) fn propagate_statement_transfers(
         && program.symbols.get(variant).kind == symbols::SymbolKind::Variant
         && program.symbols.get(variant).parent == literal.type_symbol
     {
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
-            point: ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::AssignedCase { variant },
-        });
+        let fact = semantic.append_statement_transfer(FactPlace::Place(target_place), machine_symbol, state_symbol, statement_index, FactPayload::AssignedCase { variant });
         semantic.append_ref(&mut refs, fact);
     }
 
@@ -357,51 +347,21 @@ pub(super) fn propagate_statement_transfers(
         // completed assignment. It is not evaluated here. Consumers need its
         // checked call/argument/guarantee joins before it supplies a value;
         // ordinary assignment invalidation still retires this provenance.
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
-            point: ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::AssignedValue {
+        let fact = semantic.append_statement_transfer(FactPlace::Place(target_place), machine_symbol, state_symbol, statement_index, FactPayload::AssignedValue {
                 value: source_expression,
-            },
-        });
+            });
         semantic.append_ref(&mut refs, fact);
     }
 
     if stable_value_target && let Some(bounds) = integer_bounds {
         let bounds = semantic.integer_ranges.append(bounds);
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
-            point: ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::AssignedIntegerBounds { bounds },
-        });
+        let fact = semantic.append_statement_transfer(FactPlace::Place(target_place), machine_symbol, state_symbol, statement_index, FactPayload::AssignedIntegerBounds { bounds });
         semantic.append_ref(&mut refs, fact);
     }
 
     if stable_value_target && let Some(value) = scalar_value {
         let value = semantic.scalar_values.append(value);
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
-            point: ProgramPoint::Statement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-            },
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::AssignedScalarValue { value },
-        });
+        let fact = semantic.append_statement_transfer(FactPlace::Place(target_place), machine_symbol, state_symbol, statement_index, FactPayload::AssignedScalarValue { value });
         semantic.append_ref(&mut refs, fact);
     }
 

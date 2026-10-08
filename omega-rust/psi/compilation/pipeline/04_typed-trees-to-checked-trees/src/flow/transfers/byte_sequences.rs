@@ -9,7 +9,7 @@ use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
+    Fact, FactPayload, FactPlace, FactPlan, ProgramPoint,
 };
 use symbols::SymbolHandle;
 
@@ -56,18 +56,12 @@ pub(super) fn append_derived_predicates(
         {
             continue;
         }
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(destination),
-            point,
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::DomainMembership {
+        let fact = semantic.append_transfer_at_point(FactPlace::Place(destination), point, FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol: domain.symbol,
                 semantic_domain: language_semantics::SemanticDomainId::NULL,
-            },
-        });
+            });
         semantic.append_ref(references, fact);
     }
 }
@@ -399,13 +393,7 @@ pub(super) fn append_element_replacement_predicates(
         if !carrier_proves_predicate(program, facts, predicate, &carrier_ceiling) {
             continue;
         }
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(carrier),
-            point,
-            origin: FactOrigin::StatementTransfer,
-            evidence: QualificationEvidence::default(),
-            payload: FactPayload::BytePredicate { predicate },
-        });
+        let fact = semantic.append_transfer_at_point(FactPlace::Place(carrier), point, FactPayload::BytePredicate { predicate });
         semantic.append_ref(references, fact);
     }
 }

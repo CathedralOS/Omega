@@ -14,8 +14,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use crate::{
     BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
-    FactContext, FactContextView, FactPayload, FactPlace, FactRef, InstantiatedExpression, Place,
-    PlaceRoot, PlaceSegment, ProgramPoint, QualificationCorrespondence, SymbolFactSet,
+    FactContext, FactContextView, FactOrigin, FactPayload, FactPlace, FactRef,
+    InstantiatedExpression, Place, PlaceRoot, PlaceSegment, ProgramPoint, QualificationCorrespondence,
+    QualificationEvidence, SymbolFactSet,
     effective_member_symbol, resolve_place_member_symbol,
 };
 
@@ -113,6 +114,45 @@ impl FactPlan {
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
+    }
+
+    /// A statement-transfer fact pinned to the statement point with default
+    /// evidence — the shared emission shape for assignment and movement facts.
+    pub fn append_statement_transfer(
+        &mut self,
+        place: FactPlace,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        payload: FactPayload,
+    ) -> FactHandle {
+        self.append_fact(Fact {
+            place,
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload,
+        })
+    }
+
+    /// The same statement-transfer emission at a caller-supplied point.
+    pub fn append_transfer_at_point(
+        &mut self,
+        place: FactPlace,
+        point: ProgramPoint,
+        payload: FactPayload,
+    ) -> FactHandle {
+        self.append_fact(Fact {
+            place,
+            point,
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload,
+        })
     }
 
     pub fn append_qualification_correspondence(
