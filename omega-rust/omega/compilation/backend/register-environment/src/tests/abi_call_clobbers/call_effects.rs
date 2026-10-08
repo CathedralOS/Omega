@@ -147,7 +147,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 assert!(operand.tied_to.is_none(), "{key:?}");
                 let view = operand
                     .fixed_view
-                    .and_then(|id| model.views.iter().find(|view| view.id == id))
+                    .and_then(|id| model.view(id))
                     .unwrap_or_else(|| panic!("{key:?} operand {position} pins no ABI view"));
                 assert_eq!(view.class, operand.class, "{key:?}");
                 assert!(

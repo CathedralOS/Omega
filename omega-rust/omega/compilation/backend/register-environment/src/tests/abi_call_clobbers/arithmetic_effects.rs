@@ -827,7 +827,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                     .map(|(_, name)| model.view_named(name).unwrap().id);
                 assert_eq!(operand.fixed_view, fixed, "{key:?}");
                 if let Some(view_id) = operand.fixed_view {
-                    let view = model.views.iter().find(|view| view.id == view_id).unwrap();
+                    let view = model.view(view_id).unwrap();
                     assert!(
                         view.units
                             .iter()
