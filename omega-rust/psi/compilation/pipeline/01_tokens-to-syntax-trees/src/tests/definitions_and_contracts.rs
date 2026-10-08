@@ -72,12 +72,10 @@ fn parses_domain_definition_surface() {
         facts[1],
         syntax_trees::item::ProofFact::Expression(_)
     ));
-    let source_slices = (0..domains[0].facts.count())
-        .map(|offset| {
-            let handle = arena::Handle::from_parts(
-                domains[0].facts.start().arena_index() + offset,
-                domains[0].facts.start().generation(),
-            );
+    let source_slices = domains[0]
+        .facts
+        .handles()
+        .map(|handle| {
             let span = parsed
                 .items
                 .proof_fact_source_span(handle)
