@@ -1175,13 +1175,7 @@ fn expression_is_inert_or_calls(
                     })
         }
         ExpressionNode::Atomic(atomic) => inert(atomic.value),
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
+        typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {
             meaning::binary_is_builtin(program, machine.symbol, expression, binary)

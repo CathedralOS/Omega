@@ -32,13 +32,7 @@ impl ValueOccurrenceVisitor<'_, '_> {
                 self.collect_nested_expression(expression, binary.left);
                 self.collect_nested_expression(expression, binary.right);
             }
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            typed_trees::literal_expression_pattern!() => {}
             ExpressionNode::Cast(cast) => {
                 self.collect_nested_expression(expression, cast.value);
             }

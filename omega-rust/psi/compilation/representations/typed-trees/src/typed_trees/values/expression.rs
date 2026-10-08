@@ -1439,6 +1439,21 @@ pub struct MatchArm {
     pub source_span: SourceSpan,
 }
 
+/// The leaf-literal `ExpressionNode` variant set that terminates recursive
+/// expression walks — every walk leaves literals untouched.
+#[macro_export]
+macro_rules! literal_expression_pattern {
+    () => {
+        $crate::expression::ExpressionNode::Boolean(_)
+            | $crate::expression::ExpressionNode::Float(_)
+            | $crate::expression::ExpressionNode::UndeterminedNaN(_)
+            | $crate::expression::ExpressionNode::Integer(_)
+            | $crate::expression::ExpressionNode::Name(_)
+            | $crate::expression::ExpressionNode::String(_)
+            | $crate::expression::ExpressionNode::ZeroValue(_)
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OwnedMatchPattern {
     Value(Expression),

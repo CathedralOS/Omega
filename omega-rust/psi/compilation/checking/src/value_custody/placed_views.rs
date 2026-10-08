@@ -18,9 +18,7 @@ use typed_trees::statement::{StatementNode, TableAssignment};
 mod checked_atomic_resident;
 mod placement_custody;
 mod plan_replay;
-pub use checked_atomic_resident::{
-    placed_atomic_observing_results,
-};
+pub use checked_atomic_resident::placed_atomic_observing_results;
 
 pub(crate) fn validate_plans(
     program: &dyn crate::CheckingInput,
@@ -216,13 +214,7 @@ fn validate_expression(
                 validate_expression(program, machine, state, field.value, false, diagnostics);
             }
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
 }
 
