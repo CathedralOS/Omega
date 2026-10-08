@@ -6,7 +6,7 @@
 //! (packed bytes and recasts) affect the write, not the evaluation schedule.
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
-    MutableRecordRecastWrite, ReferenceStorage, TypeReferenceNode, Value, trap,
+    MutableRecordRecastWrite, ReferenceStorage, Value, trap,
 };
 
 enum AssignmentDestination {
