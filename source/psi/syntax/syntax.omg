@@ -800,6 +800,23 @@ crashes Trap
     }
 }
 
+pub machine SyntaxTrees::use_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem
+crashes Trap
+{
+    transition handle < syntax_trees.use_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.uses[handle]
+    }
+
+    state invalid() -> UseItem {
+        crash Trap;
+    }
+}
+
 // One member of a path or member list in `SyntaxTrees::members`.
 pub machine SyntaxTrees::member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan
 crashes Trap

@@ -39,6 +39,8 @@ pub data BuiltinType [copy] {
 // by its form, and the rows of its run carry the names' bindings.
 pub data TypeBinding [copy] {
     case Unresolved;
+    // Two visible declarations spell the name; the reference rejects.
+    case Ambiguous;
     case Builtin(builtin: BuiltinType);
     case Data(item: u64 in Trapping);
     case GenericParameter(parameter: u64 in Trapping);
@@ -56,6 +58,8 @@ pub data TypeBinding [copy] {
 pub data ValueBinding [copy] {
     case NotAName;
     case Unresolved;
+    // Two visible declarations spell the name; the reference rejects.
+    case Ambiguous;
     case Local(statement: u64 in Trapping);
     case Parameter(parameter: u64 in Trapping);
     case PatternBinder(field: u64 in Trapping);
@@ -99,6 +103,7 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateMachine;
     case DuplicateGenericParameter;
     case UnknownName;
+    case AmbiguousName;
 }
 
 pub data ResolveDiagnostic [copy] {

@@ -445,7 +445,7 @@ def accepted(
     expected = Observation(
         True,
         0,
-        (1, 0, 0),
+        (0, 0, 0),
         roots,
         uses,
         members,

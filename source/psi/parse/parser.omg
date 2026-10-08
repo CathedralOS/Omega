@@ -130,14 +130,19 @@ where
     clause_first_member: u64 in Trapping;
 }
 
-pub machine Parser::initialize(
-    parser: &mut Parser,
-    source: SourceId,
-    source_length: u64 in Trapping
-) {
-    SyntaxTrees::clear(&mut parser.output, source);
+// Empty syntax tables for a compilation's source units, which `parse` then
+// appends one at a time. Every row keeps its unit in its source span, so the
+// tables are shared and handles stay dense across units.
+pub machine Parser::initialize(parser: &mut Parser) {
+    SyntaxTrees::clear(&mut parser.output, SourceId { value: 0 });
+}
+
+// The unit `parse` appends next: its spans anchor to `source`, and its token
+// cursor starts over.
+machine Parser::begin_unit(parser: &mut Parser, source: SourceId, source_length: u64 in Trapping) {
     parser.source = source;
     parser.source_length = source_length;
+    Parser::initialize_cursor(parser);
 }
 
 // Every stored span anchors to the parser's own source; the two constructors
@@ -168,11 +173,15 @@ machine Parser::identifier_span(
 // types.omg, and input.omg remains the only token/cursor behavior owner.
 // Bounded array reads carry their collection's Trapping policy, so parsing
 // publishes the same crash route its callees do.
-pub machine Parser::parse(parser: &mut Parser, input: &TokenStream)
+pub machine Parser::parse(
+    parser: &mut Parser,
+    source: SourceId,
+    source_length: u64 in Trapping,
+    input: &TokenStream
+)
 crashes Trap
 {
-    SyntaxTrees::clear(&mut parser.output, parser.source);
-    Parser::initialize_cursor(parser);
+    Parser::begin_unit(parser, source, source_length);
     transition { _ -> next_root(parser, input) }
 
     state next_root(parser: &mut Parser, input: &TokenStream) {

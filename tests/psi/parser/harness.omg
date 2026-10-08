@@ -61,14 +61,12 @@ blocks;
 
     state prepare_parse(parser_harness: &mut ParserHarness, lexer: &Lexer) {
         let mut parser: Parser;
-        Parser::initialize(&mut parser, lexer.source.id,
-            lexer.source.length as u64 in Trapping
-        );
+        Parser::initialize(&mut parser);
         transition { _ -> parse(parser_harness, lexer, &mut parser) }
     }
 
     state parse(parser_harness: &mut ParserHarness, lexer: &Lexer, parser: &mut Parser) {
-        Parser::parse(parser, &lexer.output);
+        Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
             true -> accepted(parser_harness, &parser.output)
             _ -> parse_rejected(parser_harness, &parser.output)

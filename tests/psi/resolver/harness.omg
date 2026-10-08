@@ -16,73 +16,218 @@ pub data ResolverHarness {
     console: Binding<Console>;
 }
 
+// A little-endian `u32` read from the gate's input, or the input ending
+// inside it.
+data HarnessWord [copy] {
+    value: u64 in Trapping;
+    complete: bool;
+}
+
+// The gate's input is the source set: a `u32` unit count, then per unit a
+// `u32`-framed module path (`a::b`) and a `u32`-framed source. Each unit is
+// lexed and parsed into the shared syntax tables in order, so its position
+// is its `SourceId`; the whole set then resolves. Malformed framing exits
+// 253 without an observation.
 pub machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
 reaches Console
 invokes Console;
 crashes Trap
 blocks;
 {
-    let mut lexer: Lexer;
-    Lexer::initialize(&mut lexer, 1);
-    transition { _ -> read(resolver_harness, &mut lexer) }
+    let mut sources: SourceSet;
+    SourceSet::clear(&mut sources);
+    let mut parser: Parser;
+    Parser::initialize(&mut parser);
+    let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
+    transition count.complete {
+        true -> unit(resolver_harness, &mut sources, &mut parser, count.value)
+        _ -> malformed(resolver_harness)
+    }
 
-    state read(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer) {
-        let input: ByteRead = block resolver_harness.console.read_byte();
-        transition input {
-            ByteRead::Byte { value } -> retain(resolver_harness, lexer, value)
-            _ -> tokenize(resolver_harness, lexer)
+    state unit(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+        transition remaining > 0 {
+            true -> module_path(resolver_harness, sources, parser, remaining)
+            _ -> prepare_resolve(resolver_harness, sources, parser)
         }
     }
 
-    state retain(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer, value: i32) {
+    state module_path(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+        let length: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
+        let mut module_path: ModulePath;
+        ModulePath::clear(&mut module_path);
+        transition length.complete {
+            true -> path_byte(resolver_harness, sources, parser, remaining, &mut module_path, length.value)
+            _ -> malformed(resolver_harness)
+        }
+    }
+
+    state path_byte(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &mut ModulePath,
+        left: u64 in Trapping
+    ) {
+        transition left > 0 {
+            true -> path_read(resolver_harness, sources, parser, remaining, module_path, left)
+            _ -> source(resolver_harness, sources, parser, remaining, module_path)
+        }
+    }
+
+    state path_read(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &mut ModulePath,
+        left: u64 in Trapping
+    ) {
+        let input: ByteRead = block resolver_harness.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> path_store(resolver_harness, sources, parser, remaining, module_path, left, value)
+            _ -> malformed(resolver_harness)
+        }
+    }
+
+    state path_store(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &mut ModulePath,
+        left: u64 in Trapping,
+        value: i32
+    ) {
+        let kept: bool = ModulePath::append(module_path, value as u8);
+        transition kept {
+            true -> path_byte(resolver_harness, sources, parser, remaining, module_path, left - 1)
+            _ -> malformed(resolver_harness)
+        }
+    }
+
+    state source(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath
+    ) {
+        let length: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
+        let mut lexer: Lexer;
+        Lexer::initialize(&mut lexer, sources.unit_count as u32 in Trapping);
+        transition length.complete {
+            true -> source_byte(resolver_harness, sources, parser, remaining, module_path, &mut lexer, length.value)
+            _ -> malformed(resolver_harness)
+        }
+    }
+
+    state source_byte(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &mut Lexer,
+        left: u64 in Trapping
+    ) {
+        transition left > 0 {
+            true -> source_read(resolver_harness, sources, parser, remaining, module_path, lexer, left)
+            _ -> tokenize(resolver_harness, sources, parser, remaining, module_path, lexer)
+        }
+    }
+
+    state source_read(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &mut Lexer,
+        left: u64 in Trapping
+    ) {
+        let input: ByteRead = block resolver_harness.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> source_store(resolver_harness, sources, parser, remaining, module_path, lexer, left, value)
+            _ -> malformed(resolver_harness)
+        }
+    }
+
+    state source_store(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &mut Lexer,
+        left: u64 in Trapping,
+        value: i32
+    ) {
         Lexer::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> read(resolver_harness, lexer)
+            true -> source_byte(resolver_harness, sources, parser, remaining, module_path, lexer, left - 1)
             _ -> source_full(resolver_harness)
         }
     }
 
-    state source_full(resolver_harness: &mut ResolverHarness) {
-        resolver_harness.console.exit_process(252);
-    }
-
-    state tokenize(resolver_harness: &mut ResolverHarness, lexer: &mut Lexer) {
+    state tokenize(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &mut Lexer
+    ) {
         Lexer::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> prepare_parse(resolver_harness, lexer)
+            true -> parse(resolver_harness, sources, parser, remaining, module_path, lexer)
             _ -> lex_rejected(resolver_harness)
         }
     }
 
-    state prepare_parse(resolver_harness: &mut ResolverHarness, lexer: &Lexer) {
-        let mut parser: Parser;
-        Parser::initialize(&mut parser, lexer.source.id,
-            lexer.source.length as u64 in Trapping
-        );
-        transition { _ -> parse(resolver_harness, lexer, &mut parser) }
-    }
-
-    state parse(resolver_harness: &mut ResolverHarness, lexer: &Lexer, parser: &mut Parser) {
-        Parser::parse(parser, &lexer.output);
+    state parse(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &Lexer
+    ) {
+        Parser::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
         transition parser.output.accepted {
-            true -> prepare_resolve(resolver_harness, lexer, parser)
+            true -> add(resolver_harness, sources, parser, remaining, module_path, lexer)
             _ -> parse_rejected(resolver_harness)
         }
     }
 
-    state prepare_resolve(resolver_harness: &mut ResolverHarness, lexer: &Lexer, parser: &Parser) {
+    state add(
+        resolver_harness: &mut ResolverHarness,
+        sources: &mut SourceSet,
+        parser: &mut Parser,
+        remaining: u64 in Trapping,
+        module_path: &ModulePath,
+        lexer: &Lexer
+    ) {
+        let added: bool = SourceSet::add(sources, &lexer.source, module_path);
+        transition added {
+            true -> unit(resolver_harness, sources, parser, remaining - 1)
+            _ -> source_full(resolver_harness)
+        }
+    }
+
+    state prepare_resolve(resolver_harness: &mut ResolverHarness, sources: &SourceSet, parser: &Parser) {
         let mut resolver: Resolver;
-        Resolver::initialize(&mut resolver, lexer.source.id);
-        transition { _ -> resolve(resolver_harness, lexer, parser, &mut resolver) }
+        Resolver::initialize(&mut resolver);
+        transition { _ -> resolve(resolver_harness, sources, parser, &mut resolver) }
     }
 
     state resolve(
         resolver_harness: &mut ResolverHarness,
-        lexer: &Lexer,
+        sources: &SourceSet,
         parser: &Parser,
         resolver: &mut Resolver
     ) {
-        Resolver::resolve(resolver, &lexer.source, &parser.output);
+        Resolver::resolve(resolver, sources, &parser.output);
         ResolverHarness::write_resolution_observation(resolver_harness, &resolver.output);
         transition resolver.output.accepted {
             true -> accepted(resolver_harness)
@@ -104,6 +249,45 @@ blocks;
 
     state lex_rejected(resolver_harness: &mut ResolverHarness) {
         resolver_harness.console.exit_process(251);
+    }
+
+    state source_full(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(252);
+    }
+
+    state malformed(resolver_harness: &mut ResolverHarness) {
+        resolver_harness.console.exit_process(253);
+    }
+}
+
+machine ResolverHarness::read_u32(resolver_harness: &mut ResolverHarness) -> HarnessWord
+reaches Console
+crashes Trap
+blocks;
+{
+    transition { _ -> next(resolver_harness, 0, 0, 1) }
+
+    state next(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+        transition read < 4 {
+            true -> byte(resolver_harness, read, value, scale)
+            _ -> word(value)
+        }
+    }
+
+    state byte(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+        let input: ByteRead = block resolver_harness.console.read_byte();
+        transition input {
+            ByteRead::Byte { value as byte } -> next(resolver_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            _ -> ended()
+        }
+    }
+
+    state word(value: u64 in Trapping) -> HarnessWord {
+        HarnessWord { value: value, complete: true }
+    }
+
+    state ended() -> HarnessWord {
+        HarnessWord { value: 0, complete: false }
     }
 }
 
@@ -160,6 +344,7 @@ crashes Trap
             ResolveDiagnosticCode::DuplicateMachine -> diagnostic_tag(resolver_harness, output, 11)
             ResolveDiagnosticCode::DuplicateGenericParameter -> diagnostic_tag(resolver_harness, output, 12)
             ResolveDiagnosticCode::UnknownName -> diagnostic_tag(resolver_harness, output, 13)
+            ResolveDiagnosticCode::AmbiguousName -> diagnostic_tag(resolver_harness, output, 14)
         }
     }
 
@@ -196,6 +381,7 @@ crashes Trap
         transition value_binding {
             ValueBinding::NotAName -> value_tag(resolver_harness, output, index, 0, 0, 0)
             ValueBinding::Unresolved -> value_tag(resolver_harness, output, index, 1, 0, 0)
+            ValueBinding::Ambiguous -> value_tag(resolver_harness, output, index, 9, 0, 0)
             ValueBinding::Local { statement } -> value_tag(resolver_harness, output, index, 2, statement, 0)
             ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0)
             ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0)
@@ -224,6 +410,7 @@ crashes Trap
         let type_binding: TypeBinding = output.type_bindings[index];
         transition type_binding {
             TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0)
+            TypeBinding::Ambiguous -> type_row(resolver_harness, output, index, 8, 0)
             TypeBinding::Builtin { builtin } -> builtin_row(resolver_harness, output, index, builtin)
             TypeBinding::Data { item } -> type_row(resolver_harness, output, index, 2, item)
             TypeBinding::GenericParameter { parameter } -> type_row(resolver_harness, output, index, 3, parameter)

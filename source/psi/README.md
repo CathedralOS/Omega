@@ -44,23 +44,30 @@ unions, the retired ranged suffix, machine generics and bodyless declarations,
 and the `if`, `loop`, `while`, `match` and `return` statements reject instead
 of becoming a private bridge tree.
 
-Name resolution follows parsing over the same unit. It rejects any `use` root,
-since the unit is the whole source set and supplying more sources is the
-compiler request's job. It then rejects builtin-shadowing and duplicate data
-names, duplicate generic parameter names of any kind within a declaration, and
-duplicate members: fields and cases share one namespace; each case's payload
-fields share another with the common fields. It binds every type reference,
-data declarations' first, machine signatures' second and body types (`let`
-types and cast targets) third: an enclosing generic parameter by spelling
-(never a lifetime), then a builtin type, then a data declaration of the unit.
-It also binds every `in` qualifier to a compiler-known domain (`Wrapping`,
-`Saturating`, `Trapping`, `Finite`). A type binds row by row over its run:
-reference, array, slice and integer rows bind by form, and named rows carry
-the names. Last, it rejects duplicate parameter names within a signature,
-duplicate state names within a machine, and a machine that repeats an earlier
-one's owner, name and parameter types, compared run by run (machines may
-otherwise overload). The binding tables are indexed by the syntax table's
-type-reference handles. Then every name and path in a machine body binds
+Name resolution follows parsing over the compilation's source set
+([`source/source.omg`](source/source.omg)): each unit belongs to the module
+its path names (`a::b`), is parsed into the shared syntax tables, and has its
+position as its source id. A `use` must name a supplied module
+([`resolve/imports.omg`](resolve/imports.omg)). A reference sees its own
+module, whichever of the module's units declares, and each module its unit
+imports; an import is not transitive, and two visible declarations of one
+spelling reject as ambiguous. Every unit belongs to one package here, so `pub`
+does not yet narrow an import. It then rejects builtin-shadowing names and
+duplicate data names within a module, duplicate generic parameter names of any
+kind within a declaration, and duplicate members: fields and cases share one
+namespace; each case's payload fields share another with the common fields. It
+binds every type reference, data declarations' first, machine signatures'
+second and body types (`let` types and cast targets) third: an enclosing
+generic parameter by spelling (never a lifetime), then a builtin type, then a
+visible data declaration. It also binds every `in` qualifier to a
+compiler-known domain (`Wrapping`, `Saturating`, `Trapping`, `Finite`). A type
+binds row by row over its run: reference, array, slice and integer rows bind
+by form, and named rows carry the names. Last, it rejects duplicate parameter
+names within a signature, duplicate state names within a machine, and a
+machine that repeats an earlier one of its module's owner, name and parameter
+types, compared run by run (machines may otherwise overload). The binding
+tables are indexed by the syntax table's type-reference handles. Then every
+name and path in a machine body binds
 ([`resolve/names.omg`](resolve/names.omg)) in the language's resolution order:
 an earlier `let` of the same body, the enclosing arm's pattern binders, the
 body's own parameters (a state never sees the entry's). A callee names a
@@ -105,12 +112,14 @@ retained failure class, and the harness only when an equal or stronger
 semantic-free gate preserves all of its cases.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
-does the same for name resolution. Its harness lexes, parses and resolves, and
-observes the diagnostic and every type and domain binding. Lexical or parse
-rejection exits without an observation.
+does the same for name resolution. Its input is a source set: a unit count,
+then each unit's module path and source, `u32`-framed; the decoder frames a
+single source as the root module. Its harness lexes and parses each unit,
+resolves the set, and observes the diagnostic and every type, domain and value
+binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI: all
-236 parser cases and all 79 resolver cases pass. Each gate counts each
+236 parser cases and all 92 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 

@@ -22,6 +22,7 @@ DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
 UNKNOWN_NAME = 13
+AMBIGUOUS_NAME = 14
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -140,16 +141,32 @@ def decode(payload: bytes) -> Observation:
     return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings)
 
 
-# Every distinct source the gate runs is one case; the determinism check runs
-# its source twice and counts once.
+# Every distinct input the gate runs is one case; the determinism check runs
+# its input twice and counts once.
 CASE_SOURCES: set[bytes] = set()
 
 
-def run(program: str, source: bytes) -> tuple[int, bytes]:
-    CASE_SOURCES.add(source)
-    completed = subprocess.run([program], input=source, capture_output=True, check=False)
+def frame(units: tuple[tuple[bytes, bytes], ...]) -> bytes:
+    """The harness input: a unit count, then each unit's module path and
+    source, `u32`-framed. A unit's position is its source id."""
+    payload = struct.pack("<I", len(units))
+    for module_path, source in units:
+        payload += struct.pack("<I", len(module_path)) + module_path
+        payload += struct.pack("<I", len(source)) + source
+    return payload
+
+
+def run_units(program: str, units: tuple[tuple[bytes, bytes], ...]) -> tuple[int, bytes]:
+    payload = frame(units)
+    CASE_SOURCES.add(payload)
+    completed = subprocess.run([program], input=payload, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
     return completed.returncode, completed.stdout
+
+
+def run(program: str, source: bytes) -> tuple[int, bytes]:
+    """One source unit, the root module."""
+    return run_units(program, ((b"", source),))
 
 
 def accepted(
@@ -165,7 +182,7 @@ def accepted(
     actual = decode(payload)
     if value_bindings is None:
         actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings)
-    expected = Observation(True, 0, (1, 0, 0), bindings, value_bindings or ())
+    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or ())
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -187,7 +204,44 @@ def rejected(
     status, payload = run(program, source)
     assert status == 249, f"{name}: status {status}"
     actual = decode(payload)
-    expected = Observation(False, diagnostic, (1, start, end), (), ())
+    expected = Observation(False, diagnostic, (0, start, end), (), ())
+    assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
+
+
+def accepted_units(
+    program: str,
+    name: str,
+    units: tuple[tuple[bytes, bytes], ...],
+    bindings: tuple[tuple[int, int, int], ...],
+    value_bindings: tuple[tuple[int, int, int], ...] | None = None,
+) -> None:
+    status, payload = run_units(program, units)
+    assert status == 0, f"{name}: status {status}"
+    actual = decode(payload)
+    if value_bindings is None:
+        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings)
+    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or ())
+    assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
+
+
+def rejected_units(
+    program: str,
+    name: str,
+    units: tuple[tuple[bytes, bytes], ...],
+    diagnostic: int,
+    unit: int,
+    spelling: bytes,
+    occurrence: int = 1,
+) -> None:
+    """The diagnostic names the `occurrence`-th `spelling` of unit `unit`."""
+    source = units[unit][1]
+    start = -1
+    for _ in range(occurrence):
+        start = source.index(spelling, start + 1)
+    status, payload = run_units(program, units)
+    assert status == 249, f"{name}: status {status}"
+    actual = decode(payload)
+    expected = Observation(False, diagnostic, (unit, start, start + len(spelling)), (), ())
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -284,7 +338,7 @@ def main() -> None:
         (builtin("u8"), builtin("u8"), builtin("u16"), builtin("u16"), builtin("u16")),
     )
 
-    rejected(program, "use-outside-source-set", b"use a;", UNRESOLVED_IMPORT, b"use a;")
+    rejected(program, "use-of-an-unsupplied-module", b"use a;", UNRESOLVED_IMPORT, b"use a;")
     rejected(
         program,
         "import-before-declarations",
@@ -651,6 +705,111 @@ def main() -> None:
     rejected(program, "unknown-case", b"data T { case A; }\nmachine f() { let x: T = T::C; }", UNKNOWN_NAME, b"T::C")
     rejected(program, "unknown-target", b"machine f() { transition { _ -> nowhere() } }", UNKNOWN_NAME, b"nowhere")
     rejected(program, "unknown-callee", b"machine f() { nowhere(1); }", UNKNOWN_NAME, b"nowhere")
+
+    # Source sets: a unit sees its own module, a sibling unit of the same
+    # module, and each module it imports; imports are not transitive, and two
+    # visible declarations of one spelling are ambiguous.
+    shapes = (b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}")
+    accepted_units(
+        program,
+        "import-binds-types-and-callees",
+        (shapes, (b"", b"use shapes;\nmachine f(d: D) { g(d); }")),
+        (builtin("u8"), data(0), data(0)),
+        (machine(0), parameter(1), NOT_A_NAME),
+    )
+    accepted_units(
+        program,
+        "module-path-import",
+        ((b"geometry::shapes", b"data D { x: u8; }"), (b"", b"use geometry::shapes;\nmachine f(d: D) {}")),
+        (builtin("u8"), data(0)),
+    )
+    rejected_units(
+        program,
+        "unimported-module-is-invisible",
+        (shapes, (b"", b"machine f(d: D) {}")),
+        UNKNOWN_DATA_TYPE,
+        1,
+        b"D",
+    )
+    rejected_units(
+        program,
+        "import-names-no-module",
+        (shapes, (b"", b"use shape;\nmachine f() {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use shape;",
+    )
+    rejected_units(
+        program,
+        "import-path-prefix-is-no-module",
+        ((b"geometry::shapes", b"data D { x: u8; }"), (b"", b"use geometry;\nmachine f() {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use geometry;",
+    )
+    rejected_units(
+        program,
+        "imports-are-not-transitive",
+        ((b"base", b"data D { x: u8; }"), (b"middle", b"use base;\ndata E { d: D; }"),
+         (b"", b"use middle;\nmachine f(d: D) {}")),
+        UNKNOWN_DATA_TYPE,
+        2,
+        b"D",
+    )
+    accepted_units(
+        program,
+        "same-spelling-in-other-modules",
+        ((b"left", b"data D { x: u8; }"), (b"right", b"data D { y: u16; }"), (b"", b"use right;\nmachine f(d: D) {}")),
+        (builtin("u8"), builtin("u16"), data(1)),
+    )
+    rejected_units(
+        program,
+        "ambiguous-type",
+        ((b"left", b"data D { x: u8; }"), (b"right", b"data D { y: u16; }"),
+         (b"", b"use left;\nuse right;\nmachine f(d: D) {}")),
+        AMBIGUOUS_NAME,
+        2,
+        b"D",
+    )
+    rejected_units(
+        program,
+        "ambiguous-callee",
+        ((b"left", b"machine g() {}"), (b"right", b"machine g() {}"),
+         (b"", b"use left;\nuse right;\nmachine f() { g(); }")),
+        AMBIGUOUS_NAME,
+        2,
+        b"g",
+        occurrence=2,
+    )
+    accepted_units(
+        program,
+        "overloads-of-one-module-are-one-family",
+        ((b"left", b"machine g(x: u8) {}\nmachine g(x: u16) {}"), (b"", b"use left;\nmachine f() { g(1); }")),
+        (builtin("u8"), builtin("u16")),
+        (machine(0), NOT_A_NAME, NOT_A_NAME),
+    )
+    accepted_units(
+        program,
+        "sibling-units-share-their-module",
+        ((b"m", b"data D { x: u8; }"), (b"m", b"machine f(d: D) {}")),
+        (builtin("u8"), data(0)),
+    )
+    rejected_units(
+        program,
+        "duplicate-across-sibling-units",
+        ((b"m", b"data D { x: u8; }"), (b"m", b"data D { y: u8; }")),
+        DUPLICATE_DATA,
+        1,
+        b"D",
+    )
+    rejected_units(
+        program,
+        "duplicate-machine-across-sibling-units",
+        ((b"m", b"machine g(x: u8) {}"), (b"m", b"machine g(y: u8) {}")),
+        DUPLICATE_MACHINE,
+        1,
+        b"g",
+    )
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)

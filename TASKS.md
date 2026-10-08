@@ -5848,7 +5848,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Current state: on macOS ARM64,
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
   `tests/psi/parser/test-parser.sh` passes all 236 parser cases, and
-  `tests/psi/resolver/test-resolver.sh` passes all 79 resolver cases; each
+  `tests/psi/resolver/test-resolver.sh` passes all 92 resolver cases; each
   gate builds its harness natively in several minutes.
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
@@ -5858,24 +5858,27 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   data and cases, entry and state statements, transition arms, and expressions
   including call acknowledgements and static applications; every type position
   shares one nested grammar of references, arrays, slices and applied names or
-  paths with `in` domains. Resolution binds data, signature and body types and
-  `in` domains for one source unit, rejects duplicate generic parameters,
-  parameters, states and overloads, binds every expression name by the
-  language's resolution order (locals, arm binders, the body's own parameters,
-  then states, machines, data and cases by position), and rejects every `use`,
-  because the unit is the whole source set. The parser harness reads all 19
-  product sources whole. Next: resolve several source units together so `use`
-  binds the imported module's public declarations and the product resolves its
-  own closure, exercised through the resolver gate until requests reach Psi;
-  then typing. Size the parser tables to the request contract's
-  scalar-resource rows (roots and states 4,096; path members, data members,
-  type nodes, statements and expressions 16,384) and publish their refusals as
-  those provisions; aarch64 frames past 16 MiB now realize. The product's own
-  19 sources hold 19,430 expressions and 13,201 path members, so those rows
-  must count per source unit, or grow, before D can compile C. Run both gates
-  on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
-  structural identity, capacity and determinism controls and range-proven
-  narrowing casts.
+  paths with `in` domains. Resolution runs over a source set: each unit
+  belongs to the module its path names, a `use` must name a supplied module,
+  and a reference sees its own module and the modules its unit imports, not
+  transitively, with two visible declarations of one spelling ambiguous. It
+  binds data, signature and body types and `in` domains, rejects duplicate
+  generic parameters, parameters, states, and data and overloads within a
+  module, and binds every expression name by the language's resolution order
+  (locals, arm binders, the body's own parameters, then states, machines, data
+  and cases by position). The parser harness reads all 19 product sources
+  whole. Next: let the psi package resolve itself as one source set through
+  the resolver gate, which needs the shared syntax tables sized for its 17
+  units; then package aliases, with `pub` narrowing imports across packages,
+  until requests reach Psi; then typing. Size the parser tables to the request
+  contract's scalar-resource rows (roots and states 4,096; path members, data
+  members, type nodes, statements and expressions 16,384) and publish their
+  refusals as those provisions; aarch64 frames past 16 MiB now realize. The
+  product's own 19 sources hold 19,430 expressions and 13,201 path members, so
+  those rows must count per source unit, or grow, before D can compile C. Run
+  both gates on Linux and Windows hosts. Keep the acceptance/rejection,
+  lexical handoff, structural identity, capacity and determinism controls and
+  range-proven narrowing casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the
