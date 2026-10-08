@@ -21,7 +21,7 @@ pub(super) fn validate_establish_scalar_array(
     };
     if !result.is_unrestricted_plain()
         || !matches!(
-            machine.structural_places.iter().find(|place| place.id == result.place),
+            machine.structural_place(result.place),
             Some(StructuralPlaceDeclaration {
                 kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
             }) if *producer == operation.id && *structural_type == result.structural_type
@@ -60,7 +60,7 @@ pub(super) fn validate_establish_scalar_case(
         return malformed("scalar case establishment has an invalid result surface");
     }
     if !matches!(
-        machine.structural_places.iter().find(|place| place.id == result.place),
+        machine.structural_place(result.place),
         Some(StructuralPlaceDeclaration {
             kind: StructuralPlaceKind::OperationResult { producer, structural_type },
             ..
@@ -122,7 +122,7 @@ pub(super) fn validate_establish_structural_case(
         return malformed("structural case establishment has an invalid result surface");
     }
     if !matches!(
-        machine.structural_places.iter().find(|place| place.id == result.place),
+        machine.structural_place(result.place),
         Some(StructuralPlaceDeclaration {
             kind: StructuralPlaceKind::OperationResult { producer, structural_type },
             ..
@@ -259,7 +259,7 @@ pub(super) fn validate_establish_zeroed_structural(
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !matches!(
-            machine.structural_places.iter().find(|place| place.id == result.place),
+            machine.structural_place(result.place),
             Some(StructuralPlaceDeclaration {
                 kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
             }) if *producer == operation.id && *structural_type == result.structural_type
@@ -299,7 +299,7 @@ pub(super) fn validate_establish_structural_local(
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !matches!(
-            machine.structural_places.iter().find(|place| place.id == result.place),
+            machine.structural_place(result.place),
             Some(StructuralPlaceDeclaration {
                 kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
             }) if *producer == operation.id && *structural_type == result.structural_type
@@ -464,7 +464,7 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
     let Some(result) = operation.result.structural() else {
         return malformed("byte concatenation requires an owned structural result");
     };
-    if !matches!(machine.structural_places.iter().find(|row| row.id == result.place).map(|row| row.kind),
+    if !matches!(machine.structural_place(result.place).map(|row| row.kind),
         Some(StructuralPlaceKind::OperationResult { producer, structural_type })
             if producer == operation.id && structural_type == result.structural_type)
         || !module.structural_types.iter().any(|row| {

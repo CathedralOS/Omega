@@ -111,14 +111,17 @@ impl TerminalMachine {
             .find(|operation| operation.id == id)
     }
 
+    /// The structural-place declaration keyed `place`, when the machine
+    /// declares it.
+    pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
+        self.structural_places.iter().find(|entry| entry.id == place)
+    }
+
     /// The operation producing `place`, resolved through the structural-place
     /// declaration's producer binding. `None` when the place is not declared
     /// as an operation result.
     pub fn producing_operation(&self, place: PlaceId) -> Option<(&Operation, StructuralTypeId)> {
-        let declaration = self
-            .structural_places
-            .iter()
-            .find(|entry| entry.id == place)?;
+        let declaration = self.structural_place(place)?;
         let (producer, structural_type) = declaration.kind.as_operation_result()?;
         let operation = self
             .blocks
