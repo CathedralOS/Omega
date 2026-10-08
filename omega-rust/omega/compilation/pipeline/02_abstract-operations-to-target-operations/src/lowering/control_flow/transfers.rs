@@ -118,9 +118,7 @@ pub(super) fn address_parameter<'a>(
         return None;
     }
     function
-        .block_entries
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+        .block_structural_parameters()
         .find(|parameter| parameter.place == place)
 }
 

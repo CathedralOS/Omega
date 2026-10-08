@@ -152,12 +152,7 @@ fn recompute_cost(unit: &optimization_unit::PsiOptimizationUnit) -> (u128, usize
 fn measure(name: &str, source: String, selections: &OptimizationSelections) {
     let verified = verified_unit(&source);
     let unit = verified.unit();
-    let nodes: usize = unit
-        .functions
-        .iter()
-        .flat_map(|function| function.blocks.iter())
-        .map(|block| block.nodes.len())
-        .sum();
+    let nodes: usize = unit.blocks().map(|block| block.nodes.len()).sum();
     let (identity_micros, identity_calls, identity_bytes) = recompute_cost(unit);
     let budget = OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 64_000, 64_000)
         .expect("measurement budget");

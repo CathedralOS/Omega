@@ -45,12 +45,7 @@ fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
     function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .block_entries
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .any(|parameter| {
             parameter.place == place
                 && parameter.is_unqualified_owned_affine()
@@ -79,12 +74,7 @@ fn owned_root_type(
         return function
             .structural_parameters
             .iter()
-            .chain(
-                function
-                    .block_entries
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(function.block_structural_parameters())
             .find(|parameter| parameter.place == place)
             .map(|parameter| parameter.structural_type);
     }
