@@ -236,11 +236,7 @@ fn owning_machine(
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
     program.machines().iter().find(|machine| {
-        machine.symbol == symbol
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == symbol)
+        program.machine_or_state_symbol(machine, symbol)
     })
 }
 

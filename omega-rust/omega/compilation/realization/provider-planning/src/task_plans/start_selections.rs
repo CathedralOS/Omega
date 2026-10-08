@@ -44,13 +44,7 @@ pub(crate) fn unique_task_activation_target(
     ),
     TaskActivationTargetError,
 > {
-    let mut matches = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter(move |state| state.symbol == target_entry)
-            .map(move |state| (machine, state))
-    });
+    let mut matches = program.machine_states_named(target_entry);
     let (machine, entry) = matches
         .next()
         .ok_or(TaskActivationTargetError::MissingEntry)?;

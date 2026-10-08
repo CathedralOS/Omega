@@ -73,13 +73,7 @@ pub(super) fn representative_machine_state(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Result<(&Machine, &State), RelationPlanError> {
-    let mut matches = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter(|state| state.symbol == state_symbol)
-            .map(move |state| (machine, state))
-    });
+    let mut matches = program.machine_states_named(state_symbol);
     let Some((machine, state)) = matches.next() else {
         return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
     };

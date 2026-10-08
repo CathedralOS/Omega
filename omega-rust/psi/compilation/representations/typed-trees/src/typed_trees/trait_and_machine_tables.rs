@@ -379,7 +379,34 @@ impl TypedTrees {
         self.tables.machines.span_or_empty(self.roots.machines)
     }
 
-    /// The machine signature `symbol` declared by any trait, with its
+    /// The `(machine, state)` pairs whose state symbol is `symbol` —
+    /// normally at most one; callers decide how duplicates behave.
+    pub fn machine_states_named(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> impl Iterator<Item = (&machine::Machine, &crate::state::State)> + '_ {
+        self.machines().iter().flat_map(move |machine| {
+            self.machine_states(machine)
+                .iter()
+                .filter(move |state| state.symbol == symbol)
+                .map(move |state| (machine, state))
+        })
+    }
+
+    /// Whether `symbol` is `machine` itself or one of its states.
+    pub fn machine_or_state_symbol(
+        &self,
+        machine: &machine::Machine,
+        symbol: symbols::SymbolHandle,
+    ) -> bool {
+        machine.symbol == symbol
+            || self
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == symbol)
+    }
+
+        /// The machine signature `symbol` declared by any trait, with its
     /// declaring trait.
     pub fn trait_machine_signature(
         &self,

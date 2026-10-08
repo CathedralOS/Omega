@@ -114,13 +114,7 @@ pub(crate) fn exact_frame_target(
     ),
     Vec<Diagnostic>,
 > {
-    let mut matches = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .map(move |state| (machine, state))
-            .filter(|(_, state)| state.symbol == entry)
-    });
+    let mut matches = program.machine_states_named(entry);
     let (machine, state) = matches.next().ok_or_else(|| {
         vec![Diagnostic::error(
             "task WCSU graph call target must name an exact typed state",
@@ -432,13 +426,7 @@ fn checked_call_target(
     )>,
     Vec<Diagnostic>,
 > {
-    let mut matches = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .map(move |state| (machine, state))
-            .filter(|(_, state)| state.symbol == target)
-    });
+    let mut matches = program.machine_states_named(target);
     let Some(target) = matches.next() else {
         return Ok(None);
     };
