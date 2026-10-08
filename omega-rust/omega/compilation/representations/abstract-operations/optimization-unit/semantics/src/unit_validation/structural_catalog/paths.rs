@@ -103,7 +103,7 @@ pub(crate) fn resolve_leaf_copy_path(
 /// or cross a Reference carrier; callers must replay that crossing separately.
 ///
 /// Borrowed names rebind onto this geometry, so a field ends at the storage a
-/// loan of it addresses (`loaned_storage_shape`).
+/// loan of it addresses (`owner_loans::loaned_field_shape`).
 pub fn structural_projection_type<'types>(
     declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     structural_type: StructuralTypeId,
@@ -118,7 +118,7 @@ pub fn structural_projection_type<'types>(
         },
         structural_type,
         path,
-        loaned_storage_shape,
+        abstract_operations::control_flow::owner_loans::loaned_field_shape,
     )
     .or_else(|| {
         // An inline byte element has no structural child declaration. Its
@@ -126,23 +126,6 @@ pub fn structural_projection_type<'types>(
         // type resolution grants neither bounds nor backing authority.
         terminal_semantics::primitive_projection_declaration(declarations, structural_type, path)
     })
-}
-
-/// The standalone shape of the storage a loan of this leaf field addresses.
-/// A bounded byte owner field embeds its length word and bytes inline, the
-/// exact storage a `&mut [u8; N] in D` owner loan carries the address of
-/// (`owner_loans::is_bounded_owner_loan`), so `&mut record.bytes` names the
-/// declaration spelling that carrier. A byte view field stores a descriptor,
-/// not its referent, and keeps `canonical_leaf_shape`'s refusal.
-fn loaned_storage_shape(
-    field: &terminal_psi::StructuralFieldType,
-) -> Option<terminal_psi::StructuralTypeShape> {
-    match field.byte_sequence_carrier() {
-        Some(carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => {
-            Some(terminal_psi::StructuralTypeShape::ByteSequence(carrier))
-        }
-        _ => field.canonical_leaf_shape(),
-    }
 }
 
 fn resolve_path<'types>(

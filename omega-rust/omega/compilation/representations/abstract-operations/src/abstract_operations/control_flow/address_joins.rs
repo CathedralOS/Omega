@@ -5,8 +5,9 @@
 //! whole or statically projected, while transferring the exact incoming
 //! mutable or write-only permission. Neither carrier copies the referent.
 //! A shared or mutable bounded byte owner loan (`owner_loans`) is carried as its
-//! owner's address; it keeps the owner's plain byte qualifications, and each
-//! stage requires its edges to forward an identically qualified loan whole.
+//! owner's address; it keeps the owner's plain byte qualifications. An edge
+//! forwards an identically qualified loan whole, or lends one declared owner
+//! field whose predicates verification proves imply the loan's domains.
 //! Byte and element views keep their `{base, extent}` descriptor carriers.
 //!
 //! This is a type rule, not producer evidence. Each stage independently replays
@@ -14,6 +15,9 @@
 //! and shared-loan origin pinning remain separate receiving checks. Carrying
 //! an address grants no readable authority to a write-only loan. Referents
 //! containing loans or descriptors remain unsupported.
+
+#[cfg(test)]
+mod tests;
 
 use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
@@ -128,11 +132,12 @@ pub fn borrowed_referent_type<'a>(
 
 /// The referent type an address-join argument names: `path` resolved from
 /// `root` through record or selected-case fields and in-bounds fixed indexes.
-/// An element view contributes its own live extent as the index bound. A scalar leaf
-/// field resolves to the catalog's unique standalone declaration of that
-/// leaf's canonical shape, the same identity a borrowed `&u64` parameter
-/// declares. Erased fields, duplicate identities and every other segment
-/// fail closed.
+/// An element view contributes its own live extent as the index bound. A leaf
+/// field resolves to the catalog's unique standalone declaration of the
+/// storage a loan of it addresses (`owner_loans::loaned_field_shape`): a
+/// scalar's canonical shape, the same identity a borrowed `&u64` parameter
+/// declares, or a bounded byte owner's carrier. Erased fields, duplicate
+/// identities and every other segment fail closed.
 pub fn referent_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -210,7 +215,7 @@ pub fn referent_type<'a>(
                             .filter(|declaration| declaration.id == *child),
                     )?,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
+                        let shape = super::owner_loans::loaned_field_shape(leaf)?;
                         unique(
                             &mut declarations
                                 .clone()

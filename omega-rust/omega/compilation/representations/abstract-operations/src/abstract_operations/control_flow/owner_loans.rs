@@ -21,9 +21,26 @@
 use crate::abstract_operations::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
+
+/// The standalone shape of the storage a loan of this leaf field addresses.
+/// A bounded byte owner field embeds its length word and bytes inline, the
+/// exact storage an owner loan carries the address of
+/// ([`is_bounded_owner_loan`]), so `&mut record.bytes` names the declaration
+/// spelling that carrier. A byte view field stores a descriptor, not its
+/// referent, and keeps `canonical_leaf_shape`'s refusal. Field predicates
+/// bind to the field, never to this shape; the consuming loan's verification
+/// still proves that they imply the borrower's declared domains.
+pub fn loaned_field_shape(field: &StructuralFieldType) -> Option<StructuralTypeShape> {
+    match field.byte_sequence_carrier() {
+        Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+            Some(StructuralTypeShape::ByteSequence(carrier))
+        }
+        _ => field.canonical_leaf_shape(),
+    }
+}
 
 /// Whether this parameter is a shared loan of a bounded byte owner.
 /// `lookup` resolves one structural identity in the caller's own catalog.
@@ -46,9 +63,8 @@ pub fn is_bounded_owner_loan<'a>(
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
-        && lookup(parameter.structural_type).is_some_and(|declaration| {
-            declaration.shape.is_bounded_owned_byte_sequence()
-        })
+        && lookup(parameter.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }
 
 /// [`is_bounded_owner_loan`] over independently unique type declarations.
@@ -104,9 +120,8 @@ pub fn is_owned_bounded_byte_parameter<'a>(
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
-        && lookup(parameter.structural_type).is_some_and(|declaration| {
-            declaration.shape.is_bounded_owned_byte_sequence()
-        })
+        && lookup(parameter.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }
 
 /// Slice form with an independently unique type declaration.
