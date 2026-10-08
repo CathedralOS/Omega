@@ -143,11 +143,12 @@ pub data Parameter [copy] {
 }
 
 // Expression syntax. Children are handles into `SyntaxTrees::expressions`;
-// a parenthesized group adds no node. `first`/`count` select a kind's range:
-// a path's or call's callee members in `SyntaxTrees::members`, a call's
+// a parenthesized group adds no node. A Name holds its one identifier in
+// `name` and stores no member row. `first`/`count` select a kind's range:
+// a Path's members, two or more, in `SyntaxTrees::members`, a call's
 // arguments in `SyntaxTrees::arguments`, a construction's fields in
-// `SyntaxTrees::construct_fields` (its type path then lives in `left`'s
-// members through a Path or Name child), a membership's domains in
+// `SyntaxTrees::construct_fields` (its type path is its `left` child, a Name
+// or a Path), a membership's domains in
 // `SyntaxTrees::name_paths`, or a value-position match's arms in
 // `SyntaxTrees::match_arms`. A membership `value in A & B` tests its value
 // `left` against each domain, joined by `operator` (`And` for `&`, `Or` for

@@ -48,7 +48,9 @@ other expression as a terminal value (`-> (gap)`, `-> View { items: items }`),
 or the Unit completion `-> {}`. Expressions
 ([`parse/expression.omg`](parse/expression.omg)) cover integer, float, string
 and Boolean literals, names and
-`::` paths (every keyword but `self` is a name), `.field`, `[index]`, calls,
+`::` paths (every keyword but `self` is a name; a name keeps its identifier in
+its own row, and only a path's members fill the shared member table),
+`.field`, `[index]`, calls,
 static applications `path<arguments>(...)`, `as Type` casts,
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut` and the call

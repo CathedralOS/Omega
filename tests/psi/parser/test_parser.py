@@ -75,8 +75,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR12"
-    assert reader.u64() == 12
+    assert reader.bytes(8) == b"OMGPAR13"
+    assert reader.u64() == 13
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -1135,7 +1135,7 @@ def root_declaration_cases(program: str) -> None:
         ("established-by", b"domain i32::X established Y;", 136, (26, 27), {"type_reference_count": 1}),
         ("domain-route", b"domain i32::X established by ;", 137, (29, 30), {"type_reference_count": 1}),
         ("domain-end", b"domain i32::X requires v > 0", 138, (28, 28),
-         {"type_reference_count": 1, "member_count": 1, "expression_count": 3}),
+         {"type_reference_count": 1, "expression_count": 3}),
         ("domain-body-end", b"domain i32::X { v }", 139, (16, 17), {"type_reference_count": 1}),
         ("domain-clause", b"domain i32::X ensures v;", 105, (14, 21), {"type_reference_count": 1}),
         ("domain-index-end", b"domain T::X<A;", 102, (13, 14), {"type_reference_count": 2}),
@@ -1150,7 +1150,7 @@ def root_declaration_cases(program: str) -> None:
          {"type_reference_count": 1, "parameter_count": 1}),
         ("proposition-evidence", b"proposition P evidence ;", 151, (23, 24), {}),
         ("proposition-fact", b"proposition P = ;", 152, (16, 17), {}),
-        ("proposition-end", b"proposition P = x", 153, (17, 17), {"member_count": 1, "expression_count": 1}),
+        ("proposition-end", b"proposition P = x", 153, (17, 17), {"expression_count": 1}),
     )
     for name, source, diagnostic, where, counts in rejections:
         rejected(program, name, source, diagnostic, where, **counts)
@@ -1242,7 +1242,7 @@ def machine_form_cases(program: str) -> None:
         clauses=(clause_row(SATISFIES, (0, 2), 0, through(source, b"satisfies", b"Intrinsic"), True, (0, 1),
                             span(source, b"Sum")),),
         type_arguments=(2,),
-        expressions=((2, 0, 0, 0, 2, 2, 0, *span(source, b"Intrinsic"), 0, *span(source, b"Binding::Intrinsic")),),
+        expressions=((2, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, *span(source, b"Binding::Intrinsic")),),
     )
     assert actual.machines[0][19] == 0 and actual.machines[0][23:26] == whole(source), actual.machines
     source = b"machine f() satisfies A::x, core::B<u8, 4>::y {}"
@@ -1529,12 +1529,12 @@ def machine_form_cases(program: str) -> None:
         ("state-satisfies-not-admitted", b"machine f() { state s() satisfies A::b {} }", 105, b"satisfies", 1, {}),
         ("termination-subject", b"machine f() terminates by ; {}", 160, b";", 1, {}),
         ("termination-subject-end", b"machine f() terminates by (a b) {}", 161, b"b", 2,
-         {"member_count": 1, "expression_count": 1}),
+         {"expression_count": 1}),
         ("termination-view", b"machine f() terminates by a -> 1; {}", 162, b"1", 1,
-         {"member_count": 1, "expression_count": 2}),
-        ("termination-end", b"machine f() terminates by a {}", 94, b"{", 1, {"member_count": 1, "expression_count": 1}),
+         {"expression_count": 2}),
+        ("termination-end", b"machine f() terminates by a {}", 94, b"{", 1, {"expression_count": 1}),
         ("ranked-subject-is-no-membership", b"machine f() terminates by x in D; {}", 94, b"in", 3,
-         {"member_count": 1, "expression_count": 1}),
+         {"expression_count": 1}),
         ("unknown-operator-token", b"machine [x] f() {}", 163, b"x", 1, {}),
         ("conformance-member-token", b"C satisfies T { machine + f() {} }", 164, b"+", 1, {"type_reference_count": 1}),
         ("token-before-no-name", b"machine + () {}", 40, b"(", 1, {}),
@@ -1543,7 +1543,7 @@ def machine_form_cases(program: str) -> None:
         ("nominal-contract-takes-no-binding", b"machine f<machine F>() where machine F satisfies H::c via b; {}",
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
         ("contract-after-clause", b"machine f() requires a where machine F(); {}", 105, b"where", 1,
-         {"member_count": 1, "expression_count": 1}),
+         {"expression_count": 1}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
         ("proposition-contract-end", b"trait R<proposition P> where proposition P(x: u8) {}", 166, b"{", 1,
@@ -1593,7 +1593,7 @@ def machine_form_cases(program: str) -> None:
     assert status == 0 and decode(payload).clauses[0][9:11] == (0, 8), "8 ranked subjects"
     over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b"); {}"
     rejected(program, "ranked-subject-capacity-plus-one", over, 180, (len(over) - 5, len(over) - 4),
-             member_count=9, expression_count=9)
+             expression_count=9)
 
 
 def expression_form_cases(program: str) -> None:
@@ -1601,46 +1601,46 @@ def expression_form_cases(program: str) -> None:
     MEMBERSHIP, MATCH = 15, 16
     WILDCARD, LITERAL, CASE = 2, 3, 4
 
-    def name_row(source: bytes, name: bytes, member: int, occurrence: int = 1) -> tuple[int, ...]:
+    def name_row(source: bytes, name: bytes, occurrence: int = 1) -> tuple[int, ...]:
         where = span(source, name, occurrence)
-        return (1, 0, 0, 0, member, 1, 0, *where, 0, *where)
+        return (1, 0, 0, 0, 0, 0, 0, *where, 0, *where)
 
     # `value in Domain {& Domain}` or `{| Domain}`: the domains are name
     # paths, joined by `operator` (0 one domain, 1 `|`, 2 `&`).
     source = b"machine f(x: u8) requires x in Optional::None {}"
     declaration_accepted(
         program, "membership-in-case-domain", source,
-        expressions=(name_row(source, b"x", 0, 2),
+        expressions=(name_row(source, b"x", 2),
                      (MEMBERSHIP, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, *span(source, b"x in Optional::None"))),
-        name_paths=((1, 2, *span(source, b"Optional::None")),),
+        name_paths=((0, 2, *span(source, b"Optional::None")),),
     )
     source = b"machine f(x: u8) requires x in A & B {}"
     declaration_accepted(
         program, "membership-in-every-domain", source,
-        expressions=(name_row(source, b"x", 0, 2), (MEMBERSHIP, 2, 0, 0, 0, 2, 0, 1, 0, 0, 0, *span(source, b"x in A & B"))),
-        name_paths=((1, 1, *span(source, b"A")), (2, 1, *span(source, b"B"))),
+        expressions=(name_row(source, b"x", 2), (MEMBERSHIP, 2, 0, 0, 0, 2, 0, 1, 0, 0, 0, *span(source, b"x in A & B"))),
+        name_paths=((0, 1, *span(source, b"A")), (1, 1, *span(source, b"B"))),
     )
     source = b"machine f(x: u8) -> bool { x in A | B | C }"
     declaration_accepted(
         program, "membership-in-a-union", source,
-        expressions=(name_row(source, b"x", 0, 2),
+        expressions=(name_row(source, b"x", 2),
                      (MEMBERSHIP, 1, 0, 0, 0, 3, 0, 1, 0, 0, 0, *span(source, b"x in A | B | C"))),
-        name_paths=((1, 1, *span(source, b"A")), (2, 1, *span(source, b"B")), (3, 1, *span(source, b"C"))),
+        name_paths=((0, 1, *span(source, b"A")), (1, 1, *span(source, b"B")), (2, 1, *span(source, b"C"))),
     )
     source = b"machine f(a: u8, b: u8) -> bool { a + b in D == !a in E }"
     declaration_accepted(
         program, "membership-between-tiers", source,
         expressions=(
-            name_row(source, b"a", 0, 3),
-            name_row(source, b"b", 1, 3),
+            name_row(source, b"a", 3),
+            name_row(source, b"b", 3),
             (9, 14, 0, 1, 0, 0, 0, 1, 0, 0, 0, *span(source, b"a + b")),
             (MEMBERSHIP, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, *span(source, b"a + b in D")),
-            name_row(source, b"a", 3, 4),
+            name_row(source, b"a", 4),
             (8, 19, 4, 0, 0, 0, 0, 1, 0, 0, 0, *span(source, b"!a")),
             (MEMBERSHIP, 0, 5, 0, 1, 1, 0, 1, 0, 0, 0, *span(source, b"!a in E")),
             (9, 3, 3, 6, 0, 0, 0, 1, 0, 0, 0, *span(source, b"a + b in D == !a in E")),
         ),
-        name_paths=((2, 1, *span(source, b"D")), (4, 1, *span(source, b"E"))),
+        name_paths=((0, 1, *span(source, b"D")), (1, 1, *span(source, b"E"))),
     )
 
     # `match subject { pattern -> value, ... }` is an operand; its arms keep
@@ -1703,32 +1703,32 @@ def expression_form_cases(program: str) -> None:
 
     for name, source, diagnostic, fragment, occurrence, counts in (
         ("membership-domain", b"machine f(x: u8) requires x in {}", 168, b"{", 1,
-         {"type_reference_count": 1, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+         {"type_reference_count": 1, "parameter_count": 1, "expression_count": 1}),
         ("mixed-domain-connectives", b"machine f(x: u8) requires x in A & B | C {}", 169, b"|", 1,
-         {"type_reference_count": 1, "parameter_count": 1, "member_count": 3, "expression_count": 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 2, "expression_count": 1,
           "name_path_count": 2}),
         ("indexed-membership-domain", b"machine f(x: u8) requires x in AtMost<8> {}", 170, b"<", 1,
-         {"type_reference_count": 1, "parameter_count": 1, "member_count": 2, "expression_count": 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 1, "expression_count": 1,
           "name_path_count": 1}),
         ("match-subject", b"machine f() -> u8 { match { _ -> 1 } }", 171, b"{", 2, {"type_reference_count": 1}),
         ("match-arms", b"machine f(x: u8) -> u8 { match x 1 }", 172, b"1", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 1}),
         ("empty-match", b"machine f(x: u8) -> u8 { match x { } }", 177, b"}", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 1}),
         ("match-pattern", b"machine f(x: u8) -> u8 { match x { -> 1 } }", 173, b"->", 2,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 1}),
         ("match-arrow", b"machine f(x: u8) -> u8 { match x { 1 2 } }", 174, b"2", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 2}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("match-value", b"machine f(x: u8) -> u8 { match x { 1 -> } }", 175, b"}", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 2}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("match-arm-end", b"machine f(x: u8) -> u8 { match x { 1 -> 2 3 -> 4 } }", 176, b"3", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 3}),
+         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 3}),
         ("match-destructure-belongs-to-transition", b"machine f(x: u8) -> u8 { match x { P { a } -> 1 } }",
-         174, b"{", 3, {"type_reference_count": 2, "parameter_count": 1, "member_count": 2, "expression_count": 2}),
+         174, b"{", 3, {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("match-subject-is-no-construction", b"machine f(x: u8) -> u8 { match S { a: 1 } { _ -> 1 } }",
-         174, b":", 2, {"type_reference_count": 2, "parameter_count": 1, "member_count": 2, "expression_count": 2}),
+         174, b":", 2, {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("pattern-rename", b"machine f(n: Nat) { transition n { Nat::Succ { prev as } -> g() } }", 178, b"}", 1,
-         {"type_reference_count": 1, "parameter_count": 1, "member_count": 3, "expression_count": 2}),
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 2, "expression_count": 2}),
     ):
         where = span(source, fragment, occurrence)
         rejected(program, name, source, diagnostic, where[1:], **counts)
@@ -1742,11 +1742,11 @@ def expression_form_cases(program: str) -> None:
     over = exact[:-1] + b"    let b: u8 = match x { 1 -> 1 };\n}"
     start = over.rindex(b";")
     rejected(program, "match-arm-table-plus-one", over, 181, (start, start + 1),
-             type_reference_count=18, parameter_count=1, member_count=17, expression_count=2083, statement_count=16)
+             type_reference_count=18, parameter_count=1, expression_count=2083, statement_count=16)
     over = b"machine f(x: u8) -> u8 { match x { " + b"1 -> 1, " * 65 + b"} }"
     start = len(b"machine f(x: u8) -> u8 { match x { ") + 64 * len(b"1 -> 1, ") + len(b"1 -> 1")
     rejected(program, "staged-match-arm-plus-one", over, 181, (start, start + 1),
-             type_reference_count=2, parameter_count=1, member_count=1, expression_count=131)
+             type_reference_count=2, parameter_count=1, expression_count=131)
 
 
 def main() -> None:
@@ -2708,11 +2708,11 @@ def main() -> None:
         "logical-tiers",
         b"machine f(a: bool, b: bool) -> bool { !a && b || a }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 39, 40, 0, 1, 39, 40),
+            (1, 0, 0, 0, 0, 0, 0, 1, 39, 40, 0, 1, 39, 40),
             (8, 19, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 38, 40),
-            (1, 0, 0, 0, 1, 1, 0, 1, 44, 45, 0, 1, 44, 45),
+            (1, 0, 0, 0, 0, 0, 0, 1, 44, 45, 0, 1, 44, 45),
             (9, 2, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 38, 45),
-            (1, 0, 0, 0, 2, 1, 0, 1, 49, 50, 0, 1, 49, 50),
+            (1, 0, 0, 0, 0, 0, 0, 1, 49, 50, 0, 1, 49, 50),
             (9, 1, 3, 4, 0, 0, 0, 1, 0, 0, 0, 1, 38, 50),
         ),
         ((4, 1, 0, 0, 0, 0, 1, 5, 0, 1, 0, 0, 1, 38, 50),),
@@ -2721,14 +2721,14 @@ def main() -> None:
         "field-index-assignment-and-path-call",
         b"machine f(p: &mut P) { p.x = q[i].y; Q::make(p, 1); }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 23, 24, 0, 1, 23, 24),
+            (1, 0, 0, 0, 0, 0, 0, 1, 23, 24, 0, 1, 23, 24),
             (6, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 23, 26),
-            (1, 0, 0, 0, 1, 1, 0, 1, 29, 30, 0, 1, 29, 30),
-            (1, 0, 0, 0, 2, 1, 0, 1, 31, 32, 0, 1, 31, 32),
+            (1, 0, 0, 0, 0, 0, 0, 1, 29, 30, 0, 1, 29, 30),
+            (1, 0, 0, 0, 0, 0, 0, 1, 31, 32, 0, 1, 31, 32),
             (7, 0, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 29, 33),
             (6, 0, 4, 0, 0, 0, 0, 1, 34, 35, 0, 1, 29, 35),
-            (2, 0, 0, 0, 3, 2, 0, 1, 40, 44, 0, 1, 37, 44),
-            (1, 0, 0, 0, 5, 1, 0, 1, 45, 46, 0, 1, 45, 46),
+            (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 37, 44),
+            (1, 0, 0, 0, 0, 0, 0, 1, 45, 46, 0, 1, 45, 46),
             (3, 0, 0, 0, 0, 0, 0, 1, 48, 49, 0, 1, 48, 49),
             (11, 0, 6, 0, 0, 2, 0, 1, 0, 0, 0, 1, 37, 50),
         ),
@@ -2742,8 +2742,8 @@ def main() -> None:
         "nested-call-arguments-stay-contiguous",
         b"machine f() { g(h(1, 2), 3); }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 14, 15, 0, 1, 14, 15),
-            (1, 0, 0, 0, 1, 1, 0, 1, 16, 17, 0, 1, 16, 17),
+            (1, 0, 0, 0, 0, 0, 0, 1, 14, 15, 0, 1, 14, 15),
+            (1, 0, 0, 0, 0, 0, 0, 1, 16, 17, 0, 1, 16, 17),
             (3, 0, 0, 0, 0, 0, 0, 1, 18, 19, 0, 1, 18, 19),
             (3, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
             (11, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 1, 16, 23),
@@ -2768,9 +2768,9 @@ def main() -> None:
         "nested-construction-fields-stay-contiguous",
         b"machine f() { let v: V = V { a: 1, b: W { c: true } }; }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 25, 26, 0, 1, 25, 26),
+            (1, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
             (3, 0, 0, 0, 0, 0, 0, 1, 32, 33, 0, 1, 32, 33),
-            (1, 0, 0, 0, 1, 1, 0, 1, 38, 39, 0, 1, 38, 39),
+            (1, 0, 0, 0, 0, 0, 0, 1, 38, 39, 0, 1, 38, 39),
             (4, 0, 0, 0, 0, 0, 1, 1, 45, 49, 0, 1, 45, 49),
             (12, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1, 38, 51),
             (12, 0, 0, 0, 1, 2, 0, 1, 0, 0, 0, 1, 25, 53),
@@ -2786,7 +2786,7 @@ def main() -> None:
         "prefix-negation-and-subtraction",
         b"machine f(x: i64) -> i64 { -x - -1 }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 28, 29, 0, 1, 28, 29),
+            (1, 0, 0, 0, 0, 0, 0, 1, 28, 29, 0, 1, 28, 29),
             (8, 20, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 27, 29),
             (3, 0, 0, 0, 0, 0, 0, 1, 33, 34, 0, 1, 33, 34),
             (8, 20, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 34),
@@ -2798,10 +2798,10 @@ def main() -> None:
         "borrow-arguments",
         b"machine f() { g(&mut a, &b); }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 14, 15, 0, 1, 14, 15),
-            (1, 0, 0, 0, 1, 1, 0, 1, 21, 22, 0, 1, 21, 22),
+            (1, 0, 0, 0, 0, 0, 0, 1, 14, 15, 0, 1, 14, 15),
+            (1, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
             (8, 23, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 16, 22),
-            (1, 0, 0, 0, 2, 1, 0, 1, 25, 26, 0, 1, 25, 26),
+            (1, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 25, 26),
             (8, 22, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1, 24, 26),
             (11, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 14, 27),
         ),
@@ -2821,10 +2821,10 @@ def main() -> None:
         "string-argument-and-state-tail",
         b'machine f() { log("hi"); state s(a: u8) -> u8 { a } }',
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 14, 17, 0, 1, 14, 17),
+            (1, 0, 0, 0, 0, 0, 0, 1, 14, 17, 0, 1, 14, 17),
             (5, 0, 0, 0, 0, 0, 0, 1, 18, 22, 0, 1, 18, 22),
             (11, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 14, 23),
-            (1, 0, 0, 0, 1, 1, 0, 1, 48, 49, 0, 1, 48, 49),
+            (1, 0, 0, 0, 0, 0, 0, 1, 48, 49, 0, 1, 48, 49),
         ),
         (
             (3, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 0, 1, 14, 24),
@@ -2842,7 +2842,7 @@ def main() -> None:
         "wildcard-transition",
         b"machine f() { transition { _ -> g() } state g() {} }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 32, 33, 0, 1, 32, 33),
+            (1, 0, 0, 0, 0, 0, 0, 1, 32, 33, 0, 1, 32, 33),
             (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
         ),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 14, 37),),
@@ -2852,12 +2852,12 @@ def main() -> None:
         "subject-literal-and-terminal-arms",
         b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } state a(v: u8) {} }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 30, 31, 0, 1, 30, 31),
+            (1, 0, 0, 0, 0, 0, 0, 1, 30, 31, 0, 1, 30, 31),
             (3, 0, 0, 0, 0, 0, 0, 1, 34, 35, 0, 1, 34, 35),
             (9, 5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 35),
             (4, 0, 0, 0, 0, 0, 1, 1, 38, 42, 0, 1, 38, 42),
-            (1, 0, 0, 0, 1, 1, 0, 1, 46, 47, 0, 1, 46, 47),
-            (1, 0, 0, 0, 2, 1, 0, 1, 48, 49, 0, 1, 48, 49),
+            (1, 0, 0, 0, 0, 0, 0, 1, 46, 47, 0, 1, 46, 47),
+            (1, 0, 0, 0, 0, 0, 0, 1, 48, 49, 0, 1, 48, 49),
             (11, 0, 4, 0, 0, 1, 0, 1, 0, 0, 0, 1, 46, 50),
         ),
         ((6, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 2, 1, 19, 60),),
@@ -2870,17 +2870,17 @@ def main() -> None:
         b"Token::Keyword { keyword } -> b(keyword) "
         b"Token::Punctuation { punctuation: PunctuationKind::Comma } -> c() _ -> {} } }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 33, 34, 0, 1, 33, 34),
-            (2, 0, 0, 0, 1, 2, 0, 1, 44, 54, 0, 1, 37, 54),
-            (1, 0, 0, 0, 3, 1, 0, 1, 58, 59, 0, 1, 58, 59),
+            (1, 0, 0, 0, 0, 0, 0, 1, 33, 34, 0, 1, 33, 34),
+            (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 37, 54),
+            (1, 0, 0, 0, 0, 0, 0, 1, 58, 59, 0, 1, 58, 59),
             (11, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 58, 61),
-            (2, 0, 0, 0, 4, 2, 0, 1, 69, 76, 0, 1, 62, 76),
-            (1, 0, 0, 0, 6, 1, 0, 1, 92, 93, 0, 1, 92, 93),
-            (1, 0, 0, 0, 7, 1, 0, 1, 94, 101, 0, 1, 94, 101),
+            (2, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1, 62, 76),
+            (1, 0, 0, 0, 0, 0, 0, 1, 92, 93, 0, 1, 92, 93),
+            (1, 0, 0, 0, 0, 0, 0, 1, 94, 101, 0, 1, 94, 101),
             (11, 0, 5, 0, 0, 1, 0, 1, 0, 0, 0, 1, 92, 102),
-            (2, 0, 0, 0, 8, 2, 0, 1, 110, 121, 0, 1, 103, 121),
-            (2, 0, 0, 0, 10, 2, 0, 1, 154, 159, 0, 1, 137, 159),
-            (1, 0, 0, 0, 12, 1, 0, 1, 165, 166, 0, 1, 165, 166),
+            (2, 0, 0, 0, 4, 2, 0, 1, 0, 0, 0, 1, 103, 121),
+            (2, 0, 0, 0, 6, 2, 0, 1, 0, 0, 0, 1, 137, 159),
+            (1, 0, 0, 0, 0, 0, 0, 1, 165, 166, 0, 1, 165, 166),
             (11, 0, 10, 0, 1, 0, 0, 1, 0, 0, 0, 1, 165, 168),
         ),
         ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 1, 22, 178),),
@@ -2897,16 +2897,16 @@ def main() -> None:
         "guard-arms",
         b"machine f(n: u64) { transition { n == 0 -> a() n > 9 -> b(n - 1) _ -> {} } }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 33, 34, 0, 1, 33, 34),
+            (1, 0, 0, 0, 0, 0, 0, 1, 33, 34, 0, 1, 33, 34),
             (3, 0, 0, 0, 0, 0, 0, 1, 38, 39, 0, 1, 38, 39),
             (9, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 39),
-            (1, 0, 0, 0, 1, 1, 0, 1, 43, 44, 0, 1, 43, 44),
+            (1, 0, 0, 0, 0, 0, 0, 1, 43, 44, 0, 1, 43, 44),
             (11, 0, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1, 43, 46),
-            (1, 0, 0, 0, 2, 1, 0, 1, 47, 48, 0, 1, 47, 48),
+            (1, 0, 0, 0, 0, 0, 0, 1, 47, 48, 0, 1, 47, 48),
             (3, 0, 0, 0, 0, 0, 0, 1, 51, 52, 0, 1, 51, 52),
             (9, 7, 5, 6, 0, 0, 0, 1, 0, 0, 0, 1, 47, 52),
-            (1, 0, 0, 0, 3, 1, 0, 1, 56, 57, 0, 1, 56, 57),
-            (1, 0, 0, 0, 4, 1, 0, 1, 58, 59, 0, 1, 58, 59),
+            (1, 0, 0, 0, 0, 0, 0, 1, 56, 57, 0, 1, 56, 57),
+            (1, 0, 0, 0, 0, 0, 0, 1, 58, 59, 0, 1, 58, 59),
             (3, 0, 0, 0, 0, 0, 0, 1, 62, 63, 0, 1, 62, 63),
             (9, 15, 9, 10, 0, 0, 0, 1, 0, 0, 0, 1, 58, 63),
             (11, 0, 8, 0, 0, 1, 0, 1, 0, 0, 0, 1, 56, 64),
@@ -2921,27 +2921,27 @@ def main() -> None:
     )
     transition_rejections = (
         ("transition-subject", b"machine f() { transition }", 82, (25, 26), {}),
-        ("transition-open", b"machine f() { transition x }", 83, (27, 28), {"member_count": 1, "expression_count": 1}),
+        ("transition-open", b"machine f() { transition x }", 83, (27, 28), {"expression_count": 1}),
         ("transition-arm", b"machine f() { transition { -> a() } }", 83, (27, 29), {}),
         ("transition-arrow", b"machine f() { transition { _ a() } }", 84, (29, 30), {}),
         ("transition-target", b"machine f() { transition { _ -> } }", 85, (32, 33), {}),
         ("transition-target-open", b"machine f() { transition { _ -> suspend a } }", 86, (42, 43),
-         {"member_count": 1, "expression_count": 2}),
+         {"expression_count": 2}),
         ("transition-terminal-close", b"machine f() { transition { _ -> { x } } }", 87, (34, 35), {}),
-        ("transition-target-callee", b"machine f() { transition { _ -> a.b() } }", 85, (32, 35), {"member_count": 1, "expression_count": 3}),
+        ("transition-target-callee", b"machine f() { transition { _ -> a.b() } }", 85, (32, 35), {"expression_count": 3}),
         (
             "pattern-field",
             b"machine f(t: T) { transition t { A { , } -> a() } }",
             88,
             (37, 38),
-            {"member_count": 2, "type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
+            {"type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
         ),
         (
             "pattern-field-end",
             b"machine f(t: T) { transition t { A { x y } -> a() } }",
             89,
             (39, 40),
-            {"member_count": 2, "type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
+            {"type_reference_count": 1, "parameter_count": 1, "expression_count": 2},
         ),
     )
     for name, source, diagnostic, span, counts in transition_rejections:
@@ -2988,7 +2988,7 @@ def main() -> None:
             (7, 0, 0, 1, 5, 1, 33, 46),
             (5, 0, 0, 2, 0, 1, 47, 60),
         ),
-        ((1, 27, 28), (1, 41, 42)),
+        (),
         6,
         (0, 3),
     )
@@ -3054,7 +3054,7 @@ def main() -> None:
     assert actual.cases[0][12:14] == (2, 1), f"data-where:\n{actual.cases}"
     where_rejections = (
         ("where-fact", b"data D where {}", 95, (13, 14), {}),
-        ("where-separator", b"data D where a b {}", 11, (15, 16), {"member_count": 1, "expression_count": 1}),
+        ("where-separator", b"data D where a b {}", 11, (15, 16), {"expression_count": 1}),
         ("data-requires", b"data D requires a {}", 105, (7, 15), {}),
         ("case-where-fact", b"data D { case C where ; }", 95, (22, 23), {}),
     )
@@ -3111,26 +3111,28 @@ def main() -> None:
     assert {(BINARY, 5), (BINARY, 7), (BINARY, 13)} <= set(comparisons), comparisons
     assert all(row[0] != APPLY for row in comparisons), comparisons
     static_rejections = (
-        ("static-argument-missing", b"machine f() { g<>(x); }", 101, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("static-argument-missing", b"machine f() { g<>(x); }", 101, (16, 17), {"expression_count": 1}),
         ("static-argument-trailing", b"machine f() { g<A,>(x); }", 101, (18, 19),
-         {"member_count": 1, "expression_count": 1, "type_reference_count": 1}),
+         {"expression_count": 1, "type_reference_count": 1}),
         ("type-path-member", b"data D { a: x::; }", 3, (15, 16), {}),
-        ("spaced-shift", b"machine f() { h(k > > 1); }", 55, (20, 21), {"member_count": 2, "expression_count": 2}),
+        ("spaced-shift", b"machine f() { h(k > > 1); }", 55, (20, 21), {"expression_count": 2}),
     )
     for name, source, diagnostic, span, counts in static_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
     # Every keyword but `self` is a name in an expression, as in every other
-    # name position.
+    # name position. A Name holds its identifier in its own row and stores
+    # no path member.
     source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"
     status, payload = run(program, source)
     assert status == 0, f"keyword-names: status {status}"
     actual = decode(payload)
-    assert [source[span[1]:span[2]] for span in actual.members] == [b"g", b"target", b"data", b"data", b"target"], (
-        f"keyword-names:\n{actual.members}"
-    )
+    assert [source[row[8]:row[9]] for row in actual.expressions if row[0] == 1] == [
+        b"g", b"target", b"data", b"data", b"target"
+    ], f"keyword-names:\n{actual.expressions}"
+    assert actual.members == (), f"keyword-names:\n{actual.members}"
     rejected(program, "self-is-not-a-name", b"machine f() { g(self); }", 60, (16, 20),
-             member_count=1, expression_count=1)
+             expression_count=1)
 
     # Body rejections keep the nodes completed before the rejected token.
     body_rejections = (
@@ -3139,23 +3141,23 @@ def main() -> None:
         ("local-type", b"machine f() { let x: ; }", 73, (21, 22), {}),
         ("local-initial-value", b"machine f() { let x: u8 = ; }", 74, (26, 27), {"type_reference_count": 1}),
         ("local-end", b"machine f() { let x: u8 }", 75, (24, 25), {"type_reference_count": 1}),
-        ("assignment-value", b"machine f() { a = ; }", 76, (18, 19), {"member_count": 1, "expression_count": 1}),
-        ("assignment-semicolon", b"machine f() { a = 1 }", 77, (20, 21), {"member_count": 1, "expression_count": 2}),
-        ("statement-end", b"machine f() { a b }", 78, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("assignment-value", b"machine f() { a = ; }", 76, (18, 19), {"expression_count": 1}),
+        ("assignment-semicolon", b"machine f() { a = 1 }", 77, (20, 21), {"expression_count": 2}),
+        ("statement-end", b"machine f() { a b }", 78, (16, 17), {"expression_count": 1}),
         ("crash-cause", b"machine f() { crash Panic; }", 79, (20, 25), {}),
         ("crash-end", b"machine f() { crash Trap }", 80, (25, 26), {}),
         ("binary-operand", b"machine f() { 1 + ; }", 55, (18, 19), {"expression_count": 1}),
         ("path-member", b"machine f() { a::; }", 56, (17, 18), {"member_count": 1}),
-        ("field-name", b"machine f() { a.; }", 57, (16, 17), {"member_count": 1, "expression_count": 1}),
+        ("field-name", b"machine f() { a.; }", 57, (16, 17), {"expression_count": 1}),
         ("group-end", b"machine f() { (1; }", 58, (16, 17), {"expression_count": 1}),
-        ("index-end", b"machine f() { a[1; }", 59, (17, 18), {"member_count": 1, "expression_count": 2}),
-        ("call-argument", b"machine f() { g(,); }", 60, (16, 17), {"member_count": 1, "expression_count": 1}),
-        ("call-argument-end", b"machine f() { g(1 2); }", 61, (18, 19), {"member_count": 1, "expression_count": 2}),
-        ("cast-type", b"machine f() { a as ; }", 62, (19, 20), {"member_count": 1, "expression_count": 1}),
-        ("construct-field", b"machine f() { V { 1 }; }", 63, (18, 19), {"member_count": 1, "expression_count": 1}),
-        ("construct-colon", b"machine f() { V { a 1 }; }", 64, (20, 21), {"member_count": 1, "expression_count": 1}),
-        ("construct-value", b"machine f() { V { a: }; }", 65, (21, 22), {"member_count": 1, "expression_count": 1}),
-        ("construct-field-end", b"machine f() { V { a: 1 b: 2 }; }", 66, (23, 24), {"member_count": 1, "expression_count": 2}),
+        ("index-end", b"machine f() { a[1; }", 59, (17, 18), {"expression_count": 2}),
+        ("call-argument", b"machine f() { g(,); }", 60, (16, 17), {"expression_count": 1}),
+        ("call-argument-end", b"machine f() { g(1 2); }", 61, (18, 19), {"expression_count": 2}),
+        ("cast-type", b"machine f() { a as ; }", 62, (19, 20), {"expression_count": 1}),
+        ("construct-field", b"machine f() { V { 1 }; }", 63, (18, 19), {"expression_count": 1}),
+        ("construct-colon", b"machine f() { V { a 1 }; }", 64, (20, 21), {"expression_count": 1}),
+        ("construct-value", b"machine f() { V { a: }; }", 65, (21, 22), {"expression_count": 1}),
+        ("construct-field-end", b"machine f() { V { a: 1 b: 2 }; }", 66, (23, 24), {"expression_count": 2}),
         ("statement-start", b"machine f() { ) }", 48, (14, 15), {}),
     )
     for name, source, diagnostic, span, counts in body_rejections:
@@ -3462,7 +3464,7 @@ def main() -> None:
         ("machine-body-or-end", b"machine f() -> u8 x", 47, (18, 19), {"type_reference_count": 1}),
         ("bodyless-state", b"machine f() { state s(); }", 50, (23, 24), {}),
         ("fact-semicolon-then-close", b"machine f() requires a; }", 2, (24, 25),
-         {"root_count": 1, "member_count": 1, "machine_count": 1, "expression_count": 1}),
+         {"root_count": 1, "machine_count": 1, "expression_count": 1}),
     )
     for name, source, diagnostic, span, counts in bodyless_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
@@ -3473,7 +3475,7 @@ def main() -> None:
     body(
         "parenthesized-value-target",
         b"machine f(gap: u64) -> u64 { transition { _ -> (gap) } }",
-        ((1, 0, 0, 0, 0, 1, 0, 1, 48, 51, 0, 1, 48, 51),),
+        ((1, 0, 0, 0, 0, 0, 0, 1, 48, 51, 0, 1, 48, 51),),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 29, 54),),
         arms=((2, 0, 0, 0, 2, 0, 1, 42, 51),),
     )
@@ -3481,8 +3483,8 @@ def main() -> None:
         "construction-value-target",
         b"machine f(items: u8) -> V { transition { _ -> V { items: items } } }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 46, 47, 0, 1, 46, 47),
-            (1, 0, 0, 0, 1, 1, 0, 1, 57, 62, 0, 1, 57, 62),
+            (1, 0, 0, 0, 0, 0, 0, 1, 46, 47, 0, 1, 46, 47),
+            (1, 0, 0, 0, 0, 0, 0, 1, 57, 62, 0, 1, 57, 62),
             (12, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 46, 64),
         ),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 28, 66),),
@@ -3493,9 +3495,9 @@ def main() -> None:
         "path-value-target",
         b"machine f(e: E) -> E { transition e { E::A -> E::B _ -> {} } }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 34, 35, 0, 1, 34, 35),
-            (2, 0, 0, 0, 1, 2, 0, 1, 41, 42, 0, 1, 38, 42),
-            (2, 0, 0, 0, 3, 2, 0, 1, 49, 50, 0, 1, 46, 50),
+            (1, 0, 0, 0, 0, 0, 0, 1, 34, 35, 0, 1, 34, 35),
+            (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 38, 42),
+            (2, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1, 46, 50),
         ),
         ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 1, 23, 60),),
         arms=((4, 1, 0, 0, 2, 2, 1, 38, 50), (2, 0, 0, 0, 3, 0, 1, 51, 58)),
@@ -3504,8 +3506,8 @@ def main() -> None:
         "float-literal-argument",
         b"machine f(x: f64) { g(x, 16777216.0); }",
         (
-            (1, 0, 0, 0, 0, 1, 0, 1, 20, 21, 0, 1, 20, 21),
-            (1, 0, 0, 0, 1, 1, 0, 1, 22, 23, 0, 1, 22, 23),
+            (1, 0, 0, 0, 0, 0, 0, 1, 20, 21, 0, 1, 20, 21),
+            (1, 0, 0, 0, 0, 0, 0, 1, 22, 23, 0, 1, 22, 23),
             (14, 0, 0, 0, 0, 0, 0, 1, 25, 35, 0, 1, 25, 35),
             (11, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 20, 36),
         ),

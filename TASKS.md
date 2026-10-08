@@ -5903,7 +5903,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared domains and equality needing a
   declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 37 units, as one source set (44,658 expressions, 227
+  whole psi package, its 37 units, as one source set (44,653 expressions, 227
   interned types). The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
@@ -5924,13 +5924,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   parse yet, 6 at an import that rejects, and `std/build.omg` names the build
   context's `Build`. The resolver gate resolves the whole psi
   package, its 37 units, as one source set; the shared syntax tables hold
-  1,024 roots, 32,000 path members (31,576 used by psi),
+  1,024 roots, 32,000 path members (8,479 used by psi; a single name
+  stores none, its expression row holding it),
   16,384 type references, 1,536 data members, 768 cases, 8,192 parameters and
   statements, 4,096 states and 65,536 expressions, over a 65,536-token unit.
-  Next: the psi package's 31,576 path members leave 424 of the 32,000-row
-  table, so before the next resolver or typing slice count rows per source
-  unit, or stop storing a single-name expression's member (its `name` already
-  holds it); then package aliases, with `pub` narrowing imports across
+  Next: package aliases, with `pub` narrowing imports across
   packages, so the product entry and its library imports resolve; `satisfies` requirement
   edges, `terminates` clauses and `where machine` contracts, which the
   library's remaining files stop at; names in facts; and typing's declared
@@ -5938,10 +5936,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   rows (roots and states 4,096; path members, data members, type nodes,
   statements and expressions 16,384) and publish their refusals as those
   provisions; aarch64 frames past 16 MiB now realize. The psi package's own
-  37 sources hold 44,658 expressions and 31,576 path members, so those rows
-  must count per source unit, or grow, before D can compile C; the path
-  member table is close to the most one unit's 65,536 tokens can fill and
-  overflow (two tokens per member), so it can barely grow further. Run the
+  37 sources hold 44,653 expressions, so those rows must count per source
+  unit, or grow, before D can compile C. Run the
   three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven
   narrowing casts.

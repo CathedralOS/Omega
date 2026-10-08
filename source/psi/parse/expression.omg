@@ -288,13 +288,19 @@ crashes Trap
         }
     }
 
-    // `name (:: name)*`: one member is a Name, more are a Path.
+    // `name (:: name)*`: one name is a Name, which holds its identifier in
+    // `name` and stores no member row; a `::` makes a Path, whose members,
+    // the first included, fill a contiguous range of `SyntaxTrees::members`.
     state path(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         parser.path_start = token.start;
         parser.path_first_member = parser.output.member_count as u64 in Trapping;
         Parser::take_current(parser, input);
-        transition { _ -> path_member(parser, input) }
+        let qualified: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
+        transition qualified {
+            true -> path_member(parser, input)
+            _ -> name_node(parser, input)
+        }
     }
 
     state path_member(parser: &mut Parser, input: &TokenStream) {
@@ -311,7 +317,7 @@ crashes Trap
         let qualified: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition qualified {
             true -> path_separator(parser, input)
-            _ -> path_done(parser, input)
+            _ -> path_node(parser, input)
         }
     }
 
@@ -324,22 +330,14 @@ crashes Trap
         }
     }
 
-    state path_done(parser: &mut Parser, input: &TokenStream) {
-        let count: u64 in Trapping = (parser.output.member_count as u64 in Trapping) - parser.path_first_member;
-        transition count == 1 {
-            true -> name_node(parser, input)
-            _ -> path_node(parser, input, count)
-        }
-    }
-
     state name_node(parser: &mut Parser, input: &TokenStream) {
         let node: Expression = Expression {
             kind: ExpressionKind::Name,
             operator: OperatorKind::None,
             left: 0,
             right: 0,
-            first: parser.path_first_member,
-            count: 1,
+            first: 0,
+            count: 0,
             flag: false,
             name: Parser::identifier_span(parser, parser.path_start, parser.token_end),
             type_reference: 0,
@@ -353,7 +351,8 @@ crashes Trap
         }
     }
 
-    state path_node(parser: &mut Parser, input: &TokenStream, count: u64 in Trapping) {
+    state path_node(parser: &mut Parser, input: &TokenStream) {
+        let count: u64 in Trapping = (parser.output.member_count as u64 in Trapping) - parser.path_first_member;
         let node: Expression = Expression {
             kind: ExpressionKind::Path,
             operator: OperatorKind::None,
@@ -362,7 +361,7 @@ crashes Trap
             first: parser.path_first_member,
             count: count,
             flag: false,
-            name: Parser::identifier_span(parser, parser.token_start, parser.token_end),
+            name: Parser::identifier_span(parser, 0, 0),
             type_reference: 0,
             first_row: 0,
             source_span: Parser::source_span(parser, parser.path_start, parser.token_end)
