@@ -415,7 +415,6 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         }
         if self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || self.byte_sequence_values.contains_key(&result.place)
             || self.element_view_values.contains_key(&result.place)
@@ -1119,8 +1118,6 @@ impl TerminalExecution<'_> {
                 .live_affine_frontier
                 .iter()
                 .any(|entry| entry.place == result.place)
-            || self.scalar_case_values.contains_key(source)
-            || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(malformed());
         }

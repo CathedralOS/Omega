@@ -5,11 +5,9 @@
 //! an opaque per-buffer token prevents moving a previous invocation's buffer
 //! into a new call from substituting its backing. Captured field declarations
 //! retain original restrictions even when a formal observes a plain carrier.
-//! Requested aggregate arguments use this same protocol leaf by leaf under
-//! the already-bound referent; opaque host arguments remain opaque by default.
-//! Exclusive aggregate loans may snapshot original atomic residents without
-//! making ordinary scalar references. Their captured declaration stays Atomic;
-//! shared loans omit them, so a demanded atomic byte interval remains uncovered.
+//! `storage_loans` coordinates complete aggregates, including case replacement,
+//! using the same original-endpoint and restriction queries below. It does not
+//! expose aggregate leaves as independent replaceable argument buffers.
 
 use std::sync::Arc;
 
@@ -19,7 +17,6 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeShape,
 };
 
-use crate::custody::resolve_structural_path_type;
 use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -28,8 +25,6 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     ScalarFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
 };
-
-mod record_fields;
 
 /// One boundary argument's captured scalar payload. Replacement is staged,
 /// never a grant of access to the runtime or its qualifications.
@@ -161,61 +156,6 @@ impl BoundaryScalarLoans {
         Ok(value)
     }
 
-    pub(crate) fn capture_fields(
-        &mut self,
-        execution: &TerminalExecution,
-        parameter: &StructuralParameterDeclaration,
-        argument: &StructuralArgument,
-        referent: &TerminalStructuralValue,
-        array_loan: Option<&crate::element_views::ElementView>,
-        argument_index: usize,
-    ) -> Result<(), TerminalInterpretError> {
-        if parameter.access != argument.access
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return Err(malformed());
-        }
-        for (field_path, expected) in record_fields::scalar_leaves(
-            &execution.program,
-            parameter.structural_type,
-            parameter.access,
-        )? {
-            // Argument preparation checked access and bound the exact projected
-            // referent. Resolve leaves below that view, not the differently
-            // typed containing place in the caller's activation.
-            let (storage, scalar_type, shared_view) = if let Some(loan) = array_loan {
-                loan.scalar_storage(
-                    execution,
-                    &field_path,
-                    parameter.access == StructuralAccess::MutableBorrow,
-                )?
-            } else {
-                execution.boundary_scalar_storage(
-                    referent,
-                    &field_path,
-                    expected,
-                    parameter.access,
-                )?
-            };
-            if scalar_type != expected {
-                return Err(malformed());
-            }
-            self.capture_storage(
-                execution,
-                argument.place,
-                storage,
-                scalar_type,
-                shared_view,
-                parameter.access,
-                argument_index,
-                field_path,
-            )?;
-        }
-        Ok(())
-    }
-
     fn capture_storage(
         &mut self,
         execution: &TerminalExecution,
@@ -270,11 +210,12 @@ impl BoundaryScalarLoans {
     pub(crate) fn validate_writeback(
         &self,
         execution: &TerminalExecution,
+        buffers: &[&TerminalBoundaryScalarBuffer],
     ) -> Result<(), TerminalInterpretError> {
-        if self.buffers.len() != self.bindings.len() {
+        if buffers.len() != self.bindings.len() {
             return Err(malformed());
         }
-        for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
+        for (buffer, binding) in buffers.iter().zip(&self.bindings) {
             if !Arc::ptr_eq(&buffer.identity, &binding.identity)
                 || buffer.argument_index != binding.argument_index
                 || buffer.field_path != binding.field_path
@@ -313,13 +254,14 @@ impl BoundaryScalarLoans {
     pub(crate) fn commit(
         self,
         execution: &mut TerminalExecution,
+        buffers: impl IntoIterator<Item = TerminalBoundaryScalarBuffer>,
     ) -> Result<(), TerminalInterpretError> {
         // All endpoints, payload carriers and original field restrictions were
         // validated together before result publication. Host code cannot enter
         // this execution, and a result binds a fresh SSA/place without changing
         // any captured input home. Thus these stores do not discover new source
         // paths or introduce a later, partially committed validation phase.
-        for (buffer, binding) in self.buffers.into_iter().zip(self.bindings) {
+        for (buffer, binding) in buffers.into_iter().zip(self.bindings) {
             if binding.access != StructuralAccess::SharedBorrow {
                 execution.store_primitive_storage(
                     binding.source,
@@ -337,7 +279,7 @@ impl TerminalExecution<'_> {
     /// A plain formal cannot erase a stronger qualification on its caller's
     /// backing. This transport has no qualified replacement protocol, so it
     /// conservatively refuses qualified roots and projected owner constraints.
-    fn validate_scalar_loan_qualifications(
+    pub(crate) fn validate_scalar_loan_qualifications(
         &self,
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
@@ -349,6 +291,13 @@ impl TerminalExecution<'_> {
             // and unqualified, claim-free structural results for array locals.
             PrimitiveStorageEndpoint::OwnedArrayElement { .. } => return Ok(()),
         };
+        self.validate_storage_loan_qualifications(target)
+    }
+
+    pub(crate) fn validate_storage_loan_qualifications(
+        &self,
+        target: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
         let owns_target = |value: &TerminalStructuralValue| {
             value.opaque_identity == target.opaque_identity && target.path.starts_with(&value.path)
         };
@@ -401,7 +350,7 @@ impl TerminalExecution<'_> {
     /// Recover the declaration of the actual cell, not the boundary formal.
     /// Equal opaque roots must agree on its containing type; an ambiguous
     /// owner cannot authorize host writeback under one convenient declaration.
-    fn captured_scalar_restriction(
+    pub(crate) fn captured_scalar_restriction(
         &self,
         storage: &PrimitiveStorage,
         access: StructuralAccess,
@@ -409,37 +358,36 @@ impl TerminalExecution<'_> {
         let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
             return Ok(None);
         };
-        if cell.namespace != ScalarFieldNamespace::Member {
-            return Err(malformed());
-        }
-        let mut parent_type = None;
-        for root in self.structural_values.values().chain(
-            self.call_stack
-                .iter()
-                .flat_map(|frame| frame.structural_values.values()),
-        ) {
-            if root.opaque_identity != cell.parent.opaque_identity || !root.path.is_empty() {
-                continue;
-            }
-            let candidate = resolve_structural_path_type(
-                &self.program.structural_types(),
-                root.structural_type,
-                &cell.parent.path,
-            )?;
-            if parent_type.is_some_and(|previous| previous != candidate) {
-                return Err(malformed());
-            }
-            parent_type = Some(candidate);
-        }
+        let parent_type = self.actual_storage_type_from_owner(&cell.parent)?;
         let declaration = self
             .program
             .structural_types()
-            .get(&parent_type.ok_or_else(malformed)?)
+            .get(&parent_type)
             .ok_or_else(malformed)?;
-        let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. }
-            | StructuralTypeShape::Mixed { fields, .. } => fields,
-            _ => return Err(malformed()),
+        let fields = if cell.namespace == ScalarFieldNamespace::CasePayload {
+            let case = self
+                .structural_cases
+                .get(&cell.parent)
+                .ok_or_else(malformed)?;
+            if case.structural_type != declaration.id {
+                return Err(malformed());
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return Err(malformed());
+            };
+            &cases
+                .iter()
+                .find(|row| row.id == case.case)
+                .ok_or_else(malformed)?
+                .fields
+        } else {
+            match &declaration.shape {
+                StructuralTypeShape::Record { fields, .. }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => return Err(malformed()),
+            }
         };
         let mut matching = fields.iter().filter(|field| field.id == cell.field);
         let (Some(field), None) = (matching.next(), matching.next()) else {

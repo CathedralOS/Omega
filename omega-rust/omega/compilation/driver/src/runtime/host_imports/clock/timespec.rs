@@ -10,12 +10,12 @@ use std::sync::{Arc, Mutex};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::IntegerValue;
 use terminal_interpreter::{
-    TerminalBoundaryScalarBuffer, TerminalEffect, TerminalEffectRejection, TerminalEffectResult,
+    TerminalBoundaryStorageBuffer, TerminalEffect, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportSignature, TerminalScalarValue,
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
-use super::super::borrowed_storage::CapturedStorage;
+use super::super::borrowed_storage::{CapturedStorage, StorageTransfer};
 use super::{ClockImplementation, ClockNamespace, TerminalClockSnapshot, TerminalRuntimeError};
 
 pub(super) fn admit(
@@ -57,7 +57,7 @@ pub(super) fn admit(
 
 pub(super) fn read(
     effect: &TerminalEffect,
-    buffers: &mut [TerminalBoundaryScalarBuffer],
+    buffers: &mut [TerminalBoundaryStorageBuffer],
     signature: &TerminalImportSignature,
     layout: &NativeBorrowedStorageLayout,
     clock: &Arc<Mutex<TerminalClockSnapshot>>,
@@ -82,8 +82,13 @@ pub(super) fn read(
     {
         return Err(invalid());
     }
-    let mut storage =
-        CapturedStorage::capture(buffers, StructuralAccess::MutableBorrow, Some(layout), 16)?;
+    let mut storage = CapturedStorage::capture(
+        buffers,
+        StructuralAccess::MutableBorrow,
+        Some(layout),
+        16,
+        StorageTransfer::ReplacePrefix,
+    )?;
     let reading = clock
         .lock()
         .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?
@@ -103,13 +108,13 @@ pub(super) fn read(
         .copy_from_slice(&nanoseconds.to_le_bytes());
     // No clock mutation and no writeback until the complete replacement has
     // passed captured codecs/restrictions and the core authenticates endpoints.
-    storage.stage(buffers)?;
+    storage.stage(buffers, 16)?;
     Ok(result)
 }
 
 pub(super) fn sleep(
     effect: &TerminalEffect,
-    buffers: &[TerminalBoundaryScalarBuffer],
+    buffers: &[TerminalBoundaryStorageBuffer],
     signature: &TerminalImportSignature,
     layout: &NativeBorrowedStorageLayout,
     clock: &Arc<Mutex<TerminalClockSnapshot>>,
@@ -148,7 +153,13 @@ pub(super) fn sleep(
         .structural_parameters
         .first()
         .ok_or_else(invalid)?;
-    let storage = CapturedStorage::capture(buffers, parameter.access, Some(layout), 16)?;
+    let storage = CapturedStorage::capture(
+        buffers,
+        parameter.access,
+        Some(layout),
+        16,
+        StorageTransfer::Observe,
+    )?;
     let seconds = i64::from_le_bytes(
         storage
             .bytes

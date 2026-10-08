@@ -36,7 +36,6 @@ impl TerminalExecution<'_> {
         let destination = match self.call_stack.last() {
             Some(SuspendedCall {
                 structural_values,
-                scalar_case_values,
                 scalar_array_values,
                 element_view_values,
                 byte_sequence_values,
@@ -47,7 +46,6 @@ impl TerminalExecution<'_> {
                 && result.multiplicity == signature.multiplicity
                 && result.qualifications == signature.qualifications
                 && !structural_values.contains_key(&result.place)
-                && !scalar_case_values.contains_key(&result.place)
                 && !scalar_array_values.contains_key(&result.place)
                 && !element_view_values.contains_key(&result.place)
                 && !byte_sequence_values.contains_key(&result.place)
@@ -83,18 +81,6 @@ impl TerminalExecution<'_> {
             }
             CompletedReturn::plain(TerminalExecutionResult::ScalarArray(
                 TerminalScalarArrayResult { value },
-            ))
-        } else if let Some(value) = self.scalar_case_values.get(source).cloned() {
-            if value.structural_type != signature.structural_type
-                || !signature.qualifications.is_empty()
-                || !returned_claims.is_empty()
-                || !self.live_claims.is_empty()
-                || !self.claim_free_structural_destination()
-            {
-                return Err(malformed());
-            }
-            CompletedReturn::plain(TerminalExecutionResult::ScalarCase(
-                TerminalScalarCaseResult { value },
             ))
         } else {
             let mut value = self.structural_values.get(source).cloned().ok_or(
@@ -166,11 +152,24 @@ impl TerminalExecution<'_> {
                 binding => binding,
             });
             let element_view = element_view.map(|view| view.with_descriptor_home(value.clone()));
+            let scalar_case = if self.call_stack.is_empty()
+                && signature.qualifications.is_empty()
+                && signature.projected_qualifications.is_empty()
+                && returned_claims.is_empty()
+            {
+                self.snapshot_scalar_case(&value)?
+            } else {
+                None
+            };
             CompletedReturn {
-                value: TerminalExecutionResult::Structural(TerminalStructuralResult {
-                    value,
-                    claims: returned_claims.clone(),
-                }),
+                value: if let Some(value) = scalar_case {
+                    TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult { value })
+                } else {
+                    TerminalExecutionResult::Structural(TerminalStructuralResult {
+                        value,
+                        claims: returned_claims.clone(),
+                    })
+                },
                 destination: None,
                 rebound_claims,
                 byte_sequence,
@@ -184,7 +183,6 @@ impl TerminalExecution<'_> {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
         self.structural_values.remove(source);
-        self.scalar_case_values.remove(source);
         self.scalar_array_values.remove(source);
         self.byte_sequence_values.remove(source);
         self.element_view_values.remove(source);
@@ -212,5 +210,64 @@ impl TerminalExecution<'_> {
             Some(_) => false,
             None => true,
         }
+    }
+
+    /// The embedding API accepts semantic scalar-case contents, not a second
+    /// live runtime carrier. Ordinary caller returns preserve the placed home.
+    fn snapshot_scalar_case(
+        &self,
+        value: &crate::values::TerminalStructuralValue,
+    ) -> Result<Option<crate::values::TerminalScalarCaseValue>, TerminalInterpretError> {
+        if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
+            return Ok(None);
+        }
+        let declaration = self
+            .program
+            .structural_types()
+            .get(&value.structural_type)
+            .ok_or_else(malformed)?;
+        let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+            return Ok(None);
+        };
+        let root = crate::values::StructuralRuntimePlace::from(value);
+        let Some(contents) = self.structural_cases.get(&root) else {
+            return Ok(None);
+        };
+        if contents.structural_type != value.structural_type {
+            return Err(malformed());
+        }
+        let selected = cases
+            .iter()
+            .find(|case| case.id == contents.case)
+            .ok_or_else(malformed)?;
+        if selected
+            .fields
+            .iter()
+            .any(|field| field.relevance.is_erased() || field.field_type.scalar_type().is_none())
+        {
+            return Ok(None);
+        }
+        let fields = selected
+            .fields
+            .iter()
+            .map(|field| {
+                let cell = crate::values::StructuralScalarRuntimeField::case_payload(
+                    root.clone(),
+                    field.id,
+                );
+                self.structural_scalar_fields
+                    .get(&cell)
+                    .copied()
+                    .map(|scalar| (field.id, scalar))
+                    .ok_or_else(malformed)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let snapshot = crate::values::TerminalScalarCaseValue {
+            structural_type: value.structural_type,
+            result_case: contents.case,
+            fields,
+        };
+        snapshot.validate_against(declaration)?;
+        Ok(Some(snapshot))
     }
 }

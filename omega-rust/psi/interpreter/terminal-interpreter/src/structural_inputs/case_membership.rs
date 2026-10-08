@@ -31,6 +31,105 @@ pub(crate) struct StructuralCaseContents {
 }
 
 impl TerminalExecution<'_> {
+    /// A logical owner may retain a physical prefix after projected transfer.
+    /// Recover the actual declaration from every containing live occurrence,
+    /// not only an empty-path allocation root; all such owners must agree.
+    pub(crate) fn actual_storage_type_from_owner(
+        &self,
+        target: &StructuralRuntimePlace,
+    ) -> Result<StructuralTypeId, TerminalInterpretError> {
+        let mut actual = None;
+        for owner in self.structural_values.values().chain(
+            self.call_stack
+                .iter()
+                .flat_map(|frame| frame.structural_values.values()),
+        ) {
+            if owner.opaque_identity != target.opaque_identity
+                || !target.path.starts_with(&owner.path)
+            {
+                continue;
+            }
+            let candidate = self.actual_storage_type(owner, target)?;
+            if actual.is_some_and(|previous| previous != candidate) {
+                return Err(malformed());
+            }
+            actual = Some(candidate);
+        }
+        actual.ok_or_else(malformed)
+    }
+
+    /// Runtime paths omit Case after authenticating its overlay. Recover a
+    /// containing declaration using the current stored cases, never by choosing
+    /// one case whose spelled field happens to fit. This is storage inspection,
+    /// not authority to observe or replace that storage.
+    pub(crate) fn actual_storage_type(
+        &self,
+        root: &TerminalStructuralValue,
+        target: &StructuralRuntimePlace,
+    ) -> Result<StructuralTypeId, TerminalInterpretError> {
+        if target.opaque_identity != root.opaque_identity || !target.path.starts_with(&root.path) {
+            return Err(malformed());
+        }
+        let mut structural_type = root.structural_type;
+        let mut parent = StructuralRuntimePlace::from(root);
+        for segment in &target.path[root.path.len()..] {
+            let declaration = self
+                .program
+                .structural_types()
+                .get(&structural_type)
+                .ok_or_else(malformed)?;
+            match segment {
+                StructuralPathSegment::Field(identity) => {
+                    let common = match &declaration.shape {
+                        StructuralTypeShape::Record { fields, .. }
+                        | StructuralTypeShape::Mixed { fields, .. } => {
+                            fields.iter().find(|field| field.identity == *identity)
+                        }
+                        _ => None,
+                    };
+                    let field = if let Some(common) = common {
+                        common
+                    } else {
+                        let (StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+                        else {
+                            return Err(malformed());
+                        };
+                        let actual = self.structural_cases.get(&parent).ok_or_else(malformed)?;
+                        if actual.structural_type != structural_type {
+                            return Err(malformed());
+                        }
+                        let case = cases
+                            .iter()
+                            .find(|case| case.id == actual.case)
+                            .ok_or_else(malformed)?;
+                        case.fields
+                            .iter()
+                            .find(|field| field.identity == *identity)
+                            .ok_or_else(malformed)?
+                    };
+                    let StructuralFieldType::Structural(child) = field.field_type else {
+                        return Err(malformed());
+                    };
+                    structural_type = child;
+                }
+                StructuralPathSegment::FixedIndex(index) => {
+                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                    else {
+                        return Err(malformed());
+                    };
+                    if *index >= length {
+                        return Err(malformed());
+                    }
+                    structural_type = element;
+                }
+                _ => return Err(malformed()),
+            }
+            parent.path.push(segment.clone());
+        }
+        Ok(structural_type)
+    }
+
     /// Check every selected overlay against its current stored discriminator.
     /// Verification already proved the source permission and membership; this
     /// joins the admitted operation to the interpreter's actual backing before
@@ -203,11 +302,6 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralCaseId, TerminalInterpretError> {
-        if path.is_empty()
-            && let Some(value) = self.scalar_case_values.get(&source)
-        {
-            return Ok(value.result_case);
-        }
         let root = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;

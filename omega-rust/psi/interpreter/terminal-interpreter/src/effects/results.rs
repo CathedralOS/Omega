@@ -93,7 +93,6 @@ impl TerminalExecution<'_> {
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
                 && !self.supports_scalar_case_result(result))
                 || self.structural_values.contains_key(&result.place)
-                || self.scalar_case_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
                     .iter()
@@ -217,20 +216,7 @@ impl TerminalExecution<'_> {
                 && declaration.qualifications == expected.qualifications
                 && self.supports_scalar_case_result(declaration) =>
             {
-                value.validate_against(
-                    self.program
-                        .structural_types()
-                        .get(&declaration.structural_type)
-                        .ok_or_else(malformed)?,
-                )?;
-                self.scalar_case_values.insert(declaration.place, value);
-                if declaration.multiplicity == StructuralMultiplicity::Affine {
-                    self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: declaration.place,
-                        path: Vec::new(),
-                        structural_type: declaration.structural_type,
-                    });
-                }
+                self.publish_scalar_case(declaration, value)?;
             }
             (
                 OperationResult::Structural(declaration),

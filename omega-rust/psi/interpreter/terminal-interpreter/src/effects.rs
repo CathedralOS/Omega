@@ -4,17 +4,20 @@
 //! `results.rs` binds a host result to the verified boundary result it
 //! answers, and `byte_buffers.rs` stages the exact array and field loans a
 //! boundary call lends the host and their separately committed replacement.
-//! `scalar_loans.rs` captures original primitive backing and field restrictions
-//! before dispatch; host buffers never name mutable interpreter storage.
+//! `storage_loans.rs` captures primitive or complete active aggregate contents,
+//! validates all replacements, then commits through the original backing.
+//! Host buffers never name mutable interpreter storage; scalar restrictions
+//! and endpoint queries remain owned by `scalar_loans.rs`.
 
 pub(crate) mod byte_buffers;
 pub(crate) mod crash_outcome;
 pub(crate) mod results;
 pub(crate) mod scalar_loans;
+pub(crate) mod storage_loans;
 
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::scalar_loans::TerminalBoundaryScalarBuffer;
+use crate::effects::storage_loans::TerminalBoundaryStorageBuffer;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use std::collections::BTreeMap;
@@ -52,28 +55,25 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
-    /// Request captured scalar leaves of these structural arguments before
+    /// Request captured semantic storage of these structural arguments before
     /// host dispatch. This selects observations, never access or authority.
-    fn scalar_storage_arguments(
-        &self,
-        _boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> &[usize] {
+    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
         &[]
     }
 
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
 
-    /// Handle captured scalar loans alongside the existing byte buffers. The
-    /// default refuses unsupported scalar loans before invoking an old adapter.
+    /// Handle primitive or aggregate storage loans beside byte buffers. The
+    /// default refuses unsupported storage loans before invoking an old adapter.
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
-        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+        storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        if !scalar_buffers.is_empty() {
+        if !storage_buffers.is_empty() {
             return Err(TerminalEffectRejection::new(
-                "handler does not support boundary scalar loans",
+                "handler does not support boundary storage loans",
             ));
         }
         self.handle_effect_with_byte_buffers(effect, byte_buffers)

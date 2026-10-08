@@ -1,0 +1,97 @@
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+pub data Packet { value: u32; neighbor: u32; }
+pub data Choice {
+    case Full(packet: Packet);
+    case Other(packet: Packet);
+    case Empty;
+}
+pub boundary trait DescriptorIo {
+    machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 blocks;
+    machine write(descriptor: i32, choice: &Choice, count: u64) -> i64;
+}
+pub data DescriptorImports {}
+data Holder { prefix: u32; choice: Choice; suffix: u32; }
+data Main { io: Binding<DescriptorIo>; holder: Holder; }
+
+pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } }
+}
+macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, choice: &mut Choice, count: u64) -> i64
+    satisfies DescriptorIo::read via read_binding();
+macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, choice: &Choice, count: u64) -> i64
+    satisfies DescriptorIo::write via write_binding();
+
+machine receive(io: &Binding<DescriptorIo>, choice: &mut Choice, count: u64) -> i64
+    reaches DescriptorIo blocks; {
+    block io.read(0, choice, count)
+}
+
+machine other_contents(choice: &Choice) -> bool {
+    transition choice { Choice::Other { packet } -> check(packet) _ -> (false) }
+    state check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 88 }
+}
+machine full_contents(choice: &Choice) -> bool {
+    transition choice { Choice::Full { packet } -> check(packet) _ -> (false) }
+    state check(packet: &Packet) -> bool { packet.value == 2625 && packet.neighbor == 167772259 }
+}
+
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+    main.holder.prefix = 17;
+    main.holder.suffix = 29;
+    main.holder.choice = Choice::Full { packet: Packet { value: 2625, neighbor: 77 } };
+    let written: i64 = main.io.write(1, &main.holder.choice, 6);
+    let moved: i64 = block receive(&main.io, &mut main.holder.choice, 12);
+    transition written == 6 && moved == 12 {
+        true -> check_other(main)
+        false -> bad()
+    }
+    state check_other(main: &mut Main) {
+        transition other_contents(&main.holder.choice) {
+            true -> empty(main)
+            false -> bad()
+        }
+    }
+    state empty(main: &mut Main) {
+        let moved: i64 = block receive(&main.io, &mut main.holder.choice, 4);
+        transition moved == 4 {
+            true -> check_empty(main)
+            false -> bad()
+        }
+    }
+    state check_empty(main: &mut Main) {
+        transition main.holder.choice {
+            Choice::Empty -> refill(main)
+            _ -> bad()
+        }
+    }
+    state refill(main: &mut Main) {
+        let moved: i64 = block receive(&main.io, &mut main.holder.choice, 12);
+        let eof: i64 = block receive(&main.io, &mut main.holder.choice, 12);
+        transition moved == 12 && eof == 0 {
+            true -> check_full(main)
+            false -> bad()
+        }
+    }
+    state check_full(main: &mut Main) {
+        transition full_contents(&main.holder.choice)
+            && main.holder.prefix == 17 && main.holder.suffix == 29 {
+            true -> output(main)
+            false -> bad()
+        }
+    }
+    state output(main: &mut Main) {
+        let written: i64 = main.io.write(1, &main.holder.choice, 6);
+        transition written == 6 { true -> done() false -> bad() }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

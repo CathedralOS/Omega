@@ -66,6 +66,38 @@ pub(crate) fn structural_parameter_positions(
     })
 }
 
+/// Borrowed block arrivals retain either a referent address or their actual
+/// descriptor. Neither is an aggregate home merely because it has a block
+/// coordinate; the ordinary marshaler selects presentation from that root.
+fn borrowed_block_argument_root<'source>(
+    source: &'source LegalizedScalarFunction,
+    operation: semantic_vocabulary::OperationId,
+    argument: &target_operations::TargetStructuralArgument,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &'source terminal_psi::StructuralParameterDeclaration,
+)> {
+    if let Some(join) = crate::selection::address_join_input::join(source, argument.place) {
+        return Some(join);
+    }
+    let parameter = crate::selection::arrival_parameter_input::parameter(source, argument.place)?;
+    if crate::selection::established_view_input::view_type(source, argument.place)
+        != Some(parameter.structural_type)
+        && crate::selection::established_view_input::element_view_type(source, argument.place)
+            != Some(parameter.structural_type)
+    {
+        return None;
+    }
+    crate::selection::established_view_input::accepts(source, operation, argument)?;
+    let block = source.blocks.iter().find(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .any(|actual| actual == parameter)
+    })?;
+    Some((block.id, parameter))
+}
+
 /// The target supplies one canonical mechanism template. The evaluated plan,
 /// not a catalog permutation, supplies its explicit operands and callback uses.
 pub(crate) fn call_key(
@@ -272,6 +304,20 @@ pub(crate) fn validate(
                         projected_qualifications: result.projected_qualifications.clone(),
                     },
                     !result.claims.is_empty() || !result.qualification_establishments.is_empty(),
+                )
+            } else if let Some((block, parameter)) = invocation_site
+                .operation()
+                .and_then(|operation| borrowed_block_argument_root(source, operation, argument))
+            {
+                (
+                    parameter.structural_type,
+                    parameter.access,
+                    TargetStructuralArgumentSource::BlockParameter {
+                        block,
+                        place: parameter.place,
+                    },
+                    parameter.clone(),
+                    false,
                 )
             } else if let Some((block, parameter)) =
                 crate::selection::aggregate_result_input::block_home(source, argument.place)

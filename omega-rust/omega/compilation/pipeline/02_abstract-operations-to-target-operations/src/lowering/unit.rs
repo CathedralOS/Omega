@@ -1,4 +1,5 @@
 //! Operation-level call, storage, and scalar lowering shared by control graphs.
+pub(super) mod argument_roots;
 pub(super) mod boundary_call;
 pub(super) mod known_integers;
 mod projected_result;

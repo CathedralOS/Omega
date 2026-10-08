@@ -17,8 +17,7 @@ use crate::reference;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
-    TerminalStructuralValue,
+    TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 use semantic_vocabulary::{
     ClaimId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
@@ -26,12 +25,11 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::TerminalMachine;
 use terminal_psi::{
-    find_structural_case,
-BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralResultClaimBinding, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    TerminalAffineCleanupAction, find_structural_case,
 };
 
 /// Bind one authenticated completed-result claim into a live claim map. A binding inhabiting
@@ -87,7 +85,6 @@ pub(crate) fn commit_cleanup_action(
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
-    scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     action: &TerminalAffineCleanupAction,
@@ -101,14 +98,13 @@ pub(crate) fn commit_cleanup_action(
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if (reference::discard_structural_value(
+            if reference::discard_structural_value(
                 structural_values,
                 reference_referents,
                 element_views,
                 *place,
             )
             .is_none()
-                && scalar_case_values.remove(place).is_none())
                 || !remove_affine_root(frontier, *place)
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);

@@ -6,7 +6,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
-use crate::effects::scalar_loans::BoundaryScalarLoans;
+use crate::effects::storage_loans::BoundaryStorageLoans;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::structural_identities::LocalStructuralIdentities;
@@ -29,7 +29,7 @@ pub(crate) struct BoundaryArguments {
     pub(crate) values: Vec<TerminalStructuralValue>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
-    pub(crate) scalar_loans: BoundaryScalarLoans,
+    pub(crate) storage_loans: BoundaryStorageLoans,
     bindings: Vec<BoundaryByteBufferBinding>,
     byte_sequences: Vec<Option<ByteSequenceBinding>>,
     primitive_loans: Vec<Option<crate::primitive_storage::PrimitiveLoan>>,
@@ -123,7 +123,6 @@ impl BoundaryArguments {
             byte_sequences,
             primitive_loans,
             scalar_arrays: BTreeMap::new(),
-            scalar_cases: BTreeMap::new(),
             element_views,
         })
     }
@@ -131,7 +130,7 @@ impl BoundaryArguments {
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
     /// Check every binding before committing either fields or the result.
     pub(crate) fn validate_writeback(
-        &self,
+        &mut self,
         execution: &TerminalExecution,
     ) -> Result<(), TerminalInterpretError> {
         if self.buffers.len() != self.bindings.len() {
@@ -140,20 +139,27 @@ impl BoundaryArguments {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             binding.validate(execution, buffer)?;
         }
-        self.scalar_loans.validate_writeback(execution)
+        self.storage_loans.validate_writeback(execution)
     }
 
     pub(crate) fn commit(
         self,
         execution: &mut TerminalExecution,
     ) -> Result<(), TerminalInterpretError> {
-        execution
-            .local_structural_identities
-            .commit_cursor(self.local_identity_cursor);
         for (buffer, binding) in self.buffers.into_iter().zip(self.bindings) {
             binding.commit(execution, buffer)?;
         }
-        self.scalar_loans.commit(execution)
+        self.storage_loans.commit(execution)
+    }
+
+    /// After input validation, publish the staged allocation cursor before a
+    /// host scalar-case result allocates its original home. Input writeback
+    /// remains deferred; resetting this cursor after result publication would
+    /// collide with that newly allocated result.
+    pub(crate) fn commit_identity_cursor(&self, execution: &mut TerminalExecution) {
+        execution
+            .local_structural_identities
+            .commit_cursor(self.local_identity_cursor);
     }
 }
 
@@ -162,7 +168,7 @@ impl TerminalExecution<'_> {
         &self,
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
-        scalar_storage_arguments: &[usize],
+        storage_arguments: &[usize],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
         if parameters.len() != arguments.len() {
             return Err(malformed());
@@ -194,7 +200,7 @@ impl TerminalExecution<'_> {
         let mut resolved =
             self.prepare_boundary_arguments(&ordinary_parameters, &ordinary_arguments)?;
         for argument_index in scalar_indices {
-            let value = resolved.scalar_loans.capture(
+            let value = resolved.storage_loans.capture_scalar(
                 self,
                 &parameters[argument_index],
                 &arguments[argument_index],
@@ -207,7 +213,7 @@ impl TerminalExecution<'_> {
             resolved.element_views.insert(argument_index, None);
         }
         let mut requested = std::collections::BTreeSet::new();
-        for &argument_index in scalar_storage_arguments {
+        for &argument_index in storage_arguments {
             if !requested.insert(argument_index) {
                 return Err(malformed());
             }
@@ -227,7 +233,7 @@ impl TerminalExecution<'_> {
                     .shape,
                 StructuralTypeShape::PrimitiveScalar(_)
             ) {
-                resolved.scalar_loans.capture_fields(
+                resolved.storage_loans.capture_fields(
                     self,
                     parameter,
                     argument,
@@ -286,7 +292,7 @@ impl TerminalExecution<'_> {
             values: Vec::with_capacity(arguments.len()),
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
-            scalar_loans: BoundaryScalarLoans::default(),
+            storage_loans: BoundaryStorageLoans::default(),
             bindings: Vec::new(),
             byte_sequences: Vec::with_capacity(arguments.len()),
             primitive_loans: Vec::with_capacity(arguments.len()),

@@ -25,13 +25,12 @@ use crate::custody::resolve_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::scalar_array::TerminalScalarArrayValue;
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
 #[derive(Default)]
 pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
-    scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -73,33 +72,23 @@ impl BlockBindings {
                 .live_claims
                 .retain(|_, claim| claim.place != Some(source));
             execution.structural_values.remove(&source);
-            execution.scalar_case_values.remove(&source);
             execution.scalar_array_values.remove(&source);
             execution.element_view_values.remove(&source);
             execution.primitive_loan_values.remove(&source);
             remove_affine_root(&mut execution.live_affine_frontier, source);
         }
         for destination in self.structural.keys() {
-            execution.scalar_case_values.remove(destination);
             execution.scalar_array_values.remove(destination);
-            execution.primitive_loan_values.remove(destination);
-        }
-        for destination in self.scalar_cases.keys() {
-            execution.structural_values.remove(destination);
-            execution.scalar_array_values.remove(destination);
-            execution.element_view_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
         }
         for destination in self.scalar_arrays.keys() {
             execution.structural_values.remove(destination);
-            execution.scalar_case_values.remove(destination);
             execution.element_view_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
         }
         execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
-        execution.scalar_case_values.extend(self.scalar_cases);
         execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
         execution.primitive_loan_values.extend(self.primitive_loans);
@@ -138,12 +127,6 @@ impl BlockBindings {
                         .structural_values
                         .get(&place)
                         .map(|value| value.structural_type)
-                        .or_else(|| {
-                            execution
-                                .scalar_case_values
-                                .get(&place)
-                                .map(|value| value.structural_type)
-                        })
                         .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                             place,
                         ))?;
@@ -185,7 +168,6 @@ impl BlockBindings {
         if self
             .structural
             .keys()
-            .chain(self.scalar_cases.keys())
             .chain(self.scalar_arrays.keys())
             .any(|place| {
                 execution
@@ -228,19 +210,16 @@ impl TerminalExecution<'_> {
             });
         }
         let mut resolved_arguments = Vec::with_capacity(structural_arguments.len());
-        let contains_payloads = structural_arguments.iter().any(|argument| {
-            self.scalar_case_values.contains_key(&argument.place)
-                || self.scalar_array_values.contains_key(&argument.place)
-        });
+        let contains_payloads = structural_arguments
+            .iter()
+            .any(|argument| self.scalar_array_values.contains_key(&argument.place));
         let mut descriptor_parameters = Vec::new();
         let mut descriptor_arguments = Vec::new();
-        let mut scalar_cases = BTreeMap::new();
         let mut scalar_arrays = BTreeMap::new();
         let mut primitive_loans = BTreeMap::new();
         let mut array_loans = BTreeMap::new();
         let mut local_array_roots = BTreeMap::new();
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let mut case_destinations = BTreeSet::new();
         let mut owned_sources = BTreeSet::new();
         let mut claims = BTreeMap::new();
         let mut projected_sources = BTreeSet::new();
@@ -319,25 +298,9 @@ impl TerminalExecution<'_> {
                 }
                 continue;
             }
-            let value = self.structural_values.get(&argument.place);
-            let case = self.scalar_case_values.get(&argument.place);
-            match (value, case) {
-                // A logical root can retain a nonempty physical backing path
-                // after an earlier projected transfer. Source declarations and
-                // the affine frontier below determine its current custody;
-                // the original backing prefix does not make it a partial owner.
-                (Some(_), None) => {}
-                (None, Some(case))
-                    if parameter.access == StructuralAccess::Owned
-                        && argument.path.is_empty()
-                        && case.structural_type == parameter.structural_type => {}
-                (None, None) => {
-                    return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                        argument.place,
-                    ));
-                }
-                _ => return Err(malformed()),
-            }
+            let value = self.structural_values.get(&argument.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+            )?;
             // A projected owned argument binds the selected subtree, keeping
             // the root's opaque identity and the exact moved path. The caller
             // discharges the residual complement on the same edge.
@@ -355,11 +318,7 @@ impl TerminalExecution<'_> {
                                         && source.multiplicity == parameter.multiplicity
                                         && source.access == StructuralAccess::Owned
                                 })
-                                || self.owned_result_matches(
-                                    argument.place,
-                                    parameter,
-                                    case.is_some(),
-                                );
+                                || self.owned_result_matches(argument.place, parameter);
                         if !source_matches {
                             return Err(malformed());
                         }
@@ -410,7 +369,7 @@ impl TerminalExecution<'_> {
                         {
                             return Err(malformed());
                         }
-                        let root = value.expect("one structural carrier was validated");
+                        let root = value;
                         let view = resolve_structural_arguments(
                             &self.program.structural_types(),
                             &self.structural_values,
@@ -436,7 +395,6 @@ impl TerminalExecution<'_> {
                                     argument.place,
                                     root.structural_type,
                                     StructuralMultiplicity::Affine,
-                                    false,
                                 );
                         if !source_matches
                             || parameter.multiplicity != StructuralMultiplicity::Affine
@@ -591,26 +549,11 @@ impl TerminalExecution<'_> {
                 }
                 _ => return Err(malformed()),
             }
-            if let Some(case) = case {
-                if scalar_cases.insert(parameter.place, case.clone()).is_some() {
-                    return Err(malformed());
-                }
-                if parameter.multiplicity == StructuralMultiplicity::Affine {
-                    case_destinations.insert(StructuralAffineDiscard {
-                        place: parameter.place,
-                        path: Vec::new(),
-                        structural_type: parameter.structural_type,
-                    });
-                }
-            } else {
-                if contains_payloads {
-                    descriptor_parameters.push(parameter.clone());
-                    descriptor_arguments.push(argument.clone());
-                }
-                resolved_arguments.push(projected_value.unwrap_or_else(|| {
-                    value.expect("one structural carrier was validated").clone()
-                }));
+            if contains_payloads {
+                descriptor_parameters.push(parameter.clone());
+                descriptor_arguments.push(argument.clone());
             }
+            resolved_arguments.push(projected_value.unwrap_or_else(|| value.clone()));
         }
         // A destination may already name a source of this simultaneous move,
         // but may not overwrite any independently held claim or owned value.
@@ -637,8 +580,7 @@ impl TerminalExecution<'_> {
             structural_arguments
         };
         let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
-        let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
-        affine_destinations.extend(case_destinations);
+        let affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
         // Existing borrowed-byte bindings retain their exact checks. Owned
         // record fields are keyed by runtime referent identity, not SSA place.
         let byte_sequences = self.bind_byte_sequence_arguments(
@@ -664,7 +606,6 @@ impl TerminalExecution<'_> {
         Ok(BlockBindings {
             scalars,
             structural,
-            scalar_cases,
             scalar_arrays,
             byte_sequences,
             primitive_loans,
@@ -698,14 +639,12 @@ impl TerminalExecution<'_> {
             place,
             value.structural_type,
             StructuralMultiplicity::Affine,
-            false,
         ) {
             StructuralMultiplicity::Affine
         } else if self.owned_result_source(
             place,
             value.structural_type,
             StructuralMultiplicity::Unrestricted,
-            false,
         ) {
             StructuralMultiplicity::Unrestricted
         } else {
@@ -753,14 +692,8 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
         parameter: &StructuralParameterDeclaration,
-        scalar_case: bool,
     ) -> bool {
-        self.owned_result_source(
-            place,
-            parameter.structural_type,
-            parameter.multiplicity,
-            scalar_case,
-        )
+        self.owned_result_source(place, parameter.structural_type, parameter.multiplicity)
     }
 
     /// A projected argument's source is checked against the root's declared
@@ -770,7 +703,6 @@ impl TerminalExecution<'_> {
         place: PlaceId,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
-        scalar_case: bool,
     ) -> bool {
         let Some(machine) = self.program.machines().get(&self.current_machine) else {
             return false;
@@ -799,14 +731,7 @@ impl TerminalExecution<'_> {
         // A successful operation publishes one owned result declaration.
         // The runtime carrier and the frontier above establish its current
         // custody; surrounding constructor/call/copy syntax is irrelevant.
-        // Packed cases retain their own payload carrier, while descriptors
-        // require an owned storage shape (including bounded byte owners).
         declared == structural_type
-            && (scalar_case
-                || terminal_semantics::descriptor_results::plain_owned_shape(
-                    self.program.structural_types().values(),
-                    structural_type,
-                ))
             && machine.operations().any(|operation| {
                 operation.id == producer
                     && operation.result.structural().is_some_and(|result| {

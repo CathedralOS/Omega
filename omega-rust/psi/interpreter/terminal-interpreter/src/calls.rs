@@ -4,12 +4,9 @@
 //!
 //! `arguments.rs` prepares and validates the packed/opaque carrier partition;
 //! `frames.rs` preserves that partition while binding and pushing the frame;
-//! `scalar_case_arguments.rs` prepares an established scalar case as a call
-//! argument.
 
 pub(crate) mod arguments;
 pub(crate) mod frames;
-pub(crate) mod scalar_case_arguments;
 
 use crate::custody::{
     bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,
@@ -35,7 +32,6 @@ impl TerminalExecution<'_> {
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
@@ -385,7 +381,7 @@ impl TerminalExecution<'_> {
         let mut boundary_arguments = self.resolve_boundary_arguments(
             &boundary_declaration.structural_parameters,
             structural_arguments,
-            handler.scalar_storage_arguments(boundary),
+            handler.storage_arguments(boundary),
         )?;
         bind_structural_arguments(
             &boundary_declaration.structural_parameters,
@@ -412,7 +408,7 @@ impl TerminalExecution<'_> {
             .handle_effect_with_buffers(
                 &effect,
                 &mut boundary_arguments.buffers,
-                &mut boundary_arguments.scalar_loans.buffers,
+                &mut boundary_arguments.storage_loans.buffers,
             )
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
                 operation: operation.id,
@@ -433,6 +429,7 @@ impl TerminalExecution<'_> {
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
+        boundary_arguments.commit_identity_cursor(self);
         self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)?;
         for (argument, parameter) in structural_arguments
             .iter()

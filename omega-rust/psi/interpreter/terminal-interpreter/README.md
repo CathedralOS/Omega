@@ -175,21 +175,21 @@ record payload construction. Nested packing changes the carrier's owner and
 field path, never the original primitive backing. [reference.rs](src/reference.rs)
 resolves typed field paths ending in `Referent`; whole-owner cleanup removes
 descriptor subtrees without disposing the borrowed storage. The verifier checks
-loan ancestry and cleanup order independently. The source-free
-[reference-record tests](tests/unit/reference_records.rs) exercise original
-storage mutation, reborrowing, nested moves, ordinary record returns, reversed
-actual arguments, and once-only fuel resumption. Return preflight compares every
+loan ancestry and cleanup order independently. Language fixtures, including
+[projected reference returns](../../../../tests/omega/pass/borrows/runtime_projected_reference_call_return_exit/main.omg),
+exercise original storage mutation and reborrowing through ordinary calls.
+Return preflight compares every
 leaf's captured backing against its bound formal before transferring the same
 record identity into the caller. Whole owned affine record arguments preserve
 that same descriptor custody. Structural call preparation retains only the
 expected returned-leaf backings in its existing suspended result, so return
 preflight remains valid after a formal is moved, repacked, or passed through
 another call. These expectations are not additional owners or loan authority.
-Borrowed aggregate parameters, partial transfers, host interfaces, and native
-execution remain unsupported; an opaque entry identity cannot supply nested
-reference carriers.
+An opaque entry or host-result identity cannot supply nested reference carriers.
+Host storage loans below borrow established backing; they cannot manufacture a
+record's references from native descriptor bytes.
 
-## External primitive loans
+## External storage loans
 
 Ordinary primitive arguments also retain their original storage endpoints.
 In particular, a local array element stays in its suspended owner's frame;
@@ -198,21 +198,36 @@ association rather than a copied scalar. Shared representation views and
 qualifiers retain their ordinary rules. The stricter host admission described
 below applies only when an external adapter receives a payload buffer.
 
-`TerminalEffectHandler::handle_effect_with_buffers` receives captured scalar
-payloads beside byte buffers. A `TerminalBoundaryScalarBuffer` identifies its
-structural argument index and admitted access, but exposes no interpreter
-storage handle. Mutable replacements stage an exactly typed value; shared
-borrows cannot replace it. The core captures the original local, field or array
-element home before dispatch, including a suspended caller's backing, validates
-every staged payload and original field restriction before result publication,
-then writes back to those captured homes. It never resolves the source again
-after host code. A per-buffer token prevents substituting a retained buffer from
-another invocation.
+`TerminalEffectHandler::storage_arguments` requests observation of selected
+structural arguments. `handle_effect_with_buffers` receives those semantic
+storage buffers beside byte buffers. `TerminalBoundaryStorageBuffer` separates
+a primitive endpoint from a complete active aggregate; both identify the
+structural argument index and admitted access without exposing interpreter
+storage handles. Mutable replacements stage exactly typed contents; shared
+borrows cannot replace them. The core captures original local, field and array
+element homes before dispatch, including suspended callers' backing. It
+validates every staged payload and original restriction before publishing
+results or input writes. It never resolves a scalar source again after host
+code. A per-buffer token prevents substitution from another invocation.
 
-This protocol admits only unqualified initialized shared/mutable primitive
+Aggregate contents include nominal cases, not native discriminator integers.
+Exclusive replacement can change the active case only with complete valid new
+contents. Completion removes stale payload storage and restores the original
+referent identity, including byte-array backing. Common mixed fields and payload
+fields keep separate namespaces. Opaque children must retain their original
+storage: host bytes cannot manufacture permissions or pointer descriptors.
+Changing opaque children or inline byte fields remains an unsupported semantic
+codec, not a language restriction on case replacement. Native adapters own
+layout, tag encoding and accessed-prefix coverage. Padding, descriptor bytes,
+and unread inactive payload bytes supply no semantic contents.
+
+This protocol admits only unqualified initialized shared/mutable storage
 loans. Write-only input and qualified owner storage reject before dispatch;
 observing a plain formal does not erase the caller's stronger restrictions.
-Adapters that implement only the old byte callback refuse scalar loans before
+Exclusive aggregate loans can inspect an original atomic resident without
+forming an ordinary scalar reference. Shared loans omit that resident; a native
+adapter can observe a disjoint ordinary prefix, but cannot snapshot its bytes.
+Adapters that implement only the old byte callback refuse storage loans before
 performing effects. Checked provider bodies still borrow the ordinary live
 storage and may forward it into an external call; they do not receive a staged
 copy that could overwrite nested changes on return.
@@ -354,19 +369,19 @@ valid selected scalar-case construction or supported exact internal transfers.
 
 `EstablishScalarCase` materializes the declared selected payload from existing
 typed scalar values, including independently proved restricted integers. The
-interpreter carries its exact case and field identities through structural
-return and internal-call suspension; case inspection stages the selected scalar
-parameters before whole-result disposal. Computed empty payloads retain this
-representation for exact guarded-exit receipts; computed nonempty payloads use
-owned case storage instead, including when every initializer is scalar.
+interpreter publishes one placed home holding the discriminator and scalar
+payload cells, just as `EstablishStructuralCase` does. This storage survives
+internal-call suspension; case inspection stages the selected scalar parameters
+before whole-result disposal. The public scalar-case host/result payload is an
+import/export snapshot, not a second frame-local storage representation.
 Affine case results support ordinary whole-root cleanup on returns and edges.
 Opaque host values still cannot supply case observations. Ordinary calls pass
-complete internally established scalar cases through the same prepared payload
-roster as arrays: owned affine cases move once, unrestricted cases remain usable,
-and shared lending preserves the caller's immutable selected payload. Mutable or
-projected case arguments remain unsupported; this scalar-only representation has
-no case-payload mutation route. Scalar and borrowed-view inputs with a scalar-case
-result use the existing call path.
+complete internally established cases through ordinary placed storage: owned
+affine cases move once, unrestricted owned arguments copy their actual subtree,
+and borrowing preserves the caller's original home. Mutable whole-case lending
+can change the selected case under the same declaration and custody constraints
+as every other structural value. Scalar-case host results validate their contents
+before publication into that storage.
 
 `EstablishStructuralCase` builds scalar or structural payloads, or a mixed
 shape's case beside its common fields, as runtime cells under a fresh

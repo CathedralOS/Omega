@@ -1,6 +1,6 @@
 //! Constructor operands have one storage transaction, regardless of their
-//! producer's payload representation. Array and scalar-case results retain
-//! packed values rather than opaque homes; nesting publishes their contents in
+//! producer's payload representation. Array results retain packed values
+//! rather than opaque homes; nesting publishes their contents in
 //! the parent's typed subtree storage. Placed operands relocate that same
 //! storage. No child mutates or publishes until the whole constructor's type,
 //! qualification and custody checks succeed.
@@ -12,7 +12,7 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
@@ -20,7 +20,6 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 pub(crate) enum ConstructorValue<'execution> {
     Placed(TerminalStructuralValue),
     ScalarArray(&'execution crate::scalar_array::TerminalScalarArrayValue),
-    ScalarCase(&'execution TerminalScalarCaseValue),
 }
 
 impl<'execution> ConstructorValue<'execution> {
@@ -31,19 +30,10 @@ impl<'execution> ConstructorValue<'execution> {
         if let Some(array) = execution.scalar_array_values.get(&argument.place) {
             if !argument.path.is_empty()
                 || execution.structural_values.contains_key(&argument.place)
-                || execution.scalar_case_values.contains_key(&argument.place)
             {
                 return Err(malformed());
             }
             return Ok(Self::ScalarArray(array));
-        }
-        if let Some(case) = execution.scalar_case_values.get(&argument.place) {
-            if !argument.path.is_empty()
-                || execution.structural_values.contains_key(&argument.place)
-            {
-                return Err(malformed());
-            }
-            return Ok(Self::ScalarCase(case));
         }
         resolve_structural_arguments(
             &execution.program.structural_types(),
@@ -59,19 +49,18 @@ impl<'execution> ConstructorValue<'execution> {
         match self {
             Self::Placed(value) => value.structural_type,
             Self::ScalarArray(value) => value.structural_type,
-            Self::ScalarCase(value) => value.structural_type,
         }
     }
 
     pub(crate) fn qualifications(&self) -> &[StructuralDomainId] {
         match self {
             Self::Placed(value) => &value.qualifications,
-            Self::ScalarArray(_) | Self::ScalarCase(_) => &[],
+            Self::ScalarArray(_) => &[],
         }
     }
 
     /// Relocate the selected value's actual memberships with its storage.
-    /// Packed scalar arrays and cases carry no nominal membership roster.
+    /// Packed scalar arrays carry no nominal membership roster.
     pub(crate) fn append_memberships(
         &self,
         prefix: &[StructuralPathSegment],
@@ -103,6 +92,75 @@ pub(crate) struct ConstructorStorage {
 }
 
 impl ConstructorStorage {
+    pub(crate) fn stage_byte_array(&mut self, destination: StructuralRuntimePlace, bytes: Vec<u8>) {
+        // Byte arrays have one backing, never duplicate primitive cells. This
+        // uses the same publication shape as constructor array establishment.
+        self.primitives.retain(|home, _| {
+            home.opaque_identity != destination.opaque_identity
+                || !home.path.starts_with(&destination.path)
+        });
+        self.byte_arrays
+            .insert(destination, ByteSequenceView::new(bytes));
+    }
+    /// Completion reseats this exact root immediately after pruning it. Retained
+    /// permission carriers never gain a second live identity or transfer custody.
+    pub(crate) fn retain_replacement_subtree(
+        &mut self,
+        execution: &TerminalExecution,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        self.stage_subtree(execution, root, root, true)
+    }
+
+    pub(crate) fn retain_byte_field(
+        &mut self,
+        execution: &TerminalExecution,
+        parent: &StructuralRuntimePlace,
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<(), TerminalInterpretError> {
+        let cell = StructuralByteSequenceRuntimeField {
+            parent: parent.clone(),
+            field,
+        };
+        let bytes = execution
+            .structural_byte_sequence_fields
+            .get(&cell)
+            .ok_or_else(malformed)?;
+        self.bytes.insert(cell, bytes.clone());
+        Ok(())
+    }
+
+    pub(crate) fn stage_case(
+        &mut self,
+        destination: StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
+        case: semantic_vocabulary::StructuralCaseId,
+    ) {
+        self.cases.insert(
+            destination,
+            crate::structural_inputs::case_membership::StructuralCaseContents {
+                structural_type,
+                case,
+            },
+        );
+    }
+
+    pub(crate) fn stage_scalar_endpoint(
+        &mut self,
+        destination: &crate::primitive_storage::PrimitiveStorageEndpoint,
+        value: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        match destination {
+            crate::primitive_storage::PrimitiveStorageEndpoint::Scalar(home) => {
+                self.primitives.insert(home.clone(), value);
+            }
+            crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(field) => {
+                self.scalars.insert(field.clone(), value);
+            }
+            _ => return Err(malformed()),
+        }
+        Ok(())
+    }
     pub(crate) fn stage(
         &mut self,
         execution: &TerminalExecution,
@@ -125,22 +183,6 @@ impl ConstructorStorage {
                     &array.elements,
                     destination,
                 )
-            }
-            ConstructorValue::ScalarCase(case) => {
-                self.cases.insert(
-                    destination.clone(),
-                    crate::structural_inputs::case_membership::StructuralCaseContents {
-                        structural_type: case.structural_type,
-                        case: case.result_case,
-                    },
-                );
-                for (field, scalar) in &case.fields {
-                    self.scalars.insert(
-                        StructuralScalarRuntimeField::case_payload(destination.clone(), *field),
-                        *scalar,
-                    );
-                }
-                Ok(())
             }
         }
     }

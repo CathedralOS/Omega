@@ -174,10 +174,6 @@ impl TerminalExecution<'_> {
         let homes = consumed
             .iter()
             .map(|argument| {
-                if argument.path.is_empty() && self.scalar_case_values.contains_key(&argument.place)
-                {
-                    return Ok(None);
-                }
                 let child = resolve_structural_arguments(
                     &self.program.structural_types(),
                     &self.structural_values,
@@ -185,20 +181,17 @@ impl TerminalExecution<'_> {
                 )?
                 .pop()
                 .ok_or(malformed())?;
-                Ok(Some(StructuralRuntimePlace::from(&child)))
+                Ok(StructuralRuntimePlace::from(&child))
             })
             .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
         for (argument, home) in consumed.iter().zip(homes) {
-            if let Some(home) = home {
-                self.prune_subtree(&home);
-            }
+            self.prune_subtree(&home);
             // Only a whole transfer consumes the source binding. Empty
             // resource custody after a partial transfer does not erase the
             // initialized storage of disjoint scalar siblings. Frame completion
             // retires that binding after its checked cleanup schedule finishes.
             if argument.path.is_empty() {
                 self.structural_values.remove(&argument.place);
-                self.scalar_case_values.remove(&argument.place);
             }
         }
         self.live_affine_frontier = frontier;

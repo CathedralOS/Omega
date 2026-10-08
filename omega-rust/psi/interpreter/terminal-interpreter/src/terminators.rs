@@ -28,9 +28,9 @@ use semantic_vocabulary::{BlockId, ClaimId, EdgeId, PlaceId, StructuralTypeId, V
 use std::collections::BTreeMap;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    find_structural_case,    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
-    Terminator,
+    Terminator, find_structural_case,
 };
 
 /// Bindings and cleanup selected by either an unconditional or conditional edge.
@@ -240,24 +240,14 @@ impl TerminalExecution<'_> {
         let Terminator::StructuralCase { source, cases } = terminator else {
             unreachable!("dispatched settle_structural_case")
         };
-        // Only internally established values carry a discriminator and
-        // payload; opaque host roots remain unsupported. A scalar case holds
-        // its tag and payload as one value. A structurally established case
-        // (a mixed shape's, or one with a non-scalar member) keeps its tag
-        // in `structural_cases` at its root and each scalar payload member
-        // in that root's payload cells, apart from any common field.
-        let scalar_case = self.scalar_case_values.get(source);
-        let active_case = match scalar_case {
-            Some(value) => value.result_case,
-            None => self.observe_structural_case(*source, &[])?,
-        };
-        let payload_root = match scalar_case {
-            Some(_) => None,
-            None => self
-                .structural_values
-                .get(source)
-                .map(crate::values::StructuralRuntimePlace::from),
-        };
+        // Every established case owns one placed discriminator and payload.
+        // An opaque host identity alone cannot establish either contents.
+        let active_case = self.observe_structural_case(*source, &[])?;
+        let payload_root = self
+            .structural_values
+            .get(source)
+            .map(crate::values::StructuralRuntimePlace::from)
+            .ok_or_else(malformed)?;
         let successor = cases
             .iter()
             .find(|successor| successor.case == active_case)
@@ -276,22 +266,14 @@ impl TerminalExecution<'_> {
         }
         let mut bindings = Vec::with_capacity(target.parameters.len());
         for (parameter, field) in target.parameters.iter().zip(&successor.payload_fields) {
-            let scalar = match (scalar_case, &payload_root) {
-                (Some(value), _) => value
-                    .fields
-                    .iter()
-                    .find(|(identity, _)| identity == field)
-                    .map(|(_, scalar)| *scalar),
-                (None, Some(root)) => self
-                    .structural_scalar_fields
-                    .get(&crate::values::StructuralScalarRuntimeField::case_payload(
-                        root.clone(),
-                        *field,
-                    ))
-                    .copied(),
-                (None, None) => None,
-            }
-            .ok_or(malformed())?;
+            let scalar = self
+                .structural_scalar_fields
+                .get(&crate::values::StructuralScalarRuntimeField::case_payload(
+                    payload_root.clone(),
+                    *field,
+                ))
+                .copied()
+                .ok_or(malformed())?;
             if scalar.scalar_type() != parameter.scalar_type {
                 return Err(malformed());
             }

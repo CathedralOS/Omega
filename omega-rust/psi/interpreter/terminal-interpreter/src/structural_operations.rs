@@ -36,7 +36,6 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         if self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || !matches!(
                 result.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -55,15 +54,57 @@ impl TerminalExecution<'_> {
                 .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
-        value.validate_against(
+        self.publish_scalar_case(result, value)?;
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Import semantic scalar-case contents into the same placed storage as
+    /// every other constructed sum. The external payload supplies no identity,
+    /// so publication allocates one home only after validating all contents.
+    pub(crate) fn publish_scalar_case(
+        &mut self,
+        result: &terminal_psi::StructuralOperationResult,
+        case: TerminalScalarCaseValue,
+    ) -> Result<(), TerminalInterpretError> {
+        if case.structural_type != result.structural_type
+            || self.structural_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+        {
+            return Err(malformed());
+        }
+        case.validate_against(
             self.program
                 .structural_types()
                 .get(&result.structural_type)
                 .ok_or_else(malformed)?,
         )?;
-        self.scalar_case_values.insert(result.place, value);
+        let value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
+        let root = StructuralRuntimePlace::from(&value);
+        let mut storage = ConstructorStorage::default();
+        storage.stage_case(root.clone(), case.structural_type, case.result_case);
+        for (field, scalar) in case.fields {
+            storage.stage_scalar_endpoint(
+                &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
+                    StructuralScalarRuntimeField::case_payload(root.clone(), field),
+                ),
+                scalar,
+            )?;
+        }
+        storage.publish(self);
+        self.structural_values.insert(result.place, value);
         self.track_affine_result(result);
-        Ok(OperationFlow::Advance)
+        Ok(())
     }
 
     /// Record the affine debt a fresh affine result owes the live frontier.
@@ -114,7 +155,6 @@ impl TerminalExecution<'_> {
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
         if self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
         {
@@ -347,7 +387,6 @@ impl TerminalExecution<'_> {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || self
                 .live_claims
@@ -562,7 +601,6 @@ impl TerminalExecution<'_> {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || self
                 .live_claims
@@ -821,31 +859,6 @@ impl TerminalExecution<'_> {
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
         let claims =
             self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
-        // An established scalar case carries its tag and payload as one value
-        // rather than as runtime cells; it lands in the hole exactly as an
-        // `EstablishRecord` member of the same case type would.
-        if let Some(case) = self.scalar_case_values.get(&value.place).cloned() {
-            if case.structural_type != field_type {
-                return Err(malformed());
-            }
-            self.structural_cases.insert(
-                hole.clone(),
-                StructuralCaseContents {
-                    structural_type: case.structural_type,
-                    case: case.result_case,
-                },
-            );
-            for (payload_field, scalar) in case.fields {
-                self.structural_scalar_fields.insert(
-                    StructuralScalarRuntimeField::case_payload(hole.clone(), payload_field),
-                    scalar,
-                );
-            }
-            self.scalar_case_values.remove(&value.place);
-            self.live_affine_frontier = frontier;
-            self.live_claims = claims;
-            return Ok(OperationFlow::Advance);
-        }
         let child = self.structural_values.get(&value.place).cloned().ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(value.place),
         )?;
@@ -1106,8 +1119,7 @@ impl TerminalExecution<'_> {
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
             && path.is_empty()
             && !self.structural_values.contains_key(source)
-            && (self.scalar_array_values.contains_key(source)
-                || self.scalar_case_values.contains_key(source))
+            && self.scalar_array_values.contains_key(source)
         {
             return self.copy_whole_scalar_payload(*source, result);
         }
@@ -1245,8 +1257,8 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 
-    /// A whole scalar array or plain scalar case keeps its complete payload
-    /// under its own place in `scalar_array_values` or `scalar_case_values`,
+    /// A whole scalar array keeps its complete payload
+    /// under its own place in `scalar_array_values`,
     /// never in `structural_values`, so a whole-home copy of one clones that
     /// payload under the fresh result place in the same map. The verifier
     /// admitted the source and the result type; this re-checks only what the
@@ -1257,9 +1269,7 @@ impl TerminalExecution<'_> {
         source: semantic_vocabulary::PlaceId,
         result: &terminal_psi::StructuralOperationResult,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if self.scalar_array_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
-        {
+        if self.scalar_array_values.contains_key(&result.place) {
             return Err(malformed());
         }
         if let Some(array) = self.scalar_array_values.get(&source) {
@@ -1270,15 +1280,9 @@ impl TerminalExecution<'_> {
             self.scalar_array_values.insert(result.place, copied);
             return Ok(OperationFlow::Advance);
         }
-        let case = self.scalar_case_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
-        if case.structural_type != result.structural_type {
-            return Err(malformed());
-        }
-        let copied = case.clone();
-        self.scalar_case_values.insert(result.place, copied);
-        Ok(OperationFlow::Advance)
+        Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+            source,
+        ))
     }
 
     /// Mint the copied record a byte-carrier leaf copy names: the resolved

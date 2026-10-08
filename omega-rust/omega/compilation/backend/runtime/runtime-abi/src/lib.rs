@@ -13,7 +13,8 @@ mod runtime_abi;
 mod scalar_reference;
 
 pub use borrowed_storage::{
-    NativeBorrowedStorageField, NativeBorrowedStorageLayout, NativeStorageRepetition,
+    NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField, NativeBorrowedStorageLayout,
+    NativeBorrowedStorageOpaqueRegion, NativeStorageCaseTag, NativeStorageRepetition,
 };
 
 pub use scalar_reference::{ScalarReferenceDescriptorAbi, ScalarStorageCodec};

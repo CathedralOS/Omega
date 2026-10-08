@@ -68,7 +68,6 @@ impl TerminalExecution<'_> {
                 .values()
                 .any(|claim| claim.place == Some(argument.place))
             || self.structural_values.contains_key(&argument.place)
-            || self.scalar_case_values.contains_key(&argument.place)
         {
             return Err(malformed());
         }
@@ -99,7 +98,6 @@ impl TerminalExecution<'_> {
                 .values()
                 .any(|claim| claim.place == Some(result.place))
             || self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(malformed());
         }

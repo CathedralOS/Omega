@@ -19,14 +19,14 @@ use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalBoundaryByteBuffer, TerminalBoundaryScalarBuffer, TerminalEffect,
+    TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
     TerminalImportSignature, TerminalProgram, TerminalScalarValue,
 };
 use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess};
 
 use super::TerminalRuntimeError;
-use super::borrowed_storage::CapturedStorage;
+use super::borrowed_storage::{CapturedStorage, StorageTransfer};
 use super::buffered_output::BufferedStreams;
 
 mod admission;
@@ -107,10 +107,7 @@ impl TerminalImportAdapter for DescriptorIoImport<'_> {
     }
 }
 impl TerminalEffectHandler for DescriptorIoImport<'_> {
-    fn scalar_storage_arguments(
-        &self,
-        _boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> &[usize] {
+    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
         match self.contract.buffer {
             DescriptorBuffer::Aggregate(_) => &[0],
             _ => &[],
@@ -125,7 +122,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
-        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+        storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let TerminalEffect::BoundaryCall {
             arguments,
@@ -162,7 +159,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
                     return Err(invalid_operands());
                 };
-                if arguments.len() != 1 || !scalar_buffers.is_empty() {
+                if arguments.len() != 1 || !storage_buffers.is_empty() {
                     return Err(invalid_operands());
                 }
                 match formal.access {
@@ -206,7 +203,8 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 let layout = match &self.contract.buffer {
                     DescriptorBuffer::Aggregate(layout) => Some(layout),
                     DescriptorBuffer::Scalar(scalar) => {
-                        let [buffer] = scalar_buffers else {
+                        let [TerminalBoundaryStorageBuffer::Scalar(buffer)] = storage_buffers
+                        else {
                             return Err(invalid_operands());
                         };
                         if buffer.value().scalar_type() != *scalar {
@@ -228,10 +226,14 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     ));
                 }
                 captured = Some(CapturedStorage::capture(
-                    scalar_buffers,
+                    storage_buffers,
                     formal.access,
                     layout,
                     count,
+                    match self.contract.operation {
+                        DescriptorOperation::Read => StorageTransfer::ReplacePrefix,
+                        DescriptorOperation::Write => StorageTransfer::Observe,
+                    },
                 )?);
                 let storage = captured.as_ref().ok_or_else(invalid_operands)?;
                 // A logical integer formal can observe a narrower captured
@@ -306,7 +308,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 if moved != 0
                     && let Some(storage) = captured
                 {
-                    storage.stage(scalar_buffers)?;
+                    storage.stage(storage_buffers, moved)?;
                 }
                 Ok(result)
             }

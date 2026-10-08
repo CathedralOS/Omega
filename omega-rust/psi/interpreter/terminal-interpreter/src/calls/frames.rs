@@ -6,20 +6,19 @@
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
-use crate::calls::scalar_case_arguments;
 use crate::custody::bind_arguments;
 use crate::custody::transfer_claims;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    ClaimTransfer, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralTypeShape, TerminalMachineResult,
+    ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralTypeShape,
+    TerminalMachineResult,
 };
 
 /// Whether the borrowed parameter directly rebinds the argument's resolved
@@ -51,7 +50,6 @@ fn retire_transferred_call_sources(
     arguments: &[StructuralArgument],
     parameters: &[StructuralParameterDeclaration],
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
-    cases: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
 ) -> Result<(), TerminalInterpretError> {
     let sources = arguments
         .iter()
@@ -64,7 +62,7 @@ fn retire_transferred_call_sources(
         .map(|(argument, _)| argument.place)
         .collect::<BTreeSet<_>>();
     for place in sources {
-        if values.remove(&place).is_none() && cases.remove(&place).is_none() {
+        if values.remove(&place).is_none() {
             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                 place,
             ));
@@ -74,6 +72,17 @@ fn retire_transferred_call_sources(
 }
 
 impl TerminalExecution<'_> {
+    pub(crate) fn consume_affine_call_argument(
+        &self,
+        frontier: &mut BTreeSet<terminal_psi::StructuralAffineDiscard>,
+        argument: &StructuralArgument,
+    ) -> Result<(), TerminalInterpretError> {
+        if !self.stage_constructor_operand(argument, frontier, &mut Vec::new())? {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        Ok(())
+    }
+
     /// Rebind whole existing byte arguments, without converting inline storage.
     pub(crate) fn bind_byte_sequence_arguments(
         &self,
@@ -235,10 +244,9 @@ impl TerminalExecution<'_> {
             )?;
         }
         let byte_sequence_values = prepared_arguments.byte_sequences;
-        let mut callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
+        let mut callee_affine_frontier = crate::custody::bind_affine_frontier(
             &callee.structural_parameters,
             &structural_values,
-            &prepared_arguments.scalar_cases,
         )?;
         let (remaining_claims, live_claims) = transfer_claims(
             &self.live_claims,
@@ -271,19 +279,16 @@ impl TerminalExecution<'_> {
         self.next_operation += 1;
         self.live_claims = remaining_claims;
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
-        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
         retire_transferred_call_sources(
             structural_arguments,
             &callee.structural_parameters,
             &mut caller_structural_values,
-            &mut caller_scalar_case_values,
         )?;
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
@@ -302,7 +307,6 @@ impl TerminalExecution<'_> {
         aggregate_payload.publish(self);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
-        self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.current_machine = callee_id;
@@ -402,7 +406,6 @@ impl TerminalExecution<'_> {
             || result.qualifications != callee_result.qualifications
             || result.projected_qualifications != callee_result.projected_qualifications
             || self.structural_values.contains_key(&result.place)
-            || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
         {
             return Err(malformed());

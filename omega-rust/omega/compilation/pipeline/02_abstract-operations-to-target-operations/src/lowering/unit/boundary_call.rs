@@ -44,6 +44,8 @@ pub(in crate::lowering) fn lower_boundary_call(
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+    address_joins: &BTreeSet<PlaceId>,
+    block_views: &BTreeSet<PlaceId>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     established_byte_sequences: &BTreeMap<
@@ -112,6 +114,8 @@ pub(in crate::lowering) fn lower_boundary_call(
                         active,
                         native_callbacks_slice,
                         local_homes,
+                        address_joins,
+                        block_views,
                     )?;
                 let structural_parameter_shapes = structural_arguments
                     .iter()

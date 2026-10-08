@@ -201,9 +201,7 @@ impl TerminalExecution<'_> {
         local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(TerminalStructuralValue, ArrayStorageHome), TerminalInterpretError> {
         let root = if let Some(array) = self.scalar_array_values.get(&place) {
-            if self.structural_values.contains_key(&place)
-                || self.scalar_case_values.contains_key(&place)
-            {
+            if self.structural_values.contains_key(&place) {
                 return Err(malformed());
             }
             // Repeated projections in one argument list share their root

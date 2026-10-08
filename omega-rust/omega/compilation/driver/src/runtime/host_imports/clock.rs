@@ -24,7 +24,7 @@ use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalBoundaryByteBuffer, TerminalBoundaryScalarBuffer, TerminalEffect,
+    TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
     TerminalImportSignature, TerminalScalarValue,
 };
@@ -233,10 +233,7 @@ impl TerminalImportAdapter for ClockImport {
 }
 
 impl TerminalEffectHandler for ClockImport {
-    fn scalar_storage_arguments(
-        &self,
-        _boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> &[usize] {
+    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
         match self.operation {
             ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => &[0],
             _ => &[],
@@ -247,7 +244,7 @@ impl TerminalEffectHandler for ClockImport {
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
-        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+        storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         if !byte_buffers.is_empty() {
             return Err(TerminalEffectRejection::new(
@@ -257,7 +254,7 @@ impl TerminalEffectHandler for ClockImport {
         match &self.operation {
             ClockOperation::ReadTimespec(layout) => timespec::read(
                 effect,
-                scalar_buffers,
+                storage_buffers,
                 &self.signature,
                 layout,
                 &self.clock,
@@ -265,13 +262,13 @@ impl TerminalEffectHandler for ClockImport {
             ),
             ClockOperation::Nanosleep(layout) => timespec::sleep(
                 effect,
-                scalar_buffers,
+                storage_buffers,
                 &self.signature,
                 layout,
                 &self.clock,
                 self.namespace,
             ),
-            _ if scalar_buffers.is_empty() => self.handle_effect_result(effect),
+            _ if storage_buffers.is_empty() => self.handle_effect_result(effect),
             _ => Err(TerminalEffectRejection::new(
                 "scalar clock imports do not accept borrowed storage",
             )),

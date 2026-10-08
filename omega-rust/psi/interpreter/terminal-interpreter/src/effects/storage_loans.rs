@@ -1,0 +1,182 @@
+//! Capture borrowed host storage once, then validate and stage its completion.
+//! Primitive loans pin their original scalar endpoint; aggregates retain a
+//! semantic tree (including nominal cases) and the original whole referent.
+//! Native tags and offsets never enter this owner. Replacing a case is lawful
+//! under an exclusive loan, but requires complete valid new active contents,
+//! not writes to the incoming case's stale leaf roster. Opaque children retain
+//! their original identity or reject; host bytes cannot manufacture permissions.
+
+mod completion;
+mod contents;
+
+use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
+use crate::errors::{TerminalInterpretError, malformed};
+use crate::execution::TerminalExecution;
+use crate::record::storage::ConstructorStorage;
+use crate::values::TerminalStructuralValue;
+use std::sync::Arc;
+use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
+
+pub use contents::{
+    TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
+};
+
+/// Actual backing determines the presentation; these are not alternative
+/// execution modes. Both commit only after all invocation inputs validate.
+#[derive(Debug)]
+pub enum TerminalBoundaryStorageBuffer {
+    Scalar(TerminalBoundaryScalarBuffer),
+    Structural(TerminalBoundaryStructuralBuffer),
+}
+
+struct StructuralLoanBinding {
+    identity: Arc<()>,
+    argument_index: usize,
+    source: semantic_vocabulary::PlaceId,
+    access: terminal_psi::StructuralAccess,
+    referent: TerminalStructuralValue,
+    original: Vec<TerminalBoundaryStorageValue>,
+    leaves: Vec<contents::StorageLeaf>,
+    scalars: Vec<contents::PinnedScalar>,
+    replacement: Option<ConstructorStorage>,
+    stores: Vec<(
+        crate::primitive_storage::PrimitiveStorage,
+        semantic_vocabulary::ScalarType,
+        crate::values::TerminalScalarValue,
+    )>,
+}
+
+#[derive(Default)]
+pub(crate) struct BoundaryStorageLoans {
+    pub(crate) buffers: Vec<TerminalBoundaryStorageBuffer>,
+    scalars: BoundaryScalarLoans,
+    structural: Vec<StructuralLoanBinding>,
+}
+
+impl BoundaryStorageLoans {
+    pub(crate) fn capture_scalar(
+        &mut self,
+        execution: &TerminalExecution,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        argument_index: usize,
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let referent = self.scalars.capture(
+            execution,
+            parameter,
+            argument,
+            argument_index,
+            identity_cursor,
+        )?;
+        self.buffers.push(TerminalBoundaryStorageBuffer::Scalar(
+            self.scalars.buffers.pop().ok_or_else(malformed)?,
+        ));
+        Ok(referent)
+    }
+
+    pub(crate) fn capture_fields(
+        &mut self,
+        execution: &TerminalExecution,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        referent: &TerminalStructuralValue,
+        array_loan: Option<&crate::element_views::ElementView>,
+        argument_index: usize,
+    ) -> Result<(), TerminalInterpretError> {
+        if parameter.access != argument.access
+            || parameter.structural_type != referent.structural_type
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !referent.qualifications.is_empty()
+            || !referent.projected_qualifications.is_empty()
+        {
+            return Err(malformed());
+        }
+        execution.validate_storage_loan_qualifications(
+            &crate::values::StructuralRuntimePlace::from(referent),
+        )?;
+        let leaves = contents::describe(execution, referent, parameter.access, None)?;
+        let (original, scalars) = contents::capture(
+            execution,
+            argument.place,
+            referent,
+            array_loan,
+            parameter.access,
+            &leaves,
+        )?;
+        let identity = Arc::new(());
+        self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
+            TerminalBoundaryStructuralBuffer {
+                identity: Arc::clone(&identity),
+                argument_index,
+                access: parameter.access,
+                structural_type: referent.structural_type,
+                values: original.clone(),
+            },
+        ));
+        self.structural.push(StructuralLoanBinding {
+            identity,
+            argument_index,
+            source: argument.place,
+            access: parameter.access,
+            referent: referent.clone(),
+            original,
+            leaves,
+            scalars,
+            replacement: None,
+            stores: Vec::new(),
+        });
+        Ok(())
+    }
+
+    pub(crate) fn validate_writeback(
+        &mut self,
+        execution: &TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
+        let scalar_buffers: Vec<_> = self
+            .buffers
+            .iter()
+            .filter_map(|buffer| match buffer {
+                TerminalBoundaryStorageBuffer::Scalar(buffer) => Some(buffer),
+                _ => None,
+            })
+            .collect();
+        self.scalars
+            .validate_writeback(execution, &scalar_buffers)?;
+        let structural_buffers: Vec<_> = self
+            .buffers
+            .iter()
+            .filter_map(|buffer| match buffer {
+                TerminalBoundaryStorageBuffer::Structural(buffer) => Some(buffer),
+                _ => None,
+            })
+            .collect();
+        if structural_buffers.len() != self.structural.len() {
+            return Err(malformed());
+        }
+        for (buffer, binding) in structural_buffers.into_iter().zip(&mut self.structural) {
+            completion::stage(execution, buffer, binding)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn commit(
+        self,
+        execution: &mut TerminalExecution,
+    ) -> Result<(), TerminalInterpretError> {
+        let mut scalars = Vec::new();
+        for buffer in self.buffers {
+            match buffer {
+                TerminalBoundaryStorageBuffer::Scalar(buffer) => scalars.push(buffer),
+                TerminalBoundaryStorageBuffer::Structural(_) => {}
+            }
+        }
+        self.scalars.commit(execution, scalars)?;
+        for binding in self.structural {
+            completion::commit(execution, binding)?;
+        }
+        Ok(())
+    }
+}

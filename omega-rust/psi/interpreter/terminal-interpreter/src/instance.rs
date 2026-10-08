@@ -23,7 +23,7 @@ use terminal_fuel::TerminalFuelMeter;
 use crate::adapters::TerminalImportAdapter;
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
-use crate::effects::scalar_loans::TerminalBoundaryScalarBuffer;
+use crate::effects::storage_loans::TerminalBoundaryStorageBuffer;
 use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
@@ -377,7 +377,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .filter(move |slot| !closed && !self.bindings.contains_key(slot))
     }
 
-
     /// The contract `slot`'s established binding was checked against —
     /// the retained import description this instance answered it with.
     /// Absent while the slot is unbound and after close consumes the roster.
@@ -511,22 +510,22 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
-    fn scalar_storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
-        self.bindings.get(&boundary).map_or(&[], |binding| {
-            binding.adapter.scalar_storage_arguments(boundary)
-        })
+    fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
+        self.bindings
+            .get(&boundary)
+            .map_or(&[], |binding| binding.adapter.storage_arguments(boundary))
     }
 
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
-        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+        storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         match effect {
             TerminalEffect::BoundaryCall { boundary, .. } => self
                 .adapter_at(*boundary)?
-                .handle_effect_with_buffers(effect, byte_buffers, scalar_buffers),
+                .handle_effect_with_buffers(effect, byte_buffers, storage_buffers),
             TerminalEffect::PortWrite { .. } => Err(TerminalEffectRejection::new(
                 "port output requires an admitted target-environment provider",
             )),

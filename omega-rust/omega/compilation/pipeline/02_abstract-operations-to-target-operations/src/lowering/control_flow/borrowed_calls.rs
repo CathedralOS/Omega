@@ -242,38 +242,20 @@ pub(super) fn storage_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (root_type, access, source) = if live.address_joins.contains(&argument.place)
-        || live.block_views.contains(&argument.place)
-    {
-        // An address join carries its referent's address; a view arrival
-        // carries its descriptor, and selection resolves the element through
-        // the view's backing pointer.
-        let (block, parameter) = address_join_parameter(function, argument.place)
-            .filter(|(_, parameter)| {
-                live.block_views.contains(&parameter.place)
-                    || super::transfers::is_address_join(parameter, types)
-            })
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        (
-            parameter.structural_type,
-            parameter.access,
-            TargetStructuralArgumentSource::BlockParameter {
-                block,
-                place: parameter.place,
-            },
-        )
-    } else {
-        let parameter = prepared
-            .parameters
-            .iter()
-            .find(|parameter| parameter.place == argument.place)
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        (
-            parameter.structural_type,
-            parameter.access,
-            parameter.placement.clone().into(),
-        )
-    };
+    let root = crate::lowering::unit::argument_roots::resolve(
+        argument.place,
+        function,
+        prepared.parameters.iter(),
+        &live.structural_homes,
+        &live.address_joins,
+        &live.block_views,
+        types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let root_type = root.declaration.structural_type;
+    let access = root.declaration.access;
+    let source = root.source;
     let allowed = match access {
         StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
         StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
@@ -337,16 +319,18 @@ pub(super) fn address_join_window_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let (block, parameter) = address_join_parameter(function, argument.place)
-        .filter(|_| live.address_joins.contains(&argument.place))
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if !super::transfers::is_address_join(parameter, types) {
+    if !live.address_joins.contains(&argument.place) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let referent = crate::lowering::structural_layout::structural_shape(
-        parameter.structural_type,
+    let root = crate::lowering::unit::argument_roots::resolve(
+        argument.place,
+        function,
+        std::iter::empty::<&TargetStructuralParameter>(),
+        &live.structural_homes,
+        &live.address_joins,
+        &live.block_views,
         types,
         &mut shape_cache,
         &mut active,
@@ -357,34 +341,14 @@ pub(super) fn address_join_window_argument(
         destination.shape,
         &destination.placement,
         callee,
-        parameter,
-        referent.byte_size,
-        TargetStructuralArgumentSource::BlockParameter {
-            block,
-            place: parameter.place,
-        },
+        &root.declaration,
+        root.backing_shape.byte_size,
+        root.source,
         types,
         &mut shape_cache,
         &mut active,
     )?
     .ok_or(LoweringError::unsupported_control_flow(function.machine))
-}
-
-/// The block that binds `place` and its structural declaration.
-fn address_join_parameter(
-    function: &AbstractFunction,
-    place: semantic_vocabulary::PlaceId,
-) -> Option<(
-    semantic_vocabulary::BlockId,
-    &terminal_psi::StructuralParameterDeclaration,
-)> {
-    function.block_entries.iter().find_map(|entry| {
-        entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| (entry.block, parameter))
-    })
 }
 
 /// Borrowed byte views keep their exact descriptor source through ordinary

@@ -675,6 +675,7 @@ impl TerminalExecution<'_> {
         let backing_view = view;
         let mut projected = view.clone();
         let mut carrier = view.structural_type;
+        let mut selected_case = None;
         for (position, segment) in path.iter().enumerate() {
             let declaration = self
                 .program
@@ -683,9 +684,36 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             match (segment, &declaration.shape) {
                 (
-                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity),
-                    terminal_psi::StructuralTypeShape::Record { fields, .. },
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(case),
+                    terminal_psi::StructuralTypeShape::Sum { cases }
+                    | terminal_psi::StructuralTypeShape::Mixed { cases, .. },
                 ) => {
+                    if selected_case.is_some() {
+                        return Err(malformed());
+                    }
+                    let actual = self
+                        .structural_cases
+                        .get(&StructuralRuntimePlace::from(&projected))
+                        .ok_or_else(malformed)?;
+                    if actual.structural_type != carrier || actual.case != *case {
+                        return Err(malformed());
+                    }
+                    selected_case = Some(
+                        cases
+                            .iter()
+                            .find(|row| row.id == *case)
+                            .ok_or_else(malformed)?,
+                    );
+                }
+                (semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity), _) => {
+                    let payload = selected_case.is_some();
+                    let fields = if let Some(case) = selected_case.take() {
+                        case.fields.as_slice()
+                    } else {
+                        // A field without a Case step names a record member or
+                        // a mixed shape's common member, never payload storage.
+                        declaration.shape.direct_fields().ok_or_else(malformed)?
+                    };
                     let field = fields
                         .iter()
                         .find(|field| field.id == *identity && !field.relevance.is_erased())
@@ -718,10 +746,17 @@ impl TerminalExecution<'_> {
                         }
                         return Ok((
                             PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(
-                                StructuralScalarRuntimeField::member(
-                                    StructuralRuntimePlace::from(&projected),
-                                    field.id,
-                                ),
+                                if payload {
+                                    StructuralScalarRuntimeField::case_payload(
+                                        StructuralRuntimePlace::from(&projected),
+                                        field.id,
+                                    )
+                                } else {
+                                    StructuralScalarRuntimeField::member(
+                                        StructuralRuntimePlace::from(&projected),
+                                        field.id,
+                                    )
+                                },
                             )),
                             scalar_type,
                             shared_view,

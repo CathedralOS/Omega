@@ -661,6 +661,8 @@ pub(super) fn lower_operation(
                 native_callbacks,
                 parameters_by_place,
                 &live.structural_homes,
+                &live.address_joins,
+                &live.block_views,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &BTreeMap::new(),

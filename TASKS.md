@@ -1820,7 +1820,9 @@ then independent claimed restoration slices -> final closure.
   demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, case-tagged host buffers, accesses into actual padding or reference bytes,
+  loans, case replacement involving opaque or inline-byte children without a
+  semantic codec, fragmented/authored case-member storage, accesses into actual
+  padding or reference bytes,
   non-hosted roots and required
   receiver qualifications. Foreign write-only loans depend on
   **WRITE-ONLY-BORROW**'s admitted implementation-bound non-observation evidence;
@@ -1839,6 +1841,13 @@ then independent claimed restoration slices -> final closure.
   arrivals: physical backing prefixes are not logical partial ownership,
   case transport validates selected contents, not inactive variants,
   and common mixed fields use the member namespace, never a case payload.
+  Preserve `host/runtime_descriptor_case_replacement_exit`,
+  `host/runtime_descriptor_nested_case_array_exit` and
+  `host/runtime_descriptor_case_atomic_input_exit`: exclusive host input may
+  retag original storage only with complete valid active contents; unread
+  bytes, byte-array backing, common fields, atomic cells and outside siblings
+  retain their actual custody. A borrowed state arrival keeps its address or
+  descriptor through foreign-call lowering, not an invented owned home.
   Preserve `calls/runtime_atomic_case_shared_argument_exit` and
   `atomics/runtime_mixed_common_atomic_cell_exit`: completed scalar initializers
   establish owned case cells, and shared helper events mutate their original

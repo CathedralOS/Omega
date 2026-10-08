@@ -59,6 +59,8 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     active: &mut BTreeSet<StructuralTypeId>,
     native_callbacks: &[target_operations::TargetNativeCallbackArgument],
     local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+    address_joins: &BTreeSet<PlaceId>,
+    block_views: &BTreeSet<PlaceId>,
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
     // Only direct parameter destinations insert telescope slots; a field
     // destination's write flows through an already-occupied record parameter.
@@ -100,54 +102,42 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     .iter()
                     .filter(|ordinal| semantic_position >= **ordinal)
                     .count();
-            let (source_structural_type, source_shape, source_multiplicity, argument_source) =
-                if let Some(source) = parameters_by_place.get(&argument.place).copied() {
-                    (
-                        source.structural_type,
-                        source.shape,
-                        source.multiplicity,
-                        source.placement.clone().into(),
-                    )
-                } else if let Some(home) = local_homes.get(&argument.place) {
-                    // The control graph already retains exact dominating
-                    // establishments and block arrivals. Calls consume that
-                    // inventory, not a second search for a favored producer.
-                    // Claims the home holds are custody the call's completion
-                    // receipts end, not bytes the foreign leaf transports.
-                    if home.place() != argument.place
+            let resolved = super::super::argument_roots::resolve(
+                argument.place,
+                function,
+                parameters_by_place.values().copied(),
+                local_homes,
+                address_joins,
+                block_views,
+                structural_types,
+                shape_cache,
+                active,
+            )?;
+            let root = resolved.declaration;
+            let source_structural_type = root.structural_type;
+            let source_shape = resolved.backing_shape;
+            let source_multiplicity = root.multiplicity;
+            let argument_source = resolved.source;
+            let permitted_access = match root.access {
+                StructuralAccess::Owned => true,
+                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow => {
+                    argument.access != StructuralAccess::Owned || !argument.path.is_empty()
+                }
+                StructuralAccess::WriteOnlyBorrow => {
+                    argument.access == StructuralAccess::WriteOnlyBorrow
+                }
+            };
+            if !permitted_access
+                || local_homes.get(&argument.place).is_some_and(|home| {
+                    home.place() != argument.place
                         || home.access() != StructuralAccess::Owned
                         || !home.qualifications().is_empty()
                         || !home.projected_qualifications().is_empty()
-                    {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                    }
-                    let source = match &home.origin {
-                        target_operations::TargetStructuralHomeOrigin::OperationResult {
-                            operation,
-                            ..
-                        } => target_operations::TargetStructuralArgumentSource::StructuralHome {
-                            psi_operation: *operation,
-                        },
-                        target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                            block,
-                            declaration,
-                        } => target_operations::TargetStructuralArgumentSource::BlockParameter {
-                            block: *block,
-                            place: declaration.place,
-                        },
-                    };
-                    (
-                        home.structural_type(),
-                        home.layout.shape(),
-                        home.multiplicity(),
-                        source,
-                    )
-                } else {
-                    return Err(LoweringError::UnknownStructuralArgumentPlace {
-                        machine: function.machine,
-                        place: argument.place,
-                    });
-                };
+                })
+            {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
             if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
@@ -163,22 +153,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         )
                     });
             if descriptor_formal {
-                let root = if let Some(arrival) = function.arrival_parameter(argument.place) {
-                    arrival.clone()
-                } else {
-                    let home = local_homes
-                        .get(&argument.place)
-                        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
-                    terminal_psi::StructuralParameterDeclaration {
-                        place: home.place(),
-                        position: parameter.position,
-                        structural_type: home.structural_type(),
-                        access: home.access(),
-                        multiplicity: home.multiplicity(),
-                        qualifications: home.qualifications().to_vec(),
-                        projected_qualifications: home.projected_qualifications().to_vec(),
-                    }
-                };
                 let destination = boundary_entry_plan
                     .call
                     .parameters

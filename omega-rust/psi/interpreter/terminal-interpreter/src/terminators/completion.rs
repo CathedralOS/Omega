@@ -19,7 +19,6 @@ impl TerminalExecution<'_> {
                 &mut self.structural_values,
                 &mut self.reference_referents,
                 &mut self.structural_element_view_fields,
-                &mut self.scalar_case_values,
                 &mut self.live_affine_frontier,
                 &mut self.live_claims,
                 &action,
@@ -88,7 +87,6 @@ impl TerminalExecution<'_> {
         self.retire_plain_locals();
         self.values = caller.values;
         self.structural_values = caller.structural_values;
-        self.scalar_case_values = caller.scalar_case_values;
         self.scalar_array_values = caller.scalar_array_values;
         self.element_view_values = caller.element_view_values;
         self.byte_sequence_values = caller.byte_sequence_values;
@@ -168,15 +166,6 @@ impl TerminalExecution<'_> {
                         }
                         if let Some(binding) = completed.element_view {
                             self.element_view_values.insert(result.place, binding);
-                        }
-                    }
-                    TerminalExecutionResult::ScalarCase(returned) => {
-                        if self
-                            .scalar_case_values
-                            .insert(result.place, returned.value)
-                            .is_some()
-                        {
-                            return Err(malformed());
                         }
                     }
                     TerminalExecutionResult::ScalarArray(returned) => {

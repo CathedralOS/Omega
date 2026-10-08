@@ -86,8 +86,6 @@ impl TerminalExecution<'_> {
             || self.live_affine_frontier.iter().any(|entry| {
                 (entry.place == *source && !source_mutable) || entry.place == result.place
             })
-            || self.scalar_case_values.contains_key(source)
-            || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(malformed());
         }

@@ -135,7 +135,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         }
         .ok_or(LegalizationError::custody())?;
         if let Some((block, declaration)) =
-            view_arrival(caller, argument.place, &plan.structural_types)
+            super::borrowed_block_arrival(caller, argument.place, plan)
         {
             // A view arriving at a state block lends one element through its
             // descriptor, as an incoming view parameter does; selection
@@ -269,7 +269,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
 }
 
 /// A borrowed element or byte view that arrives at one state block.
-fn view_arrival<'caller>(
+pub(super) fn view_arrival<'caller>(
     caller: &'caller PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -285,14 +285,22 @@ fn view_arrival<'caller>(
             .map(move |parameter| (block.id, parameter))
     });
     let (block, declaration) = arrivals.next()?;
-    let view = structural_types.iter().any(|row| {
-        row.id == declaration.structural_type
-            && (matches!(
-                row.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ) || row.shape.is_borrowed_byte_view())
-    });
+    let shape = structural_types
+        .iter()
+        .find(|row| row.id == declaration.structural_type)
+        .map(|row| &row.shape)?;
+    let view = matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. })
+        || shape.is_borrowed_byte_view();
     (arrivals.next().is_none()
+        && block != caller.entry
+        && caller.structural_places.iter().any(|place| {
+            place.id == declaration.place
+                && place.kind
+                    == StructuralPlaceKind::BlockParameter {
+                        block,
+                        position: declaration.position,
+                    }
+        })
         && view
         && matches!(
             declaration.access,
@@ -300,7 +308,9 @@ fn view_arrival<'caller>(
                 | terminal_psi::StructuralAccess::MutableBorrow
         )
         && declaration.multiplicity == StructuralMultiplicity::Unrestricted
-        && declaration.qualifications.is_empty()
+        && (declaration.qualifications.is_empty()
+            || declaration.access == terminal_psi::StructuralAccess::SharedBorrow
+                && shape.is_borrowed_byte_view())
         && declaration.projected_qualifications.is_empty())
     .then_some((block, declaration))
 }

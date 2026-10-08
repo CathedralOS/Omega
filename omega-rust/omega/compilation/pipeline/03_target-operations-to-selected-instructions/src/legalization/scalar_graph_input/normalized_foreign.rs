@@ -310,6 +310,40 @@ pub(in crate::legalization) fn structural_argument_at(
                 semantic_parameter.clone(),
                 false,
             )
+        } else if let Some((block, parameter)) =
+            super::aggregate_results::borrowed_block_arrival(optimized, semantic.place, plan)
+        {
+            let call_block = super::aggregate_results::node_site(optimized, |operation| {
+                operation.psi_operation() == Some(call_operation)
+            })
+            .ok_or(LegalizationError::custody())?
+            .0;
+            let permitted_access = match parameter.access {
+                StructuralAccess::SharedBorrow => semantic.access == StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow => {
+                    semantic.access != StructuralAccess::Owned || !semantic.path.is_empty()
+                }
+                StructuralAccess::WriteOnlyBorrow => {
+                    semantic.access == StructuralAccess::WriteOnlyBorrow
+                }
+                StructuralAccess::Owned => false,
+            };
+            if !permitted_access
+                || !super::target::control_flow::sources::dominates(optimized, block, call_block)
+            {
+                return Err(LegalizationError::custody());
+            }
+            (
+                parameter.structural_type,
+                parameter.access,
+                parameter.multiplicity,
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place: parameter.place,
+                },
+                parameter.clone(),
+                false,
+            )
         } else {
             // Reconstruct local storage from the optimized source's exact owner,
             // shared with ordinary aggregate calls. A retained target row cannot

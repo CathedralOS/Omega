@@ -256,7 +256,11 @@ impl TerminalExecution<'_> {
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !self.plain_aggregate_type(parameter.structural_type)
+                || !self
+                    .program
+                    .structural_types()
+                    .get(&parameter.structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_composite_shape())
             {
                 continue;
             }

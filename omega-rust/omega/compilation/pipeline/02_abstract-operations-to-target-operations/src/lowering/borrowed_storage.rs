@@ -1,18 +1,20 @@
-//! Capture native scalar-leaf geometry beside target lowering, before its
-//! inputs are consumed. This is the same shape/address owner as native calls
+//! Capture native scalar and discriminator geometry beside target lowering,
+//! before its inputs are consumed. This is the same shape/address owner as native calls
 //! and field accesses, not a second layout implementation in a runtime adapter.
-//! Non-scalar storage stays a hole in this scalar recipe, not a fabricated
-//! pointer/tag/descriptor snapshot. An adapter must prove its entire accessed
-//! interval is covered by captured scalar leaves, independently of these gaps.
+//! Case-qualified paths retain each overlaid payload's declaration namespace.
+//! Opaque regions retain their extent, not their bytes or permissions. An
+//! adapter must exclude active opaque storage from scalar/tag replacement.
 
 use super::structural_layout;
 use abstract_operations::AbstractOperationPlan;
-use runtime_abi::{NativeBorrowedStorageLayout, NativeStorageRepetition};
-use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
+use runtime_abi::{NativeBorrowedStorageLayout, NativeStorageCaseTag, NativeStorageRepetition};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment as Path, ScalarType, StructuralCaseId, StructuralTypeId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorageLayout> {
@@ -43,140 +45,327 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
                 &mut BTreeSet::new(),
             )
             .ok()?;
-            let mut fields = Vec::new();
-            collect(
-                root,
-                0,
-                None,
-                &mut Vec::new(),
-                &mut Vec::new(),
-                &declarations,
-                &mut fields,
-            )?;
+            let mut recipes = StorageRecipes {
+                declarations: &declarations,
+                fields: Vec::new(),
+                discriminators: Vec::new(),
+                opaque_regions: Vec::new(),
+            };
+            recipes.collect(root, 0, None, &mut Vec::new(), &mut Vec::new())?;
             Some(NativeBorrowedStorageLayout::new(
                 root,
                 shape.byte_size,
                 shape.alignment,
-                fields,
+                recipes.fields,
+                recipes.discriminators,
+                recipes.opaque_regions,
             ))
         })
         .collect()
 }
 
-type Field = (Vec<Path>, Vec<NativeStorageRepetition>, u32, ScalarType);
+type Field = (
+    Vec<Path>,
+    Vec<NativeStorageRepetition>,
+    u32,
+    ScalarType,
+    ScalarType,
+);
+type Discriminator = (
+    Vec<Path>,
+    Vec<NativeStorageRepetition>,
+    StructuralTypeId,
+    u32,
+    Vec<NativeStorageCaseTag>,
+);
+type OpaqueRegion = (Vec<Path>, Vec<NativeStorageRepetition>, u32, u32);
 
-fn collect(
-    root: StructuralTypeId,
-    offset: u32,
-    occurrence_stride: Option<u32>,
-    path: &mut Vec<Path>,
-    repetitions: &mut Vec<NativeStorageRepetition>,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    fields: &mut Vec<Field>,
-) -> Option<()> {
-    match &declarations.get(&root)?.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => {
-            fields.push((path.clone(), repetitions.clone(), offset, *scalar))
-        }
-        StructuralTypeShape::FusedServiceBinding
-        | StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ByteSequence(_)
-        | StructuralTypeShape::ElementView { .. }
-        | StructuralTypeShape::Sum { .. }
-        | StructuralTypeShape::Mixed { .. } => {}
-        StructuralTypeShape::Record {
-            fields: members, ..
-        } => {
-            for member in members.iter().filter(|field| !field.relevance.is_erased()) {
-                if matches!(member.field_type, StructuralFieldType::Erased { .. }) {
-                    continue;
+struct StorageRecipes<'declarations> {
+    declarations:
+        &'declarations BTreeMap<StructuralTypeId, &'declarations StructuralTypeDeclaration>,
+    fields: Vec<Field>,
+    discriminators: Vec<Discriminator>,
+    opaque_regions: Vec<OpaqueRegion>,
+}
+
+impl StorageRecipes<'_> {
+    fn collect(
+        &mut self,
+        root: StructuralTypeId,
+        offset: u32,
+        occurrence_stride: Option<u32>,
+        path: &mut Vec<Path>,
+        repetitions: &mut Vec<NativeStorageRepetition>,
+    ) -> Option<()> {
+        let declaration = self.declarations.get(&root).copied()?;
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                self.fields
+                    .push((path.clone(), repetitions.clone(), offset, *scalar, *scalar))
+            }
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. } => {
+                let shape = structural_layout::structural_shape(
+                    root,
+                    self.declarations,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .ok()?;
+                self.opaque_regions.push((
+                    path.clone(),
+                    repetitions.clone(),
+                    offset,
+                    shape.byte_size,
+                ));
+            }
+            StructuralTypeShape::Record { fields, .. } => {
+                self.collect_members(root, fields, None, offset, path, repetitions)?;
+            }
+            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                // Conventional sum layout does not consume authored member
+                // storage. A borrowed recipe cannot invent an independent
+                // offset, integer codec or stride for those declarations.
+                let common = match &declaration.shape {
+                    StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                    _ => &[],
+                };
+                if common
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                    .any(|field| !field.relevance.is_erased() && field.storage.is_some())
+                {
+                    return None;
                 }
-                // Atomic residents have scalar geometry, not ordinary scalar
-                // permission. The interpreter authenticates exclusive capture
-                // separately; shared capture leaves this interval uncovered.
-                path.push(Path::Field(member.id));
-                if let Some(scalar) = member.field_type.scalar_type() {
-                    let (displacement, _) = structural_layout::direct_scalar_field_geometry(
+                let layout = structural_layout::structural_sum_layout(
+                    root,
+                    self.declarations,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .ok()?;
+                let mappings = cases
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, case)| {
+                        Some(NativeStorageCaseTag {
+                            case: case.id,
+                            native_tag: i32::try_from(ordinal).ok()?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.discriminators.push((
+                    path.clone(),
+                    repetitions.clone(),
+                    root,
+                    offset.checked_add(layout.tag_byte_offset)?,
+                    mappings,
+                ));
+                self.collect_members(root, common, None, offset, path, repetitions)?;
+                for case in cases {
+                    path.push(Path::Case(case.id));
+                    self.collect_members(
+                        root,
+                        &case.fields,
+                        Some(case.id),
+                        offset,
+                        path,
+                        repetitions,
+                    )?;
+                    path.pop();
+                }
+            }
+            StructuralTypeShape::FixedArray { element, length } => {
+                let (_, stride) = structural_layout::root_array_projection_metadata(
+                    root,
+                    self.declarations,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .ok()?;
+                repetitions.push(NativeStorageRepetition {
+                    path_position: path.len(),
+                    length: *length,
+                    byte_stride: occurrence_stride.or(stride)?,
+                });
+                path.push(Path::FixedIndex(0));
+                self.collect(*element, offset, None, path, repetitions)?;
+                path.pop();
+                repetitions.pop();
+            }
+        }
+        Some(())
+    }
+
+    fn collect_members(
+        &mut self,
+        root: StructuralTypeId,
+        members: &[StructuralFieldDeclaration],
+        case: Option<StructuralCaseId>,
+        offset: u32,
+        path: &mut Vec<Path>,
+        repetitions: &mut Vec<NativeStorageRepetition>,
+    ) -> Option<()> {
+        for (position, member) in members
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .enumerate()
+        {
+            if matches!(member.field_type, StructuralFieldType::Erased { .. }) {
+                continue;
+            }
+            path.push(Path::Field(member.id));
+            // Atomic residents retain geometry without acquiring ordinary
+            // scalar permission. Shared capture still leaves them uncovered.
+            if let Some(scalar) = member.field_type.scalar_type() {
+                let (displacement, _) = if let Some(case) = case {
+                    structural_layout::static_field_geometry(
+                        root,
+                        &[StructuralPathSegment::Case(case)],
+                        member.id,
+                        scalar,
+                        self.declarations,
+                    )
+                    .ok()?
+                } else {
+                    structural_layout::direct_scalar_field_geometry(
                         root,
                         member.id,
                         scalar,
-                        declarations,
+                        self.declarations,
                     )
-                    .ok()?;
-                    if matches!(
-                        member.storage,
-                        Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
-                    ) {
-                        return None;
-                    }
-                    let stored = member
-                        .storage
-                        .as_ref()
-                        .and_then(|storage| storage.stored_scalar())
-                        .unwrap_or(scalar);
-                    fields.push((
-                        path.clone(),
-                        repetitions.clone(),
-                        offset.checked_add(displacement)?,
-                        stored,
-                    ));
-                } else if let StructuralFieldType::Structural(child) = member.field_type {
-                    let (_, _, displacement) =
-                        structural_layout::resolve_structural_projection_path(
-                            root,
-                            &[StructuralPathSegment::Field(member.identity.clone())],
-                            declarations,
-                            &mut BTreeMap::new(),
-                            &mut BTreeSet::new(),
-                        )
-                        .ok()?;
-                    let stride = member
-                        .storage
-                        .as_ref()
-                        .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride)
-                        .map(u32::try_from)
-                        .transpose()
-                        .ok()?;
-                    collect(
-                        child,
-                        offset.checked_add(displacement)?,
-                        stride,
-                        path,
-                        repetitions,
-                        declarations,
-                        fields,
-                    )?;
+                    .ok()?
+                };
+                if matches!(
+                    member.storage,
+                    Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
+                ) {
+                    return None;
                 }
-                path.pop();
+                let stored = member
+                    .storage
+                    .as_ref()
+                    .and_then(|storage| storage.stored_scalar())
+                    .unwrap_or(scalar);
+                self.fields.push((
+                    path.clone(),
+                    repetitions.clone(),
+                    offset.checked_add(displacement)?,
+                    scalar,
+                    stored,
+                ));
+            } else if let StructuralFieldType::Structural(child) = member.field_type {
+                let (_, _, displacement) = if let Some(case) = case {
+                    structural_layout::case_projection(
+                        root,
+                        &[Path::Case(case), Path::Field(member.id)],
+                        self.declarations,
+                        &mut BTreeMap::new(),
+                        &mut BTreeSet::new(),
+                    )
+                    .ok()?
+                } else {
+                    structural_layout::resolve_structural_projection_path(
+                        root,
+                        &[StructuralPathSegment::Field(member.identity.clone())],
+                        self.declarations,
+                        &mut BTreeMap::new(),
+                        &mut BTreeSet::new(),
+                    )
+                    .ok()?
+                };
+                let stride = member
+                    .storage
+                    .as_ref()
+                    .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride)
+                    .map(u32::try_from)
+                    .transpose()
+                    .ok()?;
+                self.collect(
+                    child,
+                    offset.checked_add(displacement)?,
+                    stride,
+                    path,
+                    repetitions,
+                )?;
+            } else if let Some(carrier) = member.field_type.byte_sequence_carrier() {
+                let (displacement, byte_size) =
+                    self.inline_byte_geometry(root, member, position, case, carrier)?;
+                self.opaque_regions.push((
+                    path.clone(),
+                    repetitions.clone(),
+                    offset.checked_add(displacement)?,
+                    byte_size,
+                ));
+            } else {
+                // No byte-bearing member may disappear from the retained
+                // geometry just because it has no portable scalar decoder.
+                return None;
             }
+            path.pop();
         }
-        StructuralTypeShape::FixedArray { element, length } => {
-            let (_, stride) = structural_layout::root_array_projection_metadata(
+        Some(())
+    }
+
+    fn inline_byte_geometry(
+        &self,
+        root: StructuralTypeId,
+        member: &StructuralFieldDeclaration,
+        position: usize,
+        case: Option<StructuralCaseId>,
+        carrier: terminal_psi::ByteSequenceCarrier,
+    ) -> Option<(u32, u32)> {
+        let declaration = self.declarations.get(&root)?;
+        if let StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } =
+            &declaration.shape
+        {
+            let layout = structural_layout::structural_sum_layout(
                 root,
-                declarations,
+                self.declarations,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
             )
             .ok()?;
-            let stride = occurrence_stride.or(stride)?;
-            repetitions.push(NativeStorageRepetition {
-                path_position: path.len(),
-                length: *length,
-                byte_stride: stride,
-            });
-            path.push(Path::FixedIndex(0));
-            collect(
-                *element,
-                offset,
-                None,
-                path,
-                repetitions,
-                declarations,
-                fields,
-            )?;
-            path.pop();
-            repetitions.pop();
+            let field = if let Some(case) = case {
+                let case_position = cases.iter().position(|row| row.id == case)?;
+                layout.cases.get(case_position)?.fields.get(position)?
+            } else {
+                layout.common_fields.get(position)?
+            };
+            return Some((field.byte_offset, field.shape.byte_size));
         }
+
+        // Record byte fields have no standalone structural identity. Reuse
+        // their native field-address owner, including authored record offsets,
+        // and the same field carrier shape used by native layout.
+        let member_path = [StructuralPathSegment::Field(member.identity.clone())];
+        let displacement = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => {
+                structural_layout::bounded_byte_field_geometry(
+                    root,
+                    &member_path,
+                    self.declarations,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .ok()??
+                .0
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => {
+                structural_layout::borrowed_view_field_offset(
+                    root,
+                    &member_path,
+                    self.declarations,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )
+                .ok()??
+            }
+        };
+        let shape = structural_layout::byte_sequence_shape(carrier, root).ok()?;
+        Some((displacement, shape.byte_size))
     }
-    Some(())
 }

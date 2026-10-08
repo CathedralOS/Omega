@@ -705,6 +705,21 @@ pub(in crate::legalization) fn call_argument(
     })
 }
 
+/// A borrowed block arrival keeps its own address or descriptor, independently
+/// of the call's ABI. Consumers verify availability and projection at their
+/// call site; an arrival declaration does not manufacture owned backing.
+pub(in crate::legalization) fn borrowed_block_arrival<'function>(
+    function: &'function PsiOptimizationFunction,
+    place: PlaceId,
+    plan: &AbstractOperationPlan,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &'function terminal_psi::StructuralParameterDeclaration,
+)> {
+    super::address_joins::parameter(function, place, plan)
+        .or_else(|| borrowed_arguments::view_arrival(function, place, &plan.structural_types))
+}
+
 pub(super) fn result_home(
     function: &PsiOptimizationFunction,
     place: PlaceId,

@@ -121,7 +121,12 @@ pub(super) fn admit(
         {
             DescriptorBuffer::Bytes
         }
-        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
+        Some(
+            StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::FixedArray { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. },
+        ) => {
             let layout = storage_layouts
                 .iter()
                 .find(|layout| layout.structural_type == formal.structural_type)

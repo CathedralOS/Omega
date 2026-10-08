@@ -63,10 +63,11 @@ impl TerminalStructuralValue {
     }
 }
 
-/// Exact target-neutral runtime carrier for a selected scalar sum case.
+/// Exact target-neutral host/result payload for a selected scalar sum case.
 ///
-/// This is deliberately distinct from an opaque host structural value: a
-/// producer-created case has no host identity to preserve or invent.
+/// This payload contains no storage identity or custody. Import validates it
+/// before publishing an ordinary placed home; export snapshots that home's
+/// actual discriminator and scalar cells rather than keeping a second carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarCaseValue {
     pub structural_type: StructuralTypeId,

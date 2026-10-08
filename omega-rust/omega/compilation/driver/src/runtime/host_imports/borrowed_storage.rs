@@ -1,167 +1,270 @@
-//! A demanded native byte prefix assembled from authenticated scalar loans.
-//! Native placement selects byte coordinates; captured backing selects access,
-//! codecs and field restrictions. Neither can substitute for the other. Every
-//! accessed byte must belong to exactly one scalar: padding and pointers are not
-//! invented. Unaccessed padding is not a reason to refuse a backed prefix. Keep
-//! a complete captured scalar when the prefix ends inside it, so writeback can
-//! preserve its unread bytes; fields outside the prefix receive no replacement.
+//! Join semantic loans to native placement without inventing backing bytes.
+//! Output observes only covered prefixes. Input uses private staging memory;
+//! its zeroed holes are not semantic values: completion decodes a cell only
+//! when every byte was supplied by the read or retained from valid entry
+//! contents. This permits complete case replacement, including initially
+//! inactive payloads, without publishing unread padding or manufactured data.
 
+mod geometry;
+
+use geometry::{NativeCell, NativeCellKind};
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue,
-    ScalarType,
-};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue, ScalarType};
 use terminal_interpreter::{
-    TerminalBoundaryScalarBuffer, TerminalEffectRejection, TerminalScalarValue,
+    TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffectRejection,
+    TerminalScalarValue, TerminalStorageContents,
 };
 use terminal_psi::StructuralAccess;
 
-pub(super) struct CapturedStorage {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StorageTransfer {
+    Observe,
+    ReplacePrefix,
+}
+
+pub(super) struct CapturedStorage<'layout> {
     pub bytes: Vec<u8>,
-    segments: Vec<(usize, usize, usize)>,
+    covered: Vec<(usize, usize)>,
+    cells: Vec<NativeCell<'layout>>,
+    layout: Option<&'layout NativeBorrowedStorageLayout>,
 }
 
 fn invalid_operands() -> TerminalEffectRejection {
-    TerminalEffectRejection::new("borrowed native storage differs from its captured scalar layout")
+    TerminalEffectRejection::new(
+        "borrowed native storage differs from its captured semantic layout",
+    )
 }
 
-impl CapturedStorage {
+impl<'layout> CapturedStorage<'layout> {
     pub fn capture(
-        buffers: &[TerminalBoundaryScalarBuffer],
+        buffers: &[TerminalBoundaryStorageBuffer],
         access: StructuralAccess,
-        layout: Option<&NativeBorrowedStorageLayout>,
+        layout: Option<&'layout NativeBorrowedStorageLayout>,
         byte_count: usize,
+        transfer: StorageTransfer,
     ) -> Result<Self, TerminalEffectRejection> {
-        let mut segments = Vec::with_capacity(buffers.len());
-        for (buffer_index, buffer) in buffers.iter().enumerate() {
-            if buffer.argument_index() != 0 || buffer.access() != access {
-                return Err(invalid_operands());
+        let [buffer] = buffers else {
+            return Err(invalid_operands());
+        };
+        let mut cells = match layout {
+            Some(layout) => geometry::expand(layout)?,
+            None => Vec::new(),
+        };
+        // Terminal canonical order sorts each declaration's fields by identity.
+        // Lexical paths therefore place tags before descendants and mixed common
+        // fields before payloads, matching semantic capture without dense IDs.
+        cells.sort_by(|left, right| left.path.cmp(&right.path));
+        if cells.windows(2).any(|pair| pair[0].path == pair[1].path) {
+            return Err(invalid_operands());
+        }
+        let (argument_index, actual_access, values) = match buffer {
+            TerminalBoundaryStorageBuffer::Scalar(buffer) if layout.is_none() => (
+                buffer.argument_index(),
+                buffer.access(),
+                vec![TerminalBoundaryStorageValue {
+                    path: buffer.field_path().to_vec(),
+                    contents: TerminalStorageContents::Scalar {
+                        value: buffer.value(),
+                        stored_scalar: buffer.storage_scalar_type(),
+                    },
+                }],
+            ),
+            TerminalBoundaryStorageBuffer::Structural(buffer)
+                if layout
+                    .is_some_and(|layout| layout.structural_type == buffer.structural_type()) =>
+            {
+                (
+                    buffer.argument_index(),
+                    buffer.access(),
+                    buffer.values().to_vec(),
+                )
             }
-            let byte_size = scalar_extent(buffer.storage_scalar_type())?;
-            let byte_offset = if let Some(layout) = layout {
-                let mut matched = None;
-                for field in layout.fields() {
-                    let template = layout.field_path(field);
-                    if template.len() != buffer.field_path().len() {
-                        continue;
-                    }
-                    let dimensions = layout.field_repetitions(field);
-                    let mut offset = u64::from(field.byte_offset);
-                    let mut agrees = true;
-                    for (path_position, (expected, actual)) in
-                        template.zip(buffer.field_path()).enumerate()
-                    {
-                        if let Some(dimension) = dimensions
-                            .iter()
-                            .find(|dimension| dimension.path_position == path_position)
-                        {
-                            let CanonicalStructuralPathSegment::FixedIndex(element_index) = actual
-                            else {
-                                agrees = false;
-                                break;
-                            };
-                            if *element_index >= dimension.length {
-                                agrees = false;
-                                break;
-                            }
-                            offset = offset
-                                .checked_add(
-                                    element_index
-                                        .checked_mul(u64::from(dimension.byte_stride))
-                                        .ok_or_else(invalid_operands)?,
-                                )
-                                .ok_or_else(invalid_operands)?;
-                        } else if expected != *actual {
-                            agrees = false;
-                            break;
-                        }
-                    }
-                    if agrees {
-                        if matched.is_some() || field.stored_scalar != buffer.storage_scalar_type()
-                        {
-                            return Err(invalid_operands());
-                        }
-                        matched = Some(usize::try_from(offset).map_err(|_| invalid_operands())?);
-                    }
-                }
-                matched.ok_or_else(invalid_operands)?
+            _ => return Err(invalid_operands()),
+        };
+        if argument_index != 0
+            || actual_access != access
+            || (transfer == StorageTransfer::ReplacePrefix
+                && access != StructuralAccess::MutableBorrow)
+        {
+            return Err(invalid_operands());
+        }
+        let mut encoded = Vec::with_capacity(values.len());
+        for value in &values {
+            let (offset, bytes) = if let Some(layout) = layout {
+                let position = cells
+                    .binary_search_by(|cell| cell.path.cmp(&value.path))
+                    .map_err(|_| invalid_operands())?;
+                let cell = &cells[position];
+                (cell.byte_offset, cell.encode(layout, value.contents)?)
             } else {
-                if buffers.len() != 1 || !buffer.field_path().is_empty() {
+                if values.len() != 1 || !value.path.is_empty() {
                     return Err(invalid_operands());
                 }
-                0
+                let TerminalStorageContents::Scalar {
+                    value,
+                    stored_scalar,
+                } = value.contents
+                else {
+                    return Err(invalid_operands());
+                };
+                (
+                    0,
+                    encode(value, stored_scalar)?[..scalar_extent(stored_scalar)?].to_vec(),
+                )
             };
-            segments.push((buffer_index, byte_offset, byte_size));
+            encoded.push((offset, bytes));
         }
-        segments.sort_unstable_by_key(|(_, offset, _)| *offset);
-        let layout_extent = layout
-            .map(|layout| usize::try_from(layout.byte_size).map_err(|_| invalid_operands()))
-            .transpose()?;
-        let mut previous_end = 0usize;
-        for (_, offset, size) in &segments {
-            let end = offset.checked_add(*size).ok_or_else(invalid_operands)?;
-            if *offset < previous_end || layout_extent.is_some_and(|extent| end > extent) {
+        encoded.sort_by_key(|(offset, _)| *offset);
+        let mut covered = Vec::with_capacity(encoded.len());
+        let mut previous_end = 0;
+        for (offset, bytes) in &encoded {
+            let end = offset
+                .checked_add(bytes.len())
+                .ok_or_else(invalid_operands)?;
+            if *offset < previous_end
+                || layout.is_some_and(|layout| end > layout.byte_size as usize)
+            {
                 return Err(invalid_operands());
             }
+            covered.push((*offset, end));
             previous_end = end;
         }
-        let native_extent = layout_extent.unwrap_or(previous_end);
+        let native_extent = layout.map_or(previous_end, |layout| layout.byte_size as usize);
         if byte_count > native_extent {
             return Err(TerminalEffectRejection::new(
                 "descriptor byte count exceeds the exact borrowed storage extent",
             ));
         }
-        // Native pointer/count semantics demand this prefix, not a snapshot of
-        // the entire object. Authenticate all supplied coordinates above, then
-        // retain only complete scalars touched by the actual byte interval.
-        segments.retain(|(_, offset, _)| *offset < byte_count);
-        let mut extent = 0usize;
-        for (_, offset, size) in &segments {
-            if *offset != extent {
-                return Err(TerminalEffectRejection::new(
-                    "borrowed storage has padding, overlap or unmodeled bytes",
-                ));
-            }
-            extent = extent.checked_add(*size).ok_or_else(invalid_operands)?;
-        }
-        if extent < byte_count {
+        if transfer == StorageTransfer::Observe && !covered_range(&covered, 0, byte_count) {
             return Err(TerminalEffectRejection::new(
                 "borrowed storage has padding, overlap or unmodeled bytes",
             ));
         }
-        let mut bytes = vec![0; extent];
-        for (buffer_index, offset, size) in &segments {
-            let buffer = &buffers[*buffer_index];
-            bytes[*offset..*offset + *size]
-                .copy_from_slice(&encode(buffer.value(), buffer.storage_scalar_type())?[..*size]);
+        if transfer == StorageTransfer::ReplacePrefix {
+            let mut possible = match layout {
+                Some(layout) => geometry::input_coverage(layout, &values, &cells, byte_count)?,
+                None => covered.clone(),
+            };
+            possible.sort_unstable();
+            if !covered_range(&possible, 0, byte_count) {
+                return Err(TerminalEffectRejection::new(
+                    "input accesses padding or bytes without a scalar or discriminator recipe",
+                ));
+            }
         }
-        Ok(Self { bytes, segments })
+        let mut bytes = vec![0; previous_end.max(byte_count)];
+        for (offset, encoded) in encoded {
+            bytes[offset..offset + encoded.len()].copy_from_slice(&encoded);
+        }
+        Ok(Self {
+            bytes,
+            covered,
+            cells,
+            layout,
+        })
     }
 
+    /// The returned count grants initialization only to the supplied prefix.
+    /// A short read retains valid old bytes; unread inactive bytes stay absent.
     pub fn stage(
         &self,
-        buffers: &mut [TerminalBoundaryScalarBuffer],
+        buffers: &mut [TerminalBoundaryStorageBuffer],
+        written: usize,
     ) -> Result<(), TerminalEffectRejection> {
-        // Decode every payload before staging replacements; the interpreter
-        // then validates every original endpoint before committing any store.
-        let replacements = self
-            .segments
-            .iter()
-            .map(|(buffer_index, offset, size)| {
-                let buffer = &buffers[*buffer_index];
-                decode(
-                    &self.bytes[*offset..*offset + *size],
-                    buffer.storage_scalar_type(),
-                    buffer.value().scalar_type(),
-                )
-                .map(|value| (*buffer_index, value))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        for (buffer_index, value) in replacements {
-            buffers[buffer_index].replace(value)?;
+        if written > self.bytes.len() {
+            return Err(invalid_operands());
         }
-        Ok(())
+        let [buffer] = buffers else {
+            return Err(invalid_operands());
+        };
+        let mut covered = self.covered.clone();
+        covered.push((0, written));
+        covered.sort_unstable();
+        if let TerminalBoundaryStorageBuffer::Scalar(buffer) = buffer {
+            let size = scalar_extent(buffer.storage_scalar_type())?;
+            if !covered_range(&covered, 0, size) {
+                return Err(invalid_operands());
+            }
+            return buffer.replace(decode(
+                &self.bytes[..size],
+                buffer.storage_scalar_type(),
+                buffer.value().scalar_type(),
+            )?);
+        }
+        let TerminalBoundaryStorageBuffer::Structural(buffer) = buffer else {
+            return Err(invalid_operands());
+        };
+        let layout = self.layout.ok_or_else(invalid_operands)?;
+        let mut values: Vec<TerminalBoundaryStorageValue> = Vec::new();
+        for cell in &self.cells {
+            if !geometry::is_active(&cell.path, &values)? {
+                continue;
+            }
+            let size = cell.byte_size()?;
+            let end = cell
+                .byte_offset
+                .checked_add(size)
+                .ok_or_else(invalid_operands)?;
+            if !covered_range(&covered, cell.byte_offset, end) {
+                // Non-scalar authority (e.g. shared atomic residents) is not a
+                // field supplied by a native layout. Mutable snapshots capture
+                // all ordinary/atomic leaves; a newly selected case must have
+                // complete bytes rather than inheriting an inactive zero fill.
+                return Err(TerminalEffectRejection::new(
+                    "new active case has bytes neither supplied nor validly retained",
+                ));
+            }
+            let contents = match cell.kind {
+                NativeCellKind::Scalar(field) => TerminalStorageContents::Scalar {
+                    value: decode(
+                        self.bytes
+                            .get(cell.byte_offset..end)
+                            .ok_or_else(invalid_operands)?,
+                        field.stored_scalar,
+                        field.logical_scalar,
+                    )?,
+                    stored_scalar: field.stored_scalar,
+                },
+                NativeCellKind::Case(discriminator) => {
+                    let encoded: [u8; 4] = self
+                        .bytes
+                        .get(cell.byte_offset..end)
+                        .ok_or_else(invalid_operands)?
+                        .try_into()
+                        .map_err(|_| invalid_operands())?;
+                    let tag = i32::from_le_bytes(encoded);
+                    let case = layout
+                        .discriminator_cases(discriminator)
+                        .find(|mapping| mapping.native_tag == tag)
+                        .ok_or_else(|| {
+                            TerminalEffectRejection::new(
+                                "native discriminator does not name a declared case",
+                            )
+                        })?;
+                    TerminalStorageContents::Case(case.case)
+                }
+            };
+            values.push(TerminalBoundaryStorageValue {
+                path: cell.path.clone(),
+                contents,
+            });
+        }
+        buffer.replace(values)
     }
+}
+
+fn covered_range(covered: &[(usize, usize)], start: usize, end: usize) -> bool {
+    let mut frontier = start;
+    for &(begin, limit) in covered {
+        if begin > frontier {
+            break;
+        }
+        frontier = frontier.max(limit);
+        if frontier >= end {
+            return true;
+        }
+    }
+    frontier >= end
 }
 
 pub(super) fn scalar_extent(scalar: ScalarType) -> Result<usize, TerminalEffectRejection> {

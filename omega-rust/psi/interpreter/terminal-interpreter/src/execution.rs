@@ -29,8 +29,7 @@ use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
 use crate::values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
-    TerminalStructuralValue,
+    TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, PlaceId, ValueId,
@@ -114,7 +113,6 @@ pub struct TerminalExecution<'artifact> {
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
-    pub(crate) scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
@@ -154,7 +152,6 @@ pub struct TerminalExecution<'artifact> {
 pub(crate) struct SuspendedCall {
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
-    pub(crate) scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
@@ -309,7 +306,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
-            scalar_case_values: BTreeMap::new(),
             scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             primitive_loan_values: BTreeMap::new(),
