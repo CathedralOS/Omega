@@ -14,8 +14,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionPlan, SelectedTerminator,
-    terminator_instruction
+    SelectedInstructionPlan, SelectedTerminator, terminator_instruction,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -23,12 +22,11 @@ use super::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, 
-    all_edges, edge_surface, plain_edge, terminator_successors,
-    transport_conflict};
+use crate::rewrites::block_edges::{all_edges, function_at, plain_edge, transport_conflict};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, speculatable, surface,
+    block_scan_surface, coupled, has_call_contract, register_writes, schedulable, speculatable,
+    surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -82,7 +80,11 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(ConfluenceRelocationError::SourceMismatch);
     }
-    let function = function_at(plan, function_index, ConfluenceRelocationError::SourceMismatch)?;
+    let function = function_at(
+        plan,
+        function_index,
+        ConfluenceRelocationError::SourceMismatch,
+    )?;
     let (block_index, first_index) = function
         .blocks
         .iter()
@@ -268,22 +270,7 @@ fn reconstruct<'source>(
             register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
         })
         .sum();
-    let block_scan: usize = function
-        .blocks
-        .iter()
-        .map(|block| {
-            block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator_instruction(&block.terminator)))
-                .map(surface)
-                .sum::<usize>()
-                + terminator_successors(&block.terminator)
-                    .iter()
-                    .map(|edge| edge_surface(edge))
-                    .sum::<usize>()
-        })
-        .sum();
+    let block_scan = block_scan_surface(function);
     let steps = plan
         .functions
         .iter()

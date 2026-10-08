@@ -19,18 +19,19 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
-    terminator_instruction
+    terminator_instruction,
 };
 
 use super::ConfluenceRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, 
-    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, 
-    terminator_successors};
+use crate::rewrites::block_edges::{
+    CrossingDirection, all_edges, crossed_window, edge_surface, function_at, plain_edge,
+    terminator_successors,
+};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
-    surface,
+    RunRelocationRejection, admit_run_relocation, block_scan_surface, register_writes, schedulable,
+    speculatable, surface,
 };
 
 pub(super) struct Admission {
@@ -63,7 +64,11 @@ pub(super) fn admit(
     if plan.target != environment.target() {
         return Err(ConfluenceRelocationError::SourceMismatch);
     }
-    let function = function_at(plan, function_index, ConfluenceRelocationError::SourceMismatch)?;
+    let function = function_at(
+        plan,
+        function_index,
+        ConfluenceRelocationError::SourceMismatch,
+    )?;
     let (block_index, first_index) = function
         .blocks
         .iter()
@@ -219,22 +224,7 @@ pub(super) fn admit(
             register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
         })
         .sum();
-    let block_scan: usize = function
-        .blocks
-        .iter()
-        .map(|block| {
-            block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator_instruction(&block.terminator)))
-                .map(surface)
-                .sum::<usize>()
-                + terminator_successors(&block.terminator)
-                    .iter()
-                    .map(|edge| edge_surface(edge))
-                    .sum::<usize>()
-        })
-        .sum();
+    let block_scan = block_scan_surface(function);
     let steps = plan
         .functions
         .iter()

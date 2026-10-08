@@ -13,19 +13,19 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedTerminator,
-    terminator_instruction
+    SelectedTerminator, terminator_instruction,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, 
-    all_edges, edge_surface, plain_edge, terminator_successors,
-    transport_conflict};
+use crate::rewrites::block_edges::{
+    all_edges, function_at, plain_edge, terminator_successors, transport_conflict,
+};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, speculatable, surface,
+    block_scan_surface, coupled, has_call_contract, register_writes, schedulable, speculatable,
+    surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -241,22 +241,7 @@ fn reconstruct<'source>(
     let member_locations = register_writes(member_instruction).count()
         + member_instruction.implicit_defs.len()
         + member_instruction.clobbers.len();
-    let block_scan: usize = function
-        .blocks
-        .iter()
-        .map(|block| {
-            block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator_instruction(&block.terminator)))
-                .map(surface)
-                .sum::<usize>()
-                + terminator_successors(&block.terminator)
-                    .iter()
-                    .map(|edge| edge_surface(edge))
-                    .sum::<usize>()
-        })
-        .sum();
+    let block_scan = block_scan_surface(function);
     let steps = plan
         .functions
         .iter()

@@ -7,8 +7,7 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    VirtualRegisterId,
-    terminator_instruction,
+    VirtualRegisterId, terminator_instruction,
 };
 
 use crate::rewrites::block_edges::{
@@ -308,6 +307,27 @@ pub(in crate::rewrites) fn surface(instruction: &SelectedInstruction) -> usize {
         + instruction.implicit_uses.len()
         + instruction.implicit_defs.len()
         + instruction.clobbers.len()
+}
+
+/// The hazard-audit surface of a whole function: every block body's
+/// instructions and terminator, plus every successor edge's own surface.
+pub(in crate::rewrites) fn block_scan_surface(function: &SelectedFunction) -> usize {
+    function
+        .blocks
+        .iter()
+        .map(|block| {
+            block
+                .instructions
+                .iter()
+                .chain(std::iter::once(terminator_instruction(&block.terminator)))
+                .map(surface)
+                .sum::<usize>()
+                + terminator_successors(&block.terminator)
+                    .iter()
+                    .map(|edge| edge_surface(edge))
+                    .sum::<usize>()
+        })
+        .sum()
 }
 
 /// Why the run-level relocation audit refused a window — one kind per
