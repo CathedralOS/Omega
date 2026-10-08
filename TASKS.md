@@ -2358,13 +2358,15 @@ crash and native exit behavior.
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation
     and semantic pruning belong inside stages 02–04. Carry discovery, grants,
     sponsors and snapshots in the owning stage inputs/outputs.
-  - Package manager supplies resolved/accepted source custody, lock decisions,
-    grants and review policy to the compiler facade; it does not return
-    `CheckedCompilation`, call `admit_trust`/`prepare_product_report`, or invoke
-    terminal/native production. Delete the duplicated check/native sequencing
-    in `operations/accepted_compilation.rs`, `check_project.rs` and
-    `compile_project.rs`. Package-aware check, compile, run and inspection all
-    construct the same driver request and consume its typed outcome.
+  - Package product completion now calls the driver's `finish_compilation`;
+    check/native report sequencing and the unused checked-program observer are
+    removed from package operations. Inspection uses the compiler's Terminal
+    production operation; the CLI no longer imports numbered stages. Remaining:
+    move checked-compilation ownership out of `operations/accepted_compilation.rs`
+    and the package build session. Package manager supplies resolved/accepted
+    source custody, lock decisions, grants and review policy rather than returning
+    `CheckedCompilation`. Check, compile, run and inspection must drive the same
+    source-to-product request, not just share product completion.
   - Keep each stage's independent representation and transformation crate,
     single-target command behavior, Build-effect custody and per-target
     publication.

@@ -15,7 +15,13 @@ pub(crate) fn run(arguments: InspectTerminalArguments) {
         target_name: arguments.target_name,
     };
     match inspect_terminal(&request) {
-        Ok(inspection) => print!("{}", terminal_summary(&request.machine, &inspection.module)),
+        Ok(inspection) => match inspection.artifact.semantic_module() {
+            Ok(module) => print!("{}", terminal_summary(&request.machine, module)),
+            Err(error) => {
+                eprintln!("cannot read Terminal inspection: {error:?}");
+                std::process::exit(1);
+            }
+        },
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(1);

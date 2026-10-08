@@ -30,7 +30,24 @@ impl From<OptimizedPostAllocationMachinePipelineError> for OptimizedVerifiedPhys
 
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "common physical staging failed: {self:?}")
+        formatter.write_str("common physical staging failed: ")?;
+        match self {
+            Self::SelectedOptimization(error) => {
+                write!(formatter, "SelectedOptimization({error:?})")
+            }
+            Self::UnconsumedPostTerminalPhase(phase) => {
+                write!(formatter, "UnconsumedPostTerminalPhase({phase:?})")
+            }
+            Self::RegisterEnvironment(error) => write!(formatter, "RegisterEnvironment({error:?})"),
+            Self::Selection(error) => write!(formatter, "Selection({error:?})"),
+            Self::RegisterAllocation(error) => write!(formatter, "RegisterAllocation({error:?})"),
+            Self::PostAllocationMachine(error) => {
+                write!(formatter, "PostAllocationMachine({error:?})")
+            }
+            Self::FunctionRelativeRealization(error) => {
+                write!(formatter, "FunctionRelativeRealization({error:?})")
+            }
+        }
     }
 }
 

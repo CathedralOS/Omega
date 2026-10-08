@@ -1,4 +1,4 @@
-//! Select, lower, and verify a machine for inspection. Grants no native authority.
+//! Prepare package inputs and request a Terminal inspection. Grants no native authority.
 //!
 //! Source preparation follows the compile command rather than a focused-file
 //! shortcut. A root beside a `build.omg` (or an `omega.lock`) is a package
@@ -7,17 +7,16 @@
 //! the producer's custody. Acquisition-only compiler inputs cannot provide
 //! that handoff, even if a helper happens to have usable physical source.
 //! A standalone root keeps the direct, optionally targetless check unchanged.
-//! Inspection stops at the checked program and neither admits trust nor
-//! realizes native output. Candidate checking is shared with `--check`, but
+//! Inspection asks the compiler to publish the selected machine as Terminal Psi;
+//! it neither admits runtime trust nor realizes native output. Candidate checking is shared with `--check`, but
 //! trust admission and native acceptance/publication remain separate operations.
 
-use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
 use package_manager::operations::LocalProjectPreparationOptions;
 use std::path::PathBuf;
-use terminal_psi::TerminalModule;
+use terminal_codec::CanonicalTerminalArtifact;
 
 pub struct InspectTerminalRequest {
     pub root_path: PathBuf,
@@ -26,7 +25,7 @@ pub struct InspectTerminalRequest {
 }
 
 pub struct TerminalInspection {
-    pub module: TerminalModule,
+    pub artifact: CanonicalTerminalArtifact,
 }
 
 #[derive(Debug)]
@@ -34,10 +33,6 @@ pub enum InspectTerminalError {
     Diagnostics(Vec<Diagnostic>),
     Preparation(packages::PrepareLocalProjectError),
     Review(package_manager::review::CompileResolvedPackageReviewsError),
-    Lowering {
-        machine: String,
-        error: checked_trees_to_lowered_psi::LoweringError,
-    },
 }
 
 impl std::fmt::Display for InspectTerminalError {
@@ -54,10 +49,6 @@ impl std::fmt::Display for InspectTerminalError {
             }
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::Review(error) => write!(formatter, "cannot check inspection project: {error}"),
-            Self::Lowering { machine, error } => write!(
-                formatter,
-                "cannot lower terminal machine `{machine}`: {error}"
-            ),
         }
     }
 }
@@ -68,17 +59,9 @@ pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
     let checked = check_inspection_sources(request)?;
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name(&request.machine),
-    )
-    .map_err(|error| InspectTerminalError::Lowering {
-        machine: request.machine.clone(),
-        error,
-    })?;
-    Ok(TerminalInspection {
-        module: lowered.semantic_module,
-    })
+    let artifact = compiler::inspection::inspect_terminal(checked, &request.machine)
+        .map_err(InspectTerminalError::Diagnostics)?;
+    Ok(TerminalInspection { artifact })
 }
 
 /// Check package sources through the manager's dependency-first candidate

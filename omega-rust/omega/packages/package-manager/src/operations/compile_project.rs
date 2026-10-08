@@ -162,19 +162,13 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
 
 impl std::error::Error for CompilePreparedLocalProjectNativeError {}
 
-/// Observe the exact checked program that native production consumes, without
-/// repeating package acquisition or sponsored build execution. The observer must
-/// only compute a private result: native realization can still reject afterward.
-/// A caller with nothing to observe passes `|_| ()`.
-///
 /// This operation is the production CLI seam. It does not ask project
 /// preparation to infer permissions. Source and compiler identities must match
 /// the accepted lock before Build execution; native realization consumes fresh
 /// checked semantics, not reconstructed package-review findings.
-pub fn compile_prepared_local_project_for_native<Observation>(
+pub fn compile_prepared_local_project_for_native(
     request: PreparedLocalProjectNativeRequest,
-    observe: impl FnOnce(&compiler::CheckedCompilation) -> Observation,
-) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
+) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
     if request.target_profiles.len() != 1 {
         return Err(CompilePreparedLocalProjectNativeError::Native(vec![
             Diagnostic::error(
@@ -182,22 +176,17 @@ pub fn compile_prepared_local_project_for_native<Observation>(
             ),
         ]));
     }
-    let mut observe = Some(observe);
-    compile_prepared_local_project_for_native_targets(request, move |checked| {
-        observe
-            .take()
-            .expect("one native observation per requested target")(checked)
-    })
-    .pop()
-    .expect("a native request produces one outcome per requested target")
-    .result
+    compile_prepared_local_project_for_native_targets(request)
+        .pop()
+        .expect("a native request produces one outcome per requested target")
+        .result
 }
 
 /// One target's native production result inside a shared multi-target
 /// request. A failing target never stops or hides a sibling.
-pub struct CompiledProjectTargetOutcome<Observation> {
+pub struct CompiledProjectTargetOutcome {
     pub target: target::TargetProfile,
-    pub result: Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError>,
+    pub result: Result<CompileReport, CompilePreparedLocalProjectNativeError>,
 }
 
 /// Native production for every requested target under one prepared source
@@ -207,10 +196,9 @@ pub struct CompiledProjectTargetOutcome<Observation> {
 /// identically — assembles exactly once for the request. Each target still
 /// produces under `build_dir/<target>`, arms its own accepted checkpoint, and
 /// settles its own evidence, admission, and realization.
-pub fn compile_prepared_local_project_for_native_targets<Observation>(
+pub fn compile_prepared_local_project_for_native_targets(
     request: PreparedLocalProjectNativeRequest,
-    mut observe: impl FnMut(&compiler::CheckedCompilation) -> Observation,
-) -> Vec<CompiledProjectTargetOutcome<Observation>> {
+) -> Vec<CompiledProjectTargetOutcome> {
     let PreparedLocalProjectNativeRequest {
         prepared,
         build_dir,
@@ -239,7 +227,6 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
                 receiving_terminal_authority_permission_policy.clone(),
                 timings,
                 &mut preparation,
-                &mut observe,
             );
             CompiledProjectTargetOutcome {
                 target: profile,
@@ -255,7 +242,7 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
 /// rejects before its build effect executes or generated sources reach
 /// realization.
 #[allow(clippy::too_many_arguments)]
-fn compile_one_prepared_target<Observation>(
+fn compile_one_prepared_target(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
@@ -266,8 +253,7 @@ fn compile_one_prepared_target<Observation>(
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
     preparation: &mut PackageSourcePreparation,
-    observe: &mut impl FnMut(&compiler::CheckedCompilation) -> Observation,
-) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
+) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
     let target_profile = prepared_target.profile;
     if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
         return Err(CompilePreparedLocalProjectNativeError::Review(
@@ -329,44 +315,21 @@ fn compile_one_prepared_target<Observation>(
                 error,
             })?;
     }
-    checked
-        .admit_trust()
-        .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
-    let observation = observe(&checked);
-    let product = checked
-        .prepare_product_report(
-            entry_path.to_path_buf(),
-            compiler::RequestedCompileProduct::NativeArtifact,
-            optimization_rollback,
-        )
-        .map_err(CompilePreparedLocalProjectNativeError::Native)?;
-    let report = match product {
-        compilation_products::CheckedProductReport::Complete(report) => Ok(report),
-        compilation_products::CheckedProductReport::Native(settlement) => {
-            compiler::native::produce_native_product(
-                compilation_products::NativeProductRequest {
-                    terminal_authority_policy,
-                    terminal_authority_permission_policy:
-                        receiving_terminal_authority_permission_policy,
-                    optimization_rollback: optimization_rollback.clone(),
-                },
-                checked,
-            )
-            .and_then(|produced| {
-                settlement
-                    .with_timings(produced.timings)
-                    .finish_native(produced.artifact, produced.rollback_receipt)
-                    .and_then(|report| {
-                        report
-                            .with_runtime_provisions(produced.runtime_provisions)
-                            .map_err(|message| vec![Diagnostic::error(message)])
-                    })
-            })
+    compiler::finish_compilation(
+        checked,
+        entry_path.to_path_buf(),
+        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            terminal_authority_policy,
+            terminal_authority_permission_policy: receiving_terminal_authority_permission_policy,
+            optimization_rollback: optimization_rollback.clone(),
+        }),
+    )
+    .map_err(|error| match error {
+        compiler::CompilationProductError::TrustAdmission(diagnostics) => {
+            CompilePreparedLocalProjectNativeError::TrustAdmission(diagnostics)
         }
-        compilation_products::CheckedProductReport::Terminal(_) => Err(vec![Diagnostic::error(
-            "native preparation returned an unexpected Terminal-only request",
-        )]),
-    }
-    .map_err(CompilePreparedLocalProjectNativeError::Native)?;
-    Ok((report, observation))
+        compiler::CompilationProductError::Production(diagnostics) => {
+            CompilePreparedLocalProjectNativeError::Native(diagnostics)
+        }
+    })
 }

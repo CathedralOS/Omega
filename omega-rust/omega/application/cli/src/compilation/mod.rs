@@ -293,7 +293,6 @@ fn compile_project_targets(
                         Ok(
                             packages::compile_prepared_local_project_for_native_targets(
                                 request,
-                                |_| (),
                             )
                             .into_iter()
                             .map(|outcome| {
@@ -301,7 +300,6 @@ fn compile_project_targets(
                                     outcome.target,
                                     outcome
                                         .result
-                                        .map(|(report, ())| report)
                                         .map_err(CompileProjectError::PackageNative),
                                 )
                             })

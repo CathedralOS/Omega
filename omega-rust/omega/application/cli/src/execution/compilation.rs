@@ -40,15 +40,13 @@ pub(super) fn compile(
     .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let report = if let Some(prepared) = prepared {
         let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target);
-        compile_prepared_local_project_for_native(request, |_| ())
-            .map(|(report, ())| report)
-            .map_err(|error| match error {
-                // Realization diagnostics keep their exceeded provisions, so a
-                // compile that stopped at a private provision reads as
-                // `Incomplete` rather than as one flattened rejection message.
-                CompilePreparedLocalProjectNativeError::Native(diagnostics) => diagnostics,
-                error => vec![Diagnostic::error(error.to_string())],
-            })?
+        compile_prepared_local_project_for_native(request).map_err(|error| match error {
+            // Realization diagnostics keep their exceeded provisions, so a
+            // compile that stopped at a private provision reads as
+            // `Incomplete` rather than as one flattened rejection message.
+            CompilePreparedLocalProjectNativeError::Native(diagnostics) => diagnostics,
+            error => vec![Diagnostic::error(error.to_string())],
+        })?
     } else {
         compiler::compile(
             CompileRequest::new(options)

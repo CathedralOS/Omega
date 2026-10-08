@@ -10,10 +10,16 @@ use crate::checked::{
 };
 use crate::native::produce_native_product;
 use crate::terminal::produce_terminal_product;
-use crate::{CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome};
+use crate::{
+    CheckedCompilation, CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome,
+};
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
-use compilation_products::{CheckedProductReport, CompileFailure, PreparedBuilds};
+use compilation_products::{
+    CheckedProductReport, CompileFailure, NativeProductRequest, PreparedBuilds,
+    RequestedCompileProduct,
+};
 use diagnostics::Diagnostic;
+use std::path::PathBuf;
 
 pub(crate) mod package;
 
@@ -62,35 +68,93 @@ fn compile_target(
         .result
         .map_err(CompileFailure::into_diagnostics)?;
 
-    // Product ownership admits the stop and retains report companions before
-    // the selected stage sequence consumes the checked compilation.
-    checked.admit_trust()?;
-    let product = checked.prepare_product_report(
-        root_path,
-        shared.requested_product,
-        target.optimization_rollback(),
-    )?;
-    match product {
-        CheckedProductReport::Complete(report) => Ok(report),
-        // Psi 05-07: lower, optimize and publish the Terminal artifact.
-        CheckedProductReport::Terminal(settlement) => {
-            let produced = produce_terminal_product(checked, target.optimization_rollback())?;
-            settlement
-                .with_timings(produced.timings)
-                .finish_terminal(produced.artifact, produced.rollback_receipt)
+    let product = match shared.requested_product {
+        RequestedCompileProduct::Check => CompilationProduct::Check,
+        RequestedCompileProduct::TerminalArtifact => {
+            CompilationProduct::Terminal(target.optimization_rollback().clone())
         }
-        // The same retained Terminal boundary, then Omega 00-09 and image emission.
-        CheckedProductReport::Native(settlement) => {
-            let request = target.into_native_product_request();
-            let produced = produce_native_product(request, checked)?;
-            settlement
-                .with_timings(produced.timings)
-                .finish_native(produced.artifact, produced.rollback_receipt)
-                .and_then(|report| {
-                    report
-                        .with_runtime_provisions(produced.runtime_provisions)
-                        .map_err(|message| vec![Diagnostic::error(message)])
-                })
+        RequestedCompileProduct::NativeArtifact => {
+            CompilationProduct::Native(target.into_native_product_request())
+        }
+    };
+    finish_compilation(checked, root_path, product)
+        .map_err(CompilationProductError::into_diagnostics)
+}
+
+/// The remaining work after source checking. Native authority has no meaning
+/// at a check or Terminal stop, so only the native request carries it.
+pub enum CompilationProduct {
+    Check,
+    Terminal(crate::OptimizationRollback),
+    Native(NativeProductRequest),
+}
+
+#[derive(Debug)]
+pub enum CompilationProductError {
+    TrustAdmission(Vec<Diagnostic>),
+    Production(Vec<Diagnostic>),
+}
+
+impl CompilationProductError {
+    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+        match self {
+            Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
         }
     }
+}
+
+/// Continue the one compilation pipeline after package policy has accepted its
+/// checked inputs. Both standalone and package compilation use this operation;
+/// callers neither choose stage entrances nor assemble product reports.
+/// This consumes the checkpoint without repeating checking or Build effects.
+pub fn finish_compilation(
+    checked: CheckedCompilation,
+    root_path: PathBuf,
+    requested: CompilationProduct,
+) -> Result<CompileReport, CompilationProductError> {
+    checked
+        .admit_trust()
+        .map_err(CompilationProductError::TrustAdmission)?;
+    let default_rollback = crate::OptimizationRollback::default();
+    let (kind, rollback) = match &requested {
+        CompilationProduct::Check => (RequestedCompileProduct::Check, &default_rollback),
+        CompilationProduct::Terminal(rollback) => {
+            (RequestedCompileProduct::TerminalArtifact, rollback)
+        }
+        CompilationProduct::Native(request) => (
+            RequestedCompileProduct::NativeArtifact,
+            &request.optimization_rollback,
+        ),
+    };
+    let settlement = checked
+        .prepare_product_report(root_path, kind, rollback)
+        .map_err(CompilationProductError::Production)?;
+    let result = match (settlement, requested) {
+        (CheckedProductReport::Complete(report), _) => Ok(report),
+        // Psi 05-07: lower, optimize and publish the Terminal artifact.
+        (CheckedProductReport::Terminal(settlement), CompilationProduct::Terminal(rollback)) => {
+            produce_terminal_product(checked, &rollback).and_then(|produced| {
+                settlement
+                    .with_timings(produced.timings)
+                    .finish_terminal(produced.artifact, produced.rollback_receipt)
+            })
+        }
+        // The same retained Terminal boundary, then Omega 00-09 and image emission.
+        (CheckedProductReport::Native(settlement), CompilationProduct::Native(request)) => {
+            produce_native_product(request, checked).and_then(|produced| {
+                settlement
+                    .with_timings(produced.timings)
+                    .finish_native(produced.artifact, produced.rollback_receipt)
+                    .and_then(|report| {
+                        report
+                            .with_runtime_provisions(produced.runtime_provisions)
+                            .map_err(|message| vec![Diagnostic::error(message)])
+                    })
+            })
+        }
+        _ => Err(vec![Diagnostic::error(
+            "product settlement disagrees with the requested compilation stop",
+        )]),
+    };
+    result.map_err(CompilationProductError::Production)
 }

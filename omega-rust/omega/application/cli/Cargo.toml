@@ -12,9 +12,6 @@ test = true
 
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
-lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
-lowered-psi-to-lowered-psi = { path = "../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
 artifacts = { path = "../../foundation/artifacts" }
@@ -24,10 +21,9 @@ package-source = { path = "../../packages/source-acquisition" }
 package-compilation = { path = "../../packages/compilation-inputs" }
 resolver-execution = { path = "../../packages/resolver-execution" }
 target = { path = "../../compilation/backend/target" }
-checked-trees-to-lowered-psi = { path = "../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
-proof-admission = { path = "../../../psi/compilation/proof/admission" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }

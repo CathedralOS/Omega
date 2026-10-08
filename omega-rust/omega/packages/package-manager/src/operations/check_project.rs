@@ -5,7 +5,7 @@ use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageSourcePreparation;
 use crate::review::CompileResolvedPackageReviewsError;
-use compiler::{CompileOptions, CompileReport};
+use compiler::CompileReport;
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -272,30 +272,17 @@ fn check_one_prepared_target(
         preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
-    let options = CompileOptions {
-        root_path: entry_path.to_path_buf(),
-        build_dir: Some(target_build_dir.to_path_buf()),
-        target_name: Some(profile.target_name().to_owned()),
-    };
-    checked
-        .admit_trust()
-        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    // The checked project reaches product admission through the same
-    // settlement call the standalone compiler uses, so a check-only stop
-    // refuses an incompatible proof-product or release-rollback request here
-    // rather than through a second check-only helper.
-    match checked
-        .prepare_product_report(
-            options.root_path,
-            compiler::RequestedCompileProduct::Check,
-            &compiler::OptimizationRollback::default(),
-        )
-        .map_err(CheckPreparedLocalProjectError::ProofProduct)?
-    {
-        compilation_products::CheckedProductReport::Complete(report) => Ok(report),
-        compilation_products::CheckedProductReport::Terminal(_)
-        | compilation_products::CheckedProductReport::Native(_) => Err(
-            CheckPreparedLocalProjectError::Report("check admission settled a producing product"),
-        ),
-    }
+    compiler::finish_compilation(
+        checked,
+        entry_path.to_path_buf(),
+        compiler::CompilationProduct::Check,
+    )
+    .map_err(|error| match error {
+        compiler::CompilationProductError::TrustAdmission(diagnostics) => {
+            CheckPreparedLocalProjectError::TrustAdmission(diagnostics)
+        }
+        compiler::CompilationProductError::Production(diagnostics) => {
+            CheckPreparedLocalProjectError::ProofProduct(diagnostics)
+        }
+    })
 }

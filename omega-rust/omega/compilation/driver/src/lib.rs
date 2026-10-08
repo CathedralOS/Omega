@@ -13,13 +13,17 @@
 
 mod compiler;
 mod identity;
+pub mod inspection;
+
+#[cfg(test)]
+mod product_boundary;
 
 pub use identity::compiler_identity;
 
 pub mod checked;
-pub mod native;
+mod native;
 pub mod runtime;
-pub mod terminal;
+mod terminal;
 
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
@@ -30,7 +34,7 @@ pub use crate::checked::{
     prepare_package_build, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };
-pub use crate::native::realize_retained_native_artifact;
+pub use crate::native::{RealizedNativeProduct, realize_retained_native_artifact};
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::RetainedNativeRealizationRequest;
 pub use compilation_products::{
@@ -41,7 +45,7 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use compiler::compile;
 pub use compiler::package::retained_terminal_artifact_from_checked_package;
+pub use compiler::{CompilationProduct, CompilationProductError, compile, finish_compilation};
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
