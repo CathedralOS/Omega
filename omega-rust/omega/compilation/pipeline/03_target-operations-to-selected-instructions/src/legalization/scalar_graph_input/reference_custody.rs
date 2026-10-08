@@ -20,7 +20,7 @@ use abstract_operations::call_source;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
+    find_structural_type,    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, structural_children,
 };
@@ -244,7 +244,7 @@ pub(in crate::legalization) fn contains_reference(
         if !visited.insert(current) {
             continue;
         }
-        let Some(declaration) = types.iter().find(|declaration| declaration.id == current) else {
+        let Some(declaration) = find_structural_type(types, current) else {
             continue;
         };
         let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
@@ -313,7 +313,7 @@ fn leaf_paths(
         if !contains_reference(types, current) {
             continue;
         }
-        let Some(declaration) = types.iter().find(|declaration| declaration.id == current) else {
+        let Some(declaration) = find_structural_type(types, current) else {
             continue;
         };
         match &declaration.shape {
@@ -496,7 +496,7 @@ fn leaf_type(
             return None;
         }
         if let StructuralPathSegment::Case(case) = segment {
-            let declaration = types.iter().find(|declaration| declaration.id == current)?;
+            let declaration = find_structural_type(types, current)?;
             let cases = declaration.shape.sum_cases()?;
             case_fields = Some(
                 cases
@@ -548,7 +548,7 @@ fn leaf_type(
             continue;
         }
         if let StructuralPathSegment::FixedIndex(index) = segment {
-            let declaration = types.iter().find(|declaration| declaration.id == current)?;
+            let declaration = find_structural_type(types, current)?;
             let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
                 return None;
             };
@@ -561,7 +561,7 @@ fn leaf_type(
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
-        let declaration = types.iter().find(|declaration| declaration.id == current)?;
+        let declaration = find_structural_type(types, current)?;
         let selected_fields = match case_fields.take() {
             Some(fields) => fields,
             None => declaration.shape.direct_fields()?,
@@ -729,7 +729,7 @@ fn shared_source_compatible(
     access == StructuralAccess::SharedBorrow
         && source_contract(function, custody, *carrier)
             .and_then(|root| leaf_type(types, root, path))
-            .and_then(|leaf| types.iter().find(|declaration| declaration.id == leaf))
+            .and_then(|leaf| find_structural_type(types, leaf))
             .is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -949,7 +949,7 @@ fn is_suspended_storage_region(
     let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
         let Some(origin) = source_contract(function, custody, place)
             .and_then(|root| leaf_type(types, root, origin_path))
-            .and_then(|identity| types.iter().find(|declaration| declaration.id == identity))
+            .and_then(|identity| find_structural_type(types, identity))
         else {
             return true;
         };
@@ -1302,7 +1302,7 @@ fn validate_result_sources(
         return Err(invalid());
     }
     let result_access = leaf_type(types, result_type, &mapping.path)
-        .and_then(|leaf| types.iter().find(|declaration| declaration.id == leaf))
+        .and_then(|leaf| find_structural_type(types, leaf))
         .and_then(|declaration| match declaration.shape {
             StructuralTypeShape::Reference { access, .. } => Some(access),
             _ => None,
@@ -2326,7 +2326,7 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
         if !active.insert(current) {
             return false;
         }
-        let Some(declaration) = types.iter().find(|declaration| declaration.id == current) else {
+        let Some(declaration) = find_structural_type(types, current) else {
             return false;
         };
         if let StructuralTypeShape::FixedArray { element, .. } = &declaration.shape {
