@@ -864,61 +864,11 @@ impl BuiltinFunction {
     /// of an unresolved call. Machine-control and port intrinsics, content
     /// custody builtins, and `embed` are excluded: their effects are their own
     /// custody axes, not value reads.
+    /// The numeric family includes integer `min`/`max` as well as floating
+    /// operations. Floating control-state effects do not write caller storage;
+    /// their separate admission rules remain attached to the numeric operation.
     pub const fn has_empty_write_frame(self) -> bool {
-        !self.is_float_family()
-            && !matches!(
-                self,
-                Self::AsmHlt
-                    | Self::AsmPortOut
-                    | Self::AsmPortIn
-                    | Self::AsmLoadFence
-                    | Self::AsmStoreFence
-                    | Self::AsmFullFence
-                    | Self::AsmDisableInterrupts
-                    | Self::AsmEnableInterrupts
-                    | Self::AsmSnapshotFlags
-                    | Self::AsmRestoreFlags
-                    | Self::AsmReadMsr
-                    | Self::AsmWriteMsr
-                    | Self::AsmReadCr0
-                    | Self::AsmReadCr2
-                    | Self::AsmReadCr3
-                    | Self::AsmReadCr4
-                    | Self::AsmWriteCr0
-                    | Self::AsmWriteCr3
-                    | Self::AsmWriteCr4
-                    | Self::AsmReadSctlrEl1
-                    | Self::AsmReadTcrEl1
-                    | Self::AsmReadTtbr0El1
-                    | Self::AsmReadTtbr1El1
-                    | Self::AsmReadMairEl1
-                    | Self::AsmReadVbarEl1
-                    | Self::AsmReadTpidrEl1
-                    | Self::AsmReadEsrEl1
-                    | Self::AsmReadFarEl1
-                    | Self::AsmWriteSctlrEl1
-                    | Self::AsmWriteTcrEl1
-                    | Self::AsmWriteTtbr0El1
-                    | Self::AsmWriteTtbr1El1
-                    | Self::AsmWriteMairEl1
-                    | Self::AsmWriteVbarEl1
-                    | Self::AsmWriteTpidrEl1
-                    | Self::AsmSerialize
-                    | Self::AsmInstructionSyncBarrier
-                    | Self::AsmSpinPause
-                    | Self::AsmYieldHint
-                    | Self::AsmNop
-                    | Self::AsmWaitForEvent
-                    | Self::AsmWaitForInterrupt
-                    | Self::AsmSendEvent
-                    | Self::AsmSendEventLocal
-                    | Self::AsmWriteBackInvalidate
-                    | Self::AsmInvalidate
-                    | Self::AsmWriteBackNoInvalidate
-                    | Self::ContentOld
-                    | Self::ContentSeparate
-                    | Self::IntegerEmbed
-            )
+        self.is_float_family()
     }
 
     pub fn is_asm_intrinsic(self) -> bool {
