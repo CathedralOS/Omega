@@ -212,6 +212,44 @@ pub struct TraitConformance {
 }
 
 #[cfg(test)]
+/// One guarded-transition state in a fresh program: the snapshot and
+/// table-rebuild tests start from the same fixture.
+#[cfg(test)]
+pub(crate) fn test_program_with_guarded_transition()
+-> (crate::SymbolResolvedTrees, HandleSpan<Handle<State>>) {
+    let mut program = crate::SymbolResolvedTrees::default();
+    let guard =
+        program
+            .tables
+            .bodies
+            .expressions
+            .insert(crate::expression::ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(1),
+            ));
+    let statements = program.tables.declarations.state_statements.insert_many([
+        crate::statement::Statement::Transition(crate::statement::Transition {
+            target: crate::statement::TransitionTarget::Terminal,
+            continuation: None,
+            guard: crate::statement::TransitionGuard::When(guard),
+            proof_selectors: Box::default(),
+            exit: Default::default(),
+            source_span: Default::default(),
+        }),
+    ]);
+    let state = program
+        .tables
+        .declarations
+        .machine_states
+        .append(crate::state::test_state(statements));
+    let states = program
+        .tables
+        .declarations
+        .machine_state_handles
+        .insert_many([state]);
+    (program, states)
+}
+
+#[cfg(test)]
 pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
     Machine {
         symbol: SymbolHandle::invalid(),

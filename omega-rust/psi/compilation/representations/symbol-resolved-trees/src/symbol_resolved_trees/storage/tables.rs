@@ -458,43 +458,10 @@ impl SymbolResolvedTreeTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::SymbolResolvedTrees;
-    use crate::expression::ExpressionNode;
-    use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut program = SymbolResolvedTrees::default();
-        let guard = program
-            .tables
-            .bodies
-            .expressions
-            .insert(ExpressionNode::Integer(
-                numerics::literals::IntegerLiteral::from_value(1),
-            ));
-        let statements =
-            program
-                .tables
-                .declarations
-                .state_statements
-                .insert_many([Statement::Transition(Transition {
-                    target: TransitionTarget::Terminal,
-                    continuation: None,
-                    guard: TransitionGuard::When(guard),
-                    proof_selectors: Box::default(),
-                    exit: Default::default(),
-                    source_span: Default::default(),
-                })]);
-        let state = program
-            .tables
-            .declarations
-            .machine_states
-            .append(crate::state::test_state(statements));
-        let states = program
-            .tables
-            .declarations
-            .machine_state_handles
-            .insert_many([state]);
+        let (mut program, states) = crate::machine::test_program_with_guarded_transition();
         program.machines.push(crate::machine::test_machine(states));
 
         program.rebuild_tables();

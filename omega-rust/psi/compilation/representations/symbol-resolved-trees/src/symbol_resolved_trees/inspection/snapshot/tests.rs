@@ -2,46 +2,14 @@ use super::{DataMemberSnapshot, MachineSupplySnapshot, SymbolResolvedTreesSnapsh
 use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant};
 use crate::domain::DomainDefinition;
-use crate::expression::ExpressionNode;
 use crate::name::DiagnosticName;
-use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::types::TypeReference;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 #[test]
 fn snapshots_materialize_resolved_roots_and_table_counts() {
-    let mut program = SymbolResolvedTrees::default();
-    let guard = program
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(1),
-        ));
-    let statements =
-        program
-            .tables
-            .declarations
-            .state_statements
-            .insert_many([Statement::Transition(Transition {
-                target: TransitionTarget::Terminal,
-                continuation: None,
-                guard: TransitionGuard::When(guard),
-                proof_selectors: Box::default(),
-                exit: Default::default(),
-                source_span: Default::default(),
-            })]);
-    let state = program
-        .tables
-        .declarations
-        .machine_states
-        .append(crate::state::test_state(statements));
-    let states = program
-        .tables
-        .declarations
-        .machine_state_handles
-        .insert_many([state]);
+    let (mut program, states) = crate::machine::test_program_with_guarded_transition();
     let mut machine = crate::machine::test_machine(states);
     machine.spelling = Some(language_core::operator_spelling::OperatorSpelling::Add);
     machine.is_public = true;
