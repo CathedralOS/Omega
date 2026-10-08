@@ -11,15 +11,7 @@ pub(super) fn usage(
         .try_fold(0_u64, |total, function| {
             add(total, count(function.modified_units.len())?)
         })?;
-    let aggregate = [
-        traversal.function_count,
-        traversal.block_count,
-        traversal.instruction_count,
-        traversal.operand_count,
-        traversal.write_count,
-    ]
-    .into_iter()
-    .try_fold(0_u64, add)?;
+    let aggregate = extent(traversal)?;
     Ok(OptimizationWorkUsage {
         rule_evaluations: add(traversal.function_count, 1)?,
         // The derivation is one linear traversal: its writes are traversal
@@ -36,6 +28,23 @@ pub(super) fn usage(
         .try_fold(0_u64, add)?,
         iterations: aggregate,
     })
+}
+
+/// The program extent the replay traverses: every function, block,
+/// instruction, operand and unit write, each read once. The pass budget's
+/// ceilings scale with it (`OptimizationWorkBudget::for_extent`).
+pub(super) fn extent(
+    traversal: &ReplayTraversal<'_>,
+) -> Result<u64, AllocatedCalleeSavedRequirementError> {
+    [
+        traversal.function_count,
+        traversal.block_count,
+        traversal.instruction_count,
+        traversal.operand_count,
+        traversal.write_count,
+    ]
+    .into_iter()
+    .try_fold(0_u64, add)
 }
 
 fn count(value: usize) -> Result<u64, AllocatedCalleeSavedRequirementError> {

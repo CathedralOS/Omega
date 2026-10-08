@@ -314,7 +314,8 @@ fn charge(
         .ok_or(RuntimeSplitError::IdentityOverflow)?;
     crate::rewrites::charge_steps(
         steps,
-        budget,
+        crate::rewrites::required_rewrite_budget(plan, function, budget)
+            .ok_or(RuntimeSplitError::IdentityOverflow)?,
         || RuntimeSplitError::IdentityOverflow,
         || RuntimeSplitError::WorkBudgetExceeded,
     )?;

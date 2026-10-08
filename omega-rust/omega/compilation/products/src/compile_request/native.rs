@@ -54,11 +54,15 @@ impl NativeRealizationRequest<'_> {
         // A spill charges the traversal of the function it rewrites, one step
         // per plan function, and slot-liveness scans; a complete application
         // exceeds 100,000 steps while recovering register pressure in one
-        // function. Callee-save derivation also charges functions, blocks,
+        // function. Callee-save derivation charges functions, blocks,
         // instructions, operands and writes as both validation steps and
-        // iterations, and only its derived requirements as candidates. Give
-        // both traversal counters room without changing candidate/commit
-        // limits or bypassing independent replay.
+        // iterations, and only its derived requirements as candidates. These
+        // ceilings are calibrated for one `OPTIMIZATION_REFERENCE_EXTENT` of
+        // input: the required recovery rewrites and the callee-save
+        // derivations scale them with the function or program they read, so
+        // linear work never caps the size of a program. Give both traversal
+        // counters room without changing candidate/commit limits or bypassing
+        // independent replay.
         optimization_core::OptimizationWorkBudget::new(
             1_000_000, 100_000, 1_000_000, 100_000, 1_000_000,
         )

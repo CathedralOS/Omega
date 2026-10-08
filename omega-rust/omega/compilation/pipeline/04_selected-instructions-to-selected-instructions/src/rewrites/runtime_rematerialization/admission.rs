@@ -254,7 +254,8 @@ pub(super) fn admit<'source>(
         .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
     crate::rewrites::charge_steps(
         steps,
-        budget,
+        crate::rewrites::required_rewrite_budget(plan, function, budget)
+            .ok_or(RuntimeRematerializationError::IdentityOverflow)?,
         || RuntimeRematerializationError::IdentityOverflow,
         || RuntimeRematerializationError::WorkBudgetExceeded,
     )?;

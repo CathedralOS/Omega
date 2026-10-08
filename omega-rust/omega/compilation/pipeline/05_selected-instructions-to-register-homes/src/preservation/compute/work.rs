@@ -18,15 +18,7 @@ pub(super) fn usage(
                     .map_err(|_| AllocatedCalleeSavedRequirementError::WorkOverflow)?,
             )
         })?;
-    let function_block_instruction_operand_writes = [
-        traversal.function_count,
-        traversal.block_count,
-        traversal.instruction_count,
-        traversal.operand_count,
-        traversal.write_count,
-    ]
-    .into_iter()
-    .try_fold(0_u64, add)?;
+    let function_block_instruction_operand_writes = extent(traversal)?;
     Ok(OptimizationWorkUsage {
         rule_evaluations: add(traversal.function_count, 1)?,
         // The derivation is one linear traversal: its writes are traversal
@@ -43,4 +35,21 @@ pub(super) fn usage(
         .try_fold(0_u64, add)?,
         iterations: function_block_instruction_operand_writes,
     })
+}
+
+/// The program extent the derivation traverses: every function, block,
+/// instruction, operand and unit write, each read once. The pass budget's
+/// ceilings scale with it (`OptimizationWorkBudget::for_extent`).
+pub(super) fn extent(
+    traversal: &DirectTraversal<'_>,
+) -> Result<u64, AllocatedCalleeSavedRequirementError> {
+    [
+        traversal.function_count,
+        traversal.block_count,
+        traversal.instruction_count,
+        traversal.operand_count,
+        traversal.write_count,
+    ]
+    .into_iter()
+    .try_fold(0_u64, add)
 }

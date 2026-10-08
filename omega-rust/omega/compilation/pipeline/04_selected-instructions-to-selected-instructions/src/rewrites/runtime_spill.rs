@@ -1448,7 +1448,9 @@ pub(super) fn derive_runtime_spill<'source>(
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     let charged =
         |steps: usize| u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow);
-    let ceiling = budget.validation_steps();
+    let ceiling = crate::rewrites::required_rewrite_budget(plan, function, budget)
+        .ok_or(RuntimeSpillError::IdentityOverflow)?
+        .validation_steps();
     if charged(steps)? > ceiling {
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }

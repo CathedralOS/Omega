@@ -1,6 +1,12 @@
 use super::CoreContractDecodeError;
 use std::fmt;
 
+/// The input extent one budget's ceilings are calibrated for, in the units a
+/// pass measures its input by — blocks, instructions, operands and writes. A
+/// pass over a larger input receives the ceilings once per started reference
+/// extent (`OptimizationWorkBudget::for_extent`).
+pub const OPTIMIZATION_REFERENCE_EXTENT: u64 = 1 << 16;
+
 /// Hard ceilings for one named pass group. All axes are explicit and nonzero;
 /// exhaustion is a deterministic pass failure, never permission to publish a
 /// partial candidate.
@@ -40,6 +46,26 @@ impl OptimizationWorkBudget {
             return Err(InvalidOptimizationWorkBudget);
         }
         Ok(budget)
+    }
+
+    /// The ceilings for one pass over an input of `extent` units — one
+    /// function's or one program's blocks, instructions, operands and
+    /// writes: every axis is granted once per started
+    /// `OPTIMIZATION_REFERENCE_EXTENT` of the input, and an input within the
+    /// reference extent keeps the ceilings unchanged. Work that is linear in
+    /// the input and fits the ceilings at the reference extent fits them at
+    /// every extent, while work superlinear in the input still exhausts them.
+    /// A fixed ceiling on linear work instead capped the size of every
+    /// program or function a required pass could process.
+    pub fn for_extent(self, extent: u64) -> Self {
+        let multiple = extent.div_ceil(OPTIMIZATION_REFERENCE_EXTENT).max(1);
+        Self {
+            rule_evaluations: self.rule_evaluations.saturating_mul(multiple),
+            candidates: self.candidates.saturating_mul(multiple),
+            validation_steps: self.validation_steps.saturating_mul(multiple),
+            commits: self.commits.saturating_mul(multiple),
+            iterations: self.iterations.saturating_mul(multiple),
+        }
     }
 
     pub fn encode(self) -> [u8; 40] {

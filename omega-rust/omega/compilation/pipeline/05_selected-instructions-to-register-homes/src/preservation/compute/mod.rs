@@ -54,10 +54,14 @@ pub(super) fn derive(
         &homes.plan().functions,
     )?;
     let usage = work::usage(&traversal)?;
-    if !usage.within(budget) {
+    // One linear traversal of the program: its ceilings grow with the program
+    // it reads, so no fixed ceiling caps the size of a program this pass can
+    // derive requirements for.
+    let ceiling = budget.for_extent(work::extent(&traversal)?);
+    if !usage.within(ceiling) {
         return Err(AllocatedCalleeSavedRequirementError::BudgetExceeded {
             required: usage,
-            budget,
+            budget: ceiling,
         });
     }
     Ok(AllocatedCalleeSavedRequirementPlan {

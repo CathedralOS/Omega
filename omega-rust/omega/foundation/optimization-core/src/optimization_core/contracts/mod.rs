@@ -12,7 +12,9 @@ mod error;
 mod rule;
 
 pub use analysis::{AnalysisInvalidationSet, AnalysisKind, AnalysisSet};
-pub use budget::{InvalidOptimizationWorkBudget, OptimizationWorkBudget};
+pub use budget::{
+    InvalidOptimizationWorkBudget, OPTIMIZATION_REFERENCE_EXTENT, OptimizationWorkBudget,
+};
 pub use decision::{OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationSafetyClass};
 pub use error::CoreContractDecodeError;
 pub use rule::{InvalidOptimizationRuleContract, OptimizationRuleContract};

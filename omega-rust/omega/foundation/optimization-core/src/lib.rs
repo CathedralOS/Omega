@@ -13,9 +13,9 @@ mod optimization_core;
 
 pub use optimization_core::contracts::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
-    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OptimizationCandidateVerdict,
-    OptimizationReasonCode, OptimizationRuleContract, OptimizationSafetyClass,
-    OptimizationWorkBudget,
+    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OPTIMIZATION_REFERENCE_EXTENT,
+    OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
+    OptimizationSafetyClass, OptimizationWorkBudget,
 };
 pub use optimization_core::decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,

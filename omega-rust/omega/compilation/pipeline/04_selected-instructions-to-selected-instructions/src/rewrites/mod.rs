@@ -257,6 +257,34 @@ pub(crate) fn rewrite_scan(
     function_scan(function)?.checked_add(plan.functions.len())
 }
 
+/// The ceilings for a rewrite recovery cannot do without — a spill, split or
+/// rematerialization of one value. They grow with the rewritten function's
+/// extent: the rewrite scan plus every instruction and terminator operand and
+/// memory access the audit reads (`OptimizationWorkBudget::for_extent`). The
+/// audit's work is linear in that extent, so no function is too large to
+/// relieve, while work superlinear in it still exhausts the ceilings.
+pub(crate) fn required_rewrite_budget(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+    budget: OptimizationWorkBudget,
+) -> Option<OptimizationWorkBudget> {
+    let operands = function.blocks.iter().try_fold(0usize, |total, block| {
+        block
+            .instructions
+            .iter()
+            .chain(std::iter::once(
+                selected_instructions::terminator_instruction(&block.terminator),
+            ))
+            .try_fold(total, |total, instruction| {
+                total.checked_add(instruction.operands.len())
+            })
+    })?;
+    let extent = rewrite_scan(plan, function)?
+        .checked_add(operands)?
+        .checked_add(function.memory_accesses.len())?;
+    Some(budget.for_extent(u64::try_from(extent).ok()?))
+}
+
 /// One step per block plus one per instruction in one function — the
 /// scan term every measured-step contract charges before its own audit.
 pub(crate) fn function_scan(function: &SelectedFunction) -> Option<usize> {
