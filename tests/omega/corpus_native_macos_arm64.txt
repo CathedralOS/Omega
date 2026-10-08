@@ -637,6 +637,8 @@ pass/control_flow/runtime_tuple_transition_exit built 1035ms exit:22 @350be0d2a2
 pass/control_flow/scalar_loop_interior_header_exit built 1452ms exit:87 @48008365d839
 pass/control_flow/self_case_payload_both_arms_exit built 755ms exit:70
 pass/control_flow/shared_state_disjoint_receiver_store_exit built 1438ms exit:70 @da17a13c769f+wt
+pass/control_flow/single_case_parameter_dispatch_exit built 2521ms exit:70 @d1a90561f8aa+wt
+pass/control_flow/single_case_result_dispatch_exit built 2613ms exit:70 @d1a90561f8aa+wt
 pass/control_flow/state_local_operand_edge_call_exit built 1759ms exit:70 @f05a17605282+wt
 pass/control_flow/structural_result_transition_tail built 1377ms exit:10 @1da616075c39+wt
 pass/control_flow/sum_field_storage_roundtrip built 1074ms exit:70 @7a6595c07f7b+wt

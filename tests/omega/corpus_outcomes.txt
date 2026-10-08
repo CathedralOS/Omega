@@ -797,6 +797,8 @@ fail/control_flow/arm_pattern_rest_unknown_field rejected 259ms expected @2d8ed2
 	destructure arm in machine `Main::apply` state `apply` names `typo`, which is not a field of `Msg::Move`
 fail/control_flow/implicit_entry_parameter_capture rejected 396ms expected @2d8ed253669f
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 38ms expected @d1a90561f8aa+wt
+	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 55ms expected @2d8ed253669f
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
 fail/control_flow/termination_countdown_stalled_decrease rejected 252ms expected @c08960bee2b1+wt
@@ -2672,6 +2674,8 @@ pass/control_flow/runtime_tuple_transition_exit checked 649ms check-target:macos
 pass/control_flow/scalar_loop_interior_header_exit checked 1748ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/shared_state_disjoint_receiver_store_exit checked 1312ms check-target:macos_arm64 @da17a13c769f
+pass/control_flow/single_case_parameter_dispatch_exit checked 1896ms check-target:macos_arm64 @d1a90561f8aa+wt
+pass/control_flow/single_case_result_dispatch_exit checked 1896ms check-target:macos_arm64 @d1a90561f8aa+wt
 pass/control_flow/state_local_operand_edge_call_exit checked 1919ms check-target:macos_arm64 @f05a17605282+wt
 pass/control_flow/structural_result_transition_tail checked 3032ms check-target:macos_arm64 @226c4c4b57b
 pass/control_flow/sum_field_storage_roundtrip checked 1418ms check-target:macos_arm64 @2d8ed253669f

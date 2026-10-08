@@ -15,6 +15,9 @@ pub(super) fn retained(
 ) -> bool {
     !cases.is_empty()
         && cases.iter().all(|case| {
+            // A tested case leaves a tag branch; the last case of a dispatch
+            // with no test before it (a one-case sum) leaves an unconditional
+            // jump. Either way the semantic edge appears exactly once.
             let mut matching = function.blocks.iter().flat_map(|block| {
                 match &block.terminator {
                     SelectedTerminator::ConditionalBranch {
@@ -22,6 +25,7 @@ pub(super) fn retained(
                         when_zero,
                         ..
                     } => [Some(when_zero), Some(when_nonzero)],
+                    SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
                     _ => [None, None],
                 }
                 .into_iter()

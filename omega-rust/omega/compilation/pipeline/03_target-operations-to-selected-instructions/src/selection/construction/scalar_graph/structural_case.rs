@@ -1,4 +1,5 @@
-//! Observe the source sum tag; payload observations belong to selected edges.
+//! Test the source sum tag once per case but the last; payload observations
+//! belong to selected edges.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, ScalarType, SelectedBlock, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
@@ -36,11 +37,16 @@ pub(super) fn build(
     else {
         return Err(invalid());
     };
-    if cases.len() < 2
-        || cases
-            .iter()
-            .enumerate()
-            .any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
+    // A sum of n cases needs n - 1 tag tests: each test selects its own case
+    // and the last case is the final test's other leg. The sole case of a
+    // one-case sum is that leg with no test before it.
+    let Some((last, tested)) = cases.split_last() else {
+        return Err(invalid());
+    };
+    if cases
+        .iter()
+        .enumerate()
+        .any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
         || layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
@@ -99,7 +105,7 @@ pub(super) fn build(
             }
         }
     };
-    let pointer = match dispatch_source {
+    match dispatch_source {
         selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             if builder
                 .transport
@@ -115,6 +121,43 @@ pub(super) fn build(
             {
                 return Err(invalid());
             }
+        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
+            if builder
+                .registers
+                .get(pointer.0 as usize)
+                .is_none_or(|register| {
+                    register.scalar_type
+                        != ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 pointer type"),
+                        )
+                })
+            {
+                return Err(invalid());
+            }
+        }
+    }
+    // Payload loads and cleanup belong to the selected case edge, so the
+    // unconditional transfer carries the same edge a tested leg would.
+    if tested.is_empty() {
+        let successor = successor(source, order, builder, dispatch_source, last)?;
+        builder.emit(
+            SelectedInstructionKind::Jump,
+            builder.constraints.keys.jump,
+            &[],
+            Default::default(),
+        )?;
+        return Ok(SelectedTerminator::Jump {
+            instruction: builder
+                .instructions
+                .last()
+                .cloned()
+                .ok_or_else(|| invalid())?,
+            successor,
+        });
+    }
+    let pointer = match dispatch_source {
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
             let pointer = register(builder, subject.place(), 0, 64, false)?;
             memory(
                 builder,
@@ -139,21 +182,7 @@ pub(super) fn build(
             )?;
             pointer
         }
-        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
-            if builder
-                .registers
-                .get(pointer.0 as usize)
-                .is_none_or(|register| {
-                    register.scalar_type
-                        != ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 pointer type"),
-                        )
-                })
-            {
-                return Err(invalid());
-            }
-            pointer
-        }
+        selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
     };
     let tag = register(builder, subject.place(), 0, 32, true)?;
     memory(
@@ -172,7 +201,7 @@ pub(super) fn build(
     )?;
     let extra_base = source.blocks.len() + builder.case_blocks.len();
     let mut first = None;
-    for ordinal in 0..cases.len() - 1 {
+    for ordinal in 0..tested.len() {
         let start = builder.instructions.len();
         if ordinal == 0 {
             builder.emit(
@@ -198,9 +227,9 @@ pub(super) fn build(
                 Default::default(),
             )?;
         }
-        let when_zero = successor(source, order, builder, dispatch_source, &cases[ordinal])?;
-        let when_nonzero = if ordinal + 2 == cases.len() {
-            successor(source, order, builder, dispatch_source, &cases[ordinal + 1])?
+        let when_zero = successor(source, order, builder, dispatch_source, &tested[ordinal])?;
+        let when_nonzero = if ordinal + 1 == tested.len() {
+            successor(source, order, builder, dispatch_source, last)?
         } else {
             SelectedSuccessor {
                 role: selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
