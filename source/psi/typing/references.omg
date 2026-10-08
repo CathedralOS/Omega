@@ -1,0 +1,358 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::literals;
+use psi::typing::typer;
+
+// Every written type, row by row. A type's rows follow their children in the
+// syntax table, so one pass in table order meets each row after the rows it
+// names and interns it from their types and its own binding. Integer static
+// arguments and array lengths read their spelling here; a named static value
+// (a `const` parameter) has no value before evaluation exists and rejects.
+pub machine Typer::type_references(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+crashes Trap
+{
+    typer.output.reference_count = syntax.type_reference_count;
+    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+
+    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < typer.output.reference_count && typer.output.accepted {
+            true -> row(typer, sources, syntax, resolution, index)
+            _ -> done()
+        }
+    }
+
+    state row(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
+        let binding: TypeBinding = resolution.type_bindings[index];
+        let domain: DomainBinding = resolution.domain_bindings[index];
+        transition binding {
+            TypeBinding::Builtin { builtin } -> builtin(typer, sources, syntax, resolution, index, reference, builtin, domain)
+            TypeBinding::Data { item } -> data(typer, sources, syntax, resolution, index, reference, item, domain)
+            TypeBinding::GenericParameter { parameter } -> generic(typer, sources, syntax, resolution, index, reference, parameter, domain)
+            TypeBinding::Reference -> referenced(typer, sources, syntax, resolution, index, reference)
+            TypeBinding::Array -> array(typer, sources, syntax, resolution, index, reference, domain)
+            TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain)
+            TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference)
+            _ -> unsupported(typer, reference)
+        }
+    }
+
+    state builtin(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        builtin: BuiltinType,
+        domain: DomainBinding
+    ) {
+        let admitted: bool = Typer::domain_admitted(builtin, domain);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = builtin;
+        row.domain = domain;
+        transition admitted {
+            true -> intern(typer, sources, syntax, resolution, index, reference, row)
+            _ -> domain_rejected(typer, reference)
+        }
+    }
+
+    // A data type's arguments are its argument rows' types; their count must
+    // match the declaration's generic parameters, lifetimes aside, which an
+    // application does not spell.
+    state data(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        item: u64 in Trapping,
+        domain: DomainBinding
+    ) {
+        let expected: u64 in Trapping = Typer::applied_parameter_count(syntax, item);
+        transition domain == DomainBinding::Unqualified {
+            true -> data_arity(typer, sources, syntax, resolution, index, reference, item, expected)
+            _ -> domain_rejected(typer, reference)
+        }
+    }
+
+    state data_arity(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        item: u64 in Trapping,
+        expected: u64 in Trapping
+    ) {
+        let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+        transition reference.argument_count == expected {
+            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0)
+            _ -> arity_rejected(typer, reference)
+        }
+    }
+
+    state data_argument(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        item: u64 in Trapping,
+        first: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < reference.argument_count {
+            true -> data_argument_push(typer, sources, syntax, resolution, index, reference, item, first, offset)
+            _ -> data_row(typer, sources, syntax, resolution, index, reference, item, first)
+        }
+    }
+
+    state data_argument_push(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        item: u64 in Trapping,
+        first: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let argument_row: u64 in Trapping = SyntaxTrees::type_argument(syntax, reference.first_argument + offset);
+        let argument: u64 in Trapping = Typing::reference_type(&typer.output, argument_row);
+        let kept: bool = TypeTable::push_argument(&mut typer.output.types, argument);
+        transition kept {
+            true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, offset + 1)
+            _ -> full(typer, reference)
+        }
+    }
+
+    state data_row(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        item: u64 in Trapping,
+        first: u64 in Trapping
+    ) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Data);
+        row.item = item;
+        row.first_argument = first;
+        row.argument_count = reference.argument_count;
+        transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
+    }
+
+    state generic(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        parameter: u64 in Trapping,
+        domain: DomainBinding
+    ) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::GenericParameter);
+        row.item = parameter;
+        transition domain == DomainBinding::Unqualified {
+            true -> intern(typer, sources, syntax, resolution, index, reference, row)
+            _ -> domain_rejected(typer, reference)
+        }
+    }
+
+    state referenced(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference
+    ) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Reference);
+        row.access = reference.access;
+        row.inner = Typing::reference_type(&typer.output, reference.inner);
+        transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
+    }
+
+    state array(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        domain: DomainBinding
+    ) {
+        let length_row: TypeReference = SyntaxTrees::type_reference(syntax, reference.length);
+        transition length_row.kind == TypeReferenceKind::Literal {
+            true -> array_length(typer, sources, syntax, resolution, index, reference, domain)
+            _ -> length_rejected(typer, length_row)
+        }
+    }
+
+    state array_length(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        domain: DomainBinding
+    ) {
+        let length: u64 in Trapping = Typing::reference_type(&typer.output, reference.length);
+        let length_type: TypeRow = TypeTable::row(&typer.output.types, length);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Array);
+        row.inner = Typing::reference_type(&typer.output, reference.inner);
+        row.length = length_type.length;
+        row.domain = domain;
+        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping {
+            true -> intern(typer, sources, syntax, resolution, index, reference, row)
+            _ -> domain_rejected(typer, reference)
+        }
+    }
+
+    state slice(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        domain: DomainBinding
+    ) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Slice);
+        row.inner = Typing::reference_type(&typer.output, reference.inner);
+        row.domain = domain;
+        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping {
+            true -> intern(typer, sources, syntax, resolution, index, reference, row)
+            _ -> domain_rejected(typer, reference)
+        }
+    }
+
+    state literal(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference
+    ) {
+        let value: LiteralValue = Typer::literal_value(sources, reference.name.source_span);
+        let mut row: TypeRow = TypeRow::of(TypeKind::StaticInteger);
+        row.length = value.magnitude as u64 in Trapping;
+        transition value.valid && !value.has_suffix {
+            true -> intern(typer, sources, syntax, resolution, index, reference, row)
+            _ -> literal_rejected(typer, reference)
+        }
+    }
+
+    state intern(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        reference: TypeReference,
+        row: TypeRow
+    ) {
+        let handle: u64 in Trapping = TypeTable::intern(&mut typer.output.types, row);
+        Typing::set_reference_type(&mut typer.output, index, handle);
+        transition handle > 0 {
+            true -> next(typer, sources, syntax, resolution, index + 1)
+            _ -> full(typer, reference)
+        }
+    }
+
+    state unsupported(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedTypeForm, reference.source_span);
+    }
+
+    state domain_rejected(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedDomain, reference.source_span);
+    }
+
+    state arity_rejected(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
+    }
+
+    state length_rejected(typer: &mut Typer, length_row: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedArrayLength, length_row.source_span);
+    }
+
+    state literal_rejected(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedLiteral, reference.source_span);
+    }
+
+    state full(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, reference.source_span);
+    }
+
+    state done() {}
+}
+
+// Whether `domain` may qualify `builtin`: an arithmetic policy qualifies a
+// fixed integer, `Finite` a float, and anything may stay unqualified
+// (wiki/spec/language/numeric_values.md#overflow-policies).
+machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
+    transition domain {
+        DomainBinding::Unqualified -> yes()
+        DomainBinding::Finite -> float(builtin)
+        _ -> integer(builtin)
+    }
+
+    state float(builtin: BuiltinType) -> bool {
+        builtin == BuiltinType::F32 || builtin == BuiltinType::F64
+    }
+
+    state integer(builtin: BuiltinType) -> bool {
+        let fixed: bool = Typer::fixed_integer(builtin);
+        fixed
+    }
+
+    state yes() -> bool {
+        true
+    }
+}
+
+// Whether `builtin` is a fixed-width integer carrier.
+pub machine Typer::fixed_integer(builtin: BuiltinType) -> bool {
+    builtin == BuiltinType::I8 || builtin == BuiltinType::I16 || builtin == BuiltinType::I32
+        || builtin == BuiltinType::I64 || builtin == BuiltinType::U8 || builtin == BuiltinType::U16
+        || builtin == BuiltinType::U32 || builtin == BuiltinType::U64
+}
+
+// The generic parameters an application of data `item` spells: every
+// declared parameter except lifetimes.
+machine Typer::applied_parameter_count(syntax: &SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let data_item: DataItem = SyntaxTrees::data_item(syntax, item);
+    transition { _ -> count(syntax, data_item, 0, 0) }
+
+    state count(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        transition offset < data_item.generic_parameter_count {
+            true -> parameter(syntax, data_item, offset, applied)
+            _ -> result(applied)
+        }
+    }
+
+    state parameter(syntax: &SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, data_item.first_generic_parameter + offset);
+        transition generic.kind == GenericParameterKind::Lifetime {
+            true -> count(syntax, data_item, offset + 1, applied)
+            _ -> count(syntax, data_item, offset + 1, applied + 1)
+        }
+    }
+
+    state result(applied: u64 in Trapping) -> u64 in Trapping {
+        applied
+    }
+}

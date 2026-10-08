@@ -846,7 +846,7 @@ crashes Trap
 machine Parser::emit_expression(parser: &mut Parser, input: &TokenStream, node: Expression)
 crashes Trap
 {
-    transition parser.output.expression_count < 32768 {
+    transition parser.output.expression_count < 65536 {
         true -> store(parser, input, node)
         _ -> full(parser, input)
     }

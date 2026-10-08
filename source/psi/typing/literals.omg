@@ -1,0 +1,414 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::types::types;
+use psi::typing::typer;
+
+// Integer literal spellings and anonymous integer values
+// (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).
+// A spelling is an optional `0b`/`0o`/`0x` base prefix, digits of that base
+// with `_` separators, and an optional carrier suffix. A suffixed literal is
+// typed at its suffix; an unsuffixed one is anonymous until it lands. Values
+// stay exact: a magnitude past 2^64 - 1 rejects instead of wrapping.
+
+pub data LiteralValue [copy] {
+    valid: bool;
+    has_suffix: bool;
+    suffix: BuiltinType;
+    magnitude: u64 in Wrapping;
+}
+
+pub machine Typer::literal_value(sources: &SourceSet, span: SourceSpan) -> LiteralValue
+crashes Trap
+{
+    let first: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start);
+    let second: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start + 1);
+    let prefixed: bool = first == 48 && span.span.start + 2 <= span.span.end;
+    transition prefixed {
+        true -> prefix(sources, span, second)
+        _ -> digits(sources, span, span.span.start, 10, 0, false)
+    }
+
+    state prefix(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+        transition second == 98 || second == 66 {
+            true -> digits(sources, span, span.span.start + 2, 2, 0, false)
+            _ -> octal(sources, span, second)
+        }
+    }
+
+    state octal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+        transition second == 111 || second == 79 {
+            true -> digits(sources, span, span.span.start + 2, 8, 0, false)
+            _ -> hexadecimal(sources, span, second)
+        }
+    }
+
+    state hexadecimal(sources: &SourceSet, span: SourceSpan, second: u8) -> LiteralValue {
+        transition second == 120 || second == 88 {
+            true -> digits(sources, span, span.span.start + 2, 16, 0, false)
+            _ -> digits(sources, span, span.span.start, 10, 0, false)
+        }
+    }
+
+    state digits(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        base: u64 in Wrapping,
+        magnitude: u64 in Wrapping,
+        seen: bool
+    ) -> LiteralValue {
+        transition index < span.span.end {
+            true -> digit(sources, span, index, base, magnitude, seen)
+            _ -> finish(seen, magnitude)
+        }
+    }
+
+    state digit(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        base: u64 in Wrapping,
+        magnitude: u64 in Wrapping,
+        seen: bool
+    ) -> LiteralValue {
+        let byte: u8 = SourceSet::byte_or_nul(sources, span.source, index);
+        let value: u64 in Wrapping = Typer::digit_value(byte);
+        transition byte == 95 {
+            true -> digits(sources, span, index + 1, base, magnitude, seen)
+            _ -> digit_in_base(sources, span, index, base, magnitude, seen, value)
+        }
+    }
+
+    state digit_in_base(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        base: u64 in Wrapping,
+        magnitude: u64 in Wrapping,
+        seen: bool,
+        value: u64 in Wrapping
+    ) -> LiteralValue {
+        transition value < base {
+            true -> accumulate(sources, span, index, base, magnitude, value)
+            _ -> suffix(sources, span, index, seen, magnitude)
+        }
+    }
+
+    state accumulate(
+        sources: &SourceSet,
+        span: SourceSpan,
+        index: u64 in Trapping,
+        base: u64 in Wrapping,
+        magnitude: u64 in Wrapping,
+        value: u64 in Wrapping
+    ) -> LiteralValue {
+        let limit: u64 in Wrapping = (18446744073709551615 - value) / base;
+        transition magnitude <= limit {
+            true -> digits(sources, span, index + 1, base, magnitude * base + value, true)
+            _ -> invalid()
+        }
+    }
+
+    state suffix(sources: &SourceSet, span: SourceSpan, index: u64 in Trapping, seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
+        let rest: SourceSpan = SourceSpan { source: span.source, span: Span { start: index, end: span.span.end } };
+        let carrier: SuffixCarrier = Typer::suffix_carrier(sources, rest);
+        transition seen && carrier.known {
+            true -> suffixed(carrier.builtin, magnitude)
+            _ -> invalid()
+        }
+    }
+
+    state finish(seen: bool, magnitude: u64 in Wrapping) -> LiteralValue {
+        transition seen {
+            true -> plain(magnitude)
+            _ -> invalid()
+        }
+    }
+
+    state plain(magnitude: u64 in Wrapping) -> LiteralValue {
+        LiteralValue { valid: true, has_suffix: false, suffix: BuiltinType::U64, magnitude: magnitude }
+    }
+
+    state suffixed(builtin: BuiltinType, magnitude: u64 in Wrapping) -> LiteralValue {
+        LiteralValue { valid: true, has_suffix: true, suffix: builtin, magnitude: magnitude }
+    }
+
+    state invalid() -> LiteralValue {
+        LiteralValue { valid: false, has_suffix: false, suffix: BuiltinType::U64, magnitude: 0 }
+    }
+}
+
+// A digit byte's value in any base up to 16, or 16 when it is no digit.
+machine Typer::digit_value(byte: u8) -> u64 in Wrapping {
+    transition byte >= 48 && byte <= 57 {
+        true -> decimal(byte)
+        _ -> lower(byte)
+    }
+
+    state decimal(byte: u8) -> u64 in Wrapping {
+        (byte as u64 in Wrapping) - 48
+    }
+
+    state lower(byte: u8) -> u64 in Wrapping {
+        transition byte >= 97 && byte <= 102 {
+            true -> lower_value(byte)
+            _ -> upper(byte)
+        }
+    }
+
+    state lower_value(byte: u8) -> u64 in Wrapping {
+        (byte as u64 in Wrapping) - 87
+    }
+
+    state upper(byte: u8) -> u64 in Wrapping {
+        transition byte >= 65 && byte <= 70 {
+            true -> upper_value(byte)
+            _ -> none()
+        }
+    }
+
+    state upper_value(byte: u8) -> u64 in Wrapping {
+        (byte as u64 in Wrapping) - 55
+    }
+
+    state none() -> u64 in Wrapping {
+        16
+    }
+}
+
+pub data SuffixCarrier [copy] {
+    known: bool;
+    builtin: BuiltinType;
+}
+
+// The fixed-integer carrier a literal suffix names.
+machine Typer::suffix_carrier(sources: &SourceSet, rest: SourceSpan) -> SuffixCarrier
+crashes Trap
+{
+    let u8_suffix: bool = SourceSet::span_spells(sources, rest, "u8");
+    let u16_suffix: bool = SourceSet::span_spells(sources, rest, "u16");
+    let u32_suffix: bool = SourceSet::span_spells(sources, rest, "u32");
+    let u64_suffix: bool = SourceSet::span_spells(sources, rest, "u64");
+    let i8_suffix: bool = SourceSet::span_spells(sources, rest, "i8");
+    let i16_suffix: bool = SourceSet::span_spells(sources, rest, "i16");
+    let i32_suffix: bool = SourceSet::span_spells(sources, rest, "i32");
+    let i64_suffix: bool = SourceSet::span_spells(sources, rest, "i64");
+    transition u8_suffix {
+        true -> known(BuiltinType::U8)
+        _ -> second(u16_suffix, u32_suffix, u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
+    }
+
+    state second(u16_suffix: bool, u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition u16_suffix {
+            true -> known(BuiltinType::U16)
+            _ -> third(u32_suffix, u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
+        }
+    }
+
+    state third(u32_suffix: bool, u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition u32_suffix {
+            true -> known(BuiltinType::U32)
+            _ -> fourth(u64_suffix, i8_suffix, i16_suffix, i32_suffix, i64_suffix)
+        }
+    }
+
+    state fourth(u64_suffix: bool, i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition u64_suffix {
+            true -> known(BuiltinType::U64)
+            _ -> fifth(i8_suffix, i16_suffix, i32_suffix, i64_suffix)
+        }
+    }
+
+    state fifth(i8_suffix: bool, i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition i8_suffix {
+            true -> known(BuiltinType::I8)
+            _ -> sixth(i16_suffix, i32_suffix, i64_suffix)
+        }
+    }
+
+    state sixth(i16_suffix: bool, i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition i16_suffix {
+            true -> known(BuiltinType::I16)
+            _ -> seventh(i32_suffix, i64_suffix)
+        }
+    }
+
+    state seventh(i32_suffix: bool, i64_suffix: bool) -> SuffixCarrier {
+        transition i32_suffix {
+            true -> known(BuiltinType::I32)
+            _ -> eighth(i64_suffix)
+        }
+    }
+
+    state eighth(i64_suffix: bool) -> SuffixCarrier {
+        transition i64_suffix {
+            true -> known(BuiltinType::I64)
+            _ -> unknown()
+        }
+    }
+
+    state known(builtin: BuiltinType) -> SuffixCarrier {
+        SuffixCarrier { known: true, builtin: builtin }
+    }
+
+    state unknown() -> SuffixCarrier {
+        SuffixCarrier { known: false, builtin: BuiltinType::U64 }
+    }
+}
+
+// Whether an exact integer fits a fixed-integer carrier.
+pub machine Typer::fits(builtin: BuiltinType, value: AnonymousValue) -> bool {
+    transition value.negative && value.magnitude > 0 {
+        true -> negative(builtin, value.magnitude)
+        _ -> nonnegative(builtin, value.magnitude)
+    }
+
+    state negative(builtin: BuiltinType, magnitude: u64 in Wrapping) -> bool {
+        transition builtin {
+            BuiltinType::I8 -> within(magnitude, 128)
+            BuiltinType::I16 -> within(magnitude, 32768)
+            BuiltinType::I32 -> within(magnitude, 2147483648)
+            BuiltinType::I64 -> within(magnitude, 9223372036854775808)
+            _ -> no()
+        }
+    }
+
+    state nonnegative(builtin: BuiltinType, magnitude: u64 in Wrapping) -> bool {
+        transition builtin {
+            BuiltinType::I8 -> within(magnitude, 127)
+            BuiltinType::I16 -> within(magnitude, 32767)
+            BuiltinType::I32 -> within(magnitude, 2147483647)
+            BuiltinType::I64 -> within(magnitude, 9223372036854775807)
+            BuiltinType::U8 -> within(magnitude, 255)
+            BuiltinType::U16 -> within(magnitude, 65535)
+            BuiltinType::U32 -> within(magnitude, 4294967295)
+            BuiltinType::U64 -> yes()
+            _ -> no()
+        }
+    }
+
+    state within(magnitude: u64 in Wrapping, limit: u64 in Wrapping) -> bool {
+        magnitude <= limit
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Exact anonymous arithmetic. Each operation is defined on the mathematical
+// integers; `valid` fails when the exact result leaves the magnitude range
+// this slice carries, or when division is inexact or by zero (a fractional
+// anonymous intermediate is outside this slice).
+pub data AnonymousResult [copy] {
+    valid: bool;
+    value: AnonymousValue;
+}
+
+pub machine Typer::anonymous_negate(value: AnonymousValue) -> AnonymousValue {
+    AnonymousValue { negative: !value.negative && value.magnitude > 0, magnitude: value.magnitude }
+}
+
+pub machine Typer::anonymous_add(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+    transition left.negative == right.negative {
+        true -> same_sign(left, right)
+        _ -> opposite(left, right)
+    }
+
+    state same_sign(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        transition left.magnitude <= 18446744073709551615 - right.magnitude {
+            true -> sum(left, right)
+            _ -> overflow()
+        }
+    }
+
+    state sum(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        AnonymousResult {
+            valid: true,
+            value: AnonymousValue { negative: left.negative, magnitude: left.magnitude + right.magnitude }
+        }
+    }
+
+    // Opposite signs: the larger magnitude keeps its sign.
+    state opposite(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        transition left.magnitude >= right.magnitude {
+            true -> difference(left.negative, left.magnitude - right.magnitude)
+            _ -> difference(right.negative, right.magnitude - left.magnitude)
+        }
+    }
+
+    state difference(negative: bool, magnitude: u64 in Wrapping) -> AnonymousResult {
+        AnonymousResult { valid: true, value: AnonymousValue { negative: negative && magnitude > 0, magnitude: magnitude } }
+    }
+
+    state overflow() -> AnonymousResult {
+        AnonymousResult { valid: false, value: AnonymousValue { negative: false, magnitude: 0 } }
+    }
+}
+
+pub machine Typer::anonymous_subtract(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+    let negated: AnonymousValue = Typer::anonymous_negate(right);
+    let result: AnonymousResult = Typer::anonymous_add(left, negated);
+    result
+}
+
+pub machine Typer::anonymous_multiply(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+    transition left.magnitude == 0 || right.magnitude == 0 {
+        true -> zero()
+        _ -> bounded(left, right)
+    }
+
+    state bounded(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        transition left.magnitude <= 18446744073709551615 / right.magnitude {
+            true -> product(left, right)
+            _ -> overflow()
+        }
+    }
+
+    state product(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        AnonymousResult {
+            valid: true,
+            value: AnonymousValue { negative: left.negative != right.negative, magnitude: left.magnitude * right.magnitude }
+        }
+    }
+
+    state zero() -> AnonymousResult {
+        AnonymousResult { valid: true, value: AnonymousValue { negative: false, magnitude: 0 } }
+    }
+
+    state overflow() -> AnonymousResult {
+        AnonymousResult { valid: false, value: AnonymousValue { negative: false, magnitude: 0 } }
+    }
+}
+
+// Anonymous division is rational; only an exact integral quotient stays in
+// this slice.
+pub machine Typer::anonymous_divide(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+    transition right.magnitude > 0 {
+        true -> divisible(left, right)
+        _ -> inexact()
+    }
+
+    state divisible(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        transition left.magnitude % right.magnitude == 0 {
+            true -> quotient(left, right)
+            _ -> inexact()
+        }
+    }
+
+    state quotient(left: AnonymousValue, right: AnonymousValue) -> AnonymousResult {
+        let magnitude: u64 in Wrapping = left.magnitude / right.magnitude;
+        AnonymousResult {
+            valid: true,
+            value: AnonymousValue { negative: left.negative != right.negative && magnitude > 0, magnitude: magnitude }
+        }
+    }
+
+    state inexact() -> AnonymousResult {
+        AnonymousResult { valid: false, value: AnonymousValue { negative: false, magnitude: 0 } }
+    }
+}

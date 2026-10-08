@@ -1,0 +1,590 @@
+#!/usr/bin/env python3
+"""Black-box checks for the live Omega-written Psi typing slice."""
+
+from __future__ import annotations
+
+import struct
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+# Tags are declaration ordinals, mirrored from source/psi/types/types.omg and
+# source/psi/resolution/resolution.omg.
+KINDS = (
+    "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
+    "StaticInteger", "Unit", "AnonymousInteger",
+)
+BUILTIN_SPELLINGS = (
+    "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
+    "f32", "f64", "Slice", "Result", "SyscallResult", "Terminal", "Never",
+    "UInt", "Int", "AtomicBool", "AtomicU32", "AtomicU64",
+)
+DOMAINS = ("", "Wrapping", "Saturating", "Trapping", "Finite")
+DIAGNOSTICS = (
+    "None", "TypeCapacityExceeded", "UnsupportedTypeForm", "GenericArgumentCount",
+    "UnsupportedArrayLength", "UnsupportedDomain", "MismatchedTypes", "LiteralOutOfRange",
+    "UnsupportedLiteral", "AnonymousValueOutOfRange", "AnonymousRemainder", "UnknownField",
+    "ProjectionOfNonData", "IndexOfNonCollection", "NonIntegerIndex", "OperandMismatch",
+    "NotBoolean", "UnsupportedEquality", "NoMatchingMachine", "AmbiguousMachine",
+    "NotCallable", "NotAValue", "UnknownConstructionField",
+    "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
+    "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
+    "UnsupportedExpression", "TargetArgumentCount",
+)
+SELECTIONS = ("none", "machine", "state", "field", "length")
+ADAPTATIONS = ("", "landed", "lent")
+
+
+@dataclass(frozen=True)
+class TypeRow:
+    kind: int
+    builtin: int
+    domain: int
+    item: int
+    access: int
+    inner: int
+    length: int
+    first_argument: int
+    argument_count: int
+
+
+@dataclass(frozen=True)
+class ExpressionRow:
+    span: tuple[int, int, int]
+    type: int
+    selection: tuple[int, int]
+    adaptation: int
+    negative: bool
+    magnitude: int
+
+
+@dataclass(frozen=True)
+class Observation:
+    accepted: bool
+    diagnostic: str
+    diagnostic_span: tuple[int, int, int]
+    rows: tuple[TypeRow, ...]
+    arguments: tuple[int, ...]
+    expressions: tuple[ExpressionRow, ...]
+    binders: tuple[int, ...]
+
+    def render(self, handle: int) -> str:
+        """A type's spelling: builtins and domains as written, `&`/`&mut`,
+        arrays, slices, data declarations as `D<handle>` with arguments,
+        generic parameters as `G<handle>`, `()` for unit and `{integer}`
+        for an anonymous integer."""
+        row = self.rows[handle]
+        kind = KINDS[row.kind]
+        domain = f" in {DOMAINS[row.domain]}" if row.domain else ""
+        if kind == "Builtin":
+            return BUILTIN_SPELLINGS[row.builtin] + domain
+        if kind == "Data":
+            arguments = self.arguments[row.first_argument:row.first_argument + row.argument_count]
+            applied = f"<{', '.join(self.render(argument) for argument in arguments)}>" if arguments else ""
+            return f"D{row.item}{applied}"
+        if kind == "Reference":
+            return ("&mut " if row.access == 1 else "&") + self.render(row.inner)
+        if kind == "Array":
+            return f"[{self.render(row.inner)}; {row.length}]{domain}"
+        if kind == "Slice":
+            return f"[{self.render(row.inner)}]{domain}"
+        if kind == "GenericParameter":
+            return f"G{row.item}"
+        if kind == "StaticInteger":
+            return str(row.length)
+        if kind == "Unit":
+            return "()"
+        if kind == "AnonymousInteger":
+            return "{integer}"
+        return "absent"
+
+
+class Reader:
+    def __init__(self, payload: bytes) -> None:
+        self.payload = payload
+        self.cursor = 0
+
+    def bytes(self, count: int) -> bytes:
+        end = self.cursor + count
+        if end > len(self.payload):
+            raise AssertionError("truncated typing observation")
+        value = self.payload[self.cursor:end]
+        self.cursor = end
+        return value
+
+    def byte(self) -> int:
+        return self.bytes(1)[0]
+
+    def u64(self) -> int:
+        return struct.unpack("<Q", self.bytes(8))[0]
+
+    def span(self) -> tuple[int, int, int]:
+        return (self.u64(), self.u64(), self.u64())
+
+
+def decode(payload: bytes) -> Observation:
+    reader = Reader(payload)
+    assert reader.bytes(8) == b"OMGTYP1\0"
+    assert reader.u64() == 1
+    accepted = reader.byte() == 1
+    diagnostic = DIAGNOSTICS[reader.byte()]
+    diagnostic_span = reader.span()
+    rows = tuple(
+        TypeRow(reader.byte(), reader.byte(), reader.byte(), reader.u64(), reader.byte(),
+                reader.u64(), reader.u64(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
+    arguments = tuple(reader.u64() for _ in range(reader.u64()))
+    expressions = tuple(
+        ExpressionRow(reader.span(), reader.u64(), (reader.byte(), reader.u64()), reader.byte(),
+                      reader.byte() == 1, reader.u64())
+        for _ in range(reader.u64())
+    )
+    binders = tuple(reader.u64() for _ in range(reader.u64()))
+    assert reader.cursor == len(payload), "trailing typing observation bytes"
+    return Observation(accepted, diagnostic, diagnostic_span, rows, arguments, expressions, binders)
+
+
+# Every distinct input the gate runs is one case; the determinism check runs
+# its input twice and counts once.
+CASE_SOURCES: set[bytes] = set()
+
+
+def frame(units: tuple[tuple[bytes, bytes], ...]) -> bytes:
+    """The harness input: a unit count, then each unit's module path and
+    source, `u32`-framed. A unit's position is its source id."""
+    payload = struct.pack("<I", len(units))
+    for module_path, source in units:
+        payload += struct.pack("<I", len(module_path)) + module_path
+        payload += struct.pack("<I", len(source)) + source
+    return payload
+
+
+def run_units(program: str, units: tuple[tuple[bytes, bytes], ...]) -> tuple[int, bytes]:
+    payload = frame(units)
+    CASE_SOURCES.add(payload)
+    completed = subprocess.run([program], input=payload, capture_output=True, check=False)
+    assert completed.stderr == b"", completed.stderr.decode(errors="replace")
+    return completed.returncode, completed.stdout
+
+
+def run(program: str, source: bytes) -> tuple[int, bytes]:
+    """One source unit, the root module."""
+    return run_units(program, ((b"", source),))
+
+
+def span_of(source: bytes, spelling: bytes, occurrence: int = 1) -> tuple[int, int, int]:
+    start = -1
+    for _ in range(occurrence):
+        start = source.index(spelling, start + 1)
+    return (0, start, start + len(spelling))
+
+
+def expression_at(observation: Observation, span: tuple[int, int, int]) -> ExpressionRow:
+    """The outermost expression authored exactly at `span`."""
+    matches = [row for row in observation.expressions if row.span == span]
+    assert matches, f"no expression at {span}"
+    return matches[-1]
+
+
+def accepted(
+    program: str,
+    name: str,
+    source: bytes,
+    types: tuple[tuple[bytes, str], ...],
+    selections: tuple[tuple[bytes, str, int], ...] = (),
+    adaptations: tuple[tuple[bytes, str], ...] = (),
+) -> Observation:
+    """Each `(spelling, type)` names the first expression authored exactly as
+    `spelling` and its rendered type; `(spelling!n, ...)` picks the n-th."""
+    status, payload = run(program, source)
+    assert status == 0, f"{name}: status {status}"
+    observation = decode(payload)
+    assert observation.accepted and observation.diagnostic == "None", (
+        f"{name}: {observation.diagnostic} at {observation.diagnostic_span}"
+    )
+    for spelling, expected in types:
+        row = expression_at(observation, located(source, spelling))
+        actual = observation.render(row.type)
+        assert actual == expected, f"{name}: {spelling!r} has {actual}, expected {expected}"
+    for spelling, kind, handle in selections:
+        row = expression_at(observation, located(source, spelling))
+        actual = (SELECTIONS[row.selection[0]], row.selection[1])
+        assert actual == (kind, handle), f"{name}: {spelling!r} selects {actual}, expected {(kind, handle)}"
+    for spelling, expected in adaptations:
+        row = expression_at(observation, located(source, spelling))
+        assert ADAPTATIONS[row.adaptation] == expected, (
+            f"{name}: {spelling!r} adapts {ADAPTATIONS[row.adaptation]!r}, expected {expected!r}"
+        )
+    return observation
+
+
+def located(source: bytes, spelling: bytes) -> tuple[int, int, int]:
+    text, _, occurrence = spelling.partition(b"!")
+    return span_of(source, text, int(occurrence) if occurrence else 1)
+
+
+def rejected(
+    program: str,
+    name: str,
+    source: bytes,
+    diagnostic: str,
+    spelling: bytes,
+) -> None:
+    """The diagnostic names the authored `spelling` (`text!n` for the n-th)."""
+    status, payload = run(program, source)
+    assert status == 249, f"{name}: status {status}"
+    observation = decode(payload)
+    actual = (observation.accepted, observation.diagnostic, observation.diagnostic_span)
+    expected = (False, diagnostic, located(source, spelling))
+    assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
+
+
+def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
+    actual_status, payload = run(program, source)
+    assert actual_status == status, f"{name}: status {actual_status}"
+    assert payload == b"", name
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: test_typing.py <omega-typing-harness>")
+    program = sys.argv[1]
+
+    accepted(program, "empty", b"", ())
+    accepted(
+        program,
+        "declared-types-and-landed-literals",
+        b"machine f() {\n"
+        b"    let small: u8 = 200;\n"
+        b"    let count: u64 in Trapping = small as u64 in Trapping + 1;\n"
+        b"    let negative: i8 = -128;\n"
+        b"    let folded: u16 = 250 * 4 + 24;\n"
+        b"}",
+        (
+            (b"200", "u8"),
+            (b"small as u64 in Trapping", "u64 in Trapping"),
+            (b"1", "u64 in Trapping"),
+            (b"small as u64 in Trapping + 1", "u64 in Trapping"),
+            (b"-128", "i8"),
+            (b"250 * 4 + 24", "u16"),
+            (b"250 * 4", "{integer}"),
+        ),
+        adaptations=((b"200", "landed"), (b"1", "landed"), (b"250 * 4 + 24", "landed")),
+    )
+    accepted(
+        program,
+        "suffixed-literals-keep-their-carrier",
+        b"machine f() { let a: u8 = 7u8; let b: bool = 300u16 > 299; }",
+        ((b"7u8", "u8"), (b"300u16", "u16"), (b"299", "u16"), (b"300u16 > 299", "bool")),
+    )
+    accepted(
+        program,
+        "fields-through-references",
+        b"data P { x: u32; inner: Q; }\ndata Q { flag: bool; }\n"
+        b"machine f(p: &P, q: &mut Q) -> bool {\n"
+        b"    q.flag = p.inner.flag;\n"
+        b"    p.x > 3\n"
+        b"}",
+        (
+            (b"p!2", "&D0"),
+            (b"p.inner", "D1"),
+            (b"p.inner.flag", "bool"),
+            (b"q.flag", "bool"),
+            (b"p.x", "u32"),
+            (b"p.x > 3", "bool"),
+        ),
+        selections=((b"p.inner", "field", 1), (b"p.x", "field", 0), (b"q.flag", "field", 2)),
+    )
+    accepted(
+        program,
+        "arrays-and-indexing",
+        b"data B { bytes: [u8; 4] in Trapping; count: u64; }\n"
+        b"machine f(b: &B, i: u64) -> u8 in Trapping { b.bytes[i] }\n"
+        b"machine g(b: &B) -> u8 in Trapping { b.bytes[2] }",
+        (
+            (b"b.bytes", "[u8; 4] in Trapping"),
+            (b"b.bytes[i]", "u8 in Trapping"),
+            (b"2", "u64"),
+        ),
+    )
+    accepted(
+        program,
+        "policy-qualified-collections-read-and-store",
+        b"data B { counts: [u64; 4] in Trapping; }\n"
+        b"machine f(b: &mut B, value: u64 in Trapping) -> u64 in Trapping {\n"
+        b"    b.counts[0] = value as u64;\n"
+        b"    b.counts[1] + 1\n"
+        b"}",
+        ((b"b.counts[0]", "u64 in Trapping"), (b"b.counts[1] + 1", "u64 in Trapping"), (b"value as u64", "u64")),
+    )
+    accepted(
+        program,
+        "collection-lengths",
+        b"machine f(view: &[u8], fixed: [u16; 3]) -> bool { view.len == fixed.len }",
+        ((b"view.len", "u64"), (b"fixed.len", "u64"), (b"view.len == fixed.len", "bool")),
+        selections=((b"view.len", "length", 0), (b"fixed.len", "length", 0)),
+    )
+    accepted(
+        program,
+        "overloads-select-by-argument-types",
+        b"machine A::pick(x: u8) -> u8 { x }\n"
+        b"machine A::pick(x: bool) -> bool { x }\n"
+        b"machine f() -> bool { A::pick(true) }\n"
+        b"machine g(v: u8) -> u8 { A::pick(v) }",
+        ((b"A::pick(true)", "bool"), (b"A::pick(v)", "u8")),
+        selections=((b"A::pick(true)", "machine", 1), (b"A::pick(v)", "machine", 0)),
+    )
+    accepted(
+        program,
+        "shared-parameters-lend-implicitly",
+        b"data P { x: u32; }\n"
+        b"machine read(p: &P) -> u32 { p.x }\n"
+        b"machine f(p: P, q: &mut P) -> u32 {\n"
+        b"    let a: u32 = read(p);\n"
+        b"    read(q)\n"
+        b"}",
+        ((b"read(p)", "u32"), (b"read(q)", "u32")),
+        adaptations=((b"p!4", "lent"), (b"q!2", "")),
+    )
+    accepted(
+        program,
+        "borrows-through-references-reborrow-the-referent",
+        b"data P { x: u32; }\n"
+        b"machine bump(p: &mut P) { p.x = 1; }\n"
+        b"machine f(q: &mut P) { bump(&mut q); bump(q); }",
+        ((b"&mut q", "&mut D0"),),
+    )
+    accepted(
+        program,
+        "constructions-and-case-values",
+        b"data P { x: u32; y: bool; }\n"
+        b"data S { case Empty; case Full(v: u8); }\n"
+        b"machine f() -> S {\n"
+        b"    let p: P = P { x: 5, y: true };\n"
+        b"    let e: S = S::Empty;\n"
+        b"    S::Full { v: 9 }\n"
+        b"}",
+        (
+            (b"P { x: 5, y: true }", "D0"),
+            (b"5", "u32"),
+            (b"S::Empty", "D1"),
+            (b"S::Full { v: 9 }", "D1"),
+            (b"9", "u8"),
+        ),
+    )
+    observation = accepted(
+        program,
+        "case-patterns-bind-payload-types",
+        b"data S { case Empty; case Full(v: u8, w: bool); }\n"
+        b"machine f(s: &S) -> u8 {\n"
+        b"    transition s {\n"
+        b"        S::Full { v, w: true } -> got(v)\n"
+        b"        _ -> got(0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state got(value: u8) -> u8 {\n"
+        b"        value\n"
+        b"    }\n"
+        b"}",
+        ((b"got(v)", "()"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
+        selections=((b"got(v)", "state", 0), (b"got(0)", "state", 0)),
+    )
+    assert observation.render(observation.binders[0]) == "u8", "case-patterns-bind-payload-types: binder"
+    accepted(
+        program,
+        "guards-and-equality",
+        b"data L { case On; case Off; }\n"
+        b"machine f(a: u8, b: i64, l: L) -> bool {\n"
+        b"    transition {\n"
+        b"        a < 3 && b == -1 -> yes()\n"
+        b"        l == L::On -> yes()\n"
+        b"        _ -> no()\n"
+        b"    }\n"
+        b"\n"
+        b"    state yes() -> bool { true }\n"
+        b"    state no() -> bool { false }\n"
+        b"}",
+        ((b"a < 3", "bool"), (b"3", "u8"), (b"-1", "i64"), (b"l == L::On", "bool")),
+    )
+    accepted(
+        program,
+        "terminal-calls-complete-the-machine",
+        b"machine g(x: u8) -> u8 { x }\n"
+        b"machine f(x: u8) -> u8 {\n"
+        b"    transition { _ -> g(x) }\n"
+        b"}",
+        ((b"g(x)", "u8"),),
+        selections=((b"g(x)", "machine", 0),),
+    )
+
+    rejected(program, "let-mismatch", b"machine f() { let a: u8 = true; }", "MismatchedTypes", b"true")
+    rejected(program, "literal-out-of-range", b"machine f() { let a: u8 = 256; }", "LiteralOutOfRange", b"256")
+    rejected(
+        program,
+        "folded-out-of-range",
+        b"machine f() { let a: u8 = 250 + 6; }",
+        "LiteralOutOfRange",
+        b"250 + 6",
+    )
+    rejected(
+        program,
+        "anonymous-fraction",
+        b"machine f() { let a: u8 = 7 / 2; }",
+        "AnonymousFraction",
+        b"7 / 2",
+    )
+    rejected(
+        program,
+        "anonymous-remainder-needs-a-typed-operand",
+        b"machine f() { let a: u8 = 7 % 2; }",
+        "AnonymousRemainder",
+        b"7 % 2",
+    )
+    rejected(
+        program,
+        "no-implicit-widening",
+        b"machine f(small: u8) { let wide: u16 = small; }",
+        "MismatchedTypes",
+        b"small!2",
+    )
+    rejected(
+        program,
+        "policies-do-not-mix",
+        b"machine f(wrapped: u64 in Wrapping, plain: u64) { let sum: u64 = wrapped + plain; }",
+        "MismatchedTypes",
+        b"plain!2",
+    )
+    rejected(
+        program,
+        "unknown-field",
+        b"data P { x: u8; }\nmachine f(p: P) -> u8 { p.y }",
+        "UnknownField",
+        b"y",
+    )
+    rejected(
+        program,
+        "projection-of-a-scalar",
+        b"machine f(p: u8) -> u8 { p.y }",
+        "ProjectionOfNonData",
+        b"p.y",
+    )
+    rejected(
+        program,
+        "no-matching-overload",
+        b"machine A::pick(x: u8) -> u8 { x }\nmachine f() -> u8 { A::pick(true) }",
+        "NoMatchingMachine",
+        b"A::pick(true)",
+    )
+    rejected(
+        program,
+        "ambiguous-overload",
+        b"machine A::pick(x: u8) -> u8 { x }\nmachine A::pick(x: u16) -> u8 { 0 }\n"
+        b"machine f() -> u8 { A::pick(1) }",
+        "AmbiguousMachine",
+        b"A::pick(1)",
+    )
+    rejected(
+        program,
+        "mutable-loans-are-explicit",
+        b"data P { x: u32; }\nmachine bump(p: &mut P) { p.x = 1; }\nmachine f(p: P) { bump(p); }",
+        "NoMatchingMachine",
+        b"bump(p)",
+    )
+    rejected(
+        program,
+        "guard-is-boolean",
+        b"machine f(level: u8) { transition { level -> g() } state g() {} }",
+        "NotBoolean",
+        b"level!2",
+    )
+    rejected(
+        program,
+        "case-of-other-data",
+        b"data S { case A; }\ndata T { case B; }\n"
+        b"machine f(s: S) { transition s { T::B -> g() } state g() {} }",
+        "CaseOfOtherData",
+        b"T::B",
+    )
+    rejected(
+        program,
+        "payload-case-needs-fields",
+        b"data S { case Full(v: u8); }\nmachine f() -> S { S::Full }",
+        "NotAValue",
+        b"S::Full",
+    )
+    rejected(
+        program,
+        "record-equality-needs-a-declaration",
+        b"data P { x: u8; }\nmachine f(a: P, b: P) -> bool { a == b }",
+        "UnsupportedEquality",
+        b"a == b",
+    )
+    rejected(
+        program,
+        "invalid-cast",
+        b"data P { x: u8; }\nmachine f(p: P) -> u8 { p as u8 }",
+        "InvalidCast",
+        b"p as u8",
+    )
+    rejected(
+        program,
+        "assignment-needs-a-place",
+        b"machine g() -> u8 { 1 }\nmachine f() { g() = 2; }",
+        "NotAPlace",
+        b"g()!2",
+    )
+    rejected(
+        program,
+        "terminal-result-mismatch",
+        b"machine g() -> bool { true }\nmachine f() -> u8 { transition { _ -> g() } }",
+        "MismatchedTypes",
+        b"g()!2",
+    )
+    rejected(
+        program,
+        "unit-completion-needs-a-unit-body",
+        b"machine f() -> u8 { transition { _ -> {} } }",
+        "TerminalResultMismatch",
+        b"_ -> {}",
+    )
+    rejected(
+        program,
+        "target-argument-count",
+        b"machine f() { transition { _ -> g(1) } state g() {} }",
+        "TargetArgumentCount",
+        b"g(1)",
+    )
+
+    # The product's own psi package types as one source set: each module
+    # under source/psi as `psi::<directory>::<file>`.
+    psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
+    psi_units = tuple(
+        (("psi::" + "::".join(path.relative_to(psi_root).with_suffix("").parts)).encode(), path.read_bytes())
+        for path in sorted(psi_root.rglob("*.omg"))
+        if path.parent != psi_root
+    )
+    status, payload = run_units(program, psi_units)
+    package = decode(payload)
+    assert status == 0, f"psi-package: status {status}: {package.diagnostic} at {package.diagnostic_span}"
+    assert package.accepted and len(package.expressions) > 0, "psi-package"
+    untyped = [row for row in package.expressions if row.type == 0]
+    print(f"psi-package: {len(package.rows)} types, {len(package.expressions)} expressions, "
+          f"{len(untyped)} denote no value")
+
+    phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
+    phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
+    phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
+
+    determinism = b"data P { x: u8; }\nmachine f(p: &P) -> u16 { p.x as u16 + 1 }"
+    first = run(program, determinism)
+    second = run(program, determinism)
+    assert first == second, "determinism"
+    assert first[0] == 0, first
+
+    print(f"Psi typing slices: {len(CASE_SOURCES)} cases passed")
+
+
+if __name__ == "__main__":
+    main()

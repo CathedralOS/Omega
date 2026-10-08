@@ -5838,8 +5838,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  348 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 126
-  resolver cases; each gate builds its harness natively in several minutes.
+  348 parser cases, `tests/psi/resolver/test-resolver.sh` all 126 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 40 typing cases; each
+  gate builds its harness natively in 4 to 17 minutes, most of it in
+  register-pressure recovery's whole-plan identity hashing (owned by the
+  spill-recovery cost work).
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
   stops at `coverage_request_semantics` until phase 3, which waits on the
@@ -5869,7 +5872,18 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   data and cases by position). Every other root kind (traits, conformances,
   domains, constants, propositions, target-scoped and boundary machines)
   rejects as an unsupported declaration before binding; `boundary data` binds
-  as data. The parser harness reads all 29 product source files whole and 29
+  as data. Typing interns every written type, gives every expression and
+  pattern binder a type, selects each call's machine among its visible
+  overload family by argument admission (equal types, anonymous integer
+  landing, `Never`, implicit shared lending, shared reborrow of an exclusive
+  loan), binds `.field` and `.len`, folds wholly anonymous integer arithmetic
+  exactly and lands it once, keeps arithmetic policies from mixing, reads an
+  element through a policy-qualified collection under that policy, and
+  checks constructions, case patterns, transition targets and terminal
+  results; floats, static applications, generic machine calls and equality
+  needing a declared conformance reject as unsupported. The typing gate types
+  the whole psi package, its 32 units, as one source set (33,100
+  expressions, 203 interned types). The parser harness reads all 29 product source files whole and 29
   of the 100 `source/library/std` and `core` files; the other 71 stop first at
   29 `satisfies` machine clauses, 12 retired `boundary requirement` and 5
   retired `boundary operator` declarations awaiting library migration, 7
@@ -5877,18 +5891,22 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   migration, 7 `terminates` clauses, 3 operator-token machine heads, 2 `where
   machine` contracts, 3 `in` memberships, and one each at `match`, an `as`
   pattern rename and a `proposition` generic binder. The resolver gate
-  resolves the whole psi package, its 24 units, as one source set; the shared
-  syntax tables hold 1,024 roots, 24,576 path members, 16,384 type references,
-  8,192 parameters and statements, 4,096 states and 32,768 expressions, over a
-  65,536-token unit. Next: package aliases, with `pub` narrowing imports
-  across packages, so the product entry and its library imports resolve; then
-  typing. Size the parser tables to the request contract's scalar-resource
+  resolves the whole psi package, its 32 units, as one source set; the shared
+  syntax tables hold 1,024 roots, 24,576 path members (22,835 used by psi),
+  16,384 type references, 1,536 data members, 768 cases, 8,192 parameters and
+  statements, 4,096 states and 65,536 expressions, over a 65,536-token unit.
+  Next: package aliases, with `pub` narrowing imports across packages, so the
+  product entry and its library imports resolve, and typing's next slice
+  (floats, generic machine calls with argument inference, declared
+  equality); then checking. Size the parser tables to the request contract's scalar-resource
   rows (roots and states 4,096; path members, data members, type nodes,
   statements and expressions 16,384) and publish their refusals as those
-  provisions; aarch64 frames past 16 MiB now realize. The product's own 29
-  sources hold 27,792 expressions and 19,098 path members, so those rows must
-  count per source unit, or grow, before D can compile C. Run both gates on
-  Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
+  provisions; aarch64 frames past 16 MiB now realize. The psi package's own
+  32 sources hold 33,100 expressions and 22,835 path members, so those rows
+  must count per source unit, or grow, before D can compile C; the path
+  member table cannot grow past one unit's token bound while its capacity
+  edge stays single-unit testable. Run the three gates on Linux and Windows
+  hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven
   narrowing casts.
 

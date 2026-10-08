@@ -124,9 +124,48 @@ are indexed by expression handle. Resolution binds `use`, `data` (a
 untargeted, non-boundary machine roots; every other root kind (a trait,
 conformance, domain, constant or proposition, or a target-scoped or boundary
 machine) rejects at its root as an unsupported declaration before any
-binding, rather than resolving as if its names were absent. Carrier
-compatibility (`Finite` on floats only, unbounded `UInt`/`Int` storage)
-belongs to typing, which does not exist yet.
+binding, rather than resolving as if its names were absent.
+
+Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
+records its results in [`types/types.omg`](types/types.omg): an interned
+type table, where equal types share one handle and a type's children precede
+it, and annotations indexed by syntax handles (a type per type-reference row,
+expression and pattern binder; each call's selected machine or state target
+and each `.field`'s declaration; each expression's adaptation and anonymous
+value). Every written type interns first, row by row
+([`typing/references.omg`](typing/references.omg)): a builtin with its `in`
+qualifier (an arithmetic policy on a fixed integer, `Finite` on a float), a
+data declaration applied to as many arguments as its non-lifetime generic
+parameters, a reference, an array with its literal length, a slice, or a
+generic parameter. Then each body's statements type in authored order
+([`typing/statements.omg`](typing/statements.omg)), each expression tree in
+table order, children before parents
+([`typing/expressions.omg`](typing/expressions.omg)). A name takes its
+binding's declared type. `.field` projects a data type's common field
+through any number of references, its generic arguments substituted;
+`[index]` selects an array's or slice's element. An unsuffixed integer
+literal is anonymous ([`typing/literals.omg`](typing/literals.omg)): wholly
+anonymous `+`, `-`, `*` and exact `/` fold over exact integers, an anonymous
+`%` or fraction rejects, and the tree lands once at a destination it fits: a
+declared local, a parameter, a field, a typed operand, a cast or a result. A
+suffix types its literal at that carrier. Arithmetic and bitwise operators take
+one fixed-integer or float type, policy included, so differing policies never
+mix; integer comparisons relate exact values of any carriers; `==` also
+compares Booleans, addresses and sums whose every case is payload-free. A call
+selects the one machine of its resolved overload family, visible from the
+call's unit, whose parameters admit its arguments
+([`typing/calls.omg`](typing/calls.omg)); none or several reject. Admission
+([`typing/admission.omg`](typing/admission.omg)) is equal types, a landing, a
+value of type `Never`, a shared-reference parameter implicitly lending its
+referent or accepting an exclusive loan, or a payload-free case of generic data
+meeting any application. A construction names each of its record's or case's
+fields once; a case pattern names a case of its subject's data and types its
+binders by the payload; a transition target supplies its state's parameters,
+and a terminal call or value meets the body's result (a state without its own
+`-> T` takes its machine's). Floats, static applications, calls to generic
+machines and equality needing a declared conformance reject as unsupported
+rather than typing partially. Carrier facts beyond the qualifier (unbounded
+`UInt`/`Int` storage, ranges) belong to checking.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -161,6 +200,13 @@ the gate only when an equal or stronger product-source gate subsumes every
 retained failure class, and the harness only when an equal or stronger
 semantic-free gate preserves all of its cases.
 
+[`tests/psi/typing/test-typing.sh`](../../tests/psi/typing/test-typing.sh)
+does the same for typing over the resolver gate's framed source sets; its
+harness observes the type table, every expression's span, type, selection,
+adaptation and anonymous value, and every binder's type, and exits 248
+without an observation when resolution rejects. Its last case types the whole
+psi package as one source set.
+
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set: a unit count,
 then each unit's module path and source, `u32`-framed; the decoder frames a
@@ -168,10 +214,11 @@ single source as the root module. Its harness lexes and parses each unit,
 resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
-On macOS ARM64 both gates build their harnesses natively from a fresh CLI: all
-348 parser cases and all 126 resolver cases pass. Each gate counts each
-distinct source it runs as one case. No cached executable may stand in for
-that run. Linux and Windows hosts have run neither gate.
+On macOS ARM64 the three gates build their harnesses natively from a fresh
+CLI: all 348 parser cases, all 126 resolver cases and all 40 typing cases
+pass. Each gate counts each distinct source it runs as one case. No cached
+executable may stand in for that run. Linux and Windows hosts have run none of
+them.
 
 The lexer keeps its one canonical `Token` stream of semantic tokens
 (whitespace and comments separate tokens but are not stored); the parser
@@ -206,6 +253,8 @@ owns bounded token selection and trivia traversal;
 | `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine, trait, conformance, domain, constant and proposition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings. | Absorb only into the canonical multi-source resolver. |
+| `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
+| `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

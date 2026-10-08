@@ -1,0 +1,464 @@
+use psi::resolution::resolution;
+use psi::resolve::imports;
+use psi::resolve::resolver;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::admission;
+use psi::typing::expressions;
+use psi::typing::references;
+use psi::typing::typer;
+
+// Calls and constructions (wiki/spec/language/expressions.md#calls-places-and-temporaries).
+// Resolution bound a callee to the first machine of its overload family:
+// every machine the call's unit can see with the same owner and name.
+// Typing selects the one family member whose parameters admit the authored
+// arguments; none or several reject. A transition target supplies its
+// state's parameters. A shared-reference parameter may lend its argument
+// implicitly; every other loan is explicit.
+pub machine Typer::type_call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+    transition binding {
+        ValueBinding::Machine { handle } -> machine(typer, sources, syntax, index, expression, handle)
+        ValueBinding::State { handle } -> state_target(typer, syntax, index, expression, handle)
+        _ -> not_callable(typer, syntax, expression)
+    }
+
+    // Calling a generic machine needs its arguments inferred, which this
+    // slice does not do.
+    state machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, handle: u64 in Trapping) {
+        let named: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        transition named.generic_parameter_count == 0 {
+            true -> family(typer, sources, syntax, index, expression, named)
+            _ -> reject(typer, expression, TypeDiagnosticCode::UnsupportedExpression)
+        }
+    }
+
+    state family(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, named: MachineItem) {
+        let matches: u64 in Trapping = Typer::matching_machines(typer, sources, syntax, expression, named, 0, 0);
+        transition matches == 1 {
+            true -> select(typer, sources, syntax, index, expression, named, 0)
+            _ -> unmatched(typer, expression, matches)
+        }
+    }
+
+    // Find the one admitted family member again and bind its arguments.
+    state select(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, named: MachineItem, candidate: u64 in Trapping) {
+        let member: bool = Typer::family_admits(typer, sources, syntax, expression, named, candidate);
+        transition member {
+            true -> selected(typer, syntax, index, expression, candidate)
+            _ -> select(typer, sources, syntax, index, expression, named, candidate + 1)
+        }
+    }
+
+    state selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, candidate);
+        let result: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
+        Typing::set_selection(&mut typer.output, index, Selection::Machine { handle: candidate });
+        Typing::set_expression_type(&mut typer.output, index, result);
+        Typer::bind_arguments(typer, syntax, expression, item.first_parameter, 0);
+    }
+
+    state unmatched(typer: &mut Typer, expression: Expression, matches: u64 in Trapping) {
+        transition matches == 0 {
+            true -> reject(typer, expression, TypeDiagnosticCode::NoMatchingMachine)
+            _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
+        }
+    }
+
+    // A transition target names a state of its machine; its arguments are
+    // the state's parameters. The jump is not a value: its type is unit.
+    state state_target(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, handle: u64 in Trapping) {
+        let target: StateItem = SyntaxTrees::state_item(syntax, handle);
+        Typing::set_selection(&mut typer.output, index, Selection::State { handle: handle });
+        let unit_type: u64 in Trapping = typer.output.unit;
+        Typing::set_expression_type(&mut typer.output, index, unit_type);
+        transition target.parameter_count == expression.count {
+            true -> state_arguments(typer, syntax, expression, target)
+            _ -> reject(typer, expression, TypeDiagnosticCode::TargetArgumentCount)
+        }
+    }
+
+    state state_arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, target: StateItem) {
+        Typer::bind_arguments(typer, syntax, expression, target.first_parameter, 0);
+    }
+
+    state not_callable(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let callee: Expression = SyntaxTrees::expression(syntax, expression.left);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotCallable, callee.source_span);
+    }
+
+    state reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
+        Typing::reject(&mut typer.output, code, expression.source_span);
+    }
+}
+
+// How many machines from `candidate` on are family members of `named` that
+// admit the call's arguments.
+machine Typer::matching_machines(
+    typer: &Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    expression: Expression,
+    named: MachineItem,
+    candidate: u64 in Trapping,
+    count: u64 in Trapping
+) -> u64 in Trapping
+crashes Trap
+{
+    transition candidate < syntax.machine_count {
+        true -> test(typer, sources, syntax, expression, named, candidate, count)
+        _ -> result(count)
+    }
+
+    state test(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, named: MachineItem, candidate: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+        let member: bool = Typer::family_admits(typer, sources, syntax, expression, named, candidate);
+        transition member {
+            true -> next(typer, sources, syntax, expression, named, candidate + 1, count + 1)
+            _ -> next(typer, sources, syntax, expression, named, candidate + 1, count)
+        }
+    }
+
+    state next(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, named: MachineItem, candidate: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {
+        transition candidate < syntax.machine_count {
+            true -> test(typer, sources, syntax, expression, named, candidate, count)
+            _ -> result(count)
+        }
+    }
+
+    state result(count: u64 in Trapping) -> u64 in Trapping {
+        count
+    }
+}
+
+// Whether machine `candidate` belongs to the family of `named` as the call's
+// unit sees it and its parameters admit the call's arguments.
+machine Typer::family_admits(
+    typer: &Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    expression: Expression,
+    named: MachineItem,
+    candidate: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, candidate);
+    let same_name: bool = SourceSet::spans_equal(sources, item.name.source_span, named.name.source_span);
+    let same_owner: bool = SourceSet::spans_equal(sources, item.owner.source_span, named.owner.source_span);
+    transition same_name && item.has_owner == named.has_owner && (!item.has_owner || same_owner)
+        && item.parameter_count == expression.count {
+        true -> visible(typer, sources, syntax, expression, item)
+        _ -> no()
+    }
+
+    state visible(typer: &Typer, sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
+        let seen: bool = Resolver::visible(sources, syntax, expression.source_span.source, item.name.source_span.source);
+        transition seen {
+            true -> arguments(typer, syntax, expression, item, 0)
+            _ -> no()
+        }
+    }
+
+    state arguments(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem, offset: u64 in Trapping) -> bool {
+        transition offset < expression.count {
+            true -> argument(typer, syntax, expression, item, offset)
+            _ -> yes()
+        }
+    }
+
+    state argument(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem, offset: u64 in Trapping) -> bool {
+        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + offset);
+        let destination: u64 in Trapping = Typing::reference_type(&typer.output, parameter.type_reference);
+        let admitted: bool = Typer::admissible(typer, syntax, destination, argument);
+        transition admitted {
+            true -> arguments(typer, syntax, expression, item, offset + 1)
+            _ -> no()
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Admit each argument of `expression` at its parameter, in order.
+machine Typer::bind_arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, first_parameter: u64 in Trapping, offset: u64 in Trapping)
+crashes Trap
+{
+    transition offset < expression.count && typer.output.accepted {
+        true -> argument(typer, syntax, expression, first_parameter, offset)
+        _ -> done()
+    }
+
+    state argument(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, first_parameter: u64 in Trapping, offset: u64 in Trapping) {
+        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        let destination: u64 in Trapping = Typing::reference_type(&typer.output, parameter.type_reference);
+        let admitted: bool = Typer::admit(typer, syntax, destination, argument, true);
+        transition { _ -> next(typer, syntax, expression, first_parameter, offset + 1) }
+    }
+
+    state next(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, first_parameter: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < expression.count && typer.output.accepted {
+            true -> argument(typer, syntax, expression, first_parameter, offset)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}
+
+// `Path { field: value, ... }`: a record names its data declaration, a case
+// value its case (`Type::Case { ... }`), whose payload fields join the common
+// fields. Each authored field names a declared one once and admits its
+// value; an omitted field is zero-initialized, which checking judges against
+// the type's default domain (wiki/spec/language/data_and_literals.md).
+// Generic data needs inferred arguments, which this slice does not supply.
+pub machine Typer::type_construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+    transition binding {
+        ValueBinding::Data { item } -> record(typer, sources, syntax, index, expression, item)
+        ValueBinding::DataCase { item, data_case } -> case_value(typer, sources, syntax, index, expression, item, data_case)
+        _ -> reject(typer, expression, TypeDiagnosticCode::NotConstructible)
+    }
+
+    state record(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, item: u64 in Trapping) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        let applied: u64 in Trapping = Typer::applied_parameter_count(syntax, item);
+        transition declared.case_count == 0 && applied == 0 {
+            true -> typed(typer, sources, syntax, index, expression, item, declared, false, 0)
+            _ -> reject(typer, expression, TypeDiagnosticCode::NotConstructible)
+        }
+    }
+
+    state case_value(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        item: u64 in Trapping,
+        data_case: u64 in Trapping
+    ) {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        let applied: u64 in Trapping = Typer::applied_parameter_count(syntax, item);
+        transition applied == 0 {
+            true -> typed(typer, sources, syntax, index, expression, item, declared, true, data_case)
+            _ -> reject(typer, expression, TypeDiagnosticCode::NotConstructible)
+        }
+    }
+
+    state typed(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        item: u64 in Trapping,
+        declared: DataItem,
+        has_case: bool,
+        data_case: u64 in Trapping
+    ) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Data);
+        row.item = item;
+        let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+        Typer::construct_fields(typer, sources, syntax, expression, declared, has_case, data_case, 0);
+    }
+
+    state reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
+        Typing::reject(&mut typer.output, code, expression.source_span);
+    }
+}
+
+machine Typer::construct_fields(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    expression: Expression,
+    declared: DataItem,
+    has_case: bool,
+    data_case: u64 in Trapping,
+    offset: u64 in Trapping
+)
+crashes Trap
+{
+    transition offset < expression.count && typer.output.accepted {
+        true -> field(typer, sources, syntax, expression, declared, has_case, data_case, offset)
+        _ -> done()
+    }
+
+    state field(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        declared: DataItem,
+        has_case: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let written: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
+        let repeated: bool = Typer::repeats_field(sources, syntax, expression, offset, written);
+        let reference: u64 in Trapping = Typer::member_field_type(sources, syntax, declared, has_case, data_case, written.name);
+        transition repeated {
+            true -> reject(typer, written, TypeDiagnosticCode::DuplicateConstructionField)
+            _ -> known(typer, sources, syntax, expression, declared, has_case, data_case, offset, written, reference)
+        }
+    }
+
+    state known(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        declared: DataItem,
+        has_case: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping,
+        written: ConstructField,
+        reference: u64 in Trapping
+    ) {
+        transition reference < 18446744073709551615 {
+            true -> admit(typer, sources, syntax, expression, declared, has_case, data_case, offset, written, reference)
+            _ -> reject(typer, written, TypeDiagnosticCode::UnknownConstructionField)
+        }
+    }
+
+    state admit(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        declared: DataItem,
+        has_case: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping,
+        written: ConstructField,
+        reference: u64 in Trapping
+    ) {
+        let destination: u64 in Trapping = Typing::reference_type(&typer.output, reference);
+        let admitted: bool = Typer::admit(typer, syntax, destination, written.value, false);
+        transition { _ -> next(typer, sources, syntax, expression, declared, has_case, data_case, offset + 1) }
+    }
+
+    state next(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        declared: DataItem,
+        has_case: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < expression.count && typer.output.accepted {
+            true -> field(typer, sources, syntax, expression, declared, has_case, data_case, offset)
+            _ -> done()
+        }
+    }
+
+    state reject(typer: &mut Typer, written: ConstructField, code: TypeDiagnosticCode) {
+        Typing::reject(&mut typer.output, code, written.source_span);
+    }
+
+    state done() {}
+}
+
+// Whether an earlier field of the construction spells `written`'s name.
+machine Typer::repeats_field(sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, written: ConstructField) -> bool
+crashes Trap
+{
+    transition { _ -> prior(sources, syntax, expression, offset, written, 0) }
+
+    state prior(sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, written: ConstructField, earlier: u64 in Trapping) -> bool {
+        transition earlier < offset {
+            true -> compare(sources, syntax, expression, offset, written, earlier)
+            _ -> no()
+        }
+    }
+
+    state compare(sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, written: ConstructField, earlier: u64 in Trapping) -> bool {
+        let before: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + earlier);
+        let spelled: bool = SourceSet::spans_equal(sources, before.name.source_span, written.name.source_span);
+        transition spelled {
+            true -> yes()
+            _ -> prior(sources, syntax, expression, offset, written, earlier + 1)
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// The type-reference handle of the field `name` names: a common field of
+// `declared`, else a payload field of its case when `has_case`. All ones when
+// it names none.
+pub machine Typer::member_field_type(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> common(sources, syntax, declared, has_case, data_case, name, 0) }
+
+    state common(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < declared.field_count {
+            true -> common_compare(sources, syntax, declared, has_case, data_case, name, offset)
+            _ -> payload_start(sources, syntax, has_case, data_case, name)
+        }
+    }
+
+    state common_compare(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        let field: DataField = SyntaxTrees::field(syntax, declared.first_field + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name.source_span);
+        transition spelled {
+            true -> found(field)
+            _ -> common(sources, syntax, declared, has_case, data_case, name, offset + 1)
+        }
+    }
+
+    state payload_start(sources: &SourceSet, syntax: &SyntaxTrees, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> u64 in Trapping {
+        let selected: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        transition has_case {
+            true -> payload(sources, syntax, selected, name, 0)
+            _ -> none()
+        }
+    }
+
+    state payload(sources: &SourceSet, syntax: &SyntaxTrees, selected: DataCase, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < selected.payload_field_count {
+            true -> payload_compare(sources, syntax, selected, name, offset)
+            _ -> none()
+        }
+    }
+
+    state payload_compare(sources: &SourceSet, syntax: &SyntaxTrees, selected: DataCase, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        let field: DataField = SyntaxTrees::payload_field(syntax, selected.first_payload_field + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name.source_span);
+        transition spelled {
+            true -> found(field)
+            _ -> payload(sources, syntax, selected, name, offset + 1)
+        }
+    }
+
+    state found(field: DataField) -> u64 in Trapping {
+        field.type_reference
+    }
+
+    state none() -> u64 in Trapping {
+        18446744073709551615
+    }
+}

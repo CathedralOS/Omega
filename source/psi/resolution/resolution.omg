@@ -124,12 +124,12 @@ pub data ResolveDiagnostic [copy] {
 pub data NameResolution
 where
     binding_count <= 16384,
-    value_binding_count <= 32768,
+    value_binding_count <= 65536,
 {
     type_bindings: [TypeBinding; 16384];
     domain_bindings: [DomainBinding; 16384];
     binding_count: u64;
-    value_bindings: [ValueBinding; 32768];
+    value_bindings: [ValueBinding; 65536];
     value_binding_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
@@ -153,4 +153,22 @@ pub machine NameResolution::reject(
     resolution.accepted = false;
     resolution.diagnostic.code = code;
     resolution.diagnostic.source_span = source_span;
+}
+
+// The binding of expression `index`, which must be below the bound count.
+pub machine NameResolution::value_binding(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding
+crashes Trap
+{
+    transition index < resolution.value_binding_count {
+        true -> read(resolution, index)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, index: u64 in Trapping) -> ValueBinding {
+        resolution.value_bindings[index]
+    }
+
+    state invalid() -> ValueBinding {
+        crash Trap;
+    }
 }

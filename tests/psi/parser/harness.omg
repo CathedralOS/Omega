@@ -504,7 +504,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_data_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 1023
+    requires index <= 1535
     {
         let member: DataMember = output.data_members[index];
         transition member.kind {
@@ -519,7 +519,7 @@ machine ParserHarness::write_parse_observation(
         index: u64,
         kind: u8
     )
-    requires index <= 1023
+    requires index <= 1535
     {
         ParserHarness::write_byte(parser_harness, kind);
         ParserHarness::write_u64(parser_harness, member.item_index);
@@ -532,7 +532,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_data_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 1024 {
+        transition next < 1536 {
             true -> parse_data_member(parser_harness, output, next)
             _ -> parse_field_count(parser_harness, output)
         }
@@ -609,7 +609,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 511
+    requires index <= 767
     {
         let data_case: DataCase = output.cases[index];
         ParserHarness::write_source_span(parser_harness, data_case.name.source_span);
@@ -628,7 +628,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_case_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 512 {
+        transition next < 768 {
             true -> parse_case(parser_harness, output, next)
             _ -> parse_type_reference_count(parser_harness, output)
         }

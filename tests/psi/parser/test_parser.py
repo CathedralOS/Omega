@@ -1703,13 +1703,13 @@ def main() -> None:
     )
 
     exact_cases = b"data Cases { " + b"".join(
-        f"case C{index}; ".encode() for index in range(512)
+        f"case C{index}; ".encode() for index in range(768)
     ) + b"}"
     exact_case_status, exact_case_payload = run(program, exact_cases)
     assert exact_case_status == 0
     exact_case_observation = decode(exact_case_payload)
-    assert len(exact_case_observation.data_members) == 512
-    assert len(exact_case_observation.cases) == 512
+    assert len(exact_case_observation.data_members) == 768
+    assert len(exact_case_observation.cases) == 768
     overflowing_case_name_start = len(exact_cases) - 1 + len("case ")
     rejected(
         program,
@@ -1717,8 +1717,8 @@ def main() -> None:
         exact_cases[:-1] + b"case Overflow; }",
         23,
         (overflowing_case_name_start, overflowing_case_name_start + 8),
-        data_member_count=512,
-        case_count=512,
+        data_member_count=768,
+        case_count=768,
     )
 
     payload_prefix = b"data Payloads { case Many("
@@ -1746,14 +1746,14 @@ def main() -> None:
     )
 
     exact_mixed = b"data Mixed { " + b"".join(
-        f"f{index}: T; case C{index}; ".encode() for index in range(512)
+        f"f{index}: T; case C{index}; ".encode() for index in range(768)
     ) + b"}"
     exact_mixed_status, exact_mixed_payload = run(program, exact_mixed)
     assert exact_mixed_status == 0
     exact_mixed_observation = decode(exact_mixed_payload)
-    assert len(exact_mixed_observation.data_members) == 1024
-    assert len(exact_mixed_observation.fields) == 512
-    assert len(exact_mixed_observation.cases) == 512
+    assert len(exact_mixed_observation.data_members) == 1536
+    assert len(exact_mixed_observation.fields) == 768
+    assert len(exact_mixed_observation.cases) == 768
     overflowing_mixed_member_start = len(exact_mixed) - 1
     rejected(
         program,
@@ -1761,10 +1761,10 @@ def main() -> None:
         exact_mixed[:-1] + b"overflow: T; }",
         22,
         (overflowing_mixed_member_start, overflowing_mixed_member_start + 8),
-        data_member_count=1024,
-        field_count=512,
-        case_count=512,
-        type_reference_count=512,
+        data_member_count=1536,
+        field_count=768,
+        case_count=768,
+        type_reference_count=768,
     )
 
     # Machine declarations. Spans are derived from the authored source: `at`

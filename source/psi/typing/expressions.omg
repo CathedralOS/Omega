@@ -1,0 +1,1231 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::admission;
+use psi::typing::calls;
+use psi::typing::literals;
+use psi::typing::references;
+use psi::typing::typer;
+
+// Expression typing. A tree types in table order, children before parents,
+// so each node meets typed children. A name takes its binding's declared
+// type; a name that denotes no value (a machine, a state, a data declaration
+// or a payload-bearing case) stays absent, for its parent to use or reject.
+// An unsuffixed integer literal is anonymous: wholly anonymous arithmetic
+// folds exactly, and a typed operand lands the other at its carrier
+// (wiki/spec/language/numeric_values.md).
+
+// Type every node of the tree rooted at `root` not typed yet.
+pub machine Typer::type_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
+crashes Trap
+{
+    let low: u64 in Trapping = Typer::tree_low(typer, syntax, root);
+    transition { _ -> next(typer, sources, syntax, resolution, root, low) }
+
+    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+        transition index <= root && typer.output.accepted {
+            true -> node(typer, sources, syntax, resolution, root, index)
+            _ -> done()
+        }
+    }
+
+    state node(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+        let typed: bool = Typer::is_typed(typer, index);
+        transition typed {
+            true -> next(typer, sources, syntax, resolution, root, index + 1)
+            _ -> untyped(typer, sources, syntax, resolution, root, index)
+        }
+    }
+
+    state untyped(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
+        Typer::mark_typed(typer, index, true);
+        Typer::type_expression(typer, sources, syntax, resolution, index);
+        transition { _ -> next(typer, sources, syntax, resolution, root, index + 1) }
+    }
+
+    state done() {}
+}
+
+// The lowest handle in the tree at `root`. A tree's nodes are emitted
+// contiguously, children first, so its nodes are exactly the handles from
+// this one through the root.
+machine Typer::tree_low(typer: &mut Typer, syntax: &SyntaxTrees, root: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    Typer::stack_store(typer, 0, root);
+    transition { _ -> pop(typer, syntax, 1, root) }
+
+    state pop(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping) -> u64 in Trapping {
+        transition depth > 0 {
+            true -> visit(typer, syntax, depth - 1, low)
+            _ -> result(low)
+        }
+    }
+
+    state visit(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping) -> u64 in Trapping {
+        let handle: u64 in Trapping = Typer::stacked(typer, depth);
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let lowest: u64 in Trapping = Typer::lesser(low, handle);
+        transition expression.kind {
+            ExpressionKind::Field -> one(typer, syntax, depth, lowest, expression.left)
+            ExpressionKind::Unary -> one(typer, syntax, depth, lowest, expression.left)
+            ExpressionKind::Cast -> one(typer, syntax, depth, lowest, expression.left)
+            ExpressionKind::Index -> two(typer, syntax, depth, lowest, expression.left, expression.right)
+            ExpressionKind::Binary -> two(typer, syntax, depth, lowest, expression.left, expression.right)
+            ExpressionKind::Call -> arguments(typer, syntax, depth, lowest, expression, 0)
+            ExpressionKind::Apply -> arguments(typer, syntax, depth, lowest, expression, 0)
+            ExpressionKind::Construct -> fields(typer, syntax, depth, lowest, expression, 0)
+            _ -> pop(typer, syntax, depth, lowest)
+        }
+    }
+
+    state one(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
+        transition depth < 4096 {
+            true -> push_one(typer, syntax, depth, low, child)
+            _ -> overflow()
+        }
+    }
+
+    state push_one(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
+        Typer::stack_store(typer, depth, child);
+        transition { _ -> pop(typer, syntax, depth + 1, low) }
+    }
+
+    state two(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        transition depth + 1 < 4096 {
+            true -> push_two(typer, syntax, depth, low, left, right)
+            _ -> overflow()
+        }
+    }
+
+    state push_two(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+        Typer::stack_store(typer, depth, left);
+        Typer::stack_store(typer, depth + 1, right);
+        transition { _ -> pop(typer, syntax, depth + 2, low) }
+    }
+
+    // A call's callee, then its arguments.
+    state arguments(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < expression.count {
+            true -> argument(typer, syntax, depth, low, expression, offset)
+            _ -> one(typer, syntax, depth, low, expression.left)
+        }
+    }
+
+    state argument(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        let child: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        transition depth < 4096 {
+            true -> push_argument(typer, syntax, depth, low, expression, offset, child)
+            _ -> overflow()
+        }
+    }
+
+    state push_argument(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
+        Typer::stack_store(typer, depth, child);
+        transition { _ -> arguments(typer, syntax, depth + 1, low, expression, offset + 1) }
+    }
+
+    // A construction's path, then its field values.
+    state fields(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < expression.count {
+            true -> field(typer, syntax, depth, low, expression, offset)
+            _ -> one(typer, syntax, depth, low, expression.left)
+        }
+    }
+
+    state field(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        let construct_field: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
+        transition depth < 4096 {
+            true -> push_field(typer, syntax, depth, low, expression, offset, construct_field.value)
+            _ -> overflow()
+        }
+    }
+
+    state push_field(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
+        Typer::stack_store(typer, depth, child);
+        transition { _ -> fields(typer, syntax, depth + 1, low, expression, offset + 1) }
+    }
+
+    state result(low: u64 in Trapping) -> u64 in Trapping {
+        low
+    }
+
+    // Deeper than the parser's own nesting bound: a violated invariant.
+    state overflow() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+machine Typer::lesser(left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
+    transition left < right {
+        true -> first(left)
+        _ -> first(right)
+    }
+
+    state first(value: u64 in Trapping) -> u64 in Trapping {
+        value
+    }
+}
+
+machine Typer::type_expression(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, index);
+    transition expression.kind {
+        ExpressionKind::Name -> named(typer, syntax, resolution, index, expression)
+        ExpressionKind::Path -> named(typer, syntax, resolution, index, expression)
+        ExpressionKind::Integer -> integer(typer, sources, index, expression)
+        ExpressionKind::Boolean -> boolean(typer, index)
+        ExpressionKind::String -> string(typer, index, expression)
+        ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
+        ExpressionKind::Index -> indexed(typer, syntax, index, expression)
+        ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
+        ExpressionKind::Binary -> binary(typer, syntax, index, expression)
+        ExpressionKind::Cast -> cast(typer, index, expression)
+        ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
+        ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
+        ExpressionKind::Apply -> unsupported(typer, expression)
+        ExpressionKind::Float -> literal_rejected(typer, expression)
+    }
+
+    state named(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        let handle: u64 in Trapping = Typer::binding_type(typer, syntax, resolution, index);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+    }
+
+    state integer(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
+        let value: LiteralValue = Typer::literal_value(sources, expression.name.source_span);
+        let anonymous: AnonymousValue = AnonymousValue { negative: false, magnitude: value.magnitude };
+        transition value.valid {
+            true -> integer_valid(typer, index, expression, value, anonymous)
+            _ -> literal_rejected(typer, expression)
+        }
+    }
+
+    state integer_valid(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: AnonymousValue) {
+        Typing::set_value(&mut typer.output, index, anonymous);
+        transition value.has_suffix {
+            true -> suffixed(typer, index, expression, value, anonymous)
+            _ -> unsuffixed(typer, index)
+        }
+    }
+
+    state unsuffixed(typer: &mut Typer, index: u64 in Trapping) {
+        let anonymous_type: u64 in Trapping = typer.output.anonymous;
+        Typing::set_expression_type(&mut typer.output, index, anonymous_type);
+    }
+
+    // A suffix lands its literal at that occurrence.
+    state suffixed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: AnonymousValue) {
+        let fits: bool = Typer::fits(value.suffix, anonymous);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = value.suffix;
+        transition fits {
+            true -> suffixed_type(typer, index, expression, row)
+            _ -> out_of_range(typer, expression)
+        }
+    }
+
+    state suffixed_type(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+    }
+
+    state boolean(typer: &mut Typer, index: u64 in Trapping) {
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        Typing::set_expression_type(&mut typer.output, index, boolean_type);
+    }
+
+    // A quoted literal is a shared byte view, `&[u8]`
+    // (wiki/spec/language/data_and_literals.md#quoted-bytes).
+    state string(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+        let mut byte_row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        byte_row.builtin = BuiltinType::U8;
+        let byte: u64 in Trapping = Typer::intern(typer, byte_row, expression.source_span);
+        let mut slice_row: TypeRow = TypeRow::of(TypeKind::Slice);
+        slice_row.inner = byte;
+        let view: u64 in Trapping = Typer::intern(typer, slice_row, expression.source_span);
+        let mut reference_row: TypeRow = TypeRow::of(TypeKind::Reference);
+        reference_row.inner = view;
+        let handle: u64 in Trapping = Typer::intern(typer, reference_row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+    }
+
+    state field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        Typer::type_field(typer, sources, syntax, index, expression);
+    }
+
+    state indexed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        Typer::type_index(typer, syntax, index, expression);
+    }
+
+    state unary(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_unary(typer, syntax, resolution, index, expression);
+    }
+
+    state binary(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        Typer::type_binary(typer, syntax, index, expression);
+    }
+
+    state cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+        Typer::type_cast(typer, index, expression);
+    }
+
+    state call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_call(typer, sources, syntax, resolution, index, expression);
+    }
+
+    state construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_construct(typer, sources, syntax, resolution, index, expression);
+    }
+
+    state unsupported(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
+    }
+
+    state literal_rejected(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedLiteral, expression.source_span);
+    }
+
+    state out_of_range(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::LiteralOutOfRange, expression.source_span);
+    }
+}
+
+// The declared type a name's binding carries: a local's, a parameter's, a
+// pattern binder's, or a payload-free case's data type. Every other binding
+// denotes no value and is absent.
+machine Typer::binding_type(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let binding: ValueBinding = NameResolution::value_binding(resolution, index);
+    transition binding {
+        ValueBinding::Local { statement } -> local(typer, syntax, statement)
+        ValueBinding::Parameter { parameter } -> parameter(typer, syntax, parameter)
+        ValueBinding::PatternBinder { field } -> binder(typer, field)
+        ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case)
+        ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
+        _ -> absent()
+    }
+
+    // A value binder (`Count: u32`, `const N: u64`) has its annotation's
+    // type; a machine binder denotes no value.
+    state generic_value(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
+        transition generic.has_type_reference {
+            true -> annotated(typer, generic)
+            _ -> absent()
+        }
+    }
+
+    state annotated(typer: &mut Typer, generic: GenericParameter) -> u64 in Trapping {
+        let handle: u64 in Trapping = Typing::reference_type(&typer.output, generic.type_reference);
+        handle
+    }
+
+    state local(typer: &mut Typer, syntax: &SyntaxTrees, statement: u64 in Trapping) -> u64 in Trapping {
+        let declaration: Statement = SyntaxTrees::statement(syntax, statement);
+        Typing::reference_type(&typer.output, declaration.type_reference)
+    }
+
+    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
+        let declaration: Parameter = SyntaxTrees::parameter(syntax, parameter);
+        Typing::reference_type(&typer.output, declaration.type_reference)
+    }
+
+    state binder(typer: &mut Typer, field: u64 in Trapping) -> u64 in Trapping {
+        Typing::binder_type(&typer.output, field)
+    }
+
+    // `Type::Case` is a value only when the case carries no payload
+    // (wiki/spec/language/data_and_literals.md, `bare-case-value-names`).
+    state data_case(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, item: u64 in Trapping, data_case: u64 in Trapping) -> u64 in Trapping {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, data_case);
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Data);
+        row.item = item;
+        transition declared.payload_field_count == 0 {
+            true -> data_type(typer, row, expression)
+            _ -> absent()
+        }
+    }
+
+    state data_type(typer: &mut Typer, row: TypeRow, expression: Expression) -> u64 in Trapping {
+        let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+        handle
+    }
+
+    state absent() -> u64 in Trapping {
+        0
+    }
+}
+
+// `value.field`: the common field of the data type `value` has, through any
+// number of references, with the type's generic arguments substituted, or a
+// collection's `.len`.
+machine Typer::type_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let receiver: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    transition receiver > 0 {
+        true -> projected(typer, sources, syntax, index, expression, receiver)
+        _ -> not_a_value(typer, syntax, expression.left)
+    }
+
+    state projected(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, receiver: u64 in Trapping) {
+        let base: u64 in Trapping = Typer::referent(typer, receiver);
+        let row: TypeRow = TypeTable::row(&typer.output.types, base);
+        transition row.kind == TypeKind::Data {
+            true -> data(typer, sources, syntax, index, expression, row)
+            _ -> collection(typer, sources, index, expression, row)
+        }
+    }
+
+    // A slice or array has one projection, its `u64` element count `.len`
+    // (wiki/spec/language/counts_and_addresses.md).
+    state collection(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let length: bool = SourceSet::span_spells(sources, expression.name.source_span, "len");
+        transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array) && length {
+            true -> counted(typer, index, expression)
+            _ -> not_data(typer, expression)
+        }
+    }
+
+    state counted(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+        let mut count_row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        count_row.builtin = BuiltinType::U64;
+        let count: u64 in Trapping = Typer::intern(typer, count_row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, count);
+        Typing::set_selection(&mut typer.output, index, Selection::Length);
+    }
+
+    state data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
+        transition { _ -> candidate(typer, sources, syntax, index, expression, row, item, 0) }
+    }
+
+    state candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.field_count {
+            true -> compare(typer, sources, syntax, index, expression, row, item, offset)
+            _ -> unknown(typer, expression)
+        }
+    }
+
+    state compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+        let declared: DataField = SyntaxTrees::field(syntax, item.first_field + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, declared.name.source_span, expression.name.source_span);
+        transition spelled {
+            true -> found(typer, syntax, index, expression, row, item.first_field + offset, declared)
+            _ -> candidate(typer, sources, syntax, index, expression, row, item, offset + 1)
+        }
+    }
+
+    state found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, handle: u64 in Trapping, declared: DataField) {
+        let field_type: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
+        let substituted: u64 in Trapping = Typer::substitute(typer, syntax, field_type, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, substituted);
+        Typing::set_selection(&mut typer.output, index, Selection::Field { field: handle });
+    }
+
+    state not_a_value(typer: &mut Typer, syntax: &SyntaxTrees, child: u64 in Trapping) {
+        let child_expression: Expression = SyntaxTrees::expression(syntax, child);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, child_expression.source_span);
+    }
+
+    state not_data(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::ProjectionOfNonData, expression.source_span);
+    }
+
+    state unknown(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnknownField, expression.name.source_span);
+    }
+}
+
+// `collection[index]`: an array's or slice's element, through references.
+// An anonymous index lands at `u64`. Reading an integer or Boolean element
+// through a policy-qualified collection (`[u64; N] in Trapping`) yields the
+// element under that policy; storing into one takes the element's own
+// carrier (`Typer::place_type`).
+machine Typer::type_index(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let selector: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    transition collection > 0 && selector > 0 {
+        true -> typed(typer, syntax, index, expression, collection, selector)
+        _ -> not_a_value(typer, expression)
+    }
+
+    state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
+        let base: u64 in Trapping = Typer::referent(typer, collection);
+        let row: TypeRow = TypeTable::row(&typer.output.types, base);
+        transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
+            true -> element(typer, syntax, index, expression, row, selector)
+            _ -> not_collection(typer, expression)
+        }
+    }
+
+    state element(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
+        let integer: bool = Typer::integer_type(typer, selector);
+        let anonymous: bool = selector == typer.output.anonymous;
+        let read: u64 in Trapping = Typer::element_read(typer, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, read);
+        transition integer {
+            true -> done()
+            _ -> anonymous_index(typer, syntax, expression, anonymous)
+        }
+    }
+
+    state anonymous_index(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, anonymous: bool) {
+        transition anonymous {
+            true -> land(typer, syntax, expression)
+            _ -> not_integer(typer, syntax, expression)
+        }
+    }
+
+    state land(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = BuiltinType::U64;
+        let destination: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+        let admitted: bool = Typer::admit(typer, syntax, destination, expression.right, false);
+    }
+
+    state not_a_value(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
+    }
+
+    state not_collection(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::IndexOfNonCollection, expression.source_span);
+    }
+
+    state not_integer(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let selector_expression: Expression = SyntaxTrees::expression(syntax, expression.right);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NonIntegerIndex, selector_expression.source_span);
+    }
+
+    state done() {}
+}
+
+// The type a read of `collection`'s element has: an unqualified integer or
+// Boolean element takes the collection's policy.
+machine Typer::element_read(typer: &mut Typer, collection: TypeRow, source_span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    let element: TypeRow = TypeTable::row(&typer.output.types, collection.inner);
+    let fixed: bool = Typer::fixed_integer(element.builtin);
+    transition collection.domain != DomainBinding::Unqualified && element.kind == TypeKind::Builtin
+        && element.domain == DomainBinding::Unqualified && (fixed || element.builtin == BuiltinType::Bool) {
+        true -> qualified(typer, collection, element, source_span)
+        _ -> stored(collection)
+    }
+
+    state qualified(typer: &mut Typer, collection: TypeRow, element: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = element.builtin;
+        row.domain = collection.domain;
+        let handle: u64 in Trapping = Typer::intern(typer, row, source_span);
+        handle
+    }
+
+    state stored(collection: TypeRow) -> u64 in Trapping {
+        collection.inner
+    }
+}
+
+// The type a store into `place` must meet: an indexed element's own carrier,
+// or the place's type.
+pub machine Typer::place_type(typer: &Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, place);
+    let typed: u64 in Trapping = Typing::expression_type(&typer.output, place);
+    transition expression.kind == ExpressionKind::Index {
+        true -> indexed(typer, expression)
+        _ -> result(typed)
+    }
+
+    state indexed(typer: &Typer, expression: Expression) -> u64 in Trapping {
+        let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+        let base: u64 in Trapping = Typer::referent(typer, collection);
+        let row: TypeRow = TypeTable::row(&typer.output.types, base);
+        row.inner
+    }
+
+    state result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// Whether `handle` is a fixed-integer type, with any qualifier.
+pub machine Typer::integer_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    transition row.kind == TypeKind::Builtin {
+        true -> builtin(row)
+        _ -> no()
+    }
+
+    state builtin(row: TypeRow) -> bool {
+        let fixed: bool = Typer::fixed_integer(row.builtin);
+        fixed
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Whether `handle` is a signed fixed-integer type.
+machine Typer::signed_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    row.kind == TypeKind::Builtin
+        && (row.builtin == BuiltinType::I8 || row.builtin == BuiltinType::I16
+            || row.builtin == BuiltinType::I32 || row.builtin == BuiltinType::I64)
+}
+
+// Prefix operators. `!` needs a Boolean; `-` a signed integer or an
+// anonymous value, which it negates exactly; `~` a fixed integer; `&` and
+// `&mut` lend their operand's storage, `&mut` only a place's (through a
+// reference, its referent's); a call acknowledgement keeps its call's type.
+machine Typer::type_unary(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let operand: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    transition operand > 0 {
+        true -> typed(typer, syntax, resolution, index, expression, operand)
+        _ -> not_a_value(typer, expression)
+    }
+
+    state typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Not -> not(typer, index, expression, operand)
+            OperatorKind::Negate -> negate(typer, index, expression, operand)
+            OperatorKind::BitNot -> complement(typer, index, expression, operand)
+            OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
+            OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
+            _ -> acknowledged(typer, syntax, index, expression, operand)
+        }
+    }
+
+    state not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        Typing::set_expression_type(&mut typer.output, index, operand);
+        transition operand == typer.output.boolean {
+            true -> done()
+            _ -> not_boolean(typer, expression)
+        }
+    }
+
+    state negate(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let signed: bool = Typer::signed_type(typer, operand);
+        Typing::set_expression_type(&mut typer.output, index, operand);
+        transition operand == typer.output.anonymous {
+            true -> negate_anonymous(typer, index, expression)
+            _ -> negate_typed(typer, expression, signed)
+        }
+    }
+
+    state negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+        let value: AnonymousValue = Typing::value(&typer.output, expression.left);
+        let negated: AnonymousValue = Typer::anonymous_negate(value);
+        Typing::set_value(&mut typer.output, index, negated);
+    }
+
+    state negate_typed(typer: &mut Typer, expression: Expression, signed: bool) {
+        transition signed {
+            true -> done()
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    state complement(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let integer: bool = Typer::integer_type(typer, operand);
+        Typing::set_expression_type(&mut typer.output, index, operand);
+        transition integer {
+            true -> done()
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    // A place of reference type denotes its referent's storage, so a borrow
+    // of it reborrows the referent rather than lending the reference.
+    state borrow(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, access: ReferenceAccess) {
+        let referent: u64 in Trapping = Typer::referent(typer, operand);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Reference);
+        row.access = access;
+        row.inner = referent;
+        transition operand == typer.output.anonymous {
+            true -> not_a_place(typer, expression)
+            _ -> borrowed(typer, index, expression, row)
+        }
+    }
+
+    state borrowed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
+    }
+
+    state borrow_mutable(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let place: bool = Typer::is_place(syntax, resolution, expression.left);
+        transition place {
+            true -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
+            _ -> not_a_place(typer, expression)
+        }
+    }
+
+    state acknowledged(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let operand_expression: Expression = SyntaxTrees::expression(syntax, expression.left);
+        Typing::set_expression_type(&mut typer.output, index, operand);
+        transition operand_expression.kind == ExpressionKind::Call {
+            true -> done()
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    state not_a_value(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
+    }
+
+    state not_boolean(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, expression.source_span);
+    }
+
+    state not_a_place(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAPlace, expression.source_span);
+    }
+
+    state mismatch(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::OperandMismatch, expression.source_span);
+    }
+
+    state done() {}
+}
+
+// Whether `index` names storage: a local, parameter or binder, or a field
+// or element of one, through any references.
+pub machine Typer::is_place(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, index);
+    transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
+        true -> projected(syntax, resolution, expression.left)
+        _ -> root(resolution, index)
+    }
+
+    state projected(syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
+            true -> projected(syntax, resolution, expression.left)
+            _ -> root(resolution, index)
+        }
+    }
+
+    state root(resolution: &NameResolution, index: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, index);
+        transition binding {
+            ValueBinding::Local { statement } -> yes()
+            ValueBinding::Parameter { parameter } -> yes()
+            ValueBinding::PatternBinder { field } -> yes()
+            _ -> no()
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Binary operators (wiki/spec/language/numeric_values.md#arithmetic-and-comparisons).
+// `&&` and `||` take Booleans. Integer comparisons relate exact values of
+// any carriers; `==` and `!=` also compare Booleans and payload-free sums of
+// one type. Arithmetic and bitwise operators take one fixed-integer type;
+// shifts keep the left operand's. A typed operand lands an anonymous one at
+// its carrier; two anonymous operands fold exactly.
+machine Typer::type_binary(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let left: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let right: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
+    transition left > 0 && right > 0 {
+        true -> typed(typer, syntax, index, expression, left, right)
+        _ -> not_a_value(typer, expression)
+    }
+
+    state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Or -> logical(typer, index, expression, left, right)
+            OperatorKind::And -> logical(typer, index, expression, left, right)
+            OperatorKind::Equal -> equality(typer, syntax, index, expression, left, right)
+            OperatorKind::NotEqual -> equality(typer, syntax, index, expression, left, right)
+            OperatorKind::Less -> order(typer, syntax, index, expression, left, right)
+            OperatorKind::LessEqual -> order(typer, syntax, index, expression, left, right)
+            OperatorKind::Greater -> order(typer, syntax, index, expression, left, right)
+            OperatorKind::GreaterEqual -> order(typer, syntax, index, expression, left, right)
+            OperatorKind::ShiftLeft -> shift(typer, syntax, index, expression, left, right)
+            OperatorKind::ShiftRight -> shift(typer, syntax, index, expression, left, right)
+            _ -> arithmetic(typer, syntax, index, expression, left, right)
+        }
+    }
+
+    state logical(typer: &mut Typer, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        Typing::set_expression_type(&mut typer.output, index, boolean_type);
+        transition left == typer.output.boolean && right == typer.output.boolean {
+            true -> done()
+            _ -> not_boolean(typer, expression)
+        }
+    }
+
+    state equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let comparable: bool = Typer::intrinsic_equality(typer, syntax, left);
+        transition left == right && comparable {
+            true -> compared(typer, index)
+            _ -> order(typer, syntax, index, expression, left, right)
+        }
+    }
+
+    state order(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_integer: bool = Typer::integer_like(typer, left);
+        let right_integer: bool = Typer::integer_like(typer, right);
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        Typing::set_expression_type(&mut typer.output, index, boolean_type);
+        transition left_integer && right_integer {
+            true -> integer_order(typer, syntax, expression, left, right)
+            _ -> unsupported_comparison(typer, expression)
+        }
+    }
+
+    // An anonymous operand lands at a typed one's carrier; two anonymous
+    // operands compare exactly.
+    state integer_order(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left == typer.output.anonymous {
+            true -> land_left(typer, syntax, expression, left, right)
+            _ -> land_right(typer, syntax, expression, left, right)
+        }
+    }
+
+    state land_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition right == typer.output.anonymous {
+            true -> done()
+            _ -> admit_left(typer, syntax, expression, right)
+        }
+    }
+
+    state admit_left(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, right: u64 in Trapping) {
+        let admitted: bool = Typer::admit(typer, syntax, right, expression.left, false);
+    }
+
+    state land_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition right == typer.output.anonymous {
+            true -> admit_right(typer, syntax, expression, left)
+            _ -> done()
+        }
+    }
+
+    state admit_right(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping) {
+        let admitted: bool = Typer::admit(typer, syntax, left, expression.right, false);
+    }
+
+    state compared(typer: &mut Typer, index: u64 in Trapping) {
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        Typing::set_expression_type(&mut typer.output, index, boolean_type);
+    }
+
+    // A shift count is any integer; an anonymous count lands at the shifted
+    // carrier.
+    state shift(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_integer: bool = Typer::integer_type(typer, left);
+        let right_integer: bool = Typer::integer_like(typer, right);
+        Typing::set_expression_type(&mut typer.output, index, left);
+        transition left_integer && right_integer {
+            true -> land_right(typer, syntax, expression, left, right)
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    state arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left == typer.output.anonymous && right == typer.output.anonymous {
+            true -> fold(typer, index, expression)
+            _ -> typed_arithmetic(typer, syntax, index, expression, left, right)
+        }
+    }
+
+    state typed_arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        transition left == typer.output.anonymous {
+            true -> typed_carrier(typer, syntax, index, expression, right)
+            _ -> typed_carrier(typer, syntax, index, expression, left)
+        }
+    }
+
+    state typed_carrier(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, carrier: u64 in Trapping) {
+        let numeric: bool = Typer::numeric_type(typer, carrier);
+        Typing::set_expression_type(&mut typer.output, index, carrier);
+        transition numeric {
+            true -> operands(typer, syntax, expression, carrier)
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    state operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
+        let left_admitted: bool = Typer::admit(typer, syntax, carrier, expression.left, false);
+        transition left_admitted {
+            true -> right_operand(typer, syntax, expression, carrier)
+            _ -> done()
+        }
+    }
+
+    state right_operand(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
+        let admitted: bool = Typer::admit(typer, syntax, carrier, expression.right, false);
+    }
+
+    state fold(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
+        let left: AnonymousValue = Typing::value(&typer.output, expression.left);
+        let right: AnonymousValue = Typing::value(&typer.output, expression.right);
+        let sum: AnonymousResult = Typer::anonymous_add(left, right);
+        let difference: AnonymousResult = Typer::anonymous_subtract(left, right);
+        let product: AnonymousResult = Typer::anonymous_multiply(left, right);
+        let quotient: AnonymousResult = Typer::anonymous_divide(left, right);
+        let anonymous_type: u64 in Trapping = typer.output.anonymous;
+        Typing::set_expression_type(&mut typer.output, index, anonymous_type);
+        transition expression.operator {
+            OperatorKind::Add -> folded(typer, index, expression, sum)
+            OperatorKind::Subtract -> folded(typer, index, expression, difference)
+            OperatorKind::Multiply -> folded(typer, index, expression, product)
+            OperatorKind::Divide -> divided(typer, index, expression, quotient)
+            OperatorKind::Modulo -> remainder(typer, expression)
+            _ -> mismatch(typer, expression)
+        }
+    }
+
+    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: AnonymousResult) {
+        Typing::set_value(&mut typer.output, index, result.value);
+        transition result.valid {
+            true -> done()
+            _ -> out_of_range(typer, expression)
+        }
+    }
+
+    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: AnonymousResult) {
+        Typing::set_value(&mut typer.output, index, result.value);
+        transition result.valid {
+            true -> done()
+            _ -> fraction(typer, expression)
+        }
+    }
+
+    state not_a_value(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, expression.source_span);
+    }
+
+    state not_boolean(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, expression.source_span);
+    }
+
+    state unsupported_comparison(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedEquality, expression.source_span);
+    }
+
+    state mismatch(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::OperandMismatch, expression.source_span);
+    }
+
+    state remainder(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousRemainder, expression.source_span);
+    }
+
+    state out_of_range(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousValueOutOfRange, expression.source_span);
+    }
+
+    state fraction(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::AnonymousFraction, expression.source_span);
+    }
+
+    state done() {}
+}
+
+// A fixed integer of any carrier, or an anonymous integer.
+pub machine Typer::integer_like(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let integer: bool = Typer::integer_type(typer, handle);
+    integer || handle == typer.output.anonymous
+}
+
+// A fixed-integer or float carrier: what builtin arithmetic takes.
+machine Typer::numeric_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    let integer: bool = Typer::fixed_integer(row.builtin);
+    row.kind == TypeKind::Builtin
+        && (integer || row.builtin == BuiltinType::F32 || row.builtin == BuiltinType::F64)
+}
+
+// Whether values of `handle` compare with `==` intrinsically: Booleans,
+// fixed integers and addresses, and sums whose every case is payload-free
+// (wiki/spec/language/data_and_literals.md: records and payload-bearing sums
+// need a declared equality).
+machine Typer::intrinsic_equality(typer: &Typer, syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    transition row.kind {
+        TypeKind::Builtin -> builtin(row)
+        TypeKind::Data -> data(syntax, row)
+        _ -> no()
+    }
+
+    state builtin(row: TypeRow) -> bool {
+        let integer: bool = Typer::fixed_integer(row.builtin);
+        integer || row.builtin == BuiltinType::Bool || row.builtin == BuiltinType::Address
+    }
+
+    state data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
+        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
+        transition item.field_count == 0 && item.case_count > 0 {
+            true -> cases(syntax, item, 0)
+            _ -> no()
+        }
+    }
+
+    state cases(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+        transition offset < item.case_count {
+            true -> payload(syntax, item, offset)
+            _ -> yes()
+        }
+    }
+
+    state payload(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
+        transition declared.payload_field_count == 0 {
+            true -> cases(syntax, item, offset + 1)
+            _ -> no()
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// `value as Type`: fixed integers and Booleans convert to any fixed integer
+// (a conversion is the explicit boundary between carriers and policies); an
+// anonymous value lands at a fixed-integer target; anything casts to its own
+// type.
+machine Typer::type_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let source: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let target: u64 in Trapping = Typing::reference_type(&typer.output, expression.type_reference);
+    let target_integer: bool = Typer::integer_type(typer, target);
+    let source_integer: bool = Typer::integer_type(typer, source);
+    Typing::set_expression_type(&mut typer.output, index, target);
+    transition source == target {
+        true -> done()
+        _ -> converted(typer, index, expression, source, target, source_integer, target_integer)
+    }
+
+    state converted(
+        typer: &mut Typer,
+        index: u64 in Trapping,
+        expression: Expression,
+        source: u64 in Trapping,
+        target: u64 in Trapping,
+        source_integer: bool,
+        target_integer: bool
+    ) {
+        transition target_integer && (source_integer || source == typer.output.boolean) {
+            true -> done()
+            _ -> anonymous(typer, expression, source, target, target_integer)
+        }
+    }
+
+    state anonymous(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
+        transition target_integer && source == typer.output.anonymous {
+            true -> land(typer, expression, target)
+            _ -> invalid(typer, expression)
+        }
+    }
+
+    state land(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
+        let value: AnonymousValue = Typing::value(&typer.output, expression.left);
+        let row: TypeRow = TypeTable::row(&typer.output.types, target);
+        let fits: bool = Typer::fits(row.builtin, value);
+        transition fits {
+            true -> landed(typer, expression, target)
+            _ -> out_of_range(typer, expression)
+        }
+    }
+
+    state landed(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
+        Typing::set_expression_type(&mut typer.output, expression.left, target);
+        Typing::set_adaptation(&mut typer.output, expression.left, Adaptation::Landed);
+    }
+
+    state invalid(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::InvalidCast, expression.source_span);
+    }
+
+    state out_of_range(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::LiteralOutOfRange, expression.source_span);
+    }
+
+    state done() {}
+}
+
+// `type` with the generic parameters of the data type `owner` replaced by
+// its arguments: a parameter itself, or one under a chain of references,
+// arrays and slices. An unapplied owner (a case value whose arguments its
+// destination supplies) and a type mentioning no parameter stay as written.
+pub machine Typer::substitute(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition owner.argument_count > 0 {
+        true -> layers(typer, syntax, handle, owner, source_span, handle, 0)
+        _ -> result(handle)
+    }
+
+    // Walk down the wrapper chain to its base, counting the layers.
+    state layers(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        handle: u64 in Trapping,
+        owner: TypeRow,
+        source_span: SourceSpan,
+        current: u64 in Trapping,
+        depth: u64 in Trapping
+    ) -> u64 in Trapping {
+        let row: TypeRow = TypeTable::row(&typer.output.types, current);
+        transition row.kind == TypeKind::Reference || row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
+            true -> deeper(typer, syntax, handle, owner, source_span, row.inner, depth + 1)
+            _ -> base(typer, syntax, handle, owner, source_span, row, depth)
+        }
+    }
+
+    state deeper(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        handle: u64 in Trapping,
+        owner: TypeRow,
+        source_span: SourceSpan,
+        current: u64 in Trapping,
+        depth: u64 in Trapping
+    ) -> u64 in Trapping {
+        transition depth < 64 {
+            true -> layers(typer, syntax, handle, owner, source_span, current, depth)
+            _ -> result(handle)
+        }
+    }
+
+    state base(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
+        transition row.kind == TypeKind::GenericParameter {
+            true -> parameter(typer, syntax, handle, owner, source_span, row, depth)
+            _ -> result(handle)
+        }
+    }
+
+    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
+        let position: u64 in Trapping = Typer::applied_position(syntax, owner.item, row.item);
+        transition position < owner.argument_count {
+            true -> replaced(typer, handle, owner, source_span, position, depth)
+            _ -> result(handle)
+        }
+    }
+
+    state replaced(typer: &mut Typer, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, position: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let argument: u64 in Trapping = TypeTable::argument(&typer.output.types, owner.first_argument + position);
+        transition { _ -> rebuild(typer, handle, source_span, argument, depth) }
+    }
+
+    // Rebuild the `depth` wrappers of `handle` over the replaced base,
+    // innermost first.
+    state rebuild(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan, built: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        transition depth > 0 && typer.output.accepted {
+            true -> wrap(typer, handle, source_span, built, depth)
+            _ -> result(built)
+        }
+    }
+
+    state wrap(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan, built: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let layer: TypeRow = Typer::wrapper_at(typer, handle, depth - 1);
+        let mut row: TypeRow = layer;
+        row.inner = built;
+        let wrapped: u64 in Trapping = Typer::intern(typer, row, source_span);
+        transition { _ -> rebuild(typer, handle, source_span, wrapped, depth - 1) }
+    }
+
+    state result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// The wrapper row `depth` layers below `handle`.
+machine Typer::wrapper_at(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> TypeRow
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    transition depth > 0 {
+        true -> below(typer, row.inner, depth - 1)
+        _ -> result(row)
+    }
+
+    state below(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> TypeRow {
+        let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+        transition depth > 0 {
+            true -> below(typer, row.inner, depth - 1)
+            _ -> result(row)
+        }
+    }
+
+    state result(row: TypeRow) -> TypeRow {
+        row
+    }
+}
+
+// The argument position of generic parameter `parameter` in applications of
+// data `item`: its position among the non-lifetime parameters.
+machine Typer::applied_position(syntax: &SyntaxTrees, item: u64 in Trapping, parameter: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let data_item: DataItem = SyntaxTrees::data_item(syntax, item);
+    transition { _ -> scan(syntax, data_item, parameter, 0, 0) }
+
+    state scan(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping) -> u64 in Trapping {
+        transition offset < data_item.generic_parameter_count {
+            true -> compare(syntax, data_item, parameter, offset, position)
+            _ -> result(18446744073709551615)
+        }
+    }
+
+    state compare(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping) -> u64 in Trapping {
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, data_item.first_generic_parameter + offset);
+        let handle: u64 in Trapping = data_item.first_generic_parameter + offset;
+        transition handle == parameter {
+            true -> result(position)
+            _ -> advance(syntax, data_item, parameter, offset, position, generic)
+        }
+    }
+
+    state advance(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping, generic: GenericParameter) -> u64 in Trapping {
+        transition generic.kind == GenericParameterKind::Lifetime {
+            true -> scan(syntax, data_item, parameter, offset + 1, position)
+            _ -> scan(syntax, data_item, parameter, offset + 1, position + 1)
+        }
+    }
+
+    state result(position: u64 in Trapping) -> u64 in Trapping {
+        position
+    }
+}

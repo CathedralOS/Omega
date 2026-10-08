@@ -20,7 +20,7 @@ use psi::syntax::syntax;
 pub data Resolver {
     output: NameResolution;
     // Name-resolution scratch: what each expression's position lets it name.
-    name_roles: [NameRole; 32768];
+    name_roles: [NameRole; 65536];
 }
 
 pub machine Resolver::initialize(resolver: &mut Resolver) {

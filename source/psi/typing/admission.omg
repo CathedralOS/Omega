@@ -1,0 +1,206 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::literals;
+use psi::typing::references;
+use psi::typing::typer;
+
+// How a value meets a destination of a known type: a declared local, a
+// parameter, a field, a typed operand or a result. The types are equal; an
+// anonymous integer lands at a fixed-integer destination it fits; a value of
+// type `Never` meets anything; a shared-reference parameter lends a value of
+// its referent implicitly and accepts an exclusive loan as a shared one
+// (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
+// payload-free case of generic data, which spells no arguments, meets any
+// application of its data.
+pub data Admission [copy] {
+    case Rejected;
+    case NotAValue;
+    case OutOfRange;
+    case Exact;
+    case Landed;
+    case SharedLend;
+}
+
+pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
+crashes Trap
+{
+    let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
+    transition actual > 0 {
+        true -> valued(typer, syntax, destination, expression, actual)
+        _ -> not_a_value()
+    }
+
+    state valued(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+        transition actual == destination {
+            true -> exact()
+            _ -> different(typer, syntax, destination, expression, actual)
+        }
+    }
+
+    state different(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
+        let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
+        let given: TypeRow = TypeTable::row(&typer.output.types, actual);
+        transition actual == typer.output.anonymous {
+            true -> anonymous(typer, expression, wanted)
+            _ -> typed(typer, syntax, wanted, given, actual)
+        }
+    }
+
+    state anonymous(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
+        let value: AnonymousValue = Typing::value(&typer.output, expression);
+        let fixed: bool = Typer::fixed_integer(wanted.builtin);
+        let fits: bool = Typer::fits(wanted.builtin, value);
+        transition wanted.kind == TypeKind::Builtin && fixed {
+            true -> landing(fits)
+            _ -> rejected()
+        }
+    }
+
+    state landing(fits: bool) -> Admission {
+        transition fits {
+            true -> landed()
+            _ -> out_of_range()
+        }
+    }
+
+    state typed(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+        transition given.kind == TypeKind::Builtin && given.builtin == BuiltinType::Never {
+            true -> exact()
+            _ -> lending(typer, syntax, wanted, given, actual)
+        }
+    }
+
+    state lending(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+        transition wanted.kind == TypeKind::Reference && wanted.access == ReferenceAccess::Shared {
+            true -> shared(wanted, given, actual)
+            _ -> unapplied(syntax, wanted, given)
+        }
+    }
+
+    state shared(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+        transition actual == wanted.inner {
+            true -> lend()
+            _ -> reborrow(wanted, given)
+        }
+    }
+
+    state reborrow(wanted: TypeRow, given: TypeRow) -> Admission {
+        transition given.kind == TypeKind::Reference && given.inner == wanted.inner {
+            true -> exact()
+            _ -> rejected()
+        }
+    }
+
+    state unapplied(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
+        transition wanted.kind == TypeKind::Data && given.kind == TypeKind::Data && wanted.item == given.item
+            && given.argument_count == 0 {
+            true -> generic_data(syntax, wanted)
+            _ -> rejected()
+        }
+    }
+
+    state generic_data(syntax: &SyntaxTrees, wanted: TypeRow) -> Admission {
+        let applied: u64 in Trapping = Typer::applied_parameter_count(syntax, wanted.item);
+        transition applied > 0 {
+            true -> exact()
+            _ -> rejected()
+        }
+    }
+
+    state exact() -> Admission {
+        Admission::Exact
+    }
+
+    state landed() -> Admission {
+        Admission::Landed
+    }
+
+    state lend() -> Admission {
+        Admission::SharedLend
+    }
+
+    state rejected() -> Admission {
+        Admission::Rejected
+    }
+
+    state out_of_range() -> Admission {
+        Admission::OutOfRange
+    }
+
+    state not_a_value() -> Admission {
+        Admission::NotAValue
+    }
+}
+
+// Admit `expression` at `destination`, recording a landing or an implicit
+// shared loan (only where `lend` allows one: a call argument), or reject at
+// the expression. Whether it was admitted.
+pub machine Typer::admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
+crashes Trap
+{
+    let admission: Admission = Typer::admission(typer, syntax, destination, expression);
+    let written: Expression = SyntaxTrees::expression(syntax, expression);
+    transition admission {
+        Admission::Exact -> admitted()
+        Admission::Landed -> landed(typer, destination, expression)
+        Admission::SharedLend -> lent(typer, written, expression, lend)
+        Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
+        Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
+        Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+    }
+
+    state landed(typer: &mut Typer, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
+        Typing::set_expression_type(&mut typer.output, expression, destination);
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Landed);
+        transition { _ -> admitted() }
+    }
+
+    state lent(typer: &mut Typer, written: Expression, expression: u64 in Trapping, lend: bool) -> bool {
+        transition lend {
+            true -> mark_lent(typer, expression)
+            _ -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
+        }
+    }
+
+    state mark_lent(typer: &mut Typer, expression: u64 in Trapping) -> bool {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::SharedLend);
+        transition { _ -> admitted() }
+    }
+
+    state reject(typer: &mut Typer, written: Expression, code: TypeDiagnosticCode) -> bool {
+        Typing::reject(&mut typer.output, code, written.source_span);
+        transition { _ -> refused() }
+    }
+
+    state admitted() -> bool {
+        true
+    }
+
+    state refused() -> bool {
+        false
+    }
+}
+
+// Whether `expression` would be admitted at `destination`, lending allowed:
+// the test overload selection applies to each candidate.
+pub machine Typer::admissible(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool
+crashes Trap
+{
+    let admission: Admission = Typer::admission(typer, syntax, destination, expression);
+    transition admission {
+        Admission::Exact -> yes()
+        Admission::Landed -> yes()
+        Admission::SharedLend -> yes()
+        _ -> no()
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}

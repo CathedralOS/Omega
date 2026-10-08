@@ -110,7 +110,7 @@ crashes Trap
 
     state clear(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
         Resolver::set_role(resolver, index, NameRole::Value);
-        transition index < 32768 {
+        transition index < 65536 {
             true -> unbound(resolver, syntax, index)
             _ -> next(resolver, syntax, index + 1)
         }
@@ -149,7 +149,7 @@ crashes Trap
 machine Resolver::set_role(resolver: &mut Resolver, index: u64 in Trapping, role: NameRole)
 crashes Trap
 {
-    transition index < 32768 {
+    transition index < 65536 {
         true -> store(resolver, index, role)
         _ -> invalid()
     }
@@ -166,7 +166,7 @@ crashes Trap
 machine Resolver::role(resolver: &Resolver, index: u64 in Trapping) -> NameRole
 crashes Trap
 {
-    transition index < 32768 {
+    transition index < 65536 {
         true -> read(resolver, index)
         _ -> invalid()
     }
@@ -460,7 +460,7 @@ crashes Trap
     }
 
     state bound(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
-        transition index < 32768 {
+        transition index < 65536 {
             true -> store(resolver, index, binding)
             _ -> invalid()
         }
