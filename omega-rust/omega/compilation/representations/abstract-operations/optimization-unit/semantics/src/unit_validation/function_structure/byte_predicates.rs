@@ -187,13 +187,7 @@ pub(crate) fn owned_byte_predicates(
         .structural_places
         .iter()
         .find(|row| row.id == place)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
+    let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let result = function
         .blocks
         .iter()
@@ -351,13 +345,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         .structural_places
         .iter()
         .find(|place| place.id == source)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
+    let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let node = function
         .blocks
         .iter()

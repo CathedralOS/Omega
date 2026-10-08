@@ -92,13 +92,7 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
         .structural_places
         .iter()
         .find(|entry| entry.id == place)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
+    let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let operation = machine
         .blocks
         .iter()

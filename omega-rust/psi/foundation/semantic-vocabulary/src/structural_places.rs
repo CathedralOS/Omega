@@ -58,6 +58,20 @@ pub enum StructuralPlaceKind {
     },
 }
 
+impl StructuralPlaceKind {
+    /// The producing operation and declared structural type when the root is an
+    /// operation result.
+    pub fn as_operation_result(&self) -> Option<(crate::OperationId, StructuralTypeId)> {
+        match self {
+            Self::OperationResult {
+                producer,
+                structural_type,
+            } => Some((*producer, *structural_type)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AffineConstructionElement {
     pub root_structural_type: StructuralTypeId,

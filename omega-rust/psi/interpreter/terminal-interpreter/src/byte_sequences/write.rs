@@ -1,8 +1,6 @@
 //! Fixed-extent byte mutation through an exact mutable loan or fresh owned result.
 
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralPlaceKind, ValueId,
-};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
 };
@@ -32,16 +30,11 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let result = machine.structural_places.iter().find_map(|declaration| {
-            let StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            } = declaration.kind
-            else {
-                return None;
-            };
-            (declaration.id == place).then_some((producer, structural_type))
-        });
+        let result = machine
+            .structural_places
+            .iter()
+            .find(|declaration| declaration.id == place)
+            .and_then(|declaration| declaration.kind.as_operation_result());
         let (structural_type, qualifications, projected_qualifications) =
             if let Some((producer, structural_type)) = result {
                 if self
@@ -191,13 +184,10 @@ impl TerminalExecution<'_> {
             .iter()
             .find(|declaration| declaration.id == place)
             .ok_or_else(malformed)?;
-        let StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } = declaration.kind
-        else {
-            return Err(malformed());
-        };
+        let (producer, structural_type) = declaration
+            .kind
+            .as_operation_result()
+            .ok_or_else(malformed)?;
         let operation = machine
             .blocks
             .iter()

@@ -111,13 +111,7 @@ fn owned_result(
     if declarations.next().is_some() {
         return None;
     }
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
+    let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let mut operations = machine
         .blocks
         .iter()

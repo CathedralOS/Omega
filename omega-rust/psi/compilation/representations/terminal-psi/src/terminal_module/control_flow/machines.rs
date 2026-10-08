@@ -4,9 +4,7 @@ use crate::{
     StructuralPlaceDeclaration, TerminalMachineResult, TerminalRankedScc, Terminator,
     ValueDeclaration,
 };
-use semantic_vocabulary::{
-    BlockId, MachineId, OperationId, PlaceId, ServiceId, StructuralPlaceKind, StructuralTypeId,
-};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachine {
@@ -99,13 +97,7 @@ impl TerminalMachine {
             .structural_places
             .iter()
             .find(|entry| entry.id == place)?;
-        let StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } = declaration.kind
-        else {
-            return None;
-        };
+        let (producer, structural_type) = declaration.kind.as_operation_result()?;
         let operation = self
             .blocks
             .iter()
@@ -116,10 +108,7 @@ impl TerminalMachine {
 
     /// The structural parameter bound to `place`, searched across the machine
     /// roster and every block's bindings.
-    pub fn structural_parameter(
-        &self,
-        place: PlaceId,
-    ) -> Option<&StructuralParameterDeclaration> {
+    pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
         self.structural_parameters
             .iter()
             .chain(

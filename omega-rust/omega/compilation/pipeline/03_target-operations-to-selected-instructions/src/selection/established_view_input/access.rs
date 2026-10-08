@@ -98,13 +98,7 @@ pub(in crate::selection) fn view_access(
             }
             return Some(initial.unwrap_or(A::SharedBorrow));
         }
-        let StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } = declaration.kind
-        else {
-            return None;
-        };
+        let (producer, structural_type) = declaration.kind.as_operation_result()?;
         if expected_type.is_some_and(|identity| identity != structural_type)
             || !signature.structural_types.iter().any(|row| {
                 row.id == structural_type

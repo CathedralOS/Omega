@@ -141,13 +141,7 @@ fn projected_local(
         .structural_places
         .iter()
         .find(|place| place.id == source)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
+    let (producer, structural_type) = declaration.kind.as_operation_result()?;
     function
         .blocks
         .iter()
