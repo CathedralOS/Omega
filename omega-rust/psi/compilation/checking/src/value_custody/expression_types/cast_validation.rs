@@ -46,21 +46,14 @@ pub(crate) fn validate_cast_types(
     let target_name = program.named_type_reference(cast.target_type);
     if crate::proof_contracts::contract_entailment::proof_nat_cast(program, cast) {
         let hypotheses: Vec<_> = program
-            .machine_contracts(machine)
-            .iter()
-            .chain(
-                state
-                    .into_iter()
-                    .flat_map(|state| program.state_contracts(state)),
+            .contract_expressions(
+                program.machine_contracts(machine).iter().chain(
+                    state
+                        .into_iter()
+                        .flat_map(|state| program.state_contracts(state)),
+                ),
+                typed_trees::signature::SignatureContractKind::Requires,
             )
-            .filter(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            })
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .filter_map(|fact| match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
-                _ => None,
-            })
             .collect();
         // This entry point scans executable-looking bodies, not contracts.
         // Ordered contract formation is handled by total_specification.

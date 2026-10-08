@@ -1461,19 +1461,12 @@ pub(super) fn required_contract_expressions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<ExpressionHandle> {
-    let mut expressions = Vec::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-    {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                expressions.push(*expression);
-            }
-        }
-    }
-    expressions
+    program
+        .contract_expressions(
+            program.machine_contracts(machine).iter(),
+            SignatureContractKind::Requires,
+        )
+        .collect()
 }
 
 fn exact_integer_parameter(

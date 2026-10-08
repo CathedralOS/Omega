@@ -107,19 +107,14 @@ pub(crate) fn requires_value_environment(
     // Both passes walk the same fact set: Requires-contract expressions whose
     // comparison meaning is available.
     let each_available_comparison = |body: &mut dyn FnMut(ExpressionHandle)| {
-        for contract in program.machine_contracts(machine) {
-            if contract.kind != SignatureContractKind::Requires {
+        for expression in program.contract_expressions(
+            program.machine_contracts(machine).iter(),
+            SignatureContractKind::Requires,
+        ) {
+            if !comparison_meaning_is_available(expression) {
                 continue;
             }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(expression) = fact else {
-                    continue;
-                };
-                if !comparison_meaning_is_available(*expression) {
-                    continue;
-                }
-                body(*expression);
-            }
+            body(expression);
         }
     };
     each_available_comparison(&mut |expression| {

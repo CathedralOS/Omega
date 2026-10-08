@@ -277,7 +277,6 @@ pub(super) fn machine_bound_collection_chains(
     call_frames: &validation::CallFrameResolver<'_>,
     bound: &str,
 ) -> Vec<BoundCollectionChain> {
-    use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
 
     // Arrival requirements are authored on the machine's own declaration, so
@@ -286,22 +285,11 @@ pub(super) fn machine_bound_collection_chains(
         return Vec::new();
     };
     let mut relations = Vec::new();
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            collect_authored_upper_relations(
-                program,
-                machine,
-                arrival,
-                *expression,
-                &mut relations,
-            );
-        }
+    for expression in program.contract_expressions(
+        program.machine_contracts(machine).iter(),
+        SignatureContractKind::Requires,
+    ) {
+        collect_authored_upper_relations(program, machine, arrival, expression, &mut relations);
     }
     relations.sort();
     relations.dedup();

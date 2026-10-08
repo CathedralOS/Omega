@@ -557,6 +557,32 @@ impl TypedTrees {
         self.signature_contracts.span_or_empty(machine.contracts)
     }
 
+    /// The proof facts of every `kind` contract in `contracts`, in
+    /// declaration order.
+    pub fn contract_facts<'a>(
+        &'a self,
+        contracts: impl Iterator<Item = &'a signature::SignatureContract> + 'a,
+        kind: signature::SignatureContractKind,
+    ) -> impl Iterator<Item = &'a crate::domain::ProofFact> + 'a {
+        contracts
+            .filter(move |contract| contract.kind == kind)
+            .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
+    }
+
+    /// The `ProofFact::Expression` bodies of every `kind` contract in
+    /// `contracts` — the premise vocabulary a contract tier carries.
+    pub fn contract_expressions<'a>(
+        &'a self,
+        contracts: impl Iterator<Item = &'a signature::SignatureContract> + 'a,
+        kind: signature::SignatureContractKind,
+    ) -> impl Iterator<Item = crate::expression::ExpressionHandle> + 'a {
+        self.contract_facts(contracts, kind)
+            .filter_map(|fact| match fact {
+                crate::domain::ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+    }
+
     /// Whether the machine's crash interface is its published ceiling rather
     /// than an inferred body summary. A public or non-checked-body supply
     /// publishes one even with no `crashes` clause (omitting a cause forbids

@@ -547,15 +547,11 @@ pub fn premises_prove_expression(
         locals: &[],
     };
     let mut premises = Vec::new();
-    for contract in program.machine_contracts(machine) {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                collect_conjuncts(program, *expression, &mut premises);
-            }
-        }
+    for expression in program.contract_expressions(
+        program.machine_contracts(machine).iter(),
+        SignatureContractKind::Requires,
+    ) {
+        collect_conjuncts(program, expression, &mut premises);
     }
     for premise in premises {
         if let Some(refined) = assume_application(program, &frame, &atoms, premise)

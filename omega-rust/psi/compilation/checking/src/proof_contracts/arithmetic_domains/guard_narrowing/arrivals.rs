@@ -6,8 +6,7 @@ use super::super::{
     record_unsigned_literal_assignment,
 };
 use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    ProofFact, SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
     incoming_guard_environment, literal_i64, narrow_environment_by_condition, ordered_values,
     place_path,
 };
@@ -262,36 +261,29 @@ impl RequirementSeeds {
         // preheader or loop-body write could leave the contract stale before
         // this arrival (the same machine-preservation law the loop-invariant
         // index discharge applies to authored bound chains).
-        for contract in program.machine_contracts(machine) {
-            if contract.kind != SignatureContractKind::Requires {
-                continue;
-            }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let ProofFact::Expression(condition) = fact
-                    && condition_belongs_to_state(program, machine, state, *condition, frames)
-                    && (is_entry
-                        || machine_requires_survives(
-                            program,
-                            machine,
-                            state,
-                            machine_written,
-                            *condition,
-                        ))
-                {
-                    conditions.push(*condition);
-                }
+        for condition in program.contract_expressions(
+            program.machine_contracts(machine).iter(),
+            SignatureContractKind::Requires,
+        ) {
+            if condition_belongs_to_state(program, machine, state, condition, frames)
+                && (is_entry
+                    || machine_requires_survives(
+                        program,
+                        machine,
+                        state,
+                        machine_written,
+                        condition,
+                    ))
+            {
+                conditions.push(condition);
             }
         }
-        for contract in program.state_contracts(state) {
-            if contract.kind != SignatureContractKind::Requires {
-                continue;
-            }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let ProofFact::Expression(condition) = fact
-                    && condition_belongs_to_state(program, machine, state, *condition, frames)
-                {
-                    conditions.push(*condition);
-                }
+        for condition in program.contract_expressions(
+            program.state_contracts(state).iter(),
+            SignatureContractKind::Requires,
+        ) {
+            if condition_belongs_to_state(program, machine, state, condition, frames) {
+                conditions.push(condition);
             }
         }
         let mut required = ValueEnvironment::new();
