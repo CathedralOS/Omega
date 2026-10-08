@@ -220,7 +220,7 @@ pub fn state_scoped_name_symbol(
 /// (or the table does not contain it). The loop is bounded by the table size
 /// so a cyclic constraint encoding cannot hang.
 pub(crate) fn peel_constraints_to_reference_declaring(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let mut reference = type_reference;

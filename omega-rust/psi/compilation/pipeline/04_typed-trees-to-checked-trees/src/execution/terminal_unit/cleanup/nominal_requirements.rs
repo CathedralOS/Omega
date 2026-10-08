@@ -4,8 +4,8 @@
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner, DataMember,
+    CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind,
+    ContractProofFactOwner, DataMember,
     Diagnostic, ExpressionNode, PrimitiveType, ProofFact, StateParameter, SymbolHandle,
 };
 
