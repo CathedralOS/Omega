@@ -184,10 +184,7 @@ fn literal_projections(
                 {
                     return None;
                 }
-                let definition = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == *symbol)?;
+                let definition = program.data_definition_by_symbol(*symbol)?;
                 if !definition.type_parameters.is_empty() {
                     return None;
                 }

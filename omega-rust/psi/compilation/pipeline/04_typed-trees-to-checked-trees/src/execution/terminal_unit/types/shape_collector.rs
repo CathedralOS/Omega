@@ -148,9 +148,7 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<String> {
         let attached = self
             .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == machine.attached_data_symbol)
+            .data_definition_by_symbol(machine.attached_data_symbol)
             .or_else(|| {
                 // A compiler-synthesized placed accessor attaches by a
                 // generated name that carries no source-resolved symbol; the
@@ -695,12 +693,7 @@ impl<'program> ShapeCollector<'program> {
                 return None;
             }
         };
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == data_symbol)?
-            .clone();
+        let data = self.program.data_definition_by_symbol(data_symbol)?.clone();
         let members = self.program.data_members(&data);
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(

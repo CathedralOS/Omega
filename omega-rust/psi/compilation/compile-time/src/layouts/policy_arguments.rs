@@ -63,9 +63,7 @@ pub(super) fn policy_request<'a>(
         ));
     };
     let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)
+        .data_definition_by_symbol(*symbol)
         .ok_or_else(missing_context)?;
     if validation::data_requires_establishment(typed, data)
         || !validation::zeroed_structural_parts(typed, context_type)

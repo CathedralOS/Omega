@@ -378,9 +378,7 @@ fn unconditional_termination(
             .and_then(|machine| machine.termination_plan.interface.published()),
         BoundaryRequirementKind::Trait => checked
             .typed
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == plan.contract_owner)
+            .trait_definition_by_symbol(plan.contract_owner)
             .and_then(|definition| {
                 checked
                     .typed

@@ -15,7 +15,8 @@ pub(super) fn check(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let mut check = |value, destination| {
                     check_destination(
@@ -128,8 +129,7 @@ pub(super) fn check(
         else {
             continue;
         };
-        let Some(call) = program.expression_table.call_node(selected.expression)
-        else {
+        let Some(call) = program.expression_table.call_node(selected.expression) else {
             continue;
         };
         let Some(operator) = typed_trees::operator::declaration_by_symbol(
@@ -187,10 +187,7 @@ fn check_destination(
         _ => destination,
     };
     if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
-        && let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == literal.type_symbol)
+        && let Some(data) = program.data_definition_by_symbol(literal.type_symbol)
     {
         for field in program.expression_table.struct_fields(literal.fields) {
             let field_type = program

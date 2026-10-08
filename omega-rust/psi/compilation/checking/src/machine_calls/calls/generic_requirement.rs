@@ -141,15 +141,9 @@ fn bound_carrier_definition(
     program: &dyn crate::CheckingInput,
     carrier: symbols::SymbolHandle,
 ) -> Option<&typed_trees::trait_definition::TraitDefinition> {
-    let definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == carrier)?;
+    let definition = program.trait_definition_by_symbol(carrier)?;
     match &definition.refines {
-        Some(base) => program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == base.symbol),
+        Some(base) => program.trait_definition_by_symbol(base.symbol),
         None => Some(definition),
     }
 }

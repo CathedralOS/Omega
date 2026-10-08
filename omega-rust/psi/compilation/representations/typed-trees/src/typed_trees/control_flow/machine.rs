@@ -309,11 +309,7 @@ pub fn resolve_satisfied_declaration<'program>(
     conformance: &'program TraitConformance,
 ) -> Option<SatisfiedDeclaration<'program>> {
     let requirement_name = conformance.requirement.as_ref()?;
-    if let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == conformance.symbol)
-    {
+    if let Some(definition) = program.trait_definition_by_symbol(conformance.symbol) {
         let entry = program.machine_states(machine).first()?;
         let implementation_dispatch = program.normalized_result_dispatch_set(entry.return_type);
         let named = program

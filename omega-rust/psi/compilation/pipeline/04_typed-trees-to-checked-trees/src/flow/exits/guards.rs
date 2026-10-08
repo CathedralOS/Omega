@@ -512,11 +512,7 @@ fn case_membership_claim(
         let ExpressionNode::Name(path) = program.expression_table.expression(case_reference) else {
             continue;
         };
-        let Some(definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == path.head_symbol)
-        else {
+        let Some(definition) = program.data_definition_by_symbol(path.head_symbol) else {
             continue;
         };
         let Some(variant) =

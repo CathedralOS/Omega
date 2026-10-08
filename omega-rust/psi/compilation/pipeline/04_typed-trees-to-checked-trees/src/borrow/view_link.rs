@@ -762,10 +762,7 @@ fn data_definition(
     if symbol.is_valid() {
         return program.data_definition_by_symbol(symbol);
     }
-    program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
+    program.data_definition_by_symbol(symbol)
 }
 
 fn data_definition_carries_borrow(

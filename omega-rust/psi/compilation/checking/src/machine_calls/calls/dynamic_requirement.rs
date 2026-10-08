@@ -60,12 +60,7 @@ pub(crate) fn dynamic_selector_call<'program>(
     else {
         return Ok(None);
     };
-    let trait_definition = |symbol| {
-        program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
-    };
+    let trait_definition = |symbol| program.trait_definition_by_symbol(symbol);
     let (Some(selector_definition), Some(declaring)) =
         (trait_definition(selector_trait), trait_definition(receiver))
     else {

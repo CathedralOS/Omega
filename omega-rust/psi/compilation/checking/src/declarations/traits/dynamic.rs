@@ -241,11 +241,7 @@ pub fn collect_dynamic_slot_demands(
         else {
             continue;
         };
-        let Some(selector_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == selector_trait)
-        else {
+        let Some(selector_definition) = program.trait_definition_by_symbol(selector_trait) else {
             continue;
         };
         for row in &implementation.rows {
@@ -473,7 +469,8 @@ pub fn resolve_selected_dynamic_call_targets(
         }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 if let StatementNode::Call(call) = statement {
                     let members = program.statement_table.name_path_members(call.receiver);
@@ -658,10 +655,7 @@ fn resolved_dynamic_requirement_symbol(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<symbols::SymbolHandle> {
     let trait_symbol = receiver_trait_symbol(program, receiver_type)?;
-    let trait_definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)?;
+    let trait_definition = program.trait_definition_by_symbol(trait_symbol)?;
     let mut matches = Vec::new();
     collect_dynamic_requirements_named(
         program,

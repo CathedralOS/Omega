@@ -235,11 +235,7 @@ pub(super) fn partial_affine_source_contents_are_owned(
         } => return partial_affine_source_contents_are_owned(program, *element_type, visited),
         _ => return false,
     };
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)
-    else {
+    let Some(data) = program.data_definition_by_symbol(symbol) else {
         // Concrete arguments were checked at their application; an authored
         // type binder has no reference or qualification wrapper of its own.
         return program.data_definitions().iter().any(|data| {

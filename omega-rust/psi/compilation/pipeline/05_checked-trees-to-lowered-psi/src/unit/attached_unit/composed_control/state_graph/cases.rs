@@ -180,13 +180,12 @@ fn result_source<'a>(
     else {
         return unsupported("Unit case subject is not a closed declaration");
     };
-    let declaration = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *type_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "Unit case subject declaration absent",
-        ))?;
+    let declaration =
+        checked
+            .data_definition_by_symbol(*type_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "Unit case subject declaration absent",
+            ))?;
     if !matches!(
         checked.type_multiplicity(reference),
         Multiplicity::Affine | Multiplicity::Unrestricted

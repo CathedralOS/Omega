@@ -528,14 +528,9 @@ impl Preparation<'_> {
             } => (data_symbol, fields),
             _ => return unsupported("structural construction requires aggregate value custody"),
         };
-        let owner = self
-            .checked
-            .data_definitions()
-            .iter()
-            .find(|owner| owner.symbol == data_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "aggregate declaration is absent",
-            ))?;
+        let owner = self.checked.data_definition_by_symbol(data_symbol).ok_or(
+            LoweringError::Unsupported("aggregate declaration is absent"),
+        )?;
         // Field identities are declaration-local: common members and case
         // payloads have separate namespaces. Join each roster to its source
         // symbols before scheduling operands, then share one evaluation path.

@@ -56,10 +56,7 @@ pub(super) fn derive(
     else {
         return None;
     };
-    let definition = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *symbol)?;
+    let definition = checked.data_definition_by_symbol(*symbol)?;
     // Source parameters name their nominal data directly. Rejoin that identity;
     // never infer eligibility from a matching layout or display name.
     if !checked.data_type_parameters(definition).is_empty()

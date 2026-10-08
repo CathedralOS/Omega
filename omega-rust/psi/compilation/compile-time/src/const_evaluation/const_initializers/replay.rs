@@ -332,11 +332,7 @@ fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) 
             TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
             TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
             TypeReferenceNode::Named { symbol, .. } => {
-                if let Some(definition) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == *symbol)
-                {
+                if let Some(definition) = program.data_definition_by_symbol(*symbol) {
                     for member in program.data_members(definition) {
                         match member {
                             DataMember::Field(field) => pending.push(field.type_reference),
@@ -864,9 +860,7 @@ fn dependency_leaf_value(
         symbols::SymbolKind::Variant => {
             let owner = program.symbols.get(name.symbol).parent;
             let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == owner)
+                .data_definition_by_symbol(owner)
                 .ok_or("case dependency lost its exact owner declaration")?;
             Ok(DecodedCanonicalConstValue::Variant {
                 type_name: definition.name.as_str().to_owned(),
@@ -1015,9 +1009,7 @@ fn pair(
                 return Err("retained initializer constructor identity drifted".into());
             }
             let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
+                .data_definition_by_symbol(symbol)
                 .ok_or("retained initializer constructor has no exact declaration")?;
             let type_name = match expected {
                 DecodedCanonicalConstValue::Record { type_name, .. }

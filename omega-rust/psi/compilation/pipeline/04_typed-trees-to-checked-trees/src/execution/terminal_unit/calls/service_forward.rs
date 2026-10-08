@@ -80,11 +80,7 @@ pub(super) fn fused_service_arguments_match(
                     _ => return false,
                 }
             };
-            let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == owner)
-            else {
+            let Some(definition) = program.data_definition_by_symbol(owner) else {
                 return false;
             };
             let mut fields = program

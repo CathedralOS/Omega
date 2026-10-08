@@ -160,10 +160,7 @@ fn complement(
             base_symbol: symbol,
             ..
         } => {
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *symbol)?;
+            let data = program.data_definition_by_symbol(*symbol)?;
             program
                 .data_members(data)
                 .iter()

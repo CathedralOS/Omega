@@ -301,10 +301,7 @@ fn visit(
             arguments,
             ..
         } => {
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *base_symbol)?;
+            let data = program.data_definition_by_symbol(*base_symbol)?;
             let parameters = program.data_type_parameters(data);
             let arguments = program
                 .type_reference_table
@@ -385,11 +382,7 @@ fn visit_owner(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)
-    else {
+    let Some(data) = program.data_definition_by_symbol(symbol) else {
         return match program.symbols.get(symbol).kind {
             symbols::SymbolKind::BuiltinType => Some(()),
             symbols::SymbolKind::TypeParameter if removed.is_empty() => {
@@ -594,10 +587,7 @@ fn select_type(
             arguments,
             ..
         } => {
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *base_symbol)?;
+            let data = program.data_definition_by_symbol(*base_symbol)?;
             let arguments = program
                 .type_reference_table
                 .type_reference_handles(*arguments);
@@ -619,10 +609,7 @@ fn select_type(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)?;
+    let data = program.data_definition_by_symbol(symbol)?;
     let members = program.data_members(data);
     let (field, suffix) = match path[0] {
         PlaceSegment::Field { symbol } => {

@@ -267,16 +267,12 @@ pub fn construct_semantic_schema_graph(
                 .to_owned(),
         );
     }
-    let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == subject)
-        .ok_or_else(|| {
-            format!(
-                "schema subject `{}` has no retained data definition",
-                typed.symbols.display_path(subject, "::")
-            )
-        })?;
+    let data = typed.data_definition_by_symbol(subject).ok_or_else(|| {
+        format!(
+            "schema subject `{}` has no retained data definition",
+            typed.symbols.display_path(subject, "::")
+        )
+    })?;
     if data.quotient.is_some() {
         return Err(format!(
             "schema reflection cannot observe quotient `{}`: a quotient does not expose its representative outside its checked quotient contract",

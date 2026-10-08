@@ -400,9 +400,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             }
             if let Some(retained) = &boundary.attachment_type_identity {
                 let data = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == owner.attached_data_symbol)
+                    .data_definition_by_symbol(owner.attached_data_symbol)
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph boundary has no resolved nominal owner",
                     ))?;

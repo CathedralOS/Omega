@@ -289,10 +289,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 let receiver_type =
                     boundary_receiver_type_symbol(program, parameter.type_reference)?;
                 (
-                    program
-                        .traits()
-                        .iter()
-                        .find(|definition| definition.symbol == receiver_type)?,
+                    program.trait_definition_by_symbol(receiver_type)?,
                     true,
                     parameter.type_reference,
                 )
@@ -327,10 +324,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 return None;
             }
             let receiver_type = boundary_receiver_type_symbol(program, field.type_reference)?;
-            let definition = program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == receiver_type)?;
+            let definition = program.trait_definition_by_symbol(receiver_type)?;
             (definition, true, field.type_reference)
         }
         [_, _, ..] => {
@@ -342,10 +336,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 site,
             )?;
             let receiver_type = boundary_receiver_type_symbol(program, reference)?;
-            let definition = program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == receiver_type)?;
+            let definition = program.trait_definition_by_symbol(receiver_type)?;
             (definition, true, reference)
         }
         _ => return None,

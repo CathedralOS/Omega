@@ -158,11 +158,7 @@ pub(crate) fn build_dynamic_slot_plans(
 ) -> Vec<checked_trees::CheckedDynamicSlotPlan> {
     let mut plans = Vec::new();
     for slot in &program.dynamic_slots {
-        let Some(definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == slot.declaring_trait)
-        else {
+        let Some(definition) = program.trait_definition_by_symbol(slot.declaring_trait) else {
             continue;
         };
         let Some(requirement) = program

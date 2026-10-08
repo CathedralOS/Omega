@@ -290,7 +290,9 @@ pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
     mut visit: impl FnMut(&[typed_trees::types::TypeConstraintNode]) -> bool,
 ) -> Option<()> {
     loop {
-        handle = program.type_reference_table.dereferenced_type_reference(handle);
+        handle = program
+            .type_reference_table
+            .dereferenced_type_reference(handle);
         match program.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Constrained {
                 base_type,
@@ -403,10 +405,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
         else {
             return None;
         };
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *base_symbol)?;
+        let data = program.data_definition_by_symbol(*base_symbol)?;
         // Open generic members may not yet carry a member symbol. Resolve
         // only inside this exact receiver declaration, then rejoin the field's
         // declared extent symbol before substituting the actual argument.
@@ -541,8 +540,7 @@ fn const_extent_requires_floor(
             ) {
                 continue;
             }
-            let Some(binary) = program.expression_table.binary_node(expression)
-            else {
+            let Some(binary) = program.expression_table.binary_node(expression) else {
                 continue;
             };
             if binary.operator == BinaryOperator::And {
@@ -595,9 +593,7 @@ fn attached_data_const_parameter_reference(
     extent_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     let data = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == machine.attached_data_symbol)
+        .data_definition_by_symbol(machine.attached_data_symbol)
         .or_else(|| {
             machine.attached_data.as_ref().and_then(|name| {
                 program

@@ -191,9 +191,7 @@ pub fn invocation_target_label(
             .map(|parameter| parameter.name.as_str().to_owned())
             .unwrap_or_else(|| format!("parameter#{index}")),
         InvocationTarget::Service(symbol) => program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+            .trait_definition_by_symbol(symbol)
             .map(|definition| definition.name.as_str().to_owned())
             .unwrap_or_else(|| format!("service#{}", symbol.arena_index())),
     }

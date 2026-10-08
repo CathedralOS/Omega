@@ -164,11 +164,7 @@ fn close_selection(
         conformance_argument_owned.symbol = conformance_symbol;
         &conformance_argument_owned
     };
-    let Some(opaque_definition) = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == opaque)
-    else {
+    let Some(opaque_definition) = typed.data_definition_by_symbol(opaque) else {
         return Err(Diagnostic::error(format!(
             "opaque representation subject `{opaque_name}` does not resolve to an exact data declaration"
         )));
@@ -233,11 +229,7 @@ fn close_selection(
     let carrier = typed
         .type_reference_table
         .type_symbol(*representation_trait_argument);
-    let Some(carrier_definition) = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == carrier)
-    else {
+    let Some(carrier_definition) = typed.data_definition_by_symbol(carrier) else {
         return Err(Diagnostic::error(format!(
             "conformance `{}` represents `{opaque_name}` as `{}`, which is not one exact concrete data declaration",
             conformance_argument.display_name(),

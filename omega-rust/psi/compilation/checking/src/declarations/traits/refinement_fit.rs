@@ -36,11 +36,7 @@ pub fn resolve_bound_carrier<'program>(
     program: &'program dyn crate::CheckingInput,
     carrier: SymbolHandle,
 ) -> ResolvedBoundCarrier<'program> {
-    let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == carrier)
-    else {
+    let Some(definition) = program.trait_definition_by_symbol(carrier) else {
         return ResolvedBoundCarrier {
             base: carrier,
             refinement: None,

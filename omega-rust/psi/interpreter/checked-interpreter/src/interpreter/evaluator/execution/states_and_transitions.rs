@@ -894,11 +894,7 @@ impl<'program> Evaluator<'program> {
         if !symbol.is_valid() {
             return None;
         }
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)?;
+        let data = self.program.data_definition_by_symbol(symbol)?;
         let members = self.program.data_members(data);
         let first_variant = members.iter().find_map(|member| match member {
             DataMember::Variant(variant) => Some(variant),
@@ -935,9 +931,7 @@ impl<'program> Evaluator<'program> {
             return None;
         }
         self.program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)
+            .data_definition_by_symbol(symbol)
             .filter(|data| {
                 // Records instantiate as nested structs; case-bearing data (sums
                 // AND mixed shapes) doesn't -- it zero-initializes to the first

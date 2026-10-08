@@ -188,9 +188,7 @@ impl<'program> Evaluator<'program> {
         }
         let variant = self
             .program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == type_symbol)
+            .data_definition_by_symbol(type_symbol)
             .and_then(|data| {
                 self.program
                     .data_members(data)

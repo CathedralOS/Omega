@@ -37,10 +37,10 @@ use super::{
     BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, TypeReferenceNode,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,
@@ -127,10 +127,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         else {
             return None;
         };
-        let parameter_data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *parameter_data_symbol)?;
+        let parameter_data = program.data_definition_by_symbol(*parameter_data_symbol)?;
         let parameter_shape = shapes.types.get(&checked_parameter.type_identity)?;
         if (source_parameter.is_const)
             || source_parameter.is_mutable
@@ -325,10 +322,7 @@ pub(crate) fn nominal_cleanup_shape<'a>(
     else {
         return None;
     };
-    let parameter_data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *parameter_data_symbol)?;
+    let parameter_data = program.data_definition_by_symbol(*parameter_data_symbol)?;
     let cleanup_machines = program
         .machines()
         .iter()

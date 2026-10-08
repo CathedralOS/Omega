@@ -51,9 +51,7 @@ pub(crate) fn lower_outcome_specific_ensures(
     };
     let data = checked
         .typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *result_data)
+        .data_definition_by_symbol(*result_data)
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer result data is absent",
         ))?;

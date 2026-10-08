@@ -574,9 +574,7 @@ pub(crate) fn is_plain_value_domain(
         return false;
     }
     program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain.symbol)
+        .domain_definition(domain.symbol)
         .is_some_and(|definition| {
             definition.alias.is_none()
                 && definition.classification.is_none()

@@ -127,9 +127,7 @@ pub fn validate_selected_attached_method_bounds(
             .type_reference_table
             .type_reference(template.attached_data_application);
         let concrete = program
-            .data_definitions()
-            .iter()
-            .find(|owner| owner.symbol == machine.attached_data_symbol)
+            .data_definition_by_symbol(machine.attached_data_symbol)
             .and_then(|owner| owner.generic_instance)
             .map(|application| program.type_reference_table.type_reference(application));
         let (

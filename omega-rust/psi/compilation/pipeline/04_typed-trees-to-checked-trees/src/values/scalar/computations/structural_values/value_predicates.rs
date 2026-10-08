@@ -339,10 +339,7 @@ pub(super) fn shared_record_reference(
     else {
         return None;
     };
-    let record = program
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == *symbol)?;
+    let record = program.data_definition_by_symbol(*symbol)?;
     (!program
         .data_members(record)
         .iter()

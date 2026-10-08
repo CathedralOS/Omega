@@ -174,11 +174,7 @@ pub(crate) fn normalize_qualification_casts_from(
             continue;
         };
         let authored = *authored;
-        let result_type = if let Some(declaration) = program
-            .domain_definitions()
-            .iter()
-            .find(|declaration| declaration.symbol == domain)
-        {
+        let result_type = if let Some(declaration) = program.domain_definition(domain) {
             // The cast owns this result edge. Reuse ordinary domain normalization
             // for alias expansion, indexed identity, predicates and routes; a
             // fabricated bare carrier or a consumer-side name search would erase

@@ -110,9 +110,7 @@ fn collect_closed_conformance_applications(
                         ))?;
                     let requirements = checked
                         .typed
-                        .traits()
-                        .iter()
-                        .find(|definition| definition.symbol == dispatch.declaring_trait)
+                        .trait_definition_by_symbol(dispatch.declaring_trait)
                         .map(|definition| {
                             checked
                                 .typed

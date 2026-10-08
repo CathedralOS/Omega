@@ -459,9 +459,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                         typed_trees::byte_predicates::domain_byte_predicate(program, *domain)
                             .is_some()
                             && program
-                                .domain_definitions()
-                                .iter()
-                                .find(|definition| definition.symbol == *domain)
+                                .domain_definition(*domain)
                                 .is_some_and(|definition| {
                                     definition.establishment_routes.is_empty()
                                         && definition.semantic_roles == Default::default()

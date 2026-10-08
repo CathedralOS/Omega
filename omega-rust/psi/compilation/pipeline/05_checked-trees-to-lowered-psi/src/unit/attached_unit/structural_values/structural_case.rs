@@ -33,9 +33,7 @@ impl emission::Emission<'_, '_, '_> {
         let fields = self.structural_value_fields(fields, "case fields are stale")?;
         let owner = self
             .checked
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == data_symbol)
+            .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("case owner declaration missing"))?;
         let shape = self
             .structural_types

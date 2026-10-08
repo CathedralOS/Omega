@@ -379,9 +379,7 @@ fn validate_callable_effects(
                 .map(|parameter| parameter.name.as_str())
                 .unwrap_or("<unknown binding>"),
             flow_effects::InvocationTarget::Service(symbol) => program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+                .trait_definition_by_symbol(*symbol)
                 .map(|definition| definition.name.as_str())
                 .unwrap_or("<unknown boundary service>"),
         };

@@ -132,9 +132,7 @@ impl SelectionRequirement {
         requirement: Option<SymbolHandle>,
     ) -> Result<Self, String> {
         let definition = typed
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == trait_symbol)
+            .trait_definition_by_symbol(trait_symbol)
             .ok_or_else(|| "a selection requirement names an exact trait declaration".to_owned())?;
         let requirement_identity = match requirement {
             Some(symbol) => {
@@ -158,7 +156,6 @@ impl SelectionRequirement {
             trait_application: None,
         })
     }
-
 }
 
 /// One recorded choice for a member: an exact static declaration or an

@@ -65,11 +65,7 @@ fn instantiate_slot(
     demand: &validation::DynamicSlotDemand,
     interface_identity: String,
 ) -> Result<DynamicSlotSignature, Vec<Diagnostic>> {
-    let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == demand.declaring_trait)
-    else {
+    let Some(definition) = program.trait_definition_by_symbol(demand.declaring_trait) else {
         return Err(vec![Diagnostic::error(
             "dynamic slot names no declaring trait",
         )]);
@@ -201,10 +197,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         ),
                     )
                 {
-                    statement_targets.push((
-                        statements.handle_at(offset as u32),
-                        slot,
-                    ));
+                    statement_targets.push((statements.handle_at(offset as u32), slot));
                 }
                 for (_, root) in program.statement_table.expression_roots(statement) {
                     if !root.is_valid() {

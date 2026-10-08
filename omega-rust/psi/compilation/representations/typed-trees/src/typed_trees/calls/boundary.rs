@@ -44,10 +44,7 @@ pub fn called_boundary_signature<'program>(
     let trait_definition = if let Some(requirement) =
         crate::service::exact_bound_service_requirement(program, field_type)
     {
-        program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == requirement)?
+        program.trait_definition_by_symbol(requirement)?
     } else {
         let TypeReferenceNode::Named {
             name: trait_name, ..

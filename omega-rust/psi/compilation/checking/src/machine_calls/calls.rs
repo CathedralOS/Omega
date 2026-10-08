@@ -340,10 +340,7 @@ fn requirement_call_result_type(
         return None;
     }
     let parent = program.symbols.get(target).parent;
-    let definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == parent)?;
+    let definition = program.trait_definition_by_symbol(parent)?;
     if !definition.type_parameters.is_empty() {
         return None;
     }
@@ -860,9 +857,8 @@ mod topology;
 pub use topology::{
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state_for_exit, find_state_in_machine, find_state_on_machine, find_state_with_machine, machine_state_by_symbols,
-    machine_state_count,
-    terminal_callable_target,
+    find_state_for_exit, find_state_in_machine, find_state_on_machine, find_state_with_machine,
+    machine_state_by_symbols, machine_state_count, terminal_callable_target,
 };
 mod receiver_topology;
 pub use receiver_topology::{

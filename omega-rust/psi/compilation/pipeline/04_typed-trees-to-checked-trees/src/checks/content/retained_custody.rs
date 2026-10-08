@@ -341,10 +341,7 @@ fn lifetime_bound_result(
     else {
         return None;
     };
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *base_symbol)?;
+    let definition = program.data_definition_by_symbol(*base_symbol)?;
     if program.type_multiplicity(return_type) != Multiplicity::Linear
         || definition.lifetime_parameters.len() != 1
         || lifetime_arguments.len() != 1
@@ -491,10 +488,7 @@ fn nominal_domain_application(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<DomainApplication> {
-    let definition = program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)?;
+    let definition = program.domain_definition(symbol)?;
     definition
         .semantic_id
         .is_valid()

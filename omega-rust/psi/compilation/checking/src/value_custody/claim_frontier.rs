@@ -50,11 +50,7 @@ pub fn owned_receiver_claims(
             linear_claim_frontier(program, machine.attached_data_application),
         );
     }
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == machine.attached_data_symbol)
-    else {
+    let Some(definition) = program.data_definition_by_symbol(machine.attached_data_symbol) else {
         return (Multiplicity::Affine, Vec::new());
     };
     let multiplicity = definition.properties.multiplicity;

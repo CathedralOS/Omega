@@ -60,9 +60,7 @@ pub(crate) fn infer_static_bindings(
             if symbol.is_valid() =>
         {
             if let Some(application) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+                .data_definition_by_symbol(*symbol)
                 .and_then(|definition| definition.generic_instance)
                 .filter(|application| {
                     matches!(

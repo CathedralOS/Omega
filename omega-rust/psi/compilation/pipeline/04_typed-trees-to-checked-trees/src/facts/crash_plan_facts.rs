@@ -86,9 +86,7 @@ pub(crate) fn build_crash_contract_capsules(
                             format!("parameter:{index}")
                         }
                         flow_effects::InvocationTarget::Service(symbol) => program
-                            .traits()
-                            .iter()
-                            .find(|definition| definition.symbol == symbol)
+                            .trait_definition_by_symbol(symbol)
                             .map(|definition| format!("service:{}", definition.name))
                             .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
                     })
@@ -588,7 +586,8 @@ fn build_checked_crash_sites(
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
         for (statement_ordinal, statement) in program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
         {
             let typed_trees::statement::StatementNode::Transition(transition) = statement else {
                 continue;

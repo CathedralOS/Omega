@@ -268,10 +268,7 @@ pub(super) fn resolve_member_symbol(
     member: &TableMemberExpression,
 ) -> Option<SymbolHandle> {
     let nominal = inferred_nominal_symbol(program, receiver_type)?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == nominal)?;
+    let data = program.data_definition_by_symbol(nominal)?;
 
     let mut candidates = Vec::new();
     for data_member in program.data_members(data) {

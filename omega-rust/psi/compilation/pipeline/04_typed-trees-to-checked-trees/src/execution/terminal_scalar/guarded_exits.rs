@@ -395,10 +395,7 @@ fn tail(
         if exact_cases {
             let first = *cases.first()?;
             let owner = program.symbols.get(first).parent;
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == owner)?;
+            let data = program.data_definition_by_symbol(owner)?;
             // Coverage ranges over the owner's cases only. A mixed shape's
             // common fields are present in every case, so they select nothing
             // and an exhaustive dispatch names each variant exactly once.

@@ -198,9 +198,7 @@ pub(crate) fn type_reference_matches_with_policy(
             },
             TypeReferenceNode::Generic { .. },
         ) if actual_symbol.is_valid() => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *actual_symbol)
+            .data_definition_by_symbol(*actual_symbol)
             .and_then(|definition| definition.generic_instance)
             .is_some_and(|origin| {
                 type_reference_matches_with_policy(

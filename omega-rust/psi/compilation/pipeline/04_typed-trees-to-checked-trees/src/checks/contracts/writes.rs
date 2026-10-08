@@ -57,7 +57,8 @@ pub(super) fn check_domain_field_writes(
     };
 
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         // A local annotation is an obligation on its initializer, not an
         // establishment route. Check before the local's own statement facts
@@ -763,11 +764,7 @@ fn construction_field_domain_identities(
     case_name: Option<&str>,
     field_name: &str,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)
-    else {
+    let Some(data_definition) = program.data_definition_by_symbol(type_symbol) else {
         return Vec::new();
     };
     if data_definition.type_parameters.count() > 0 {
@@ -798,10 +795,7 @@ fn construction_field_type_by_symbol(
     case_name: Option<&str>,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
-    let data_definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)?;
+    let data_definition = program.data_definition_by_symbol(type_symbol)?;
     if data_definition.type_parameters.count() > 0 {
         return None;
     }

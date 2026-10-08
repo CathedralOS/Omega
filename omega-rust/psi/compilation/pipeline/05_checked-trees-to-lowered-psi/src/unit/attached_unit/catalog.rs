@@ -939,9 +939,7 @@ fn establishment_requirement_identity(
 ) -> Result<String, LoweringError> {
     let definition = checked
         .typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)
+        .trait_definition_by_symbol(trait_symbol)
         .ok_or(LoweringError::Unsupported(
             "domain establishment route names an absent trait",
         ))?;

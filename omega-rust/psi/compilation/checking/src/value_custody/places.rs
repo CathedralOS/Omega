@@ -196,8 +196,7 @@ pub(crate) fn direct_self_field_member(
             if member.case_variant.is_some() {
                 return None;
             }
-            let Some(path) = program.expression_table.name_path_node(member.receiver)
-            else {
+            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
                 return None;
             };
             let receiver = program.expression_table.name_path_members(path.members);
@@ -683,11 +682,7 @@ pub fn zeroed_structural_parts(
                 length: typed_trees::types::FixedArrayLength::Literal(_),
             } => pending.push(*element_type),
             TypeReferenceNode::Named { symbol, .. } => {
-                let Some(data) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *symbol)
-                else {
+                let Some(data) = program.data_definition_by_symbol(*symbol) else {
                     return false;
                 };
                 let members = program.data_members(data);

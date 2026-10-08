@@ -20,11 +20,7 @@ pub(super) fn validate_trait_implementation_arguments(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut validate = |symbol, arguments: &[TypeReferenceHandle], label: String| {
-        let Some(definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
-        else {
+        let Some(definition) = program.trait_definition_by_symbol(symbol) else {
             return;
         };
         let parameters = program.trait_type_parameters(definition);

@@ -292,12 +292,7 @@ impl CaseObservation<'_> {
             return can_read_live && self.live_case(expression, projection, case, required, depth);
         }
         let owner = self.program.symbols.get(case).parent;
-        let Some(data) = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner)
-        else {
+        let Some(data) = self.program.data_definition_by_symbol(owner) else {
             return false;
         };
         match self.program.expression_table.expression(expression) {

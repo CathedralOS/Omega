@@ -451,10 +451,7 @@ pub(crate) fn exact_result_case(
         ExpressionNode::StructLiteral(literal) => (literal.type_symbol, literal.case_symbol?),
         _ => return None,
     };
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == data_symbol)?;
+    let data = program.data_definition_by_symbol(data_symbol)?;
     program
         .data_members(data)
         .iter()

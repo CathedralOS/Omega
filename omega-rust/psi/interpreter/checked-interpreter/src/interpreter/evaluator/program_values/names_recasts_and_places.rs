@@ -171,8 +171,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer,
             _ => return Ok(None),
         };
-        let Some(cast) = self.program.expression_table.cast_node(cast_handle)
-        else {
+        let Some(cast) = self.program.expression_table.cast_node(cast_handle) else {
             return Ok(None);
         };
         if !cast.form.is_recast() {
@@ -612,12 +611,7 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         }
         let owner = self.program.symbols.get(path.symbol).parent;
-        let Some(data) = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner)
-        else {
+        let Some(data) = self.program.data_definition_by_symbol(owner) else {
             return Ok(None);
         };
         let Some(variant_name) =
@@ -935,12 +929,7 @@ impl<'program> Evaluator<'program> {
         type_symbol: SymbolHandle,
         field_name: &str,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        if let Some(data) = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == type_symbol)
-        {
+        if let Some(data) = self.program.data_definition_by_symbol(type_symbol) {
             return self.data_field_type_reference(data, field_name);
         }
         if let Some(machine) = self.program.machine(type_symbol) {

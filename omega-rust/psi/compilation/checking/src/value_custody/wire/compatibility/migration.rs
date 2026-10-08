@@ -209,10 +209,7 @@ fn era_number_scopes(
     typed: &dyn crate::CheckingInput,
     era: symbols::SymbolHandle,
 ) -> Option<(String, Vec<NumberScope>)> {
-    let definition = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == era)?;
+    let definition = typed.data_definition_by_symbol(era)?;
     let members = typed.data_members(definition);
     let has_fields = members
         .iter()

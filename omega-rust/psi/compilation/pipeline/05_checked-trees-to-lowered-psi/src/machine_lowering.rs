@@ -85,9 +85,7 @@ fn nominal_cleanup_subject_from_types<'types>(
         "cleanup declaration lost its exact source",
     ))?;
     let data = checked
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == owner)
+        .data_definition_by_symbol(owner)
         .ok_or(LoweringError::Unsupported(
             "cleanup declaration lost its exact owner",
         ))?;

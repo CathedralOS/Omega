@@ -231,11 +231,7 @@ fn container_member_type_position(
             if grandparent.is_valid()
                 && program.symbols.get(grandparent).kind == symbols::SymbolKind::Trait =>
         {
-            let Some(trait_definition) = program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == grandparent)
-            else {
+            let Some(trait_definition) = program.trait_definition_by_symbol(grandparent) else {
                 return ContainerOutcome::Unmapped;
             };
             let Some(signature) = program

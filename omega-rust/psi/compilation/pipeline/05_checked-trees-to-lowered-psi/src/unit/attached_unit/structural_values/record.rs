@@ -57,9 +57,7 @@ impl emission::Emission<'_, '_, '_> {
         }
         let record = self
             .checked
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == data_symbol)
+            .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("record declaration missing"))?;
         let declarations = self.checked.data_members(record);
         let shape = self

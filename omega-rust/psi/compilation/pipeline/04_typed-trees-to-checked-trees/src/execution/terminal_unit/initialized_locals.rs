@@ -86,9 +86,7 @@ fn is_shared_borrow(
         return false;
     };
     program
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == *symbol)
+        .data_definition_by_symbol(*symbol)
         .is_some_and(|record| {
             !program
                 .data_members(record)

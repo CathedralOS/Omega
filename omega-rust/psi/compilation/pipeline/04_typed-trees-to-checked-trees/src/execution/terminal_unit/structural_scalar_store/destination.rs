@@ -679,11 +679,7 @@ fn retained_record_owner_application(
     else {
         return false;
     };
-    let Some(template) = program
-        .data_definitions()
-        .iter()
-        .find(|template| template.symbol == *base_symbol)
-    else {
+    let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
         return false;
     };
     let parameters = program.data_type_parameters(template);

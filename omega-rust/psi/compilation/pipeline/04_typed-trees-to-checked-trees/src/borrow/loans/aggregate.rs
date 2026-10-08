@@ -82,11 +82,7 @@ pub(super) fn borrowed_initializers(
             {
                 return vec![initializer];
             }
-            let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *base_symbol)
-            else {
+            let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
                 return Vec::new();
             };
             let arguments = program
@@ -127,11 +123,7 @@ pub(super) fn borrowed_initializers(
             {
                 return vec![initializer];
             }
-            let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
-            else {
+            let Some(definition) = program.data_definition_by_symbol(*symbol) else {
                 return Vec::new();
             };
             borrowed_data_literal_initializers(

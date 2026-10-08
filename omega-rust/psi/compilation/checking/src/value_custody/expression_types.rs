@@ -624,10 +624,7 @@ fn hinted_named_value_type_reference(
         // the retained owner and field symbols, never a same-spelled field in
         // another declaration or case.
         symbols::SymbolKind::Data => {
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == parent)?;
+            let definition = program.data_definition_by_symbol(parent)?;
             program
                 .data_members(definition)
                 .iter()
@@ -640,10 +637,7 @@ fn hinted_named_value_type_reference(
         }
         symbols::SymbolKind::Variant => {
             let owner = program.symbols.get(parent).parent;
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == owner)?;
+            let definition = program.data_definition_by_symbol(owner)?;
             let variant =
                 program
                     .data_members(definition)

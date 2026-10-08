@@ -202,8 +202,7 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             let ProofFact::Membership(membership) = fact else {
                 return false;
             };
-            let Some(path) = program.expression_table.name_path_node(membership.value)
-            else {
+            let Some(path) = program.expression_table.name_path_node(membership.value) else {
                 return false;
             };
             if program
@@ -319,10 +318,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
             source_parameters[source_position].type_reference,
             membership.domain_symbol,
         )?;
-        let definition = program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.symbol == membership.domain_symbol)?;
+        let definition = program.domain_definition(membership.domain_symbol)?;
         let carrier = type_domain_carrier(
             program,
             source_parameters[source_position].type_reference,
@@ -594,9 +590,7 @@ pub(super) fn type_domain_semantic_id(
     match matches.as_slice() {
         [semantic_id] => Some(*semantic_id),
         [] => program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.symbol == domain)
+            .domain_definition(domain)
             .filter(|definition| definition.index_arguments.is_empty())
             .map(|definition| definition.semantic_id)
             .filter(|semantic_id| semantic_id.is_valid()),

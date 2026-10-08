@@ -247,11 +247,7 @@ impl ExplicitApplication<'_> {
             ));
         };
         let bounded = self.application_display(bound.trait_name.as_str(), &bound.arguments);
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == bound.trait_symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition_by_symbol(bound.trait_symbol) else {
             return Err(format!("evidence binder bound `{bounded}` names no trait"));
         };
         let mut closure = Vec::new();
@@ -359,10 +355,7 @@ impl ExplicitApplication<'_> {
                 continue;
             }
             visited.push(trait_symbol);
-            let definition = program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == trait_symbol)?;
+            let definition = program.trait_definition_by_symbol(trait_symbol)?;
             let substitutions = program
                 .trait_type_parameters(definition)
                 .iter()

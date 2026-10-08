@@ -182,13 +182,9 @@ pub(crate) fn validate(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         return unsupported("record byte literal has an unsupported qualification");
                     };
-                    let definition = checked
-                        .domain_definitions()
-                        .iter()
-                        .find(|definition| definition.symbol == domain.symbol)
-                        .ok_or(LoweringError::Unsupported(
-                            "record byte literal domain is absent",
-                        ))?;
+                    let definition = checked.domain_definition(domain.symbol).ok_or(
+                        LoweringError::Unsupported("record byte literal domain is absent"),
+                    )?;
                     if !domain.semantic_id.is_valid()
                         || definition.semantic_id != domain.semantic_id
                         || !domain.arguments.is_empty()

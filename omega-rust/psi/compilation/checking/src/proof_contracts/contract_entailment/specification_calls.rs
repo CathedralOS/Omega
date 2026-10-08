@@ -215,10 +215,7 @@ fn requirement_owner<'program>(
     call: &TableCallExpression,
 ) -> Option<RequirementOwner<'program>> {
     if let Some(dispatch) = &call.static_requirement_dispatch {
-        let definition = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == dispatch.declaring_trait)?;
+        let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         return program
             .trait_machine_signatures(definition)
             .iter()

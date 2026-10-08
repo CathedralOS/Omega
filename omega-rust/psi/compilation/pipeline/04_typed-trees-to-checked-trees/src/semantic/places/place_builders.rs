@@ -55,11 +55,7 @@ pub(crate) fn resolve_place_member_symbol(
         }
     }
 
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == base_symbol)
-    {
+    if let Some(data) = program.data_definition_by_symbol(base_symbol) {
         if let Some(symbol) = validation::data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }

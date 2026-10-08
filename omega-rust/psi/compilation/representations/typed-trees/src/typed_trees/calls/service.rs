@@ -128,11 +128,7 @@ pub fn classify_exact_bound_service_carrier(
                 .to_owned(),
         );
     };
-    let Some(requirement_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == *requirement)
-    else {
+    let Some(requirement_definition) = program.trait_definition_by_symbol(*requirement) else {
         return Err(format!(
             "`Binding<{name}>` does not name an exact boundary-trait requirement"
         ));

@@ -26,8 +26,7 @@ pub(super) fn normalize_equation(
     context: &NormalizationContext<'_, '_>,
     expression: ExpressionHandle,
 ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
-    let Some(binary) = context.program.expression_table.binary_node(expression)
-    else {
+    let Some(binary) = context.program.expression_table.binary_node(expression) else {
         return Err(
             "the contract must be one equality over exact projection and `separate(...)` terms"
                 .to_owned(),
@@ -515,9 +514,7 @@ fn contracts_establish_domain(
 ) -> bool {
     if context
         .program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain)
+        .domain_definition(domain)
         .is_none_or(|definition| definition.semantic_id != semantic_domain)
     {
         // Membership proof facts retain only the nominal family today, so a

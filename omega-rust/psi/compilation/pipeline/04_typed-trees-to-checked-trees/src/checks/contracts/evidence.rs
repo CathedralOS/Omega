@@ -510,9 +510,7 @@ fn instantiated_parameter_proposition(
     };
     let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
         program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == dispatch.declaring_trait)
+            .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
                 program
                     .trait_machine_signatures(definition)

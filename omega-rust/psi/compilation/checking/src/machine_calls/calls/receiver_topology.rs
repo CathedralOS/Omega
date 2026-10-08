@@ -382,9 +382,7 @@ fn data_type_has_attached_machine(
 ) -> bool {
     data_symbol.is_valid()
         && program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == data_symbol)
+            .data_definition_by_symbol(data_symbol)
             .is_some_and(|data| {
                 program
                     .machines()

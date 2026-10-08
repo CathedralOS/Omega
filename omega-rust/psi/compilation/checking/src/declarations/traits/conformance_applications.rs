@@ -216,9 +216,7 @@ pub fn close_conformance_application(
     // are per-package instances, so a foreign conformance can carry a
     // different `OpaqueRepresentation` handle than the root's first-by-name).
     let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == conformance.trait_symbol)
+        .trait_definition_by_symbol(conformance.trait_symbol)
         .or_else(|| {
             program
                 .traits()
@@ -724,9 +722,7 @@ fn application_identity(
             bytes.extend(item.as_bytes());
         }
         if let Some(signature) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == row.declaring_trait)
+            .trait_definition_by_symbol(row.declaring_trait)
             .and_then(|definition| {
                 program
                     .trait_machine_signatures(definition)

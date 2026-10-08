@@ -251,7 +251,6 @@ fn indexed_read_has_builtin_meaning(
     collection_type: TypeReferenceHandle,
     index: ExpressionHandle,
 ) -> bool {
-
     let Some((machine_index, state_index)) =
         program.state_position_for_parameter_symbols(parameters)
     else {
@@ -893,10 +892,7 @@ pub(super) fn element_field_path(
                     ..
                 } => current = *referee,
                 TypeReferenceNode::Named { symbol, .. } => {
-                    break program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.symbol == *symbol)?;
+                    break program.data_definition_by_symbol(*symbol)?;
                 }
                 _ => return None,
             }

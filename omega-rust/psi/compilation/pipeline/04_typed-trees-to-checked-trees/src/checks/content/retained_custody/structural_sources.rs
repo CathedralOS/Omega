@@ -188,11 +188,7 @@ fn append_sources(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return true,
     };
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == definition_symbol)
-    else {
+    let Some(definition) = program.data_definition_by_symbol(definition_symbol) else {
         return true;
     };
     // Finite Wrapper<Wrapper<T>> consumes type-argument structure. Recursive

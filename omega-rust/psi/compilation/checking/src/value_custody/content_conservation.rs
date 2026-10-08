@@ -393,9 +393,7 @@ fn projection_label(
 
 fn domain_label(program: &dyn crate::CheckingInput, domain: SymbolHandle) -> String {
     program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain)
+        .domain_definition(domain)
         .map(|definition| definition.name.to_string())
         .unwrap_or_else(|| format!("domain#{}", domain.arena_index()))
 }

@@ -135,11 +135,7 @@ fn validate_conformance_refinement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for conformance in program.machine_trait_conformances(machine) {
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == conformance.symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition_by_symbol(conformance.symbol) else {
             continue;
         };
         let requirements = program.trait_machine_signatures(trait_definition);

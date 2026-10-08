@@ -117,12 +117,10 @@ fn first_routed_qualification(
     if !constraint.establishment_routes.is_empty() {
         return Some(constraint.name.as_str().to_owned());
     }
-    let definition = constraint.symbol.is_valid().then(|| {
-        program
-            .domain_definitions()
-            .iter()
-            .find(|candidate| candidate.symbol == constraint.symbol)
-    });
+    let definition = constraint
+        .symbol
+        .is_valid()
+        .then(|| program.domain_definition(constraint.symbol));
     match definition {
         Some(Some(definition)) => {
             first_routed_domain_definition(program, definition, visited_aliases)
@@ -154,9 +152,7 @@ fn first_routed_alias_constituent(
 ) -> Option<String> {
     alias.constituents.iter().find_map(|constituent| {
         program
-            .domain_definitions()
-            .iter()
-            .find(|candidate| candidate.symbol == constituent.domain_symbol)
+            .domain_definition(constituent.domain_symbol)
             .and_then(|definition| {
                 first_routed_domain_definition(program, definition, visited_aliases)
             })

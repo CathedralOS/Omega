@@ -172,9 +172,7 @@ fn contracts_establish_domain(
     semantic_domain: SemanticDomainId,
 ) -> bool {
     if program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain)
+        .domain_definition(domain)
         .is_none_or(|definition| definition.semantic_id != semantic_domain)
     {
         // Contract proof facts currently retain only the nominal family. They

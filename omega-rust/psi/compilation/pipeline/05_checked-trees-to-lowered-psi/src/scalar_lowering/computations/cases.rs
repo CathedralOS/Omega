@@ -138,9 +138,7 @@ pub(crate) fn reserve(
         return unsupported("computed case has no nominal owner");
     };
     let owner = checked
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)
+        .data_definition_by_symbol(*symbol)
         .ok_or(LoweringError::Unsupported("computed case owner is absent"))?;
     let mut case_bindings = Vec::new();
     let mut selected = None;

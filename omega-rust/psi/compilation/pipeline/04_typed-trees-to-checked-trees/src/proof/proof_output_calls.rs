@@ -528,11 +528,7 @@ fn check_open_proof_output_requirement(
             call.target,
         ))
     };
-    let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == owner)
-    else {
+    let Some(definition) = program.trait_definition_by_symbol(owner) else {
         return Err(rejected("its declaring trait is absent"));
     };
     if !definition.lifetime_parameters.is_empty()
@@ -626,10 +622,8 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     };
     if application.trait_definition != dispatch.declaring_trait {
-        let Some(application_trait) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == application.trait_definition)
+        let Some(application_trait) =
+            program.trait_definition_by_symbol(application.trait_definition)
         else {
             return Err(rejected("its application trait is absent"));
         };
@@ -655,10 +649,7 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     }
 
-    let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == dispatch.declaring_trait)
+    let Some(trait_definition) = program.trait_definition_by_symbol(dispatch.declaring_trait)
     else {
         return Err(rejected("its declaring trait is absent"));
     };

@@ -62,11 +62,7 @@ fn resolve_member_symbol_from_type(
 ) -> Option<SymbolHandle> {
     let type_symbol = type_symbol?;
 
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)
-    {
+    if let Some(data) = program.data_definition_by_symbol(type_symbol) {
         if let Some(symbol) = validation::data_member_symbol_by_name(program, data, member_name) {
             return Some(symbol);
         }

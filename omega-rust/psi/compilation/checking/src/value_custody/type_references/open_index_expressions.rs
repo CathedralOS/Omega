@@ -17,11 +17,7 @@ pub(super) fn validate_indexed_domain_arguments(
     diagnostics: &mut Vec<Diagnostic>,
     owner: &TypeReferenceOwner<'_>,
 ) {
-    let Some(definition) = program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == constraint.symbol)
-    else {
+    let Some(definition) = program.domain_definition(constraint.symbol) else {
         return;
     };
     validate_indexed_domain_argument_pack(
@@ -44,11 +40,7 @@ pub(crate) fn validate_indexed_qualification_arguments(
     if !cast.semantic_domain_symbol.is_valid() {
         return;
     }
-    let Some(definition) = program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == cast.semantic_domain_symbol)
-    else {
+    let Some(definition) = program.domain_definition(cast.semantic_domain_symbol) else {
         return;
     };
     let arguments = program
@@ -116,11 +108,7 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             let TypeConstraintNode::Domain(constraint) = constraint else {
                 continue;
             };
-            let Some(definition) = program
-                .domain_definitions()
-                .iter()
-                .find(|definition| definition.symbol == constraint.symbol)
-            else {
+            let Some(definition) = program.domain_definition(constraint.symbol) else {
                 continue;
             };
             let parameters = typed_trees::domain::index_parameters(program, definition);
@@ -144,11 +132,7 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
         })
         .collect::<Vec<_>>();
     for (domain_symbol, arguments) in indexed_qualification_sites {
-        let Some(definition) = program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.symbol == domain_symbol)
-        else {
+        let Some(definition) = program.domain_definition(domain_symbol) else {
             continue;
         };
         let parameters = typed_trees::domain::index_parameters(program, definition);

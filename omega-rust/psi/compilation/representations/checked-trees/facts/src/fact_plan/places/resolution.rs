@@ -46,10 +46,7 @@ fn resolve_member_symbol_from_receiver(
 ) -> Option<SymbolHandle> {
     let type_symbol = expression_type_symbol(program, receiver)?;
 
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)
+    if let Some(data) = program.data_definition_by_symbol(type_symbol)
         && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
     {
         return Some(symbol);
@@ -237,10 +234,7 @@ fn symbol_type_reference(
             }
             symbols::SymbolKind::Variant => {
                 let data_symbol = program.symbols.get(declaration.parent).parent;
-                let data = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == data_symbol)?;
+                let data = program.data_definition_by_symbol(data_symbol)?;
                 let variant =
                     program
                         .data_members(data)
@@ -260,10 +254,7 @@ fn symbol_type_reference(
                     .map(|field| field.type_reference)
             }
             symbols::SymbolKind::Data => {
-                let data = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == declaration.parent)?;
+                let data = program.data_definition_by_symbol(declaration.parent)?;
                 program
                     .data_members(data)
                     .iter()
@@ -367,10 +358,7 @@ pub fn resolve_place_member_symbol(
         return Some(symbol);
     }
 
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == base_symbol)
+    if let Some(data) = program.data_definition_by_symbol(base_symbol)
         && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
     {
         return Some(symbol);

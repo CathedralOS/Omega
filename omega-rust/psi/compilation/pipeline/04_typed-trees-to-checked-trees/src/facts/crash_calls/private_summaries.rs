@@ -488,9 +488,7 @@ pub(crate) fn requirement_signature(
             .map(|(_, signature)| signature);
     }
     program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == target_machine)
+        .trait_definition_by_symbol(target_machine)
         .and_then(|definition| {
             program
                 .trait_machine_signatures(definition)

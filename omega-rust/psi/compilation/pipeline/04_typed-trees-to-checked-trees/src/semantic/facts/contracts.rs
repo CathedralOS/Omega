@@ -316,10 +316,7 @@ fn inherited_contract_scope_parts<'program>(
     let scope = proof
         .inherited_contract_scopes
         .get(contract.inherited_scope?);
-    let trait_definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == scope.declaring_trait)?;
+    let trait_definition = program.trait_definition_by_symbol(scope.declaring_trait)?;
     let requirement = program
         .trait_machine_signatures(trait_definition)
         .iter()
@@ -398,11 +395,7 @@ fn instantiate_call_domain_membership_instance(
     else {
         return;
     };
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == *domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(*domain_symbol) else {
         return;
     };
     let index_parameters = typed_trees::domain::index_parameters(program, domain);
@@ -565,9 +558,7 @@ fn instantiate_call_contract_payload(
     };
     let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
         let Some(requirement) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == dispatch.declaring_trait)
+            .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
                 program
                     .trait_machine_signatures(definition)

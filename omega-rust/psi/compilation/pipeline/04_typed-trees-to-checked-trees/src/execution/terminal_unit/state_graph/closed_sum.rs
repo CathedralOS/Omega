@@ -206,10 +206,7 @@ pub(super) fn build(
     else {
         return None;
     };
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)?;
+    let data = program.data_definition_by_symbol(*symbol)?;
     let variants = program
         .data_members(data)
         .iter()
@@ -758,8 +755,7 @@ impl DispatchSubject {
             // member read of its own subject copy; only that spelling reads
             // the one evaluated result.
             Self::Computed(subject) => {
-                let Some(member) = program.expression_table.member_node(argument)
-                else {
+                let Some(member) = program.expression_table.member_node(argument) else {
                     return Some(None);
                 };
                 if !dispatch_subjects::repeats_subject(program, subject, member.receiver) {

@@ -71,10 +71,7 @@ pub(super) fn checked_provider_attachment_requirements(
         return None;
     }
 
-    let attached = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == machine.attached_data_symbol)?;
+    let attached = program.data_definition_by_symbol(machine.attached_data_symbol)?;
     // Every provider-backed field claims the boundary calls it answers: a
     // `self.<field>` receiver names its field, and the field's requirement
     // picks the trait whose signatures own each call's target. An entry may

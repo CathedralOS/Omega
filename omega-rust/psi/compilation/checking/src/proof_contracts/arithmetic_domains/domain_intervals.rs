@@ -52,10 +52,7 @@ pub fn exact_declared_domain_interval(
     Option<numerics::bignum::BigInt>,
 )> {
     let interval = predicate_interval(program, domain)?;
-    let definition = program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain.symbol)?;
+    let definition = program.domain_definition(domain.symbol)?;
     (interval.exact
         && definition.establishment_routes.is_empty()
         && (interval.minimum.is_some() || interval.maximum.is_some()))
@@ -105,10 +102,7 @@ fn predicate_interval(
     if domain.subject != DomainConstraintSubject::Declared {
         return None;
     }
-    let definition = program
-        .domain_definitions()
-        .iter()
-        .find(|definition| definition.symbol == domain.symbol)?;
+    let definition = program.domain_definition(domain.symbol)?;
     if definition.alias.is_some() {
         return None;
     }

@@ -178,9 +178,7 @@ pub(crate) fn normalize_type_reference(
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
         && let Some(generic_instance) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol)
+            .data_definition_by_symbol(*symbol)
             .and_then(|definition| definition.generic_instance)
         && generic_instance != type_reference
     {

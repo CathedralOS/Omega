@@ -140,11 +140,7 @@ pub(super) fn append_constructed_argument_transfers(
             else {
                 continue;
             };
-            let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == literal.type_symbol)
-            else {
+            let Some(data) = program.data_definition_by_symbol(literal.type_symbol) else {
                 continue;
             };
             let multiplicity = data.properties.multiplicity;

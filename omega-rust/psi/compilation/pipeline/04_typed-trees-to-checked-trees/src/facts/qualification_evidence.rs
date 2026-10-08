@@ -135,10 +135,7 @@ pub(crate) fn call_contract_evidence(
         });
     }
 
-    if let Some(trait_definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == target_symbol)
+    if let Some(trait_definition) = program.trait_definition_by_symbol(target_symbol)
         && trait_definition.is_boundary
     {
         return contract.qualification_authorization.map(|authorization| {
@@ -190,10 +187,7 @@ fn machine_domain_establishment_origin(
                 trait_definition,
                 requirement,
             } => {
-                let trait_definition = program
-                    .traits()
-                    .iter()
-                    .find(|definition| definition.symbol == *trait_definition)?;
+                let trait_definition = program.trait_definition_by_symbol(*trait_definition)?;
                 let requirement = program
                     .trait_machine_signatures(trait_definition)
                     .iter()

@@ -256,9 +256,7 @@ fn resultless_state_signature(
     state_symbol: SymbolHandle,
 ) -> bool {
     let return_type = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == owner_symbol)
+        .trait_definition_by_symbol(owner_symbol)
         .and_then(|definition| {
             program
                 .trait_machine_signatures(definition)

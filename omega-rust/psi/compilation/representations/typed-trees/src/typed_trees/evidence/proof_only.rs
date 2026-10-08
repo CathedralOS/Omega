@@ -119,11 +119,7 @@ impl ProofOnlyClassification {
         if visiting.contains(symbol) {
             return false;
         }
-        let Some(definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol)
-        else {
+        let Some(definition) = program.data_definition_by_symbol(*symbol) else {
             return false;
         };
         let shape = DataDefinition::shape_kind_from_members(program.data_members(definition));

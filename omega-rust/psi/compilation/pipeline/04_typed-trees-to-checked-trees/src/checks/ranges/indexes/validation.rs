@@ -631,11 +631,7 @@ fn extent_binds_pending_application(
     else {
         return false;
     };
-    let Some(template) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *base_symbol)
-    else {
+    let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
         return false;
     };
     let Some(position) = program

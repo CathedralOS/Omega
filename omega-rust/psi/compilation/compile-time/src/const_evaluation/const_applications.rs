@@ -409,11 +409,7 @@ fn realize_data_instance(
         .type_reference_table
         .type_reference_handles(arguments)
         .to_vec();
-    let template = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == base_symbol)
-        .cloned()?;
+    let template = typed.data_definition_by_symbol(base_symbol).cloned()?;
     if template.generic_instance.is_some()
         || template.quotient.is_some()
         || !template.where_facts.is_empty()
@@ -937,11 +933,7 @@ fn generic_type_parameters(
     typed: &TypedTrees,
     base_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::data::TypeParameter]> {
-    if let Some(data) = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == base_symbol)
-    {
+    if let Some(data) = typed.data_definition_by_symbol(base_symbol) {
         return Some(typed.data_type_parameters(data));
     }
     if let Some(machine) = typed.machine(base_symbol) {

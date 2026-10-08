@@ -138,14 +138,12 @@ impl CarrierClosure<'_> {
                 Ok(())
             }
             TypeReferenceNode::Named { symbol, .. } => {
-                let definition = self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == *symbol)
-                    .ok_or_else(|| {
-                        self.reject(path, "contains data without an exact checked declaration")
-                    })?;
+                let definition =
+                    self.program
+                        .data_definition_by_symbol(*symbol)
+                        .ok_or_else(|| {
+                            self.reject(path, "contains data without an exact checked declaration")
+                        })?;
                 self.validate_definition(definition, path)
             }
             TypeReferenceNode::Reference { .. } => {

@@ -179,9 +179,7 @@ fn vacuous_scalar_tag(
     let valid = !alias.constituents.is_empty()
         && alias.constituents.iter().all(|constituent| {
             program
-                .domain_definitions()
-                .iter()
-                .find(|candidate| candidate.symbol == constituent.domain_symbol)
+                .domain_definition(constituent.domain_symbol)
                 .is_some_and(|candidate| {
                     typed_trees::domain::index_parameters(program, candidate).is_empty()
                         && vacuous_scalar_tag(program, candidate, primitive, active)

@@ -339,10 +339,7 @@ fn replay_subject_position<'program>(
                 arguments,
                 ..
             } if base_symbol.is_valid() => {
-                let data = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *base_symbol)?;
+                let data = program.data_definition_by_symbol(*base_symbol)?;
                 let bound = program
                     .data_type_parameters(data)
                     .iter()
@@ -374,10 +371,7 @@ fn replay_subject_position<'program>(
                     reference = argument;
                     continue;
                 }
-                let data = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *symbol)?;
+                let data = program.data_definition_by_symbol(*symbol)?;
                 return Some((data, Vec::new()));
             }
             _ => return None,

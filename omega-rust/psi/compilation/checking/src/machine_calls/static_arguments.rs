@@ -232,10 +232,7 @@ fn validate_arguments(
         if named_type
             && argument.application.is_none()
             && program.symbols.get(argument.symbol).kind == SymbolKind::Data
-            && let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == argument.symbol)
+            && let Some(definition) = program.data_definition_by_symbol(argument.symbol)
             && (!definition.type_parameters.is_empty()
                 || !definition.lifetime_parameters.is_empty())
         {

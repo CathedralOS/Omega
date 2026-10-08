@@ -52,11 +52,7 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
+        let data = self.program.data_definition_by_symbol(*symbol)?;
         let mut reads = Vec::new();
         for member in self.program.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = member else {
@@ -334,8 +330,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-        let Some(name) = self.program.expression_table.name_path_node(expression)
-        else {
+        let Some(name) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };
         if !name.symbol.is_valid()

@@ -71,12 +71,10 @@ fn collect_declared_result_dispatch_terms(
     terms: &mut Vec<NormalizedDomainTerm>,
     alias_stack: &mut Vec<SymbolHandle>,
 ) {
-    let definition = constraint.symbol.is_valid().then(|| {
-        program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.symbol == constraint.symbol)
-    });
+    let definition = constraint
+        .symbol
+        .is_valid()
+        .then(|| program.domain_definition(constraint.symbol));
     if let Some(Some(definition)) = definition {
         if let Some(alias) = definition.alias.as_ref() {
             if alias_stack.contains(&definition.symbol) {
@@ -84,10 +82,8 @@ fn collect_declared_result_dispatch_terms(
             }
             alias_stack.push(definition.symbol);
             for constituent in &alias.constituents {
-                let Some(constituent_definition) = program
-                    .domain_definitions()
-                    .iter()
-                    .find(|candidate| candidate.symbol == constituent.domain_symbol)
+                let Some(constituent_definition) =
+                    program.domain_definition(constituent.domain_symbol)
                 else {
                     continue;
                 };

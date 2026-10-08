@@ -268,11 +268,7 @@ pub(crate) fn provider_attachment_receiver_matches(
     // The symbol, not the bare name: leaf-keyed attachments collide when two
     // modules declare same-named records (`left::Runner`/`right::Runner`), and
     // a name match would route `self.reader` to the sibling leaf's carrier.
-    let Some(attached) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == machine.attached_data_symbol)
-    else {
+    let Some(attached) = program.data_definition_by_symbol(machine.attached_data_symbol) else {
         return false;
     };
     program.data_members(attached).iter().any(|member| {
@@ -327,11 +323,7 @@ fn service_record_member_carries_requirement(
     else {
         return false;
     };
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *symbol)
-    else {
+    let Some(definition) = program.data_definition_by_symbol(*symbol) else {
         return false;
     };
     program.data_members(definition).iter().any(|member| {

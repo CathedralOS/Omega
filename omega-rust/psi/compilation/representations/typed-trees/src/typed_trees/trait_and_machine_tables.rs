@@ -195,6 +195,16 @@ impl TypedTrees {
         self.tables.traits.span_or_empty(self.roots.traits)
     }
 
+    /// The trait definition `symbol` declares, if any.
+    pub fn trait_definition_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&trait_definition::TraitDefinition> {
+        self.traits()
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+    }
+
     pub fn push_conformance(&mut self, conformance: trait_definition::Conformance) {
         self.tables
             .conformances

@@ -166,11 +166,7 @@ impl Query<'_> {
                 fields,
                 ..
             } => {
-                let data = self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *data_symbol)?;
+                let data = self.program.data_definition_by_symbol(*data_symbol)?;
                 // Common fields and payload fields have independent path
                 // namespaces even when a case establishes both in one roster.
                 let mut declared = self

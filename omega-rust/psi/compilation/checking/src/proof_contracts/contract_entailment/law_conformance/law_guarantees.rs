@@ -39,11 +39,7 @@ pub fn matched_machine_law_guarantees(
     };
     let mut outcomes = Vec::new();
     for conformance in program.machine_trait_conformances(machine) {
-        let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == conformance.symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition_by_symbol(conformance.symbol) else {
             continue;
         };
         let Some(requirement) = program

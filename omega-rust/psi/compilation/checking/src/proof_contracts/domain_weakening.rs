@@ -266,13 +266,9 @@ fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &Dom
     let DomainAtom::Declared { family: symbol, .. } = atom else {
         return false;
     };
-    program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == *symbol)
-        .is_some_and(|domain| {
-            !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
-        })
+    program.domain_definition(*symbol).is_some_and(|domain| {
+        !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+    })
 }
 
 /// A value-position call's result is what its signature and contract row say
@@ -354,10 +350,7 @@ fn callable_signature_contracts<'program>(
         return None;
     }
     let parent = program.symbols.get(target).parent;
-    let definition = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == parent)?;
+    let definition = program.trait_definition_by_symbol(parent)?;
     let signature = program
         .trait_machine_signatures(definition)
         .iter()
@@ -565,13 +558,9 @@ fn atom_requires_explicit_removal(program: &dyn crate::CheckingInput, atom: &Dom
             ..
         } => {
             *indexed
-                || program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == *symbol)
-                    .is_some_and(|domain| {
-                        !domain.semantic_roles.is_empty() || !domain.establishment_routes.is_empty()
-                    })
+                || program.domain_definition(*symbol).is_some_and(|domain| {
+                    !domain.semantic_roles.is_empty() || !domain.establishment_routes.is_empty()
+                })
         }
     }
 }

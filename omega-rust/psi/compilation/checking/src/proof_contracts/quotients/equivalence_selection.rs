@@ -431,11 +431,7 @@ fn is_sealed_core_equivalence(
     let source_matches = program
         .symbol_toolchain_relative_path(symbol)
         .is_some_and(|relative| relative == std::path::Path::new(CORE_EQUIVALENCE_SOURCE));
-    let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
-    else {
+    let Some(definition) = program.trait_definition_by_symbol(symbol) else {
         return false;
     };
     let parameters = program.trait_type_parameters(definition);

@@ -177,9 +177,7 @@ pub(crate) fn build_synchronous_invocation_facts(
             let canonical_invocation = |target: flow_effects::InvocationTarget| match target {
                 flow_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
                 flow_effects::InvocationTarget::Service(symbol) => program
-                    .traits()
-                    .iter()
-                    .find(|definition| definition.symbol == symbol)
+                    .trait_definition_by_symbol(symbol)
                     .map(|definition| format!("service:{}", definition.name))
                     .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
             };

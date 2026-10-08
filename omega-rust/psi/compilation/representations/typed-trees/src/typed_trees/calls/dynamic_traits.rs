@@ -83,10 +83,7 @@ impl TypedTrees {
         &self,
         slot: &DynamicSlotSignature,
     ) -> Option<&crate::signature::StateSignature> {
-        let definition = self
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == slot.declaring_trait)?;
+        let definition = self.trait_definition_by_symbol(slot.declaring_trait)?;
         self.trait_machine_signatures(definition)
             .iter()
             .find(|signature| signature.symbol == slot.requirement)
@@ -165,7 +162,6 @@ impl TypedTrees {
         }
         Ok(())
     }
-
 
     /// Contract privacy: the requirement's public contract — its requires,
     /// ensures, crash routes, and `where` facts — must name no identity a

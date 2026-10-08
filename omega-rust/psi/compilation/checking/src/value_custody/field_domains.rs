@@ -660,11 +660,7 @@ pub fn domain_is_vacuous(
     if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
         return false;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|candidate| candidate.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
     if let Some(alias) = domain.alias.as_ref() {
@@ -807,9 +803,7 @@ pub fn predicate_domain_constraint_identities(
         .into_iter()
         .filter(|(symbol, _)| {
             program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == *symbol)
+                .domain_definition(*symbol)
                 .is_some_and(|domain| domain.predicate_body.is_present())
         })
         .collect()

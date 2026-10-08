@@ -82,10 +82,7 @@ impl TypedTrees {
         machine: &crate::machine::Machine,
     ) -> Option<&data::DataDefinition> {
         if machine.attached_data_symbol.is_valid() {
-            return self
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == machine.attached_data_symbol);
+            return self.data_definition_by_symbol(machine.attached_data_symbol);
         }
         let attached = machine.attached_data.as_ref()?;
         let mut matches = self
@@ -95,7 +92,6 @@ impl TypedTrees {
         let first = matches.next()?;
         matches.next().is_none().then_some(first)
     }
-
 
     pub fn data_type_parameters(
         &self,
@@ -216,7 +212,6 @@ impl TypedTrees {
             .domain_definitions
             .append_to_span(&mut self.roots.domain_definitions, domain_definition);
     }
-
 
     pub fn domain_type_parameters(
         &self,
@@ -458,7 +453,6 @@ impl TypedTrees {
         self.operator_path_members
             .append_to_span(&mut operator.name, member);
     }
-
 
     pub fn operator_type_parameters(
         &self,

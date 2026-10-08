@@ -923,11 +923,7 @@ impl<'program> Evaluator<'program> {
             None
         };
         if type_symbol.is_valid() {
-            let data = self
-                .program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == type_symbol)?;
+            let data = self.program.data_definition_by_symbol(type_symbol)?;
             return ordinal_in(data);
         }
         self.program.data_definitions().iter().find_map(ordinal_in)

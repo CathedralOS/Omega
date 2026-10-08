@@ -51,18 +51,14 @@ pub fn parameter_domain_constraints_with_substitutions(
                         .iter()
                         .filter_map(|constraint| match constraint {
                             TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                                program
-                                    .domain_definitions()
-                                    .iter()
-                                    .find(|definition| definition.symbol == domain.symbol)
-                                    .map(|definition| {
-                                        (
-                                            domain.symbol,
-                                            definition.name.as_str().to_owned(),
-                                            domain.arguments.clone(),
-                                            domain.semantic_id,
-                                        )
-                                    })
+                                program.domain_definition(domain.symbol).map(|definition| {
+                                    (
+                                        domain.symbol,
+                                        definition.name.as_str().to_owned(),
+                                        domain.arguments.clone(),
+                                        domain.semantic_id,
+                                    )
+                                })
                             }
                             TypeConstraintNode::Domain(domain)
                                 if language_semantics::CarryPermission::from_name(

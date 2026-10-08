@@ -227,10 +227,7 @@ fn proof_field_type(
     case_symbol: Option<symbols::SymbolHandle>,
     field_symbol: symbols::SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == data_symbol)?;
+    let definition = program.data_definition_by_symbol(data_symbol)?;
     program
         .data_members(definition)
         .iter()
