@@ -53,9 +53,7 @@ pub(crate) fn revalidate_rewrite_output(
     machine: MachineId,
 ) -> Result<&PsiOptimizationFunction, OptimizationUnitValidationError> {
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == machine)
+        .function_mut(machine)
         .expect("output function exists");
     output_function.facts = function_structure::reconstruct_fact_index(output_function);
     output_function.declared_places =

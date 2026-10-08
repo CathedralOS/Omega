@@ -25,9 +25,7 @@ pub(super) fn independently_apply_total_scalar_identity(
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
     let mut output = input.clone();
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.location.machine)
+        .function_mut(patch.location.machine)
         .expect("validated candidate function exists");
     let output_block = output_function
         .block_mut(patch.location.block)

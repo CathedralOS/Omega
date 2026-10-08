@@ -737,9 +737,7 @@ pub(super) fn validate(
         .collect::<Result<Vec<_>, _>>()?;
     let mut output = input.clone();
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.machine)
+        .function_mut(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     for (location, node) in fused {
         let index = usize::try_from(location.node)

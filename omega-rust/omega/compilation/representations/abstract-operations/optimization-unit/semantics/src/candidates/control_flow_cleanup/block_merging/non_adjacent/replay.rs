@@ -132,9 +132,7 @@ pub(super) fn validate(
 
     let mut output = input.clone();
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.predecessor.machine)
+        .function_mut(patch.predecessor.machine)
         .expect("candidate function exists");
     let output_target_position = output_function
         .block_index(patch.target)

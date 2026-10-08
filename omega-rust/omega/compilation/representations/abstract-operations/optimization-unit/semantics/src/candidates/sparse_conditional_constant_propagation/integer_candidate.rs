@@ -123,9 +123,7 @@ pub fn validate_integer_evaluation_candidate(
     }
     let mut output = input.clone();
     let function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.location.machine)
+        .function_mut(patch.location.machine)
         .expect("candidate source function exists");
     let block = function
         .block_mut(patch.location.block)

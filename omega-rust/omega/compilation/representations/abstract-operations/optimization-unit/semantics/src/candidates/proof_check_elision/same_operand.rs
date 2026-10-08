@@ -256,9 +256,7 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
     let accepted_catalog = input.accepted_obligation_facts.clone();
     let mut output = input.clone();
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.location.machine)
+        .function_mut(patch.location.machine)
         .expect("candidate source function exists");
     let output_block = output_function
         .block_mut(patch.location.block)

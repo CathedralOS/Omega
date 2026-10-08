@@ -161,9 +161,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
 
     let mut output = input.clone();
     let function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.machine)
+        .function_mut(patch.machine)
         .expect("candidate function exists");
     let block = function
         .block_mut(patch.block)

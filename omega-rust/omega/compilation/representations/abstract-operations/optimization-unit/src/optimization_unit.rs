@@ -149,6 +149,14 @@ impl PsiOptimizationUnit {
     
     }
 
+    /// The optimization function for `machine` for replay mutation, when the
+    /// unit carries it.
+    pub fn function_mut(&mut self, machine: MachineId) -> Option<&mut PsiOptimizationFunction> {
+        self.functions
+            .iter_mut()
+            .find(|function| function.machine == machine)
+    }
+
     /// The boundary machine keyed `id`, when the unit declares it.
     pub fn boundary_machine(
         &self,

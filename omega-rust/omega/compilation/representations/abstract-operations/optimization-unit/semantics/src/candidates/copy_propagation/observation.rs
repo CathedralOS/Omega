@@ -21,9 +21,7 @@ pub(crate) fn normalize_redundant_parameter_observation_input(
     let affected = affected_blocks.iter().copied().collect::<BTreeSet<_>>();
     let mut normalized = input.clone();
     let function = normalized
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.machine)
+        .function_mut(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let target = function
         .block_mut(patch.block)
@@ -296,9 +294,7 @@ pub(crate) fn unchanged_outside_redundant_parameter_region(
 ) -> bool {
     let mut expected = input.clone();
     let Some(expected_function) = expected
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == machine)
+        .function_mut(machine)
     else {
         return false;
     };

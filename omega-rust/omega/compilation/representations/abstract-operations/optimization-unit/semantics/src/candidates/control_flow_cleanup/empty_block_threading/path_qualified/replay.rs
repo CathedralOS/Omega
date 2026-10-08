@@ -143,9 +143,7 @@ pub(super) fn validate(
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let mut output = input.clone();
     let output_function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == patch.empty.machine)
+        .function_mut(patch.empty.machine)
         .expect("candidate function exists");
     for (location, incoming_edge, composed) in &incoming {
         let node = output_function

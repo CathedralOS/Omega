@@ -193,6 +193,18 @@ pub struct WholeFunctionExitContract {
 }
 
 impl WholeFunctionExitContract {
+    /// The exit evidence for `machine`, when the contract carries it.
+    pub fn function(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+    ) -> Option<&WholeFunctionExitEvidence> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+}
+
+impl WholeFunctionExitContract {
     /// Recompute the versioned content identity, without checking the claim.
     pub fn recomputed_identity(&self) -> WholeFunctionExitContractIdentity {
         whole_function_exit_contract_identity(self)
