@@ -16,6 +16,19 @@ use super::{Emission, ProjectedMove, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
 
 impl Emission<'_, '_, '_> {
+    /// Completes `place` against `continuation` when one is armed and hands
+    /// the place back — the tail every already-built structural value shares.
+    pub(super) fn completed(
+        &mut self,
+        place: PlaceId,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        if let Some(continuation) = continuation {
+            self.complete_value(place, None, continuation)?;
+        }
+        Ok(place)
+    }
+
     pub(super) fn complete_value(
         &mut self,
         selected: PlaceId,

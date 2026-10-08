@@ -1087,17 +1087,13 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(value)?;
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
                 let place = self.fixed_array(&elements, self.type_reference)?;
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::Call { .. } => {
                 let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
@@ -1111,10 +1107,7 @@ impl Emission<'_, '_, '_> {
                 let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("structural operand call has no result place");
                 };
-                if let Some(continuation) = continuation {
-                    self.complete_value(declaration.id, None, continuation)?;
-                }
-                Ok(declaration.id)
+                self.completed(declaration.id, continuation)
             }
             CheckedStructuralValueKind::Projection {
                 source,
@@ -1246,10 +1239,7 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::ScalarArray { elements } => {
                 // Every leaf replays its own retained source computation in
@@ -1288,10 +1278,7 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                 let place = crate::emission::structural_byte_sequence_store::emit_literal_view(
@@ -1301,17 +1288,12 @@ impl Emission<'_, '_, '_> {
                     self.next_place,
                     self.operations,
                 )?;
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = self.establish_zeroed()?;
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
@@ -1448,17 +1430,12 @@ impl Emission<'_, '_, '_> {
                 ))?;
                 self.temporary_places.push(declaration);
                 self.values.truncate(field_start);
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::StructuralCase { .. } => {
                 let place = self.structural_case(value)?;
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
                 self.dispatch(node.expression, subject, arms, continuation)
