@@ -640,7 +640,11 @@ defines the complete product bar.
   - Missing: qualify remaining referent windows and keep evaluation order,
     disjoint siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
-    do not invent rollback. Qualify the remaining paths on supported hosts.
+    do not invent rollback. Qualify those remaining paths on supported hosts.
+    The ordinary cases below still need Windows x86-64 and matching-host
+    Linux x86-64 execution; the bounded
+    [Linux qualification](wiki/drafts/reference/rust_compiler_completion.md#borrowed-storage-linux-qualification)
+    does not cover the unfinished failure/suspension paths.
     Keep `pass/ownership/runtime_captured_replacement_selector_exit`,
     `runtime_captured_construction_selector_exit` and
     `runtime_captured_selector_call_exit` (exit 0) for pre-RHS destination

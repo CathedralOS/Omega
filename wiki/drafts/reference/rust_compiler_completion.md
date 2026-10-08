@@ -208,6 +208,84 @@ need current matching-host qualification. The full Linux AArch64 release row
 also remains open: this record is not an unfiltered corpus run and contains
 no expected skips.
 
+#### Borrowed-storage Linux qualification
+
+Recorded 2026-10-08 for **BORROWED-STORAGE-RESTORATION**, from clean producer
+`81cfb80f52cca7198ea721e9488aa1315ea7a601`. The pinned
+`nightly-2026-09-04` toolchain (`rustc 1.100.0-nightly`, `a69a63265`) built
+`omega` with `CARGO_PROFILE_DEV_OPT_LEVEL=1` on macOS 26.5.1 AArch64.
+No compiler or fixture change was needed for these executions.
+
+Execution used the existing Colima 0.10.1 VM: Ubuntu 24.04.4 LTS, kernel
+`6.8.0-100-generic`, AArch64, Apple's Virtualization.Framework. ARM64 ELF
+images executed directly, without CPU emulation. The x86-64 images executed
+through `qemu-x86_64` 7.0.0 user-mode emulation in that same guest; those results
+do not substitute for matching-host Linux x86-64 qualification. The VM was
+stopped before this run and returned to that state afterward.
+
+All 15 programs below met their authored exit on both products: 15 direct
+ARM64 observations and 15 emulated x86-64 observations, with no skips or
+mismatches. Sequential package preparation, compilation and guest assertions
+took 91.603 seconds for ARM64 and 136.835 seconds for x86-64, excluding the
+compiler build and VM startup. Paths are under `tests/omega/pass/`.
+
+| Fixture | Authored exit |
+| --- | --- |
+| `ownership/runtime_borrowed_record_transform_exit` | 42 |
+| `ownership/runtime_borrowed_projected_claim_transform_exit` | 42 |
+| `ownership/move_keyword_field_assignment` | 41 |
+| `borrows/runtime_record_carried_loan_state_return_exit` | 42 |
+| `ownership/runtime_carried_loan_field_replacement_exit` | 42 |
+| `ownership/runtime_borrowed_carried_loan_roundtrip_exit` | 42 |
+| `ownership/runtime_borrowed_shared_alias_carrier_transform_exit` | 42 |
+| `ownership/runtime_whole_borrowed_transform_exit` | 42 |
+| `ownership/runtime_retained_alias_referent_transform_exit` | 42 |
+| `ownership/runtime_borrowed_carried_loan_transform_exit` | 42 |
+| `ownership/runtime_borrowed_carrier_repeated_repair_exit` | 42 |
+| `ownership/runtime_owned_carried_loan_extract_transform_exit` | 42 |
+| `ownership/runtime_captured_replacement_selector_exit` | 0 |
+| `ownership/runtime_captured_construction_selector_exit` | 0 |
+| `ownership/runtime_captured_selector_call_exit` | 0 |
+
+With the freshly built `omega` on PATH, prepare and compile each fixture using
+its authored Build declaration. For example:
+
+```sh
+fixture=tests/omega/pass/ownership/runtime_captured_selector_call_exit
+omega update --project "$fixture" --target linux_arm64 --dangerously-accept-all
+omega --target linux_arm64 --build-dir "$fixture/build/linux-arm64" "$fixture/main.omg"
+```
+
+The guest assertion captures the program's exit before comparing it with the
+table; it is not Colima's host-side exit mapping:
+
+```sh
+colima ssh -- sh -c '"/absolute/checkout/tests/omega/pass/ownership/runtime_captured_selector_call_exit/build/linux-arm64/omega-program"; observed_exit=$?; printf "native exit %s\n" "$observed_exit"; test "$observed_exit" -eq 0'
+```
+
+The emulated comparison uses a separately emitted x86-64 product:
+
+```sh
+omega update --project "$fixture" --target linux_x86_64 --dangerously-accept-all
+omega --target linux_x86_64 --build-dir "$fixture/build/linux-x86-64" "$fixture/main.omg"
+colima ssh -- sh -c 'qemu-x86_64 "/absolute/checkout/tests/omega/pass/ownership/runtime_captured_selector_call_exit/build/linux-x86-64/omega-program"; observed_exit=$?; printf "emulated exit %s\n" "$observed_exit"; test "$observed_exit" -eq 0'
+```
+
+The selector-call fixture observes exact-once target computation, the captured
+destination despite RHS mutation to an out-of-range selector, and the unchanged
+sibling. It does not independently count destructor invocations. Its SHA-256
+identities are:
+
+- `main.omg`: `0a53de191db449232f6d85cc85b3e3821b782d2c0ac7440e8da21599347b2087`.
+- ARM64 ELF: `56eeea4219b5ba25eb180843b48f77deb4daf9e03470266fddc4931ccbebf09a`.
+- x86-64 ELF: `adf25ac6371725bdcee65aee0509d5e21989ae83366a7ad9f7779a9259652aa9`.
+
+This qualifies the listed ordinary restoration and replacement programs only.
+It does not qualify open windows across recoverable failure, suspension,
+resume or cancellation, or all referent shapes. Windows x86-64 and matching-host
+Linux x86-64 observations remain missing. Both Linux release rows remain open:
+neither run is the unfiltered RC-NATIVE-MATRIX gate.
+
 ## Closure rule
 
 The contract closes only when all six named gates pass from a clean checkout
