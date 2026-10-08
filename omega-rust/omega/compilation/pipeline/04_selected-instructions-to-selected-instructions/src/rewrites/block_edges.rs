@@ -15,6 +15,7 @@ pub(super) use selected_instructions::terminator_successors;
 
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
     SelectedSuccessorRole, SelectedValueTransport, terminator_instruction,
 };
@@ -23,6 +24,24 @@ use crate::rewrites::window_hazards::{has_memory_rows, register_reads, register_
 
 /// The function a plan-level rewrite entrypoint resolves — every
 /// admission and audit begins by naming the index its member recorded.
+/// The `(block_index, member_index)` of the instruction `member` names.
+pub(super) fn member_position(
+    function: &SelectedFunction,
+    member: SelectedInstructionId,
+) -> Option<(usize, usize)> {
+    function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == member)
+                .map(|member_index| (block_index, member_index))
+        })
+}
+
 pub(super) fn function_at<'p, E>(
     plan: &'p selected_instructions::SelectedInstructionPlan,
     function_index: usize,

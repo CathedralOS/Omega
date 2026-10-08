@@ -115,7 +115,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{all_edges, plain_edge};
+use crate::rewrites::block_edges::{all_edges, plain_edge, member_position};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     RunRelocationRejection, schedulable, speculatable,
@@ -212,18 +212,8 @@ fn derive_inflow_span<'source>(
 ) -> Result<InflowDerivation<'source>, InflowRelocationError> {
     let (plan, function) = crate::rewrites::plan_function(
         source, function_index, environment, || InflowRelocationError::SourceMismatch)?;
-    let (block_index, member_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == member)
-                .map(|member_index| (block_index, member_index))
-        })
-        .ok_or(InflowRelocationError::SourceMismatch)?;
+    let (block_index, member_index) =
+        member_position(function, member).ok_or(InflowRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let member_instruction = &block.instructions[member_index];
     // The destination names the landing position directly: the block
