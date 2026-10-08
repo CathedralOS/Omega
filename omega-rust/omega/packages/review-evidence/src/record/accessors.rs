@@ -82,3 +82,27 @@ macro_rules! package_policy_callable_signature_accessors {
     };
 }
 pub(crate) use package_policy_callable_signature_accessors;
+
+/// The name/const/mutable parameter surface shared by the callable,
+/// trait-requirement, and machine-parameter signature records: identical
+/// `self` projections over identically-named fields.
+macro_rules! signature_parameter_accessors {
+    () => {
+        pub fn name(&self) -> &str {
+            &self.name
+        }
+
+        pub const fn type_identity(&self) -> &crate::record::PackageReviewTypeIdentity {
+            &self.type_identity
+        }
+
+        pub const fn is_const(&self) -> bool {
+            self.is_const
+        }
+
+        pub const fn is_mutable(&self) -> bool {
+            self.is_mutable
+        }
+    };
+}
+pub(crate) use signature_parameter_accessors;

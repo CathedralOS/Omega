@@ -38,37 +38,9 @@ pub struct PackageReviewCallableParameter {
 }
 
 impl PackageReviewCallableParameter {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
-        &self.type_identity
-    }
-
-    pub const fn is_const(&self) -> bool {
-        self.is_const
-    }
-
-    pub const fn is_mutable(&self) -> bool {
-        self.is_mutable
-    }
+    crate::record::accessors::signature_parameter_accessors!();
 }
 
 impl PackageReviewTraitRequirementParameter {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
-        &self.type_identity
-    }
-
-    pub const fn is_const(&self) -> bool {
-        self.is_const
-    }
-
-    pub const fn is_mutable(&self) -> bool {
-        self.is_mutable
-    }
+    crate::record::accessors::signature_parameter_accessors!();
 }
