@@ -98,10 +98,7 @@ pub fn x86_64_register_constraint_catalog(
         }
     };
     let convention = |name: &str| {
-        physical
-            .conventions
-            .iter()
-            .find(|convention| convention.name == name)
+        physical.convention_named(name)
             .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
     };
 

@@ -124,10 +124,7 @@ fn model_validates_without_collapsing_stack_and_zero_registers() {
     assert!(model.aliases(view("x0"), view("w0")));
     assert!(model.aliases(view("q0"), view("d0")));
     assert!(!model.aliases(view("sp"), view("xzr")));
-    let aapcs = model
-        .conventions
-        .iter()
-        .find(|row| row.name == "aapcs64")
+    let aapcs = model.convention_named("aapcs64")
         .unwrap();
     let d8 = model.view_named("d8").unwrap();
     let q8 = model.view_named("q8").unwrap();

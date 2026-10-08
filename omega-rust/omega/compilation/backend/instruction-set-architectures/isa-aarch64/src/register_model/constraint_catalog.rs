@@ -112,10 +112,7 @@ pub fn aarch64_register_constraint_catalog(
         }
     };
     let convention = |name: &str| {
-        physical
-            .conventions
-            .iter()
-            .find(|convention| convention.name == name)
+        physical.convention_named(name)
             .unwrap_or_else(|| panic!("validated AArch64 model must define {name}"))
     };
     let call_operands = || {
