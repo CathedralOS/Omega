@@ -85,8 +85,8 @@ mod tests {
         MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
     };
     use terminal_psi::{
-        MachineContract, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-        TerminalMachine, TerminalMachineResult, ValueDeclaration,
+        StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, TerminalMachine,
+        TerminalMachineResult, ValueDeclaration,
     };
 
     use super::matches_terminal_machine;
