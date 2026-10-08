@@ -11,20 +11,13 @@ pub(crate) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType
             .map_err(|_| LoweringError::InvalidPsiIntegerType);
     }
     let (sign, bits) = match primitive {
-        PrimitiveType::I8 => (IntegerSign::Signed, 8),
-        PrimitiveType::I16 => (IntegerSign::Signed, 16),
-        PrimitiveType::I32 => (IntegerSign::Signed, 32),
-        PrimitiveType::I64 => (IntegerSign::Signed, 64),
-        PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
-        PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
-        PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
         // A selector is one opaque word naming an implementation table; no
         // Terminal operation other than a dynamic call inspects it.
-        PrimitiveType::U64 | PrimitiveType::Selector => (IntegerSign::Unsigned, 64),
-        PrimitiveType::Addr => unreachable!("address carrier handled above"),
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
-            return unsupported("only primitive integers are supported");
-        }
+        PrimitiveType::Selector => (IntegerSign::Unsigned, 64),
+        primitive => match primitive.integer_sign_bits() {
+            Some(pair) => pair,
+            None => return unsupported("only primitive integers are supported"),
+        },
     };
     IntegerType::new(sign, bits)
         .map(ScalarType::Integer)

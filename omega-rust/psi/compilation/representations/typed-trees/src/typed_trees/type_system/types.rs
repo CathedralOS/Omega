@@ -1080,6 +1080,25 @@ impl PrimitiveType {
         }
     }
 
+    /// The sign and bit width of the eight fixed-width integers
+    /// (`i8`–`u64`); `Addr`, `Selector`, `Bool` and the floats return `None`.
+    pub fn integer_sign_bits(self) -> Option<(semantic_vocabulary::IntegerSign, u16)> {
+        use semantic_vocabulary::IntegerSign;
+        Some(match self {
+            Self::I8 => (IntegerSign::Signed, 8),
+            Self::I16 => (IntegerSign::Signed, 16),
+            Self::I32 => (IntegerSign::Signed, 32),
+            Self::I64 => (IntegerSign::Signed, 64),
+            Self::U8 => (IntegerSign::Unsigned, 8),
+            Self::U16 => (IntegerSign::Unsigned, 16),
+            Self::U32 => (IntegerSign::Unsigned, 32),
+            Self::U64 => (IntegerSign::Unsigned, 64),
+            Self::Addr | Self::Selector | Self::Bool | Self::F32 | Self::F64 => {
+                return None;
+            }
+        })
+    }
+
     /// [`Self::from_landed_integer`] minus `Addr`, for callers rejecting
     /// the address lane.
     pub fn non_address_landed_integer(kind: numerics::literals::LandedIntegerType) -> Option<Self> {

@@ -372,23 +372,7 @@ fn binding_boolean(position: usize, resolve_binding: &mut impl ScalarValueSource
 }
 
 pub(crate) fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
-    let (sign, bits) = match primitive {
-        PrimitiveType::I8 => (IntegerSign::Signed, 8),
-        PrimitiveType::I16 => (IntegerSign::Signed, 16),
-        PrimitiveType::I32 => (IntegerSign::Signed, 32),
-        PrimitiveType::I64 => (IntegerSign::Signed, 64),
-        PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
-        PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
-        PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
-        PrimitiveType::U64 => (IntegerSign::Unsigned, 64),
-        PrimitiveType::Addr
-        | PrimitiveType::Selector
-        | PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64 => {
-            return None;
-        }
-    };
+    let (sign, bits) = primitive.integer_sign_bits()?;
     IntegerType::new(sign, bits).ok()
 }
 
