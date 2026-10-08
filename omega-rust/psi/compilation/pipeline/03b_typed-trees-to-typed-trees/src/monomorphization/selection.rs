@@ -19,11 +19,11 @@ pub(crate) use callee_proposals::{
 pub(crate) use selection_assembly::{
     selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
 };
-pub(crate) use static_bindings::{infer_static_bindings, same_type_identity};
+pub(crate) use static_bindings::infer_static_bindings;
 
 use super::{
-    CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument,
-    SymbolHandle, TypeReferenceHandle,
+    CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument, SymbolHandle,
+    TypeReferenceHandle,
 };
 use crate::monomorphization::{CallSelection, CalleeState, Candidate, const_arguments};
 use std::collections::HashSet;
@@ -311,8 +311,7 @@ pub(super) fn collect_call_selections(
                     continue;
                 }
 
-                let Some(call) = program.expression_table.call_node(expression)
-                else {
+                let Some(call) = program.expression_table.call_node(expression) else {
                     continue;
                 };
                 if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {

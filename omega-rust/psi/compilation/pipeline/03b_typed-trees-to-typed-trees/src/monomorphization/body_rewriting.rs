@@ -19,6 +19,7 @@ mod type_parameter_substitution;
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 
 pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
+pub(crate) use evidence_rewrites::{evidence_argument_rewrites, rewrite_index_algebra};
 pub(crate) use machine_arguments::static_const_literal_from_type_reference;
 pub(crate) use type_parameter_substitution::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,
@@ -84,8 +85,7 @@ pub(super) fn cloned_runtime_call_subjects(
                 if (expression.arena_index() as usize) < expression_start {
                     continue;
                 }
-                let Some(call) = program.expression_table.call_node(expression)
-                else {
+                let Some(call) = program.expression_table.call_node(expression) else {
                     continue;
                 };
                 if state_symbols

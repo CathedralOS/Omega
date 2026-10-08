@@ -64,6 +64,15 @@ machine add_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>
     70 as i64 in Indexed<A + B>
 }
 
+// The caller renames and permutes its const and evidence binders. The separate
+// reorder_indexed boundary below exercises the selected algebra's AC laws.
+machine forward_indexed<const RightIndex: u64, const LeftIndex: u64, Addition satisfies IndexAdd<u64>>(
+    left: i64 in Indexed<LeftIndex>,
+    right: i64 in Indexed<RightIndex>
+) -> i64 in Indexed<LeftIndex + RightIndex> {
+    add_indexed<LeftIndex, RightIndex, Addition>(left, right)
+}
+
 machine establish_three<Algebra satisfies IndexAdd<u64>>(a: u64, b: u64) -> u64
 requires a <= 1000
 requires b <= 1000
@@ -93,6 +102,6 @@ machine Main::main(main: &mut Main) reaches Console {
     // Establish the concrete equality explicitly; the universal
     // `reorder_indexed` row above remains a licensed-AC judgment.
     _ = establish_three<Canonical>(1, 2);
-    let sum: i64 in Indexed<3> = add_indexed<1, 2, Canonical>(left, right);
+    let sum: i64 in Indexed<3> = forward_indexed<2, 1, Canonical>(left, right);
     main.console.exit_process((sum as i32 in Wrapping) as i32);
 }

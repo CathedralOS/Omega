@@ -59,7 +59,7 @@ pub(crate) fn call_parameter_domains(
             // Existing declaration contracts instantiate their own domain
             // arguments. Do not copy an open callee-domain identity into the
             // caller; only newly selected caller qualifications belong here.
-            if !bindings.is_empty() && declared.contains(&domain) {
+            if declared.contains(&domain) {
                 continue;
             }
             let (domain_symbol, name, _, semantic_domain) = domain;

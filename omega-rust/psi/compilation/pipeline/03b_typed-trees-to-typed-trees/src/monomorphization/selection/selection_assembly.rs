@@ -90,6 +90,7 @@ pub(crate) fn selection_from_proposals(
         callee_symbol: callee.symbol,
         candidate_index: callee.candidate_index,
         caller_is_generic,
+        unresolved_type_parameters: false,
         unresolved_machine_parameters: false,
         unresolved_evidence_parameters: false,
         unresolved_const_parameters: false,
@@ -108,7 +109,7 @@ pub(crate) fn selection_from_proposals(
     }
     for (_, parameter, binding) in type_proposals {
         if type_reference_is_any_generic_parameter(program, binding) {
-            continue;
+            selection.unresolved_type_parameters = true;
         }
         match selection.type_bindings[parameter] {
             None => selection.type_bindings[parameter] = Some(binding),
@@ -119,11 +120,14 @@ pub(crate) fn selection_from_proposals(
         }
     }
     for (_, parameter, binding) in const_proposals {
-        if !binding.is_valid() || type_reference_is_any_generic_parameter(program, binding) {
+        if !binding.is_valid() {
             // A concrete proposal from another occurrence cannot erase the
             // need to check this occurrence after its caller specializes.
             selection.unresolved_const_parameters = true;
             continue;
+        }
+        if type_reference_is_any_generic_parameter(program, binding) {
+            selection.unresolved_const_parameters = true;
         }
         match selection.const_bindings[parameter] {
             None => selection.const_bindings[parameter] = Some(binding),

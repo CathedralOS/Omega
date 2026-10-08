@@ -120,6 +120,7 @@ struct CallSelection {
     callee_symbol: SymbolHandle,
     candidate_index: usize,
     caller_is_generic: bool,
+    unresolved_type_parameters: bool,
     unresolved_machine_parameters: bool,
     unresolved_evidence_parameters: bool,
     unresolved_const_parameters: bool,
@@ -136,11 +137,20 @@ struct CallSelection {
 
 impl CallSelection {
     fn is_complete(&self) -> bool {
-        !self.conflicted
-            && !self.explicit_argument_overflow
+        self.has_bound_arguments()
+            && !self.unresolved_type_parameters
             && !self.unresolved_machine_parameters
             && !self.unresolved_evidence_parameters
             && !self.unresolved_const_parameters
+    }
+
+    /// Known operands can still belong to an open caller's telescope. They
+    /// instantiate its result type but must not create a closed executable
+    /// specialization. Preserve that distinction in the original proposal,
+    /// rather than reinterpreting the call in a result-only inference pass.
+    fn has_bound_arguments(&self) -> bool {
+        !self.conflicted
+            && !self.explicit_argument_overflow
             && self.type_bindings.iter().all(Option::is_some)
             && self.const_bindings.iter().all(Option::is_some)
             && self.machine_bindings.iter().all(Option::is_some)
@@ -783,7 +793,8 @@ fn resolve_specialized_receiver_calls(
     for state in &states {
         let mut expression_handles = Vec::new();
         for (index, statement) in program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
         {
             collect_statement_expression_trees(program, statement, &mut expression_handles);
             let StatementNode::Call(call) = statement else {

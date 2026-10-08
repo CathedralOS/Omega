@@ -14,19 +14,50 @@ pub(crate) fn evidence_argument_rewrites(
         .filter_map(|(parameter, binding)| {
             let binder = parameter.binder;
             let binding = binding.as_ref()?;
-            let selected = program
-                .conformances()
-                .iter()
-                .find(|conformance| conformance.symbol == binding.symbol)?;
-            Some((
-                binder,
-                binding.symbol,
+            let alias = if program.symbols.get(binding.symbol).kind
+                == symbols::SymbolKind::ConformanceParameter
+            {
+                typed_trees::name::Identifier::generated(program.symbols.name(binding.symbol))
+            } else {
+                let selected = program
+                    .conformances()
+                    .iter()
+                    .find(|conformance| conformance.symbol == binding.symbol)?;
                 selected.alias.clone().unwrap_or_else(|| {
                     typed_trees::name::Identifier::generated("<unnamed-conformance>")
-                }),
-            ))
+                })
+            };
+            Some((binder, binding.symbol, alias))
         })
         .collect()
+}
+
+/// Result-only copies and executable body copies carry the same selected
+/// algebra. Substitute its exact provider with its diagnostic alias together;
+/// renaming a forwarded evidence binder must not leave the callee's authority.
+pub(crate) fn rewrite_index_algebra(
+    program: &mut typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
+) {
+    if program
+        .expression_table
+        .index_expression_authority(expression)
+        .is_none()
+    {
+        return;
+    }
+    let authority = program
+        .expression_table
+        .index_expression_authority_mut(expression);
+    if let Some(operation) = &mut authority.operation
+        && let Some((_, provider, alias)) = rewrites
+            .iter()
+            .find(|(binder, _, _)| *binder == operation.provider)
+    {
+        operation.provider = *provider;
+        operation.algebra_alias = Some(alias.as_str().to_owned());
+    }
 }
 
 pub(crate) struct EvidenceRequirementRewrite {

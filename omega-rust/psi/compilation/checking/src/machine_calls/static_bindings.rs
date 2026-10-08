@@ -77,10 +77,11 @@ pub fn validate_static_machine_bindings(
         };
         // Calls and instances can retain the same exact tuple. Judge it once,
         // without hashing display strings or aliasing their independently
-        // owned application spans. Only forwarding a lexical const binder
-        // makes the caller declaration an additional input to this judgment.
+        // owned application spans. Type operands can mention caller bounds,
+        // including inside compounds; forwarded consts also read that scope.
         let scope = if bindings.iter().any(|binding| {
-            matches!(binding.value, StaticMachineBindingValue::Const(actual)
+            matches!(binding.value, StaticMachineBindingValue::Type(_))
+                || matches!(binding.value, StaticMachineBindingValue::Const(actual)
                 if matches!(program.type_reference_table.type_reference(actual),
                     TypeReferenceNode::Named { symbol, .. } if symbol.is_valid()))
         }) {
@@ -100,6 +101,9 @@ pub fn validate_static_machine_bindings(
         }
         judged.push((machine.symbol, scope, handle));
         let parameters = program.machine_type_parameters(machine);
+        let scope_parameters: &[TypeParameter] = program
+            .machine_by_symbol(application.lexical_owner)
+            .map_or(&[], |owner| program.machine_type_parameters(owner));
         let mut type_bounds_satisfied = true;
         for binding in bindings {
             let parameter = parameters
@@ -121,7 +125,7 @@ pub fn validate_static_machine_bindings(
                                     crate::type_satisfies_declared_property(
                                         program,
                                         &symbols,
-                                        &[],
+                                        scope_parameters,
                                         actual,
                                         *property,
                                     )

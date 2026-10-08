@@ -497,8 +497,11 @@ fn validate_indexed_domain_argument_pack(
             matches!(
                 candidate.kind,
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            ) && ((symbol.is_valid() && candidate.symbol == *symbol)
-                || candidate.name.as_str() == name.as_str())
+            ) && if symbol.is_valid() {
+                candidate.symbol == *symbol
+            } else {
+                candidate.name.as_str() == name.as_str()
+            }
         });
         let Some(binder) = binder else {
             diagnostics.push(Diagnostic::error(format!(
@@ -567,11 +570,19 @@ fn validate_open_index_expression(
                 }
                 return;
             }
+            // Copied leaves keep authored display text after exact lexical
+            // remapping. A resolved declaration, never that old spelling,
+            // decides whether this scope owns the binder.
+            let symbol = if path.symbol.is_valid() { path.symbol } else { path.head_symbol };
             let binder = scope.type_parameters.iter().find(|candidate| {
                 matches!(
                     candidate.kind,
                     TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                ) && candidate.name.as_str() == name
+                ) && if symbol.is_valid() {
+                    candidate.symbol == symbol
+                } else {
+                    candidate.name.as_str() == name
+                }
             });
             let Some(binder) = binder else {
                 diagnostics.push(Diagnostic::error(format!(

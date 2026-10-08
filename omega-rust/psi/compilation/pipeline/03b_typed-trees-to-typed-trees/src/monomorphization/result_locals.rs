@@ -1,4 +1,10 @@
 //! Retype compiler-inferred temporaries from their exact selected call result.
+//!
+//! A known static tuple need not be closed: forwarding caller binders already
+//! determines the result's scope. Use the original selection for that result;
+//! closedness controls executable specialization, not whether an inferred local
+//! may retain foreign callee binders. Checking consumes the resulting type and
+//! must not reconstruct the initializer to recover its lost substitutions.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -13,7 +19,6 @@ pub(super) fn refresh_generic_call_results(
     selections: &[super::CallSelection],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut updates = Vec::new();
-    let callees = super::candidate::callees(program, candidates);
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (offset, statement) in program
@@ -32,16 +37,9 @@ pub(super) fn refresh_generic_call_results(
                 }) else {
                     continue;
                 };
-                let selection = if selection.is_complete() {
-                    selection.clone()
-                } else {
-                    let Some(selection) = forwarded_result_selection(
-                        program, machine, state, candidates, &callees, selection,
-                    ) else {
-                        continue;
-                    };
-                    selection
-                };
+                if !selection.has_bound_arguments() {
+                    continue;
+                }
                 let Some(callee) = crate::monomorphization::selection::state_by_symbol(
                     program,
                     selection.callee_symbol,
@@ -54,7 +52,7 @@ pub(super) fn refresh_generic_call_results(
                         offset,
                         local.type_reference,
                         callee.return_type,
-                        selection,
+                        selection.clone(),
                     ));
                 }
             }
@@ -63,7 +61,6 @@ pub(super) fn refresh_generic_call_results(
     for (body, offset, previous_type, return_type, selection) in updates {
         let candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
-        super::applications::retain_call(program, &candidate, &selection);
         let mut forwarded_symbols = Vec::new();
         for (ordinal, ((parameter, _, _), binding)) in candidate
             .template
@@ -127,6 +124,17 @@ pub(super) fn refresh_generic_call_results(
             return_type,
             &forwarded_symbols,
         );
+        let evidence_rewrites =
+            super::body_rewriting::evidence_argument_rewrites(program, &candidate);
+        let expressions = program
+            .expression_table
+            .iter_expressions()
+            .filter(|(expression, _)| expression.arena_index() as usize >= expression_start)
+            .map(|(expression, _)| expression)
+            .collect::<Vec<_>>();
+        for expression in expressions {
+            super::body_rewriting::rewrite_index_algebra(program, expression, &evidence_rewrites);
+        }
         // A runtime-bound `Value` slot cannot appear in an open caller's
         // inferred result: forwarded selections only bind static subjects, so
         // the runtime-expression root list stays empty here.
@@ -143,84 +151,6 @@ pub(super) fn refresh_generic_call_results(
         }
     }
     Ok(())
-}
-
-fn forwarded_result_selection(
-    program: &dyn ::validation::CheckingInput,
-    caller: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    candidates: &[super::Candidate],
-    callees: &[super::CalleeState],
-    selection: &super::CallSelection,
-) -> Option<super::CallSelection> {
-    let candidate = &candidates[selection.candidate_index];
-    if selection.conflicted
-        || !candidate.template.type_parameters.is_empty()
-        || !candidate.template.machine_parameters.is_empty()
-        || !candidate.template.evidence_parameters.is_empty()
-    {
-        return None;
-    }
-    let super::CallSite::Expression(expression) = selection.site else {
-        return None;
-    };
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let mut const_proposals = Vec::new();
-    crate::monomorphization::selection::collect_call_proposals(
-        program,
-        caller,
-        state,
-        candidates,
-        callees,
-        call.target_symbol,
-        &call.machine_arguments,
-        program.expression_table.expression_handles(call.arguments),
-        None,
-        usize::MAX,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut const_proposals,
-        &mut Vec::new(),
-    );
-    let mut selected = selection.clone();
-    for (_, ordinal, binding) in const_proposals {
-        if !binding.is_valid() {
-            // An unresolved endpoint occurrence cannot complete the forwarded
-            // tuple: it only gains a closed value after the caller's own
-            // specialization substitutes its const binders.
-            return None;
-        }
-        if let Some(existing) = selected.const_bindings[ordinal]
-            && !crate::monomorphization::selection::same_type_identity(program, existing, binding)
-        {
-            return None;
-        }
-        if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(binding)
-            && symbol.is_valid()
-        {
-            let parameter = program
-                .machine_type_parameters(caller)
-                .iter()
-                .find(|parameter| parameter.symbol == *symbol)?;
-            if !matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. }
-            ) {
-                return None;
-            }
-        }
-        selected.const_bindings[ordinal] = Some(binding);
-    }
-    selected
-        .const_bindings
-        .iter()
-        .all(Option::is_some)
-        .then_some(selected)
 }
 
 pub(super) fn refresh(program: &mut TypedTrees) {
