@@ -382,11 +382,7 @@ impl TerminalExecution<'_> {
         )?;
         if !machine.structural_places.iter().any(|place| {
             place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: operation.id,
-                        structural_type: result.structural_type,
-                    }
+                && place.kind.as_operation_result() == Some((operation.id, result.structural_type))
         }) {
             return Err(malformed());
         }

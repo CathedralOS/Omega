@@ -1,7 +1,7 @@
 //! Validate and publish one byte window without replacing its backing.
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind, ValueId};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
 
 use crate::errors::{TerminalInterpretError, malformed};
@@ -70,11 +70,8 @@ impl TerminalExecution<'_> {
         // or another producer's storage, even in malformed private runtime state.
         if !machine.structural_places.iter().any(|place| {
             place.id == result.place
-                && place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: operation.id,
-                        structural_type: result.structural_type,
-                    }
+                && place.kind.as_operation_result()
+                    == Some((operation.id, result.structural_type))
         }) || !matches!(
             self.program.structural_types().get(&result.structural_type),
             Some(declaration)
