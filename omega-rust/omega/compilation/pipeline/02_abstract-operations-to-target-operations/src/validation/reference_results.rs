@@ -15,6 +15,7 @@
 //! at which carrier path and which root it suspends.
 
 use abstract_operations::call_source;
+use crate::lowering::dominator_schedule;
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
@@ -1674,64 +1675,6 @@ fn apply_cleanup_actions(
 /// Dominator-order block schedule: each block inherits its immediate
 /// dominator's exit custody. Unreachable or predecessor-free non-entry blocks
 /// have no honest lowering.
-fn schedule(
-    incoming: &[Vec<usize>],
-    outgoing: &[Vec<usize>],
-    entry: usize,
-) -> Option<Vec<(usize, Option<usize>)>> {
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![entry];
-    while let Some(position) = pending.pop() {
-        if reachable.insert(position) {
-            pending.extend(outgoing.get(position)?.iter().copied());
-        }
-    }
-    if reachable.len() != incoming.len() {
-        return None;
-    }
-    let mut dominators = vec![reachable; incoming.len()];
-    dominators[entry] = BTreeSet::from([entry]);
-    loop {
-        let mut changed = false;
-        for (position, predecessors) in incoming.iter().enumerate() {
-            if position == entry {
-                continue;
-            }
-            let (first, others) = predecessors.split_first()?;
-            let mut current = dominators[*first].clone();
-            for predecessor in others {
-                current.retain(|candidate| dominators[*predecessor].contains(candidate));
-            }
-            current.insert(position);
-            if current != dominators[position] {
-                dominators[position] = current;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    // Strict dominators form a chain; the deepest strict dominator is the
-    // immediate dominator whose exit custody every arrival inherits.
-    let mut order = (0..incoming.len()).collect::<Vec<_>>();
-    order.sort_by_key(|position| dominators[*position].len());
-    order
-        .into_iter()
-        .map(|position| {
-            if position == entry {
-                Some((position, None))
-            } else {
-                dominators[position]
-                    .iter()
-                    .copied()
-                    .filter(|dominator| *dominator != position)
-                    .max_by_key(|dominator| dominators[*dominator].len())
-                    .map(|dominator| (position, Some(dominator)))
-            }
-        })
-        .collect()
-}
 
 /// Replay the caller's custody in dominator order and collect the reference
 /// leaf roster each structural-result `CallStructural` — authored or
@@ -1809,7 +1752,7 @@ pub(super) fn expected(
     ));
     let mut exits: Vec<Option<Custody>> = vec![None; entries.len()];
     let mut expected = BTreeMap::new();
-    for (position, dominator) in schedule(&incoming, &outgoing, entry_position)? {
+    for (position, dominator) in dominator_schedule(&incoming, &outgoing, entry_position)? {
         let mut custody = match dominator {
             None => initial.clone(),
             Some(dominator) => exits[dominator].clone()?,

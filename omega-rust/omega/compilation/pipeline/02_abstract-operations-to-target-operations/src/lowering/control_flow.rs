@@ -29,6 +29,7 @@ mod byte_write;
 mod call_signature;
 mod calls;
 mod dominance;
+pub(crate) use dominance::schedule as dominator_schedule;
 mod element_view_write;
 mod ieee_float_arithmetic;
 mod installed_calls;

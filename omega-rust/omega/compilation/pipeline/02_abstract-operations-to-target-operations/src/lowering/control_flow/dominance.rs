@@ -1,7 +1,7 @@
 //! Definition scheduling only: no cut executable edges or ranking conclusions.
 use std::collections::BTreeSet;
 
-pub(super) fn schedule(
+pub(crate) fn schedule(
     incoming: &[Vec<usize>],
     outgoing: &[Vec<usize>],
     entry: usize,
