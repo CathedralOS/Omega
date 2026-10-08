@@ -375,7 +375,17 @@ pub fn builtin_float_operator_selection(
         }
         format = Some(candidate);
     }
-    let format = format?;
+    // An explicit catalog call can select its format from the destination;
+    // anonymous arithmetic operands cannot. Query the call, not each literal.
+    let format = format.or_else(|| {
+        expression_type_reference_for_origin(program, expression, origin)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .and_then(|primitive| match primitive {
+                PrimitiveType::F32 => Some(FloatFormat::BINARY32),
+                PrimitiveType::F64 => Some(FloatFormat::BINARY64),
+                _ => None,
+            })
+    })?;
     let (namespace, primitive) = if format == FloatFormat::BINARY32 {
         ("F32", PrimitiveType::F32)
     } else if format == FloatFormat::BINARY64 {
@@ -478,7 +488,8 @@ fn named_operator_use_fact(
             let candidates = typed_trees::operator::named_expression_call_candidates(program, call);
             let mut matching = candidates.into_iter().filter(|candidate| {
                 program
-                    .machine_token_binding_by_symbol(candidate.symbol).is_some()
+                    .machine_token_binding_by_symbol(candidate.symbol)
+                    .is_some()
                     && candidate.spelling.is_some_and(|spelling| {
                         typed_trees::operator::resolve_spelling_for_operands(
                             program,

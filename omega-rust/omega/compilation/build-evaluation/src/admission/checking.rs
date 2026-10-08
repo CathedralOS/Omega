@@ -52,9 +52,6 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    if !pending.is_empty() {
-        validation::land_float_literal_destinations(typed);
-    }
     let provisional = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
     let context = provider_planning::ProviderPlanningContext::new(
         &provisional,

@@ -36,7 +36,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit {
     let negative_zero: f32 = F32::negate(0.0f32);
     let minimum_zero: f32 = F32::minimum(0.0f32, negative_zero);
     let reciprocal: f32 = main.one32 / minimum_zero;
-    let nan: f64 = 0.0 / 0.0;
+    let nan: f64 = 0.0f64 / 0.0f64;
     let minimum: f64 = F64::minimum(nan, main.one64);
     let maximum: f64 = F64::maximum(main.one64, nan);
     let maximum_integer: u64 = 18446744073709551615u64;

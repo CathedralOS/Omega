@@ -119,7 +119,6 @@ pub(crate) fn check_selected_execution(
         opaque_representation_selections,
     )?;
     if !pending_pre_checks.is_empty() {
-        validation::land_float_literal_destinations(&mut typed);
         SelectedConstantEvaluation::prepare(
             provider_planning::ProviderPlanningContext::new(
                 &typed,

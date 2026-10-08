@@ -70,9 +70,9 @@ impl std::error::Error for BuildMachineEvaluationError {}
 
 /// A private, target-neutral program prepared for build-machine evaluation.
 ///
-/// Build machines run before ordinary checked lowering, but static machine
-/// parameters must observe the same complete specialization that checked
-/// runtime lowering uses. Psi owns that sequencing and keeps the caller's
+/// Build machines run before ordinary checked lowering, but closed static
+/// applications and numeric destinations must use the same formation as
+/// runtime lowering. Psi owns that sequencing and keeps the caller's
 /// typed tree unchanged so later checking can retain template and
 /// specialization-contract evidence.
 pub struct PreparedBuildMachineProgram {
@@ -157,7 +157,7 @@ impl PreparedBuildMachineProgram {
         // pending type bounds unreplaced, so it cannot execute before a later
         // preparation validates its fully evaluated arguments.
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
-        typed_trees_to_typed_trees::specialize_static_machine_calls(&mut typed)?;
+        let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
         Ok(Self {
             program: PreparedBuildMachineBody::Typed(Box::new(typed)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
@@ -224,10 +224,7 @@ impl PreparedBuildMachineProgram {
     /// prepared program. The lookup never falls back to a matching name. No
     /// execution mode or host grant can admit an unfinished specialization.
     pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
-        if !self
-            .typed()
-            .machine(symbol).is_some()
-        {
+        if !self.typed().machine(symbol).is_some() {
             return Err(format!(
                 "prepared build program contains no machine with exact symbol {symbol:?}"
             ));

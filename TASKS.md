@@ -2776,8 +2776,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
   still repeats `resolve_projected_receiver_calls` (2).
-  Pending constant evaluation also stamps float destinations in the Build
-  and product coordinators; move that work into private typed preparation.
   The loop must specialize and bind only; run each remaining pass once at its
   required point. Retire receiver elaboration with **STATIC-MACHINE-MIGRATION**,
   not a new subsystem for the retired implicit-call syntax.
@@ -2966,8 +2964,8 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Remaining: retire repeated receiver elaboration and coordinator float
-  destination stamping with **SPECIALIZATION-LOOP-ONCE**, preserving authored
+  Remaining: retire repeated receiver elaboration with
+  **SPECIALIZATION-LOOP-ONCE**, preserving authored
   requirement identity and call-contract diagnostics. Preserve exact erased
   applications, clone correspondence and lexical owners through folding and
   substitution;

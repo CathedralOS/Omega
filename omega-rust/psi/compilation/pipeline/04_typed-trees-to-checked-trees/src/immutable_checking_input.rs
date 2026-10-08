@@ -17,6 +17,7 @@ fn checking_does_not_reopen_typed_preparation() {
         "&mut program",
         "&mut typed_program",
         "prepare_typed_trees(",
+        "prepare_constant_execution(",
         "specialize_static_machine_calls(",
         "bind_selected_operator_calls(",
         "resolve_projected_receiver_calls(",

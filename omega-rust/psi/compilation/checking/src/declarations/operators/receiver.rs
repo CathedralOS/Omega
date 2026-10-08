@@ -1,8 +1,9 @@
 //! Operator receiver typing under the exact executable statement origin.
 //!
-//! Destination landing, first-derivable match arms and direct cast target types
-//! are selection semantics here. General selected-result typing has different
-//! joins and cannot replace this query.
+//! Recover already-typed operands without borrowing an arithmetic destination:
+//! wholly anonymous trees keep exact meaning until their completed value lands.
+//! Explicit catalog calls, first-derivable match arms and direct cast targets
+//! have their own selection rules; general result typing cannot replace them.
 
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
@@ -146,7 +147,9 @@ fn expression_type_reference_in_state(
                     binary.right,
                 ),
             ];
-            if let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            if operands.iter().any(Option::is_some)
+                && let Some(spelling) =
+                    typed_trees::operator::binary_operator_spelling(binary.operator)
             {
                 let candidates = typed_trees::operator::resolve_spelling_for_operands(
                     program,
@@ -217,23 +220,12 @@ fn expression_type_reference_in_state(
                     symbols::BuiltinTypeAtom::Bool,
                 );
             }
-            operands[0].or(operands[1]).or_else(|| {
-                contextual_type_reference_in_state(program, state_symbol, statement_index)
-            })
+            operands[0].or(operands[1])
         }
         ExpressionNode::UndeterminedNaN(format) => float_type_reference(program, *format),
         ExpressionNode::Float(literal) => literal
             .landing()
-            .and_then(|format| float_type_reference(program, format))
-            .or_else(|| {
-                contextual_type_reference_in_state(program, state_symbol, statement_index).filter(
-                    |type_reference| {
-                        program
-                            .primitive_type_reference(*type_reference)
-                            .is_some_and(|primitive| primitive.accepts_float_literal())
-                    },
-                )
-            }),
+            .and_then(|format| float_type_reference(program, format)),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         // Construction denotes its resolved nominal type, independently of
         // its fields and the destination of an enclosing operation. Retain
@@ -250,10 +242,8 @@ fn expression_type_reference_in_state(
     }
 }
 
-/// Recover the declared landing type of a context-typed expression. Anonymous
-/// float literals and compiler-synthesized `min`/`max` trees deliberately do
-/// not invent standalone type references; their assignment/local declaration
-/// is the checker-owned source of truth.
+/// Explicit catalog calls may select a format from their destination. That
+/// context does not type anonymous operands of an ordinary arithmetic tree.
 fn contextual_type_reference_in_state(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,

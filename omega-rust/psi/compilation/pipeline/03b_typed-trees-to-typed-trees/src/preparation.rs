@@ -208,35 +208,7 @@ pub fn prepare_typed_trees(
             break;
         }
     }
-    // Calls through a `Binding<R>` service receiver cannot be resolved during
-    // the earlier symbol pass because local declared types are not available
-    // there. Bind their declaring-trait requirement now so the ordinary
-    // result-overload pass below starts in the correct trait family rather
-    // than from an ambient same-named machine.
-    validation::resolve_dynamic_call_targets(&mut program)?;
-    // Concrete substitutions may make previously open field types selectable.
-    crate::receivers::resolve_projected_receiver_calls(&mut program)?;
-    // Named-machine result overloads are provisionally bound to the first
-    // same-named symbol during early resolution. Rebind them now, after domain
-    // normalization and destination typing, before validation/backend facts
-    // consume the call identity.
-    validation::resolve_named_result_overloads(&mut program)?;
-    // Float casts select their destination-owned conversion by the cast's
-    // result qualification. Derived calls retain the authored Exact target;
-    // occurrence checking proves unchanged denotation from live value facts.
-    // Bind after named rebinding above, which would otherwise reselect the
-    // unqualified overload for a call whose context expects no result domain.
-    validation::bind_float_conversion_casts(&mut program)?;
-    // Overload rebinding changes existing call targets, and cast elaboration
-    // produces exact ordinary calls. Neither introduces token syntax to bind.
-    // Land anonymous float values once, against final destinations. Provisional
-    // named targets are not authority to round an argument: overload rebinding
-    // and conversion elaboration above settle the exact formal types first.
-    // Readonly type queries leave anonymous values without a carrier until
-    // their destination is known; no provisional default-f64 landing is needed.
-    // Both execution engines consume this same rounded tree. Source-suffixed
-    // literals keep their declared format and its agreement checks.
-    validation::land_float_literal_destinations(&mut program);
+    settle_value_destinations(&mut program)?;
     default_domain_zero::refine_default_domain_zero(&mut program);
     // Every selection and selector call is now final: instantiate each
     // reached requirement under its selector application and retarget the
@@ -250,6 +222,42 @@ pub fn prepare_typed_trees(
             opaque_property_receipts,
         },
     ))
+}
+
+/// Calls establish destinations before anonymous values can round. Full source
+/// preparation and private constant execution share this ordering; coordinators
+/// must not stamp the canonical program to compensate for an unprepared clone.
+fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    // Calls through a `Binding<R>` service receiver cannot be resolved during
+    // the earlier symbol pass because local declared types are not available
+    // there. Bind their declaring-trait requirement now so the ordinary
+    // result-overload pass below starts in the correct trait family rather
+    // than from an ambient same-named machine.
+    validation::resolve_dynamic_call_targets(program)?;
+    // Concrete substitutions may make previously open field types selectable.
+    crate::receivers::resolve_projected_receiver_calls(program)?;
+    // Named-machine result overloads are provisionally bound to the first
+    // same-named symbol during early resolution. Rebind them now, after domain
+    // normalization and destination typing, before validation/backend facts
+    // consume the call identity.
+    validation::resolve_named_result_overloads(program)?;
+    // Float casts select their destination-owned conversion by the cast's
+    // result qualification. Derived calls retain the authored Exact target;
+    // occurrence checking proves unchanged denotation from live value facts.
+    // Bind after named rebinding above, which would otherwise reselect the
+    // unqualified overload for a call whose context expects no result domain.
+    validation::bind_float_conversion_casts(program)?;
+    // Overload rebinding changes existing call targets, and cast elaboration
+    // produces exact ordinary calls. Neither introduces token syntax to bind.
+    // Land anonymous float values once, against final destinations. Provisional
+    // named targets are not authority to round an argument: overload rebinding
+    // and conversion elaboration above settle the exact formal types first.
+    // Readonly type queries leave anonymous values without a carrier until
+    // their destination is known; no provisional default-f64 landing is needed.
+    // Both execution engines consume this same rounded tree. Source-suffixed
+    // literals keep their declared format and its agreement checks.
+    validation::land_float_literal_destinations(program);
+    Ok(())
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
@@ -269,11 +277,10 @@ fn normalize_open_index_identities(
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-/// Validate and consume compile-time machine-symbol selections, rewriting
-/// every complete generic call tuple to direct concrete calls. The ordinary
-/// checked-tree path invokes this before validation; orchestration also uses
-/// it on a private clone before interpreting build.omg so build-time execution
-/// sees the same specialized program as runtime lowering.
+/// Resume canonical constant dependencies by closing complete static tuples.
+/// This does not form numeric destinations: pending evaluation is not authority
+/// to round the caller's canonical program. Private execution instead enters
+/// [`prepare_constant_execution`]; final source admission uses the full stage.
 ///
 /// This speculative route tolerates an incomplete concrete selection: build
 /// preparation runs while const endpoint folds are still outstanding, so an
@@ -292,6 +299,18 @@ pub fn specialize_static_machine_calls(
     validation::conformance_applications::validate_conformance_applications(program)?;
     validation::validate_static_machine_selections_with_facts(program)?;
     validation::validate_generic_machine_contract_entailment(program)
+}
+
+/// Form one private constant-execution graph, including its exact call and
+/// numeric destinations. Pending tuples remain pending as in static derivation;
+/// this is not full source checking or permission to execute them. The semantic
+/// evaluation owner still admits each demanded invocation before execution.
+pub fn prepare_constant_execution(
+    mut program: TypedTrees,
+) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
+    specialize_static_machine_calls(&mut program)?;
+    settle_value_destinations(&mut program)?;
+    Ok(program)
 }
 
 fn specialize_machine_calls(

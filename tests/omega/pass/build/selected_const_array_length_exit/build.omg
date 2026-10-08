@@ -48,7 +48,19 @@ linux_x86_64 machine checked_target_capacity() -> u64 {
 machine slot_count() -> u64 {
     let half: f32 in Saturating = 0.5f32;
     let whole: f32 = Float::add(half, half) as f32;
-    transition whole == 1.0f32 { true -> 8 _ -> 0 }
+    // Anonymous arguments and returns each land once, without an f64 detour.
+    let precision: f32 = round_trip(8388609.499999999999999);
+    // The whole anonymous tree lands once, not each arithmetic operand.
+    let anonymous: f32 = 1.0 + 0.000000059604644775390625000001;
+    transition whole == 1.0f32 && precision == 8388609.0f32
+        && anonymous == 1.00000011920928955078125f32 { true -> 8 _ -> 0 }
+}
+
+machine round_trip(value: f32) -> f32 {
+    transition value == 8388609.0f32 {
+        true -> 8388609.499999999999999
+        _ -> 0.0
+    }
 }
 
 // The initializer's helper reads a later computed declaration. Readiness must
