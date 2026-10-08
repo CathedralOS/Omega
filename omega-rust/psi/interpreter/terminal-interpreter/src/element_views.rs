@@ -1129,13 +1129,8 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let destination = TerminalStructuralValue {
-            opaque_identity: result.place.get(),
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let destination =
+            TerminalStructuralValue::minted(result.place.get(), result.structural_type, Vec::new());
         match (
             self.structural_values.get(&result.place),
             self.element_view_values.get(&result.place),
