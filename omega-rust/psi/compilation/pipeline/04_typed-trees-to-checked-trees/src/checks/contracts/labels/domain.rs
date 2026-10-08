@@ -11,11 +11,7 @@ pub(crate) fn domain_proves_expression_label(
     if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
         return false;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
 

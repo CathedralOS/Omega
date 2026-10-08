@@ -226,11 +226,7 @@ fn membership_ensures_is_route_authorized(
     machine: &Machine,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
     let machine_name = machine

@@ -635,11 +635,7 @@ fn domain_admits_zero_value_inner(
     if active.contains(&domain_symbol) {
         return false;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
     // Generic or indexed domain instances can bind their zero question to the

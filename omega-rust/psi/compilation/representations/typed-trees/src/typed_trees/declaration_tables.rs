@@ -242,6 +242,16 @@ impl TypedTrees {
             .span_or_empty(self.roots.domain_definitions)
     }
 
+    /// The domain definition `symbol` declares, if it exists.
+    pub fn domain_definition(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&domain::DomainDefinition> {
+        self.domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == symbol)
+    }
+
     pub fn domain_operators(
         &self,
         domain: &domain::DomainDefinition,

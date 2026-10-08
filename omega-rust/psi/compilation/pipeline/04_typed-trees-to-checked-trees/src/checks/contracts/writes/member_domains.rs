@@ -45,11 +45,7 @@ pub(super) fn initializer_satisfies_predicate_domain(
     {
         return true;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         return false;
     };
     if !domain.predicate_body.is_present() {
