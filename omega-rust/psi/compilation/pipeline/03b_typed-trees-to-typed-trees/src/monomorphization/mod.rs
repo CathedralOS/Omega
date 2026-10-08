@@ -416,21 +416,9 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     let mut atoms = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
         let atom = match expression {
-            ExpressionNode::Integer(literal) => {
-                literal.landing().map(|landing| match landing.landed_type {
-                    numerics::literals::LandedIntegerType::I8 => symbols::BuiltinTypeAtom::I8,
-                    numerics::literals::LandedIntegerType::I16 => symbols::BuiltinTypeAtom::I16,
-                    numerics::literals::LandedIntegerType::I32 => symbols::BuiltinTypeAtom::I32,
-                    numerics::literals::LandedIntegerType::I64 => symbols::BuiltinTypeAtom::I64,
-                    numerics::literals::LandedIntegerType::U8 => symbols::BuiltinTypeAtom::U8,
-                    numerics::literals::LandedIntegerType::U16 => symbols::BuiltinTypeAtom::U16,
-                    numerics::literals::LandedIntegerType::U32 => symbols::BuiltinTypeAtom::U32,
-                    numerics::literals::LandedIntegerType::U64 => symbols::BuiltinTypeAtom::U64,
-                    numerics::literals::LandedIntegerType::Addr => {
-                        symbols::BuiltinTypeAtom::Address
-                    }
-                })
-            }
+            ExpressionNode::Integer(literal) => literal
+                .landing()
+                .map(|landing| typed_trees::types::builtin_type_atom(landing.landed_type)),
             ExpressionNode::Float(literal) => literal.landing().map(|format| match format {
                 numerics::literals::FloatFormat::F32 => symbols::BuiltinTypeAtom::F32,
                 numerics::literals::FloatFormat::F64 => symbols::BuiltinTypeAtom::F64,

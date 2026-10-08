@@ -1265,6 +1265,25 @@ impl PrimitiveType {
     }
 }
 
+/// The builtin type atom a landed literal integer type denotes.
+pub fn builtin_type_atom(
+    kind: numerics::literals::LandedIntegerType,
+) -> symbols::BuiltinTypeAtom {
+    use numerics::literals::LandedIntegerType;
+    use symbols::BuiltinTypeAtom;
+    match kind {
+        LandedIntegerType::I8 => BuiltinTypeAtom::I8,
+        LandedIntegerType::I16 => BuiltinTypeAtom::I16,
+        LandedIntegerType::I32 => BuiltinTypeAtom::I32,
+        LandedIntegerType::I64 => BuiltinTypeAtom::I64,
+        LandedIntegerType::U8 => BuiltinTypeAtom::U8,
+        LandedIntegerType::U16 => BuiltinTypeAtom::U16,
+        LandedIntegerType::U32 => BuiltinTypeAtom::U32,
+        LandedIntegerType::U64 => BuiltinTypeAtom::U64,
+        LandedIntegerType::Addr => BuiltinTypeAtom::Address,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FixedArrayLength, TypeReferenceNode, TypeReferenceTable};

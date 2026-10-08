@@ -499,19 +499,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Integer(value) => {
                 if let Some(landing) = value.landing() {
-                    self.retain_builtin_type_reference(match landing.landed_type {
-                        numerics::literals::LandedIntegerType::I8 => symbols::BuiltinTypeAtom::I8,
-                        numerics::literals::LandedIntegerType::I16 => symbols::BuiltinTypeAtom::I16,
-                        numerics::literals::LandedIntegerType::I32 => symbols::BuiltinTypeAtom::I32,
-                        numerics::literals::LandedIntegerType::I64 => symbols::BuiltinTypeAtom::I64,
-                        numerics::literals::LandedIntegerType::U8 => symbols::BuiltinTypeAtom::U8,
-                        numerics::literals::LandedIntegerType::U16 => symbols::BuiltinTypeAtom::U16,
-                        numerics::literals::LandedIntegerType::U32 => symbols::BuiltinTypeAtom::U32,
-                        numerics::literals::LandedIntegerType::U64 => symbols::BuiltinTypeAtom::U64,
-                        numerics::literals::LandedIntegerType::Addr => {
-                            symbols::BuiltinTypeAtom::Address
-                        }
-                    })?;
+                    self.retain_builtin_type_reference(typed::types::builtin_type_atom(
+                        landing.landed_type,
+                    ))?;
                 }
                 Ok(self
                     .target()

@@ -353,17 +353,9 @@ pub fn landed_integer_literal_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let atom = match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => match literal.landing()?.landed_type {
-            numerics::literals::LandedIntegerType::I8 => symbols::BuiltinTypeAtom::I8,
-            numerics::literals::LandedIntegerType::I16 => symbols::BuiltinTypeAtom::I16,
-            numerics::literals::LandedIntegerType::I32 => symbols::BuiltinTypeAtom::I32,
-            numerics::literals::LandedIntegerType::I64 => symbols::BuiltinTypeAtom::I64,
-            numerics::literals::LandedIntegerType::U8 => symbols::BuiltinTypeAtom::U8,
-            numerics::literals::LandedIntegerType::U16 => symbols::BuiltinTypeAtom::U16,
-            numerics::literals::LandedIntegerType::U32 => symbols::BuiltinTypeAtom::U32,
-            numerics::literals::LandedIntegerType::U64 => symbols::BuiltinTypeAtom::U64,
-            numerics::literals::LandedIntegerType::Addr => symbols::BuiltinTypeAtom::Address,
-        },
+        ExpressionNode::Integer(literal) => {
+            typed_trees::types::builtin_type_atom(literal.landing()?.landed_type)
+        }
         _ => return None,
     };
     let symbol = program
