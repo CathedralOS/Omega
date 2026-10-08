@@ -238,3 +238,16 @@ pub fn validate_x86_64_selected_form_encoding(
         footprint: footprint(kind, alternative, operands),
     })
 }
+
+/// Selected forms must reject every proper prefix and every trailing byte:
+/// truncation and extension are both encodings a validator may not admit, so
+/// the per-form tests assert that byte-fragility uniformly.
+#[cfg(test)]
+pub(super) fn assert_byte_fragility(encoded: &[u8], rejects: impl Fn(&[u8]) -> bool) {
+    for length in 0..encoded.len() {
+        assert!(rejects(&encoded[..length]));
+    }
+    let mut trailing = encoded.to_vec();
+    trailing.push(0);
+    assert!(rejects(&trailing));
+}

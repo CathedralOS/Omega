@@ -1045,24 +1045,9 @@ mod tests {
                         "predicate {predicate:?} bit {bit}"
                     );
                 }
-                for length in 0..encoded.bytes().len() {
-                    assert!(
-                        validate(
-                            &physical,
-                            predicate,
-                            alternative,
-                            &operands,
-                            0,
-                            &encoded.bytes()[..length]
-                        )
-                        .is_err()
-                    );
-                }
-                let mut trailing = encoded.bytes().to_vec();
-                trailing.push(0);
-                assert!(
-                    validate(&physical, predicate, alternative, &operands, 0, &trailing).is_err()
-                );
+                super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
+                    validate(&physical, predicate, alternative, &operands, 0, bytes).is_err()
+                });
                 assert!(encode(&physical, predicate, alternative, &operands, 1).is_err());
             }
         }

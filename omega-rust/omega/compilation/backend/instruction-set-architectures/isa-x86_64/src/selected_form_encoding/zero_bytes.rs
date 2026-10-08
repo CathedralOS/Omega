@@ -259,20 +259,9 @@ mod tests {
                     "bit {bit}"
                 );
             }
-            for length in 0..encoded.bytes().len() {
-                assert!(
-                    validate(
-                        &physical,
-                        alternative,
-                        &operands,
-                        &encoded.bytes()[..length]
-                    )
-                    .is_err()
-                );
-            }
-            let mut trailing = encoded.bytes().to_vec();
-            trailing.push(0);
-            assert!(validate(&physical, alternative, &operands, &trailing).is_err());
+            super::super::assert_byte_fragility(encoded.bytes(), |bytes| {
+                validate(&physical, alternative, &operands, bytes).is_err()
+            });
             for operand in 0..3 {
                 let mut changed = operands;
                 changed[operand] = physical.model().view_named("rsp").unwrap().id;
