@@ -46,8 +46,8 @@ use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
-    address_fold_measured_steps, constant_boolean_measured_steps, constant_boolean_surface_sizes,
-    constant_branch_measured_steps, constant_branch_surface_sizes,
+    SelectedFunction, address_fold_measured_steps, constant_boolean_measured_steps,
+    constant_boolean_surface_sizes, constant_branch_measured_steps, constant_branch_surface_sizes,
     copied_call_operand_measured_steps, copy_removal_measured_steps, dead_compare_measured_steps,
     equivalent_compare_measured_steps, fold_selected_address, fold_selected_constant_boolean,
     fold_selected_constant_branch, fold_selected_copied_call_operand,
@@ -533,15 +533,26 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
 /// Admit the current copy. Ordinary legality refusals decline the site; budget,
 /// identity and validator failures abort the run. Published measured-step costs
 /// charge the admission audit and, on commit, its independent validation.
+fn candidate_context<'a>(
+    current: &'a SelectedProgramRef<'a>,
+    site: CandidateSite,
+) -> Result<
+    (usize, &'a SelectedFunction, &'a SelectedInstruction),
+    OptimizedPreAllocationCustodyError,
+> {
+    let function_index = site.function_index;
+    let function = &current.selected_plan().functions[function_index];
+    let instruction = site.instruction(current.selected_plan())?;
+    Ok((function_index, function, instruction))
+}
+
 fn copy_removal_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -592,9 +603,7 @@ fn extension_removal_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -647,9 +656,7 @@ fn address_fold_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -701,9 +708,7 @@ fn constant_boolean_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -773,9 +778,7 @@ fn constant_branch_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -845,9 +848,7 @@ fn dead_compare_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -901,9 +902,7 @@ fn redundant_compare_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
@@ -960,9 +959,7 @@ fn equivalent_compare_candidate(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
-    let function_index = site.function_index;
-    let function = &current.selected_plan().functions[function_index];
-    let instruction = site.instruction(current.selected_plan())?;
+    let (function_index, function, instruction) = candidate_context(&current, site)?;
 
     let mut evaluated = 0usize;
     let mut declined = 0usize;
