@@ -17,9 +17,13 @@
 //! IAT slots outside `.data` — replays through the same byte join on the
 //! `final_import_data_bytes`/`import_data_regions` pair.
 
+mod common;
+
+use common::{TEXT_ADDRESS, layout};
+
 use image::{
     EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalImageInput,
-    FinalImageLayout, apply_x86_64_relocations, build_final_image,
+    apply_x86_64_relocations, build_final_image,
     emitted_direct_executable_output, place_data_regions, place_executable_regions,
     validate_final_text_relocation_envelope, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
@@ -30,9 +34,6 @@ use object_file::{
 };
 use target::NativeTarget;
 
-const TEXT_ADDRESS: u64 = 0x40_0000;
-const DATA_ADDRESS: u64 = 0x41_0000;
-const BSS_ADDRESS: u64 = 0x42_0000;
 
 /// mov eax, edi; test eax, eax; setnz al; ret — eight bytes the entry symbol
 /// owns completely so the placed executable inventory classifies every byte.
@@ -47,13 +48,6 @@ fn encoded_data() -> Vec<u8> {
     data
 }
 
-fn layout() -> FinalImageLayout {
-    FinalImageLayout {
-        text_address: TEXT_ADDRESS,
-        data_address: DATA_ADDRESS,
-        bss_address: BSS_ADDRESS,
-    }
-}
 
 fn data_relocation(
     offset: usize,

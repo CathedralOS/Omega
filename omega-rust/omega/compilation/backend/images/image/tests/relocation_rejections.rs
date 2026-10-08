@@ -7,6 +7,10 @@
 //! section bytes bit-identical, so the same text envelope still replays
 //! them as unchanged.
 
+mod common;
+
+use common::{BSS_ADDRESS, DATA_ADDRESS, TEXT_ADDRESS, layout};
+
 use image::{
     FinalImage, FinalImageInput, FinalImageLayout, FinalImageRelocation, FinalImageSection,
     FinalImageSymbol, apply_aarch64_relocations, apply_x86_64_relocations, build_final_image,
@@ -18,17 +22,6 @@ use object_file::{
 };
 use target::NativeTarget;
 
-const TEXT_ADDRESS: u64 = 0x40_0000;
-const DATA_ADDRESS: u64 = 0x41_0000;
-const BSS_ADDRESS: u64 = 0x42_0000;
-
-fn layout() -> FinalImageLayout {
-    FinalImageLayout {
-        text_address: TEXT_ADDRESS,
-        data_address: DATA_ADDRESS,
-        bss_address: BSS_ADDRESS,
-    }
-}
 
 fn record(
     section: SectionKind,

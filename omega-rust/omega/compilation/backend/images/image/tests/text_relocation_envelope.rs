@@ -9,8 +9,12 @@
 //! or overlapping fields fail closed, and the returned evidence digests
 //! bind the exact relocation plan rather than its presentation order.
 
+mod common;
+
+use common::layout;
+
 use image::{
-    FinalImageInput, FinalImageLayout, apply_aarch64_relocations, apply_x86_64_relocations,
+    FinalImageInput, apply_aarch64_relocations, apply_x86_64_relocations,
     build_final_image, validate_final_text_relocation_envelope,
 };
 use object_file::{
@@ -19,17 +23,6 @@ use object_file::{
 };
 use target::NativeTarget;
 
-const TEXT_ADDRESS: u64 = 0x40_0000;
-const DATA_ADDRESS: u64 = 0x41_0000;
-const BSS_ADDRESS: u64 = 0x42_0000;
-
-fn layout() -> FinalImageLayout {
-    FinalImageLayout {
-        text_address: TEXT_ADDRESS,
-        data_address: DATA_ADDRESS,
-        bss_address: BSS_ADDRESS,
-    }
-}
 
 /// A record with no resolvable symbol and no addend, for the cases whose
 /// subject is field or origin shape rather than the symbol row itself.
