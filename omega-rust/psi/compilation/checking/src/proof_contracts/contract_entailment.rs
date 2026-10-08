@@ -66,7 +66,7 @@
 //! This file validates one machine contract entailment.
 //! `strict_arithmetic.rs` judges strict arithmetic implications,
 //! `transparent_applications.rs` entails transparent proposition
-//! applications, `stand_downs.rs` records expression stand-downs,
+//! applications, `fact_mentions.rs` detects facts naming proof-only data,
 //! `citations.rs` collects, suggests and instantiates citations,
 //! `proof_edges.rs` judges strict decrease along proof edges,
 //! `refuted_requires.rs` rejects refuted value-call requirements,
@@ -81,6 +81,7 @@ mod citations;
 mod const_ranges;
 mod contract_refinement;
 mod exit_coverage;
+mod fact_mentions;
 mod inductive_judgment;
 mod law_conformance;
 mod proof_edges;
@@ -92,7 +93,6 @@ mod result_bounds;
 mod scoped_arithmetic;
 mod self_induction;
 mod specification_calls;
-mod stand_downs;
 mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
@@ -173,8 +173,8 @@ use crate::proof_contracts::contract_entailment::citations::{
     collect_citation_equations, instantiated_fact_established, is_citation_statement,
     suggest_missing_citation,
 };
-use crate::proof_contracts::contract_entailment::stand_downs::{
-    fact_mentions_proof_only_data, fact_mentions_zero_value, record_expression_stand_down,
+use crate::proof_contracts::contract_entailment::fact_mentions::{
+    fact_mentions_proof_only_data, fact_mentions_zero_value,
 };
 use crate::proof_contracts::contract_entailment::structural_case_arms::{
     StructuralCaseArm, recognize_guarded_structural_value_arms, recognize_structural_case_arms,
@@ -214,96 +214,15 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     )
 }
 
-/// Whether `machine` is an authored issuer of `domain_symbol` through the
-/// domain's `established by` routes: an exact-machine route naming it, or a
-/// requirement route it is (`requirement == machine.symbol`) or satisfies.
-/// A route-authorized `ensures <subject> in D` membership is the mint
-/// declaration itself — the authored route makes the machine an issuer, so
-/// the fact is discharged by authority and never becomes an open
-/// contract-entailment obligation. Membership on an unauthorized machine
-/// keeps its stand-down.
-fn membership_ensures_is_route_authorized(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    let Some(domain) = program.domain_definition(domain_symbol) else {
-        return false;
-    };
-    let machine_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
-    domain.establishment_routes.iter().any(|route| match route {
-        language_semantics::DomainEstablishmentRoute::ExactMachine {
-            machine: authorized,
-        } => *authorized == machine.symbol,
-        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-            trait_definition,
-            requirement,
-        }
-        | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-            boundary_trait: trait_definition,
-            requirement,
-        } => {
-            if *requirement == machine.symbol {
-                return true;
-            }
-            let Some(requirement_signature) = program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == *trait_definition)
-                .and_then(|definition| {
-                    program
-                        .trait_machine_signatures(definition)
-                        .iter()
-                        .find(|signature| signature.symbol == *requirement)
-                })
-            else {
-                return false;
-            };
-            program
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| {
-                    conformance.symbol == *trait_definition
-                        && conformance
-                            .requirement
-                            .as_ref()
-                            .map(|name| name.as_str())
-                            .unwrap_or(machine_name)
-                            == requirement_signature.name.as_str()
-                })
-        }
-    })
-}
-
 pub(crate) fn validate_machine_contract_entailment(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_machine_contract_entailment_with_stand_downs(
-        program,
-        machine,
-        diagnostics,
-        &mut Vec::new(),
-    );
-}
-
-pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    diagnostics: &mut Vec<Diagnostic>,
-    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
-) {
     validate_machine_contract_entailment_with_outcomes(
         program,
         machine,
         diagnostics,
-        stand_downs,
         &mut Vec::new(),
     );
 }
@@ -312,7 +231,6 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
-    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
     proven: &mut Vec<ExpressionHandle>,
 ) {
     // A top-level requirement publishes the contract that its selected
@@ -324,68 +242,31 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     let mut requires = Vec::new();
     let mut requires_propositions = Vec::new();
     let mut ensures = Vec::new();
-    let mut ensures_coordinates = Vec::new();
-    let account_stand_downs = matches!(
-        machine.supply_mode,
-        language_semantics::MachineSupplyMode::CheckedBody
-            | language_semantics::MachineSupplyMode::Boundary
-    );
     // Membership facts (`value in Domain`) are outside the engine's language.
     // The empty-body path drops them silently (a dropped hypothesis only
     // weakens proving power); the inductive path additionally refuses to
     // REJECT when any are present, since the unread fact could entail the
     // goal.
     let mut all_facts_are_expressions = true;
-    let push_unsupported_stand_down =
-        |stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
-         contract_index: usize,
-         fact_index: usize| {
-            stand_downs.push(crate::ContractEntailmentStandDown {
-                machine_symbol: machine.symbol,
-                contract_index,
-                fact_index,
-                reason: crate::ContractEntailmentStandDownReason::UnsupportedEnsuresFact,
-            });
-        };
-    for (contract_index, contract) in program.machine_contracts(machine).iter().enumerate() {
+    for contract in program.machine_contracts(machine) {
         let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
             SignatureContractKind::Ensures => &mut ensures,
             SignatureContractKind::EnsuresForResultCase { .. }
             | SignatureContractKind::Crashes { .. } => continue,
         };
-        for (fact_index, fact) in program
-            .proof_facts
-            .span_or_empty(contract.facts)
-            .iter()
-            .enumerate()
-        {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 ProofFact::Expression(expression) => {
                     bucket.push(*expression);
-                    if matches!(contract.kind, SignatureContractKind::Ensures) {
-                        ensures_coordinates.push((*expression, contract_index, fact_index));
-                    }
                 }
                 ProofFact::Proposition(application) => {
                     if matches!(contract.kind, SignatureContractKind::Requires) {
                         requires_propositions.push(application);
-                    } else if account_stand_downs {
-                        push_unsupported_stand_down(stand_downs, contract_index, fact_index);
                     }
                     all_facts_are_expressions = false;
                 }
-                ProofFact::Membership(membership) => {
-                    if matches!(contract.kind, SignatureContractKind::Ensures)
-                        && account_stand_downs
-                        && !membership_ensures_is_route_authorized(
-                            program,
-                            machine,
-                            membership.domain_symbol,
-                        )
-                    {
-                        push_unsupported_stand_down(stand_downs, contract_index, fact_index);
-                    }
+                ProofFact::Membership(_) => {
                     all_facts_are_expressions = false;
                 }
             }
@@ -750,10 +631,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             // evidence, carried forward as a caller obligation. The discharge
             // only publishes hypotheses spelled over declared call targets:
             // an undeclared view name has no selected declaration to supply
-            // a proof term. On stand-down-accountable bodies the fact still
-            // records its stand-down row so the kernel-checked assumption
-            // discharge certificate is emitted for every goal the kernel
-            // proposition language can lower.
+            // a proof term.
             if requires.iter().any(|required| {
                 program
                     .expression_table
@@ -761,15 +639,6 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             }) && fact_call_targets(program, *fact).all_declared
             {
                 proven.push(*fact);
-                if account_stand_downs {
-                    record_expression_stand_down(
-                        machine,
-                        *fact,
-                        crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
-                        &ensures_coordinates,
-                        stand_downs,
-                    );
-                }
                 return false;
             }
             let Some(held) = mention else {
@@ -909,9 +778,6 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             &ensures,
             all_facts_are_expressions,
             diagnostics,
-            account_stand_downs,
-            &ensures_coordinates,
-            stand_downs,
             proven,
         );
         return;
@@ -938,8 +804,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         }
         // A fact already folded to a Boolean constant carries the constant
         // arithmetic's verdict directly: `true` is proven and `false` is
-        // disproved. Recording either as an unjudged stand-down would both
-        // inflate the admission ledger and, on `false`, let a refuted
+        // disproved. Standing down on `false` would let a refuted
         // postcondition pass `--check` silently.
         if let ExpressionNode::Boolean(constant) = program.expression_table.expression(*fact) {
             if *constant {
@@ -973,8 +838,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 // A collection helper theorem: the polynomial engine cannot
                 // read an element or a predicate application, but exploring
                 // the predicate machine's own checked body under the
-                // `requires` conjuncts proves the goal on every fork. That
-                // is a proof, not a stand-down left for package admission.
+                // `requires` conjuncts proves the goal on every fork.
                 if crate::proof_contracts::collection_predicates::premises_prove_expression(
                     program, machine, *fact,
                 ) {
@@ -987,14 +851,6 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                         machine.name,
                         program.expression_table.display_name(*fact)
                     )));
-                } else if account_stand_downs {
-                    record_expression_stand_down(
-                        machine,
-                        *fact,
-                        crate::ContractEntailmentStandDownReason::OutsideEntailmentLanguage,
-                        &ensures_coordinates,
-                        stand_downs,
-                    );
                 }
                 // Otherwise the contract leans on facts outside the engine's
                 // language (domain membership, unknown calls, non-parameter

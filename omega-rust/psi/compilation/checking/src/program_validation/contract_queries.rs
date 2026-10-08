@@ -5,76 +5,12 @@ use crate::proof_contracts::contract_entailment;
 use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use diagnostics::Diagnostic;
 
-/// Exact source-independent coordinate of a contract-entailment goal that the
-/// current proof engines declined to judge. Ordinary compilation may continue
-/// because later semantic checks can still constrain the program; package
-/// admission must fail closed until an exact later-discharge ledger exists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContractEntailmentStandDown {
-    pub machine_symbol: ::symbols::SymbolHandle,
-    pub contract_index: usize,
-    pub fact_index: usize,
-    pub reason: ContractEntailmentStandDownReason,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ContractEntailmentStandDownReason {
-    /// The ensures fact is a membership/proposition form not consumed by this
-    /// entailment path.
-    UnsupportedEnsuresFact,
-    /// A bodied contract lies outside the recognized inductive body shape.
-    UnrecognizedInductiveBody,
-    /// The goal or a hypothesis needed to judge it is outside the engine's
-    /// current language.
-    OutsideEntailmentLanguage,
-}
-
-impl ContractEntailmentStandDownReason {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::UnsupportedEnsuresFact => "unsupported ensures fact",
-            Self::UnrecognizedInductiveBody => "unrecognized inductive body",
-            Self::OutsideEntailmentLanguage => "outside entailment language",
-        }
-    }
-}
-
-/// Audit every pristine typed machine, including generic templates, for proof
-/// claims that ordinary validation deliberately leaves unjudged. Diagnostics
-/// are intentionally discarded here: the normal validation path owns compile
-/// failure, while this function supplies only successful-compilation admission
-/// accounting.
-pub fn collect_contract_entailment_stand_downs(
-    program: &dyn crate::CheckingInput,
-) -> Vec<ContractEntailmentStandDown> {
-    let mut stand_downs = Vec::new();
-    let mut diagnostics = Vec::new();
-    for machine in program.machines() {
-        contract_entailment::validate_machine_contract_entailment_with_stand_downs(
-            program,
-            machine,
-            &mut diagnostics,
-            &mut stand_downs,
-        );
-    }
-    stand_downs.sort_unstable_by_key(|stand_down| {
-        (
-            stand_down.machine_symbol.arena_index(),
-            stand_down.machine_symbol.generation(),
-            stand_down.contract_index,
-            stand_down.fact_index,
-            stand_down.reason,
-        )
-    });
-    stand_downs.dedup();
-    stand_downs
-}
-
 /// Rejudge the exact Boolean postconditions proved by the entailment engines
 /// for one checked-body machine. This is a local validation result, not a PCC
 /// certificate or an admission grant. Callers must already have completed
 /// ordinary program validation, including the recursion checks that justify
-/// structural induction. Unknown/stand-down goals never enter the result.
+/// structural induction. Goals the engines leave unjudged never enter the
+/// result.
 /// Judgments may use entry requirements; an exit consumer must separately
 /// establish that their subjects have not changed revision. This result does
 /// not substitute for checked mutation frames or path-local exit facts.
@@ -97,7 +33,6 @@ pub fn proven_machine_contract_expressions(
         program,
         machine,
         &mut diagnostics,
-        &mut Vec::new(),
         &mut proven,
     );
     if diagnostics.is_empty() && contract_entailment::entailment_covers_all_exits(program, machine)

@@ -316,7 +316,7 @@ pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, 
+    measure_constraints_cover_subject,
 };
 pub use proof_contracts::contract_entailment::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
@@ -377,12 +377,11 @@ pub use frozen_program::{
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
-    ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
-    ExpressionInterval, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
-    admit_prepared_program_effects, checked_operator_contract_snapshot,
-    collect_contract_entailment_stand_downs, expression_interval, prepare_specialized_program,
-    proven_machine_contract_expressions, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    ExactIntegerCastFact, ExpressionInterval, OpaquePropertyValidation, ProgramValidation,
+    ProgramValidationFacts, admit_prepared_program_effects, checked_operator_contract_snapshot,
+    expression_interval, prepare_specialized_program, proven_machine_contract_expressions,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
@@ -400,10 +399,10 @@ pub use machine_calls::calls::{
     call_site_evidence_arguments, call_target_parameters, call_target_return_type,
     call_target_state, call_target_symbol, call_target_type_parameters,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state_for_exit, find_state_in_machine, find_state_on_machine,
-    find_state_with_machine,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
+    find_machine_by_entry_state, find_machine_head, find_state_for_exit, find_state_in_machine,
+    find_state_on_machine, find_state_with_machine, machine_parameter_signature_symbol,
+    machine_state_by_symbols, machine_state_count, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
     transition_call_target,

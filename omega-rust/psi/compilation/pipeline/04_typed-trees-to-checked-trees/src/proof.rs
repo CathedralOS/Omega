@@ -6,12 +6,11 @@
 //! proof-output call facts and named witness lanes, `outcome_arms.rs` binds
 //! outcome-specific arm facts, `proposition_vocabulary.rs` builds the
 //! checked proposition vocabulary and lowers applications, `contracts.rs`,
-//! `contract_entailment.rs`, `float_meaning.rs` and `obligations.rs` carry
-//! contracts, entailment, float meaning and obligation lowering.
+//! `float_meaning.rs` and `obligations.rs` carry contracts, float meaning and
+//! obligation lowering.
 //! Mathematical declaration elaboration belongs to the independent proof
 //! package; this owner only transfers its completed records into `ProofFacts`.
 
-mod contract_entailment;
 mod contracts;
 mod evidence_forwarding;
 mod float_meaning;
@@ -20,7 +19,6 @@ mod outcome_arms;
 mod proof_output_calls;
 mod proposition_vocabulary;
 
-pub(crate) use contract_entailment::build_contract_entailment_assumption_discharges;
 pub(crate) use contracts::contract_target_from_state_symbol;
 pub(crate) use contracts::machine_parameter_evidence_signatures;
 pub(crate) use evidence_forwarding::{

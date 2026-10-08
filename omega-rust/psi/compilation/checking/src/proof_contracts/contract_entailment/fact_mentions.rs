@@ -1,39 +1,7 @@
-//! Expression stand-downs and the facts that mention proof-only data.
+//! Whether an ensures fact mentions proof-only data or the zero value.
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-
-pub(crate) fn record_expression_stand_down(
-    machine: &Machine,
-    expression: ExpressionHandle,
-    reason: crate::ContractEntailmentStandDownReason,
-    coordinates: &[(ExpressionHandle, usize, usize)],
-    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
-) {
-    for (_, contract_index, fact_index) in coordinates
-        .iter()
-        .filter(|(candidate, _, _)| *candidate == expression)
-    {
-        stand_downs.push(crate::ContractEntailmentStandDown {
-            machine_symbol: machine.symbol,
-            contract_index: *contract_index,
-            fact_index: *fact_index,
-            reason,
-        });
-    }
-}
-
-pub(crate) fn record_all_expression_stand_downs(
-    machine: &Machine,
-    expressions: &[ExpressionHandle],
-    reason: crate::ContractEntailmentStandDownReason,
-    coordinates: &[(ExpressionHandle, usize, usize)],
-    stand_downs: &mut Vec<crate::ContractEntailmentStandDown>,
-) {
-    for expression in expressions {
-        record_expression_stand_down(machine, *expression, reason, coordinates, stand_downs);
-    }
-}
 
 /// Does this contract conjunct SPEAK ABOUT proof-only data? Structural
 /// detection over the expression tree: a machine parameter (or the `result`

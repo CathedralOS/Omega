@@ -163,12 +163,8 @@ declarations to immutable sources and reconciles one exact closure. `review`
 turns that closure into compiler-issued facts and root-owned decisions; there
 is no parallel initial-conflict comparison or second approval decision. Source
 contract validity belongs to Psi's call and
-normal-exit checks, including a return through a tail call. The legacy review
-ledger retains arithmetic-engine stand-downs and its supported discharge rows;
-those are not a second source-validity gate. A different checked proof route,
-such as a transparent proposition, can establish an arithmetic-engine
-stand-down. Locally rechecked assumption discharges retain their original
-package owners and checked contexts. The result remains review and policy state.
+normal-exit checks, including a return through a tail call. The result remains
+review and policy state.
 
 Ordinary accepted compilation consumes accepted package inputs without
 repeating review: the driver reads the lock's Terminal permission rows

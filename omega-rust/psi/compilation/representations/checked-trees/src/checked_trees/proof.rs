@@ -9,15 +9,12 @@
 //!
 //! `obligations` defines the proof obligation rows; `contracts` the contract
 //! proof facts, evidence terms and arguments, proof-output calls and
-//! outcome-specific guarantees; `contract_entailment` the kernel-checked
-//! discharges of a contract entailment by an authored `requires` assumption;
-//! `float_meaning` the proof-only float meaning projections and semantic
+//! outcome-specific guarantees; `float_meaning` the proof-only float meaning projections and semantic
 //! applications; `propositions` the nominal proposition vocabulary; and
 //! `mathematical` the checked mathematical declarations. `lemmas` defines
 //! `LemmaFacts` (length, bounds and window lemmas and quantified range
 //! facts), which is not a field of `ProofFacts`.
 
-mod contract_entailment;
 mod contracts;
 mod float_meaning;
 mod lemmas;
@@ -26,10 +23,6 @@ mod obligations;
 mod propositions;
 mod roots;
 
-pub use contract_entailment::{
-    CheckedContractEntailmentAssumptionDischarge, CheckedContractEntailmentExitMembershipDischarge,
-    CheckedContractMembershipExit,
-};
 pub use contracts::{
     BoundaryQualificationAuthorization, CheckedEvidenceTerm, ContractCallFact,
     ContractEvidenceArgument, ContractExitFact, ContractExpressionEvidenceArgumentFact,

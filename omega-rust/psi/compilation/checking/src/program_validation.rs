@@ -47,10 +47,8 @@ use typed_trees::statement::StatementNode;
 mod contract_queries;
 mod statements;
 pub use contract_queries::{
-    ContractEntailmentStandDown, ContractEntailmentStandDownReason,
-    checked_operator_contract_snapshot, collect_contract_entailment_stand_downs,
-    proven_machine_contract_expressions, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment,
+    checked_operator_contract_snapshot, proven_machine_contract_expressions,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
 use statements::validate_state_statement_node;
 
@@ -332,7 +330,6 @@ fn validate(
                 program,
                 machine,
                 &mut machine_diagnostics,
-                &mut Vec::new(),
                 &mut proven,
             );
             // The same judgment `proven_machine_contract_expressions` makes:

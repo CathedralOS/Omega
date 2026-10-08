@@ -294,7 +294,7 @@ pub(crate) fn build_check_facts(
     let CheckFacts {
         semantic,
         borrow,
-        mut proof,
+        proof,
         values,
         domains,
         operators,
@@ -378,8 +378,6 @@ pub(crate) fn build_check_facts(
         &values.scalar_computations,
         call_frames.as_ref(),
     )?;
-    proof.contract_entailment_assumption_discharges =
-        crate::proof::build_contract_entailment_assumption_discharges(program, &contract_plans)?;
     let nominal_machine_uses = build_nominal_machine_use_facts(
         program,
         static_machine_selections.nominal_uses,

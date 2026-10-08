@@ -170,12 +170,10 @@ pub use operators::{
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{
-    BoundaryQualificationAuthorization, CheckedContractEntailmentAssumptionDischarge,
-    CheckedContractEntailmentExitMembershipDischarge, CheckedContractMembershipExit,
-    CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
-    CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
-    CheckedDirectOperationFloatResult, CheckedDirectStructuralFloatLeaf,
-    CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,
+    BoundaryQualificationAuthorization, CheckedDirectBlockFloatParameter,
+    CheckedDirectCallFloatResult, CheckedDirectMachineFloatParameter,
+    CheckedDirectMachineFloatResult, CheckedDirectOperationFloatResult,
+    CheckedDirectStructuralFloatLeaf, CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,
     CheckedEvidenceRequirementIdentity, CheckedEvidenceTerm,
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionError, CheckedFloatMeaningProjectionOccurrence,

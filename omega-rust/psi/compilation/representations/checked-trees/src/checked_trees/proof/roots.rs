@@ -12,11 +12,6 @@ use crate::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofFacts {
-    /// Checked-IR certificates for exact authored ensures obligations that the
-    /// structural validator stood down from but the proof kernel discharged
-    /// by an exact machine-requires assumption.
-    pub contract_entailment_assumption_discharges:
-        Vec<crate::CheckedContractEntailmentAssumptionDischarge>,
     pub obligations: Arena<ProofObligationFact>,
     pub integer_assignments: Arena<crate::CheckedIntegerAssignmentDecision>,
     pub contract_facts: Arena<ContractProofFact>,
