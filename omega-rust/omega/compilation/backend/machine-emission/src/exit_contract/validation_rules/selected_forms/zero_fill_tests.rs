@@ -24,6 +24,8 @@ fn zero_fill_exit_contract_retains_the_span_and_register_roles() {
         isa_aarch64::encode_aarch64_selected_form(&physical, kind, alternative, &registers)
             .unwrap();
     let instruction = SelectedInstructionId(1);
+    let (_store, _encoding, _layout) =
+        super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
     let effects = &encoded.footprint().encoded;
     let mut store = machine_code::SelectedFormEncodedRowStore::new();
     let (code, interned_footprint) = store.intern(

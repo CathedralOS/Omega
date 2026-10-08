@@ -1,6 +1,5 @@
 //! A private conversion guard may crash without becoming a function exit edge.
 use super::validate_non_return;
-use machine_code::SelectedFormDecodedFootprint;
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
     IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain, MachineAlternativeFamily,
@@ -39,34 +38,8 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                 )
                 .unwrap();
                 let instruction = SelectedInstructionId(1);
-                let effects = &encoded.footprint().encoded;
-                let mut store = machine_code::SelectedFormEncodedRowStore::new();
-                let (code, interned_footprint) = store.intern(
-                    encoded.bytes(),
-                    SelectedFormDecodedFootprint {
-                        register_reads: encoded.footprint().register_reads.clone(),
-                        register_writes: encoded.footprint().register_writes.clone(),
-                        implicit_defs: effects.implicit_unit_defs.clone(),
-                        implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-                        encoded: effects.clone(),
-                    },
-                );
-                let (encoding, layout) = super::encoded_form_and_layout(
-                    instruction,
-                    alternative,
-                    code,
-                    interned_footprint,
-                    encoded.bytes().to_vec(),
-                );
-                validate_non_return(
-                    target::Architecture::Aarch64,
-                    instruction,
-                    kind,
-                    &encoding,
-                    &layout,
-                    &store,
-                )
-                .unwrap();
+                let (store, encoding, layout) =
+                    super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
                 let mut changed = store.clone();
                 let footprint = changed.footprint_mut(encoding.footprint).unwrap();
                 footprint.encoded.control = if domain == IeeeFloatToIntegerDomain::Trapping {

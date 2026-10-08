@@ -23,6 +23,8 @@ use selected_instructions::{
 use semantic_vocabulary::EdgeId;
 use target::{Architecture, NativeTarget};
 
+#[cfg(test)]
+use machine_code::SelectedFormDecodedFootprint;
 use machine_code::{SelectedFormEncodingState, SelectedFormMachineDisposition};
 
 use machine_code::ResolvedMachineLayout;
@@ -66,6 +68,50 @@ pub(in crate::exit_contract) fn encoded_form_and_layout(
             implementation_table_address_fixup: None,
         },
     )
+}
+
+/// Intern the decoded footprint and validate the happy path once per
+/// selected-form test so each test file only mutates the interned rows.
+#[cfg(test)]
+pub(in crate::exit_contract) fn validated_aarch64_form_fixture(
+    encoded: &isa_aarch64::ValidatedAarch64SelectedFormEncoding,
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    kind: SelectedInstructionKind,
+) -> (
+    machine_code::SelectedFormEncodedRowStore,
+    machine_code::SelectedFormEncodingRow,
+    machine_code::ResolvedSelectedFormRow,
+) {
+    let effects = &encoded.footprint().encoded;
+    let mut store = machine_code::SelectedFormEncodedRowStore::new();
+    let (code, interned_footprint) = store.intern(
+        encoded.bytes(),
+        SelectedFormDecodedFootprint {
+            register_reads: encoded.footprint().register_reads.clone(),
+            register_writes: encoded.footprint().register_writes.clone(),
+            implicit_defs: effects.implicit_unit_defs.clone(),
+            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+            encoded: effects.clone(),
+        },
+    );
+    let (encoding, layout) = encoded_form_and_layout(
+        instruction,
+        alternative,
+        code,
+        interned_footprint,
+        encoded.bytes().to_vec(),
+    );
+    validate_non_return(
+        target::Architecture::Aarch64,
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &store,
+    )
+    .unwrap();
+    (store, encoding, layout)
 }
 
 pub(in crate::exit_contract) fn unique_encoding_rows<'a>(

@@ -1,7 +1,6 @@
 //! A decoded byte scan keeps both measured spans through whole-function
 //! admission. Neither a memory-free replacement nor a one-span scan is equal.
 use super::validate_non_return;
-use machine_code::SelectedFormDecodedFootprint;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, SelectedInstructionId,
@@ -25,34 +24,8 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         isa_aarch64::encode_aarch64_selected_form(&physical, kind, alternative, &registers)
             .unwrap();
     let instruction = SelectedInstructionId(1);
-    let effects = &encoded.footprint().encoded;
-    let mut store = machine_code::SelectedFormEncodedRowStore::new();
-    let (code, interned_footprint) = store.intern(
-        encoded.bytes(),
-        SelectedFormDecodedFootprint {
-            register_reads: encoded.footprint().register_reads.clone(),
-            register_writes: encoded.footprint().register_writes.clone(),
-            implicit_defs: effects.implicit_unit_defs.clone(),
-            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-            encoded: effects.clone(),
-        },
-    );
-    let (encoding, layout) = super::encoded_form_and_layout(
-        instruction,
-        alternative,
-        code,
-        interned_footprint,
-        encoded.bytes().to_vec(),
-    );
-    validate_non_return(
-        target::Architecture::Aarch64,
-        instruction,
-        kind,
-        &encoding,
-        &layout,
-        &store,
-    )
-    .unwrap();
+    let (store, encoding, layout) =
+        super::validated_aarch64_form_fixture(&encoded, instruction, alternative, kind);
     for mutation in 0..9 {
         let mut changed = store.clone();
         let footprint = changed.footprint_mut(encoding.footprint).unwrap();
