@@ -765,6 +765,11 @@ impl ProjectedMove {
 }
 
 impl Emission<'_, '_, '_> {
+    /// The argument source arriving at `place`, when the receipt carries one.
+    fn source_at(&self, place: PlaceId) -> Option<&StructuralArgument> {
+        self.sources.iter().find(|source| source.place == place)
+    }
+
     fn bind_completion_claims(
         operations: &mut OperationBuffer,
         place: PlaceId,
@@ -1151,10 +1156,7 @@ impl Emission<'_, '_, '_> {
                 if matches!(
                     structural_values(self.checked).nodes.get(source).kind,
                     CheckedStructuralValueKind::Place(_)
-                ) && !self
-                    .sources
-                    .iter()
-                    .any(|source| source.place == projected.root)
+                ) && !self.source_at(projected.root).is_some()
                 {
                     return unsupported(
                         "projected selection root is absent from its receipt sources",
@@ -1360,7 +1362,7 @@ impl Emission<'_, '_, '_> {
                         );
                     }
                 };
-                if !self.sources.iter().any(|source| source.place == selected) {
+                if !self.source_at(selected).is_some() {
                     return unsupported("owned selection place is absent from its receipt sources");
                 }
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
@@ -1436,11 +1438,9 @@ impl Emission<'_, '_, '_> {
     }
 
     fn first_candidate(&self) -> Option<usize> {
-        self.owners.iter().position(|owner| {
-            self.sources
-                .iter()
-                .any(|source| source.place == owner.value.place)
-        })
+        self.owners
+            .iter()
+            .position(|owner| self.source_at(owner.value.place).is_some())
     }
 
     /// Whole-value assignment uses ordinary owned edge transport. Returning the
@@ -2018,11 +2018,7 @@ impl Emission<'_, '_, '_> {
             })?;
             let place = place_id(allocate_dense(self.next_place)?);
             if let Some(owner) = owner {
-                if self
-                    .sources
-                    .iter()
-                    .any(|source| source.place == owner.value.place)
-                {
+                if self.source_at(owner.value.place).is_some() {
                     owner.symbol = symbols::SymbolHandle::invalid();
                     residuals.push(place);
                 } else {
@@ -2077,12 +2073,7 @@ impl Emission<'_, '_, '_> {
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {
                  argument, ..
-             }| {
-                !self
-                    .sources
-                    .iter()
-                    .any(|source| source.place == argument.place)
-            },
+             }| { !self.source_at(argument.place).is_some() },
         );
         for crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } in
             &mut self.evaluation.structural_locals
