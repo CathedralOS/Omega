@@ -1,0 +1,79 @@
+// The entry context's nominal cleanup occupies its hosted extent through
+// completion: the bridge runs it on normal return after the body.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+pub boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+
+    // The existing Console role review nominates output through a complete
+    // provider with an exit row. This program never calls that row.
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider {}
+
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+// Windows uses the existing authored import route for process exit.
+// Windows writes the byte to stdout through MSVCRT `_write`, one byte from
+// the low byte of an i32 cell.
+data WindowsConsoleIo { }
+boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+terminates;
+reaches Console;
+data WindowsConsoleImports { }
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    }
+}
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
+data Main { console: Binding<Console>; byte: i32; }
+machine Main::drop(main: &mut Main) reaches Console {
+    main.console.write_byte(main.byte);
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.byte = 67;
+    main.console.write_byte(10);
+}
