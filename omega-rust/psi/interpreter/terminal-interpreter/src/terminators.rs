@@ -52,7 +52,13 @@ impl TerminalExecution<'_> {
         frontier: &mut std::collections::BTreeSet<StructuralAffineDiscard>,
         argument: &StructuralArgument,
     ) -> Result<(), TerminalInterpretError> {
-        self.consume_affine_projection(frontier, argument)
+        consume_affine_projection(
+            &self.program.structural_types(),
+            &self.structural_values,
+            &self.structural_cases,
+            frontier,
+            argument,
+        )
     }
 
     pub(crate) fn settle_jump(
@@ -97,7 +103,10 @@ impl TerminalExecution<'_> {
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
-            self.consume_affine_projection(projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()), argument)?;
+            self.consume_affine_projection(
+                projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
+                argument,
+            )?;
         }
         for (place, path, structural_type) in
             actions
@@ -140,11 +149,14 @@ impl TerminalExecution<'_> {
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            self.consume_affine_projection(projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()), &StructuralArgument {
+            self.consume_affine_projection(
+                projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
+                &StructuralArgument {
                     place,
                     path: path.to_vec(),
                     access: StructuralAccess::Owned,
-                })?;
+                },
+            )?;
         }
         Ok(())
     }
