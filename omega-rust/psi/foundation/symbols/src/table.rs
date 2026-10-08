@@ -22,7 +22,7 @@ mod source_queries;
 mod tests;
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration, Symbol, SymbolHandle,
-    SymbolKind, SymbolName, SymbolNameRef, SymbolNameStorageKind, SymbolPath,
+    SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
@@ -1055,21 +1055,6 @@ impl SymbolTable {
             .and_then(BuiltinFunction::from_ordinal)
     }
 
-    /// `symbol`'s fixed `core::*` mathematical declaration, classified by
-    /// its exact compiler-installed root slot — the canonical identity the
-    /// mathematical bindings spec fixes. Names are deliberately irrelevant:
-    /// a same-spelled package declaration or a generated source-free symbol
-    /// is never the fixed vocabulary.
-    pub fn fixed_core_declaration(&self, symbol: SymbolHandle) -> Option<FixedCoreDeclaration> {
-        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::MathematicalDefinition {
-            return None;
-        }
-        self.child_handles(self.root)?
-            .skip(BUILTIN_TYPE_COUNT.checked_add(BuiltinFunction::COUNT)?)
-            .take(FixedCoreDeclaration::COUNT)
-            .position(|candidate| candidate == symbol)
-            .and_then(FixedCoreDeclaration::from_ordinal)
-    }
 
     /// The root child installed for `declaration`, if this table carries the
     /// fixed `core::*` vocabulary at its canonical slots.
@@ -1208,20 +1193,6 @@ impl SymbolTable {
         &self.names
     }
 
-    pub fn name_storage_counts(&self) -> SymbolNameStorageCounts {
-        let mut counts = SymbolNameStorageCounts::default();
-
-        for (_, name) in self.names.iter() {
-            match name.storage_kind() {
-                SymbolNameStorageKind::Missing => counts.missing += 1,
-                SymbolNameStorageKind::Source => counts.source_names += 1,
-                SymbolNameStorageKind::Static => counts.static_names += 1,
-                SymbolNameStorageKind::Owned => counts.owned_names += 1,
-            }
-        }
-
-        counts
-    }
 
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members

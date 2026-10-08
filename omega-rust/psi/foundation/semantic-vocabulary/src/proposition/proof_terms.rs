@@ -1,7 +1,6 @@
 //! Proof terms: the erased terms a contract's erased lane carries for
 //! formals whose carriers admit no scalar or runtime argument slot.
 
-use crate::ValueId;
 use crate::proposition::{PropositionError, ScalarTerm};
 
 /// One erased term in a call's or edge's erased lane. Proof terms carry
@@ -76,48 +75,7 @@ impl ProofTerm {
         Ok(())
     }
 
-    /// Visit every erased-proof-formal position this term names.
-    pub fn visit_formal_positions(&self, mut visit: impl FnMut(u32)) {
-        // Field terms push in reverse so positions still surface in authored
-        // field order without recursing on the construction depth.
-        let mut pending = vec![self];
-        while let Some(term) = pending.pop() {
-            match term {
-                Self::Construction { fields, .. } => {
-                    for field in fields.iter().rev() {
-                        pending.push(&field.term);
-                    }
-                }
-                Self::Formal { position } => visit(*position),
-                // A scalar leaf names caller scalar values, never erased
-                // proof formals — no position to visit.
-                Self::Scalar(_) => {}
-            }
-        }
-    }
 
-    /// Visit every `ValueId` a `Scalar` leaf carries. Returning `false` from
-    /// `visit` short-circuits the traversal and propagates `false`, matching
-    /// `ScalarTerm::visit_value_ids`.
-    pub fn visit_scalar_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
-        let mut pending = vec![self];
-        while let Some(term) = pending.pop() {
-            match term {
-                Self::Construction { fields, .. } => {
-                    for field in fields.iter().rev() {
-                        pending.push(&field.term);
-                    }
-                }
-                Self::Formal { .. } => {}
-                Self::Scalar(scalar) => {
-                    if !scalar.visit_value_ids(&mut visit) {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
-    }
 }
 
 /// One named payload field of a proof-term construction. Field order is the

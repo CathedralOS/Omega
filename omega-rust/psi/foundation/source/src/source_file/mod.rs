@@ -75,9 +75,6 @@ impl SourceFile {
         self.source.get(span.start..span.end).unwrap_or("")
     }
 
-    pub fn position_at(&self, byte_offset: usize) -> SourcePosition {
-        SourcePosition::of(&self.source, byte_offset)
-    }
 }
 
 impl SourcePosition {

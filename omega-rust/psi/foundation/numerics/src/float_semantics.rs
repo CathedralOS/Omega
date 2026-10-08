@@ -273,17 +273,8 @@ impl FloatSemantics {
         Self::round_exact(format, value.to_exact())
     }
 
-    pub fn convert_toward_zero(format: FloatFormat, value: &FloatMeaning) -> FloatMeaning {
-        Self::round_exact_directed(format, value.to_exact(), RoundingDirection::TowardZero)
-    }
 
-    pub fn convert_toward_positive(format: FloatFormat, value: &FloatMeaning) -> FloatMeaning {
-        Self::round_exact_directed(format, value.to_exact(), RoundingDirection::TowardPositive)
-    }
 
-    pub fn convert_toward_negative(format: FloatFormat, value: &FloatMeaning) -> FloatMeaning {
-        Self::round_exact_directed(format, value.to_exact(), RoundingDirection::TowardNegative)
-    }
 
     pub fn add(format: FloatFormat, left: &FloatMeaning, right: &FloatMeaning) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().add(&right.to_exact()))
@@ -314,13 +305,7 @@ impl FloatSemantics {
         Self::from_integer_directed(format, value, RoundingDirection::TowardZero)
     }
 
-    pub fn from_integer_toward_positive(format: FloatFormat, value: &BigInt) -> FloatMeaning {
-        Self::from_integer_directed(format, value, RoundingDirection::TowardPositive)
-    }
 
-    pub fn from_integer_toward_negative(format: FloatFormat, value: &BigInt) -> FloatMeaning {
-        Self::from_integer_directed(format, value, RoundingDirection::TowardNegative)
-    }
 
     /// Exact conversion is contract-gated: callers prove this succeeds before
     /// selecting the operation.

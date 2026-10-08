@@ -56,13 +56,6 @@ impl SourceText {
         }
     }
 
-    pub fn shared_text(&self) -> Arc<str> {
-        match &self.text {
-            SourceTextStorage::Missing => Arc::from(""),
-            SourceTextStorage::Shared(text) => Arc::clone(text),
-            SourceTextStorage::SourceBacked { .. } => Arc::from(self.as_str()),
-        }
-    }
 
     pub fn is_source_backed(&self) -> bool {
         self.source_span.span.start != self.source_span.span.end

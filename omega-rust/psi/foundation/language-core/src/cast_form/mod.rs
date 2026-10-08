@@ -24,12 +24,4 @@ impl CastForm {
         !matches!(self, Self::Value)
     }
 
-    /// The `as`-target spelling for diagnostics (`&T` / `&mut T` prefixes).
-    pub fn target_prefix(self) -> &'static str {
-        match self {
-            Self::Value => "",
-            Self::RecastShared => "&",
-            Self::RecastMutable => "&mut ",
-        }
-    }
 }

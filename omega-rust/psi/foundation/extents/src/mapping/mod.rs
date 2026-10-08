@@ -382,9 +382,6 @@ impl<'source> PendingMap<'source> {
         self.mapping.source.length()
     }
 
-    pub fn source_address_space(&self) -> AddressSpaceId {
-        self.mapping.source.address_space()
-    }
 
     pub fn source_rights(&self) -> &ExtentRights {
         self.mapping.source.rights()
@@ -402,9 +399,6 @@ impl<'source> PendingMap<'source> {
         self.mapping.source.origin()
     }
 
-    pub fn source_lineage_root(&self) -> ExtentLineageId {
-        self.mapping.source.lineage_root()
-    }
 
     pub fn source_mode(&self) -> MappingSourceMode {
         self.mapping.source.mode()
@@ -414,13 +408,7 @@ impl<'source> PendingMap<'source> {
         self.mapping.mapped.base()
     }
 
-    pub fn destination_length(&self) -> u64 {
-        self.mapping.mapped.length()
-    }
 
-    pub fn destination_address_space(&self) -> AddressSpaceId {
-        self.mapping.mapped.address_space()
-    }
 
     pub fn mapped_rights(&self) -> &ExtentRights {
         self.mapping.mapped.rights()
@@ -438,23 +426,9 @@ impl<'source> PendingMap<'source> {
         self.mapping.mapped.era()
     }
 
-    pub fn destination_lineage_root(&self) -> ExtentLineageId {
-        self.mapping.mapped.lineage_root()
-    }
 
-    /// Authority facts that an unmap provider must restore. These are exposed
-    /// only as inert normalized data; the pending map retains the authority.
-    pub fn destination_restoration_rights(&self) -> &ExtentRights {
-        &self.mapping.destination.rights
-    }
 
-    pub fn destination_restoration_provenance(&self) -> ExtentProvenanceId {
-        self.mapping.destination.provenance
-    }
 
-    pub fn destination_restoration_era(&self) -> MappingEraId {
-        self.mapping.destination.era
-    }
 
     pub(crate) fn validate_activation_receipt(
         &self,

@@ -245,24 +245,6 @@ impl<T: Default> Arena<T> {
         handle
     }
 
-    pub fn pop_last_appended(&mut self, handle: Handle<T>) -> Option<T> {
-        self.bump_revision();
-        let index = self.index_from_valid_handle(handle);
-        if index == invalid_index() || index.checked_add(1)? != self.items.len() {
-            return None;
-        }
-        if self.generations.get(index).copied()? != handle.generation()
-            || !self.occupied.get(index).copied()?
-        {
-            return None;
-        }
-
-        self.generations.pop();
-        self.occupied.pop();
-        self.active_count = self.active_count.checked_sub(1)?;
-
-        self.items.pop()
-    }
 
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
@@ -290,23 +272,6 @@ impl<T: Default> Arena<T> {
         }
     }
 
-    pub fn insert_many_with(
-        &mut self,
-        insert_items: impl FnOnce(&mut ArenaSpanInserter<'_, T>),
-    ) -> HandleSpan<T> {
-        // Spans promise contiguous storage. This variant lets recursive
-        // producers emit directly into the arena without staging a Vec.
-        self.bump_revision();
-        let start_index = next_arena_index(self.items.len());
-        let mut inserter = ArenaSpanInserter {
-            arena: self,
-            count: 0,
-        };
-
-        insert_items(&mut inserter);
-
-        HandleSpan::from_parts_or_empty(Handle::from_arena_index(start_index), inserter.count)
-    }
 
     pub fn try_insert_many_with<E>(
         &mut self,
@@ -627,14 +592,6 @@ impl<T: Default> Arena<T> {
             .filter_map(|(item, occupied)| occupied.then_some(item))
     }
 
-    pub fn into_span_items(self, span: HandleSpan<T>) -> impl Iterator<Item = T> {
-        let range = self.valid_span_range(span).unwrap_or(0..0);
-
-        self.items
-            .into_iter()
-            .enumerate()
-            .filter_map(move |(index, item)| range.contains(&index).then_some(item))
-    }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
         self.bump_revision();

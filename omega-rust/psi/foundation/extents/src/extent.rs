@@ -107,11 +107,6 @@ impl Extent {
         self.sharing
     }
 
-    /// Whether this value is the exact unsplit root of its passive lineage.
-    /// This is report/retirement structure only; it never establishes origin.
-    pub fn is_lineage_root(&self) -> bool {
-        self.lineage.path.is_empty()
-    }
 
     pub fn split_at(self, lower_length: u64) -> Result<(Self, Self), SplitError> {
         if lower_length == 0 || lower_length >= self.length {

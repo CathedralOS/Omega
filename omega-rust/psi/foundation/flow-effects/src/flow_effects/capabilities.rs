@@ -46,11 +46,6 @@ pub struct CapabilityFlowFact {
 }
 
 impl CapabilityFlowFact {
-    /// Whether this fact was propagated up through a nested helper call rather
-    /// than recorded at a direct boundary call.
-    pub fn is_propagated(&self) -> bool {
-        self.via_state_symbol.is_valid()
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

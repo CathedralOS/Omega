@@ -219,13 +219,7 @@ impl BuildEvaluationSponsor {
         self.consumption().fuel_units
     }
 
-    pub fn consumed_build_log_bytes(&self) -> u64 {
-        self.consumption().build_log_bytes
-    }
 
-    pub fn consumed_filesystem_operation_attempts(&self) -> u64 {
-        self.consumption().filesystem_operation_attempts
-    }
 
     pub fn live_filesystem_handles(&self) -> u64 {
         self.consumption().live_filesystem_handles
@@ -437,23 +431,11 @@ impl BuildEvaluationSponsor {
 }
 
 impl BuildEvaluationSponsor {
-    pub fn live_cells(&self) -> u64 {
-        self.live_storage_cells()
-    }
     pub fn peak_live_cells(&self) -> u64 {
         self.peak_live_storage_cells()
     }
-    pub fn live_text_bytes(&self) -> u64 {
-        self.live_payload_bytes()
-    }
     pub fn peak_live_text_bytes(&self) -> u64 {
         self.peak_live_payload_bytes()
-    }
-    pub fn consumed_result_cells(&self) -> u64 {
-        self.consumed_result_storage_cells()
-    }
-    pub fn consumed_result_text_bytes(&self) -> u64 {
-        self.consumed_result_payload_bytes()
     }
 }
 
