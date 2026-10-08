@@ -996,6 +996,23 @@ impl PrimitiveType {
         }
     }
 
+    /// The representable `(minimum, maximum)` range of an integer carrier —
+    /// `Addr` included — as `i128`. `None` for `Bool`, the floats and
+    /// `Selector`, which have no integer range.
+    pub fn integer_bounds(self) -> Option<(i128, i128)> {
+        Some(match self {
+            Self::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
+            Self::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
+            Self::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
+            Self::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
+            Self::U8 => (0, i128::from(u8::MAX)),
+            Self::U16 => (0, i128::from(u16::MAX)),
+            Self::U32 => (0, i128::from(u32::MAX)),
+            Self::U64 | Self::Addr => (0, i128::from(u64::MAX)),
+            Self::Bool | Self::F32 | Self::F64 | Self::Selector => return None,
+        })
+    }
+
     /// The fixed-range integer carriers: every range-constrained spelling
     /// except the two finite floats.
     pub fn accepts_integer_literal(self) -> bool {

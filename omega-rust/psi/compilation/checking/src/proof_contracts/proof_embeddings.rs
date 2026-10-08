@@ -460,20 +460,9 @@ pub(crate) fn expression_type_reference(
 }
 
 pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigInt)> {
-    let (minimum, maximum) = match primitive {
-        PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
-        PrimitiveType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
-        PrimitiveType::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
-        PrimitiveType::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
-        PrimitiveType::U8 => (0, i128::from(u8::MAX)),
-        PrimitiveType::U16 => (0, i128::from(u16::MAX)),
-        PrimitiveType::U32 => (0, i128::from(u32::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Addr => (0, i128::from(u64::MAX)),
-        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
-            return None;
-        }
-    };
-    Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
+    primitive
+        .integer_bounds()
+        .map(|(minimum, maximum)| (BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
 
 fn collect_statement_nodes(

@@ -1007,18 +1007,9 @@ pub(crate) fn validate_const_binder_carriers(
 }
 
 pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value: i128) -> bool {
-    let (minimum, maximum) = match primitive {
-        PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
-        PrimitiveType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
-        PrimitiveType::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
-        PrimitiveType::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
-        PrimitiveType::U8 => (0, i128::from(u8::MAX)),
-        PrimitiveType::U16 => (0, i128::from(u16::MAX)),
-        PrimitiveType::U32 => (0, i128::from(u32::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Addr => (0, i128::from(u64::MAX)),
-        _ => return false,
-    };
-    value >= minimum && value <= maximum
+    primitive
+        .integer_bounds()
+        .is_some_and(|(minimum, maximum)| value >= minimum && value <= maximum)
 }
 
 /// Instantiation-time property-bound check (frozen decision 13): every type
