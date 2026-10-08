@@ -22,16 +22,16 @@ impl TerminalExecution<'_> {
                 .immutable()?
                 .clone(),
             ByteSequenceOperand::Field { source, field, .. } => {
-                let (key, _) = self.resolve_structural_byte_sequence_field(
-                    source.place,
-                    &source.path,
-                    *field,
-                    false,
-                )?;
-                self.structural_byte_sequence_fields
+                let (key, capacity) =
+                    self.readable_byte_field(source.place, &source.path, *field)?;
+                let bytes = self
+                    .structural_byte_sequence_fields
                     .get(&key)
-                    .ok_or_else(malformed)?
-                    .clone()
+                    .ok_or_else(malformed)?;
+                if capacity.is_some_and(|capacity| bytes.len() as u128 > u128::from(capacity)) {
+                    return Err(malformed());
+                }
+                bytes.clone()
             }
         };
         let expected = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;

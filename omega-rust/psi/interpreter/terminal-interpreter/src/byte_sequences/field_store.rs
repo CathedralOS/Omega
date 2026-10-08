@@ -98,6 +98,33 @@ impl TerminalExecution<'_> {
         Ok((cell, capacity))
     }
 
+    /// A readable byte field: a bounded owner with its capacity, or a shared
+    /// view field whose descriptor bounds nothing beyond its own extent.
+    pub(crate) fn readable_byte_field(
+        &self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<
+        (
+            crate::values::StructuralByteSequenceRuntimeField,
+            Option<u64>,
+        ),
+        TerminalInterpretError,
+    > {
+        let (cell, carrier) =
+            self.resolve_structural_byte_field_carrier(root, path, field, false)?;
+        match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                Ok((cell, Some(capacity)))
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            } => Ok((cell, None)),
+            _ => Err(malformed()),
+        }
+    }
+
     /// Dispatch charges fuel first. The verifier admitted a readable shared
     /// descriptor source, whose immutable bytes the slot now shares: the
     /// descriptor is replaced whole and the displaced view's backing is left
