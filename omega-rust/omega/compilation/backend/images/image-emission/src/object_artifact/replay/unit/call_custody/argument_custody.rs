@@ -27,6 +27,119 @@ struct ArgumentSources {
     affine_scalar_record_source: bool,
 }
 
+
+/// Whether the argument's path is malformed for its source: an unprojected
+/// argument reads its whole placement; a projected one is an exact borrowed or
+/// owned projection, a fixed-index element, a two-level fixed-index element, or
+/// a field path aligned inside the placement.
+pub(crate) fn argument_path_is_malformed(
+    argument: &machine_code::InternalUnitCallArgumentRecord,
+    source_placement: &calling_conventions::ValuePlacement,
+    parameter_homes: &[machine_code::UnitParameterHomeRecord],
+    affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
+    result_source: bool,
+    exact_borrowed: bool,
+) -> bool {
+    match argument.path.as_slice() {
+        [] => {
+            argument.source_byte_offset != 0
+                || source_placement.shape != argument.shape
+                || argument.root_structural_type != argument.structural_type
+                || argument.fixed_array_length.is_some()
+                || argument.element_stride.is_some()
+        }
+        _ if exact_borrowed => false,
+        _ if result_source => false,
+        _ if argument.access == terminal_psi::StructuralAccess::Owned
+            && parameter_homes.iter().any(|home| {
+                home.place == argument.place
+                    && home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            }) =>
+        {
+            parameter_homes.iter().find(|home| home.place == argument.place)
+                .zip(affine_cleanup)
+                .is_none_or(|(home, cleanup)| {
+                    !crate::object_artifact::replay::structural::affine_projected_calls::exact_owned_projection(
+                        argument, home, &cleanup.structural_types,
+                    )
+                })
+        }
+        [terminal_psi::StructuralPathSegment::FixedIndex(index)] => {
+            let expected_stride = argument.shape.byte_size
+                .next_multiple_of(u32::from(argument.shape.alignment));
+            let Some(length) = argument.fixed_array_length else {
+                return true;
+            };
+            let Some(stride) = argument.element_stride else {
+                return true;
+            };
+            argument.root_structural_type == argument.structural_type
+                || *index >= length
+                || stride != expected_stride
+                || u64::from(stride).checked_mul(*index)
+                    != Some(u64::from(argument.source_byte_offset))
+                || u64::from(stride).checked_mul(length)
+                    != Some(u64::from(source_placement.shape.byte_size))
+                || source_placement.shape.alignment != argument.shape.alignment
+        }
+        [
+            terminal_psi::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+            terminal_psi::StructuralPathSegment::FixedIndex(
+                inner @ (0..=15),
+            ),
+        ] => {
+            let leaf_stride = argument.shape.byte_size
+                .next_multiple_of(u32::from(argument.shape.alignment));
+            let Some(outer_stride) = argument.element_stride else {
+                return true;
+            };
+            let Some(inner_length) =
+                [
+                    3_u32, 4_u32, 5_u32, 6_u32, 7_u32, 8_u32, 9_u32, 10_u32,
+                    11_u32, 12_u32, 13_u32, 14_u32, 15_u32, 16_u32,
+                ]
+                    .into_iter()
+                    .find(|length| {
+                        leaf_stride.checked_mul(*length) == Some(outer_stride)
+                    })
+            else {
+                return true;
+            };
+            let expected_offset = outer_stride
+                .checked_mul(u32::try_from(*outer).unwrap_or(u32::MAX))
+                .and_then(|offset| {
+                    leaf_stride
+                        .checked_mul(u32::try_from(*inner).unwrap_or(u32::MAX))
+                        .and_then(|inner| offset.checked_add(inner))
+                });
+            argument.root_structural_type == argument.structural_type
+                || argument.fixed_array_length != Some(2)
+                || *inner >= u64::from(inner_length)
+                || Some(argument.source_byte_offset) != expected_offset
+                || outer_stride.checked_mul(2)
+                    != Some(source_placement.shape.byte_size)
+                || source_placement.shape.alignment != argument.shape.alignment
+        }
+        path @ [terminal_psi::StructuralPathSegment::Field(_), ..]
+            if path.iter().all(|segment| {
+                matches!(segment,
+                    terminal_psi::StructuralPathSegment::Field(identity)
+                        if !identity.is_empty())
+            }) =>
+        {
+            path.is_empty()
+                || argument.root_structural_type == argument.structural_type
+                || argument.fixed_array_length.is_some()
+                || argument.element_stride.is_some()
+                || !argument
+                    .source_byte_offset
+                    .is_multiple_of(u32::from(argument.shape.alignment))
+        }
+        _ => true,
+    }
+    }
+
+
 impl InternalUnitCallCustody<'_> {
     /// Whether the argument at `index` is an exact borrowed projection of the
     /// parameter home it reads into the callee's Unit parameter.
@@ -332,103 +445,14 @@ impl InternalUnitCallCustody<'_> {
             ..
         } = self.inputs;
         let ArgumentSources { result_source, .. } = sources;
-        match argument.path.as_slice() {
-        [] => {
-            argument.source_byte_offset != 0
-                || source_placement.shape != argument.shape
-                || argument.root_structural_type != argument.structural_type
-                || argument.fixed_array_length.is_some()
-                || argument.element_stride.is_some()
-        }
-        _ if self.exact_borrowed_argument(argument_index, argument) => false,
-        _ if result_source => false,
-        _ if argument.access == terminal_psi::StructuralAccess::Owned
-            && parameter_homes.iter().any(|home| {
-                home.place == argument.place
-                    && home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            }) =>
-        {
-            parameter_homes.iter().find(|home| home.place == argument.place)
-                .zip(affine_cleanup)
-                .is_none_or(|(home, cleanup)| {
-                    !crate::object_artifact::replay::structural::affine_projected_calls::exact_owned_projection(
-                        argument, home, &cleanup.structural_types,
-                    )
-                })
-        }
-        [terminal_psi::StructuralPathSegment::FixedIndex(index)] => {
-            let expected_stride = argument.shape.byte_size
-                .next_multiple_of(u32::from(argument.shape.alignment));
-            let Some(length) = argument.fixed_array_length else {
-                return true;
-            };
-            let Some(stride) = argument.element_stride else {
-                return true;
-            };
-            argument.root_structural_type == argument.structural_type
-                || *index >= length
-                || stride != expected_stride
-                || u64::from(stride).checked_mul(*index)
-                    != Some(u64::from(argument.source_byte_offset))
-                || u64::from(stride).checked_mul(length)
-                    != Some(u64::from(source_placement.shape.byte_size))
-                || source_placement.shape.alignment != argument.shape.alignment
-        }
-        [
-            terminal_psi::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-            terminal_psi::StructuralPathSegment::FixedIndex(
-                inner @ (0..=15),
-            ),
-        ] => {
-            let leaf_stride = argument.shape.byte_size
-                .next_multiple_of(u32::from(argument.shape.alignment));
-            let Some(outer_stride) = argument.element_stride else {
-                return true;
-            };
-            let Some(inner_length) =
-                [
-                    3_u32, 4_u32, 5_u32, 6_u32, 7_u32, 8_u32, 9_u32, 10_u32,
-                    11_u32, 12_u32, 13_u32, 14_u32, 15_u32, 16_u32,
-                ]
-                    .into_iter()
-                    .find(|length| {
-                        leaf_stride.checked_mul(*length) == Some(outer_stride)
-                    })
-            else {
-                return true;
-            };
-            let expected_offset = outer_stride
-                .checked_mul(u32::try_from(*outer).unwrap_or(u32::MAX))
-                .and_then(|offset| {
-                    leaf_stride
-                        .checked_mul(u32::try_from(*inner).unwrap_or(u32::MAX))
-                        .and_then(|inner| offset.checked_add(inner))
-                });
-            argument.root_structural_type == argument.structural_type
-                || argument.fixed_array_length != Some(2)
-                || *inner >= u64::from(inner_length)
-                || Some(argument.source_byte_offset) != expected_offset
-                || outer_stride.checked_mul(2)
-                    != Some(source_placement.shape.byte_size)
-                || source_placement.shape.alignment != argument.shape.alignment
-        }
-        path @ [terminal_psi::StructuralPathSegment::Field(_), ..]
-            if path.iter().all(|segment| {
-                matches!(segment,
-                    terminal_psi::StructuralPathSegment::Field(identity)
-                        if !identity.is_empty())
-            }) =>
-        {
-            path.is_empty()
-                || argument.root_structural_type == argument.structural_type
-                || argument.fixed_array_length.is_some()
-                || argument.element_stride.is_some()
-                || !argument
-                    .source_byte_offset
-                    .is_multiple_of(u32::from(argument.shape.alignment))
-        }
-        _ => true,
-    }
+        argument_path_is_malformed(
+            argument,
+            source_placement,
+            parameter_homes,
+            affine_cleanup,
+            result_source,
+            self.exact_borrowed_argument(argument_index, argument),
+        )
     }
 
     /// Whether a projected argument is left unsettled: it is neither a claim

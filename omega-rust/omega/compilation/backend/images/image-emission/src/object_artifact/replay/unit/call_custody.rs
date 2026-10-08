@@ -10,7 +10,7 @@
 //! ABI in `roster`, and checks the call site and each argument's custody
 //! in `argument_custody`.
 
-mod argument_custody;
+pub(crate) mod argument_custody;
 mod call_facts;
 mod packed_fragment;
 pub(crate) mod parameter_staging;
