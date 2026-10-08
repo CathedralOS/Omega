@@ -169,6 +169,22 @@ impl Default for CheckedUnitStructuralArgumentPlan {
 }
 
 impl CheckedUnitStructuralArgumentPlan {
+    /// Complete-source structural-result argument: an empty projection path.
+    pub fn structural_result(
+        binding_ordinal: u32,
+        type_identity: String,
+        access: CheckedStructuralAccess,
+    ) -> Self {
+        Self {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity,
+            access,
+        }
+    }
+
     /// Evaluated scalar dependencies of this source, in authored order.
     /// Omitted range bounds obtain defaults from the source descriptor.
     pub fn scalar_operands(&self) -> impl Iterator<Item = &CheckedCallScalarArgument> {

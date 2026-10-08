@@ -353,14 +353,11 @@ fn argument_contract(
             {
                 return None;
             }
-            return Some(CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                },
-                path: Vec::new(),
-                type_identity: target_identity.to_owned(),
-                access,
-            });
+            return Some(CheckedUnitStructuralArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    target_identity.to_owned(),
+                    access,
+                ));
         }
         // Keep the common loan's logical root coordinate. Replacing its source
         // with a physical result ordinal would lose the carrier join needed

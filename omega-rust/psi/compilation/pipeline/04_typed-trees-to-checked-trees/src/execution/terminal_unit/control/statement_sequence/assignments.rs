@@ -209,14 +209,11 @@ pub(super) fn plan(
             assignment,
             &produced,
             produced.binding_ordinal.checked_add(1)?,
-            CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: produced.binding_ordinal,
-                },
-                path: Vec::new(),
-                type_identity: produced.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
-            },
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                produced.binding_ordinal,
+                produced.type_identity.clone(),
+                CheckedStructuralAccess::Owned,
+            ),
         )?;
         *structural_count =
             structural_count.checked_add(1 + usize::from(replacement.move_out.is_some()))?;
@@ -370,14 +367,11 @@ pub(super) fn plan(
             assignment,
             &result,
             result.binding_ordinal.checked_add(1)?,
-            CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                },
-                path: Vec::new(),
-                type_identity: result.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
-            },
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                result.binding_ordinal,
+                result.type_identity.clone(),
+                CheckedStructuralAccess::Owned,
+            ),
         )?;
         Some(AssignmentPlan::StructuralCall {
             result,
@@ -493,14 +487,11 @@ fn element_replacements(
             &leaf.indices,
             produced,
             u32::try_from(*structural_count).ok()?,
-            CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: produced.binding_ordinal,
-                },
-                path: Vec::new(),
-                type_identity: produced.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
-            },
+            CheckedUnitStructuralArgumentPlan::structural_result(
+                produced.binding_ordinal,
+                produced.type_identity.clone(),
+                CheckedStructuralAccess::Owned,
+            ),
         )?;
         *structural_count =
             structural_count.checked_add(usize::from(replacement.move_out.is_some()))?;

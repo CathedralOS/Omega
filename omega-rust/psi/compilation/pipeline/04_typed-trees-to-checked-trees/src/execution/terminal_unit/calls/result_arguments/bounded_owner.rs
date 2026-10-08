@@ -128,12 +128,9 @@ pub(super) fn loan(
     {
         return None;
     }
-    Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: result.binding_ordinal,
-        },
-        path: Vec::new(),
-        type_identity: target_identity.to_owned(),
-        access,
-    })
+    Some(CheckedUnitStructuralArgumentPlan::structural_result(
+            result.binding_ordinal,
+            target_identity.to_owned(),
+            access,
+        ))
 }

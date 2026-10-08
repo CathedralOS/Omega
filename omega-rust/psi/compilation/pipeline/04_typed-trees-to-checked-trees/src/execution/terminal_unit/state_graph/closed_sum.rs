@@ -93,14 +93,11 @@ pub(super) fn build(
                 trace,
             )?;
             (
-                CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
-                    },
-                    path: Vec::new(),
-                    type_identity: result.type_identity,
-                    access: CheckedStructuralAccess::Owned,
-                },
+                CheckedUnitStructuralArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    result.type_identity,
+                    CheckedStructuralAccess::Owned,
+                ),
                 type_reference,
                 language_semantics::PermissionProvenance::Unknown,
             )
@@ -178,14 +175,11 @@ pub(super) fn build(
                 return None;
             }
             (
-                CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
-                    },
-                    path: Vec::new(),
-                    type_identity: result.type_identity.clone(),
-                    access: CheckedStructuralAccess::Owned,
-                },
+                CheckedUnitStructuralArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    result.type_identity.clone(),
+                    CheckedStructuralAccess::Owned,
+                ),
                 local.type_reference,
                 language_semantics::PermissionProvenance::Established {
                     machine_symbol: machine.symbol,
