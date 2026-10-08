@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateSignature};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn domain_definition(
     program: &dyn ::validation::CheckingInput,
@@ -188,8 +188,8 @@ fn machine_domain_establishment_origin(
                 requirement,
             } => {
                 let trait_definition = program.trait_definition_by_symbol(*trait_definition)?;
-                let requirement = program
-                    .trait_machine_signature_by_symbol(trait_definition, *requirement)?;
+                let requirement =
+                    program.trait_machine_signature_by_symbol(trait_definition, *requirement)?;
                 program
                     .machine_trait_conformances(machine)
                     .iter()
@@ -350,21 +350,9 @@ fn nominal_head_symbol(
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    match program.type_reference_table.type_reference(unwrapped) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .is_empty() =>
-        {
-            Some(*base_symbol)
-        }
-        _ => None,
-    }
+    program
+        .type_reference_table
+        .closed_nominal_symbol(unwrapped)
 }
 
 pub(crate) fn unwrapped_type_references_match(
@@ -385,14 +373,9 @@ fn unwrapped_type_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => unwrapped_type_reference(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            unwrapped_type_reference(program, *base_type)
-        }
-        _ => Some(type_reference),
-    }
+    type_reference.is_valid().then(|| {
+        program
+            .type_reference_table
+            .peeled_type_reference(type_reference)
+    })
 }

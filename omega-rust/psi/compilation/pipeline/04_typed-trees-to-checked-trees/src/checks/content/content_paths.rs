@@ -94,9 +94,12 @@ pub(crate) fn applicable_projection_plans<'facts>(
     type_reference: TypeReferenceHandle,
     subject: &ContentStructuralPlace,
 ) -> Vec<&'facts ContentProjectionPlan> {
-    let Some(carrier) = unwrapped_type_reference(program, type_reference) else {
+    if !type_reference.is_valid() {
         return Vec::new();
-    };
+    }
+    let carrier = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
     let carrier_identity = program.normalized_type_identity(carrier).into_string();
     facts
         .qualifications
@@ -116,22 +119,6 @@ pub(crate) fn applicable_projection_plans<'facts>(
                     ))
         })
         .collect()
-}
-
-fn unwrapped_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => unwrapped_type_reference(program, *referee),
-        _ => Some(type_reference),
-    }
 }
 
 fn type_has_domain(

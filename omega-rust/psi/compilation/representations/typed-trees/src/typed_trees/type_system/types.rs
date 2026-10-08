@@ -229,7 +229,9 @@ impl TypeReferenceTable {
         offset: u32,
         type_reference: TypeReferenceHandle,
     ) {
-        *self.type_reference_handles.get_mut(type_references.handle_at(offset)) = type_reference;
+        *self
+            .type_reference_handles
+            .get_mut(type_references.handle_at(offset)) = type_reference;
     }
 
     pub fn push_type_reference_handle(
@@ -300,6 +302,22 @@ impl TypeReferenceTable {
             handle = *referee;
         }
         handle
+    }
+
+    /// The `Named` symbol, or the base symbol of a `Generic` whose argument
+    /// span is empty — the nominal head a closed reference resolves to.
+    /// `None` for every other node and for generics still carrying type
+    /// arguments.
+    pub fn closed_nominal_symbol(&self, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
+        match self.type_reference(handle) {
+            TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if self.type_reference_handles(*arguments).is_empty() => Some(*base_symbol),
+            _ => None,
+        }
     }
 
     /// `handle` with every outer `Constrained` shell removed — the carrier

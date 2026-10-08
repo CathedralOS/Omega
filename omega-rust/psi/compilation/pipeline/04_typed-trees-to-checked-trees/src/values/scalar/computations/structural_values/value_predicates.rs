@@ -37,21 +37,9 @@ pub(super) fn closed_data_symbol(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .is_empty() =>
-        {
-            Some(*base_symbol)
-        }
-        _ => None,
-    }
+    program
+        .type_reference_table
+        .closed_nominal_symbol(reference)
 }
 
 // Classify the destination before inserting scalar operand roots. A scalar or
