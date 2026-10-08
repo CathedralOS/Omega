@@ -91,6 +91,17 @@ pub(crate) fn check_selected_execution(
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
     )?;
+    // Only the selected entry's reach, through its selected providers,
+    // demands this target's bodies; portable code it never reaches stays
+    // checked source, not a missing realization.
+    provider_planning::target_machines::reject_reached_inert_sibling_calls(
+        &typed,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        selected_program_entry
+            .as_ref()
+            .map(|entry| entry.source_signature().machine_symbol()),
+        &selected_provider_provenance,
+    )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(target::NativeTarget::host);

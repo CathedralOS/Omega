@@ -1490,6 +1490,7 @@ pass/targets/single_target_internal_same_target_caller built 903ms exit:70
 pass/targets/sysv_mixed_aggregate_entry checked 885ms
 pass/targets/target_body_call_contracts_exit built 915ms exit:0 @48008365d839
 pass/targets/target_machine_gating_exit built 686ms exit:70 @63377f7122bb+wt
+pass/targets/unreached_foreign_body_caller_exit built 4128ms exit:70 @23c026832955+wt
 pass/tasks/task_runtime_machine_selection_compile checked 214ms
 pass/terminal_psi/content_custody_exit checked 225ms
 pass/terminal_psi/integer_control_contract checked 361ms

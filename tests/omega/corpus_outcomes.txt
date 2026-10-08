@@ -1882,6 +1882,10 @@ fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
 fail/targets/inactive_external_locator_target_rejected rejected 52ms expected @db1571e34f4a+wt
 	ordinary external `via` returned an invalid locator: foreign locator MachODylibSymbol is not applicable to selected target `windows_x86_64`
+fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 2419ms expected @23c026832955+wt
+	machine `RelayValue::read` state `read` calls `Helper::firmware_only`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::firmware_only` for the target being built.
+fail/targets/reached_foreign_family_relay_rejected rejected 2400ms expected @23c026832955+wt
+	machine `Helper::relay` state `relay` calls `Helper::firmware_only`, which is declared only for targets `macos_x86_64`, `uefi_x86_64`. This build realizes `<selected target>`, so those bodies are inert siblings and the call has no implementation; scope the caller to one of those targets, or declare `Helper::firmware_only` for the target being built.
 fail/targets/sibling_body_type_error_rejected rejected 1059ms expected @2d8ed253669f
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/single_target_internal_caller_rejected rejected 831ms expected @2d8ed253669f
@@ -3646,6 +3650,7 @@ pass/targets/single_target_internal_same_target_caller checked 1238ms check-targ
 pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f
 pass/targets/target_body_call_contracts_exit checked 708ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/target_machine_gating_exit checked 675ms check-target:macos_arm64 @63377f7122bb+wt
+pass/targets/unreached_foreign_body_caller_exit checked 4122ms check-target:macos_arm64 @23c026832955+wt
 pass/tasks/task_runtime_machine_selection_compile checked 309ms @2d8ed253669f
 pass/terminal_psi/content_custody_exit checked 301ms @2d8ed253669f
 pass/terminal_psi/integer_control_contract checked 735ms @2d8ed253669f

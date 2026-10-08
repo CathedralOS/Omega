@@ -1,6 +1,6 @@
 // Deployable target-filter canary: every hosted target selects its exact
 // entry, so the inert-sibling rejection is the same on each of them. The
-// rule runs at the end of product-target selection, so the canary needs a
+// rule refuses only calls the selected entry reaches, so the canary needs a
 // real application root rather than a bare `--check`. The inert callee is
 // declared by the `paradigm_internals` dependency package, not this root.
 

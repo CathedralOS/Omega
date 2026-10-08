@@ -239,7 +239,8 @@ impl SelectedTargetMachineDeclarations {
     /// the target's sibling, which loses its sibling marker and so brings its
     /// own conformances into selection, while the canonical body becomes that
     /// target's sibling. A family with no body for `target` stays inert;
-    /// only a surviving call demands an implementation. The number of foreign
+    /// only a call the realized product reaches demands an implementation
+    /// ([`reject_reached_inert_sibling_calls`]). The number of foreign
     /// implementations does not change that obligation.
     pub fn select_product_target(
         &mut self,
@@ -363,7 +364,7 @@ impl SelectedTargetMachineDeclarations {
             let machine = machine.clone();
             typed.retarget_machine_calls(&machine, &replacements);
         }
-        reject_inert_sibling_callers(typed, target)
+        Ok(())
     }
 
     /// Join the exact resolved member back to source-admission custody.
@@ -724,76 +725,177 @@ fn select_target_machines(
     )
 }
 
-/// A surviving caller of a body this target does not realize.
+/// Refuse the realized product's calls into bodies its target does not have.
 ///
 /// A family implemented only by other targets keeps its declaration as an
-/// inert sibling with its callers, so the call still resolves. Nothing then
-/// realizes the callee: checking accepts the program and the closure refuses
-/// at `Legs::bump::linux_x86_64 ... selects no terminal machine for it`,
-/// past `omega --check`. A caller that is itself scoped to the sibling's
-/// target goes inert with it and is not reported.
-fn reject_inert_sibling_callers(
+/// inert sibling with its callers, so the call still resolves and checking
+/// accepts it. Psi checks every body whether or not a realization reaches it,
+/// so a missing body is a realization question, never a checking error for
+/// the program (wiki/spec/language/machines.md, target-scoped families):
+/// only a call the realized product reaches demands an implementation.
+///
+/// Reach starts at the selected program entry, the root every executable
+/// product requires. It follows explicit calls and named transitions, and a
+/// call to a requirement continues into the realization each selected
+/// provider row binds for it, as the native execution scope does. It never
+/// enters an inert body, so a caller scoped to the sibling's own target goes
+/// inert with it and is never reported. A compilation without a selected
+/// entry realizes nothing: a dependency package's candidate check and a
+/// targetless check refuse no portable code, such as std's hosted console and
+/// filesystem adapters checked for `uefi_x86_64`. Machine-valued arguments are
+/// not explicit callees; a missing body reached only through one is refused
+/// when the native execution scope reaches the absent member.
+pub fn reject_reached_inert_sibling_calls(
     typed: &TypedTrees,
     target: TargetProfile,
+    entry: Option<symbols::SymbolHandle>,
+    selected_providers: &[crate::SelectedProviderReviewProvenance],
 ) -> Result<(), Vec<Diagnostic>> {
-    // Symbol handles are arena handles, not ordered keys; the sibling set is
-    // small and scanned linearly like the rest of this pass.
-    // A call names the callee's entry state, not its machine, so the index
-    // carries each inert machine's states beside its own symbol.
-    let mut inert: Vec<(symbols::SymbolHandle, &str, &str)> = Vec::new();
-    for machine in typed.machines() {
-        let Some(machine_target) = machine.target.as_ref().map(|target| target.as_str()) else {
-            continue;
-        };
-        if TargetProfile::from_canonical_target_name(machine_target)
-            .is_ok_and(|declared| declared == target)
-        {
-            continue;
-        }
-        inert.push((machine.symbol, machine.name.as_str(), machine_target));
-        for state in typed.machine_states(machine) {
-            inert.push((state.symbol, machine.name.as_str(), machine_target));
-        }
-    }
-    if inert.is_empty() {
-        return Ok(());
-    }
+    let machines = typed.machines();
     let realized = target.target_name();
-    let mut diagnostics = Vec::new();
+    // Selected rows pair each requirement with the realization this target
+    // installs for it; unselected candidates are never reached.
+    let provider_rows: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)> = selected_providers
+        .iter()
+        .flat_map(|selected| {
+            selected
+                .provider
+                .row_requirements
+                .iter()
+                .copied()
+                .zip(selected.provider.row_realizations.iter().copied())
+        })
+        .collect();
+    // Roster positions index the reach marks; the roster is fixed here.
+    let mut reached = vec![false; machines.len()];
+    let mut frontier: Vec<usize> = entry
+        .and_then(|entry| typed.machine_position_by_symbol(entry))
+        .filter(|position| inert_target(&machines[*position], target).is_none())
+        .into_iter()
+        .collect();
+    for position in &frontier {
+        reached[*position] = true;
+    }
+    // One walk both extends reach and records refusals. A machine's states
+    // are visited together, so ordering by caller position restores the
+    // declaration order without a second walk.
+    let mut refusals: Vec<(usize, Diagnostic)> = Vec::new();
     let mut callees = ExplicitStateCallees::default();
-    for machine in typed.machines() {
-        let caller_target = machine.target.as_ref().map(|target| target.as_str());
-        for state in typed.machine_states(machine) {
+    while let Some(position) = frontier.pop() {
+        let caller = &machines[position];
+        for state in typed.machine_states(caller) {
             for called_symbol in callees.collect(typed, state) {
-                let Some((_, callee, callee_target)) =
-                    inert.iter().find(|(symbol, _, _)| symbol == called_symbol)
-                else {
-                    continue;
-                };
-                // The caller is exempt only when it carries the sibling's own
-                // unrealized target and so went inert alongside it. Two
-                // non-obvious callers land here: a dependency package's own
-                // paradigm callers (tests/omega/packages/paradigm-internals),
-                // and an inert machine's named-state transitions, which index
-                // as calls to that machine's states.
-                if caller_target == Some(*callee_target) {
-                    continue;
+                // A trait requirement call names the member itself; a
+                // top-level requirement call names its entry state.
+                let direct = called_machine(typed, *called_symbol);
+                let requirement_machine = direct.map(|callee| callee.symbol);
+                let realizations = provider_rows
+                    .iter()
+                    .filter(|(requirement, _)| {
+                        requirement == called_symbol || Some(*requirement) == requirement_machine
+                    })
+                    .filter_map(|(_, realization)| called_machine(typed, *realization));
+                for callee in direct.into_iter().chain(realizations) {
+                    if inert_target(callee, target).is_some() {
+                        refusals.push((
+                            position,
+                            Diagnostic::error(unrealized_call_message(
+                                typed, caller, state, callee, realized,
+                            )),
+                        ));
+                        continue;
+                    }
+                    let Some(callee_position) = typed.machine_position_by_symbol(callee.symbol)
+                    else {
+                        continue;
+                    };
+                    if !std::mem::replace(&mut reached[callee_position], true) {
+                        frontier.push(callee_position);
+                    }
                 }
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` calls `{callee}`, which is declared only for \
-                     target `{callee_target}`. This build realizes `{realized}`, so that body \
-                     is an inert sibling and the call has no implementation; scope the \
-                     caller to `{callee_target}` as well, or declare `{callee}` for the \
-                     target being built.",
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                )));
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
+    if refusals.is_empty() {
+        return Ok(());
+    }
+    refusals.sort_by_key(|(position, _)| *position);
+    Err(refusals
+        .into_iter()
+        .map(|(_, diagnostic)| diagnostic)
+        .collect())
+}
+
+/// A call names the callee's entry state, a named transition one of its own
+/// states, and a few call forms the machine itself.
+fn called_machine(
+    typed: &TypedTrees,
+    called_symbol: symbols::SymbolHandle,
+) -> Option<&typed_trees::machine::Machine> {
+    typed
+        .machine_by_symbol(called_symbol)
+        .or_else(|| typed.machine_holding_state(called_symbol))
+}
+
+/// The authored target of a body this build does not realize. Realized
+/// bodies carry no marker, or one naming the realized profile.
+fn inert_target(machine: &typed_trees::machine::Machine, target: TargetProfile) -> Option<&str> {
+    machine
+        .target
+        .as_ref()
+        .map(|declared| declared.as_str())
+        .filter(|declared| {
+            !TargetProfile::from_canonical_target_name(declared)
+                .is_ok_and(|resolved| resolved == target)
+        })
+}
+
+/// Name every target the callee's family supplies: a family with bodies for
+/// several other targets is not "declared only for" its canonical one.
+fn unrealized_call_message(
+    typed: &TypedTrees,
+    caller: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    callee: &typed_trees::machine::Machine,
+    realized: &str,
+) -> String {
+    let declared: Vec<&str> = typed
+        .target_machine_families
+        .iter()
+        .find(|family| {
+            family
+                .members
+                .iter()
+                .any(|member| member.machine == callee.symbol)
+        })
+        .map(|family| {
+            family
+                .members
+                .iter()
+                .map(|member| member.target.as_str())
+                .collect()
+        })
+        .unwrap_or_else(|| callee.target.iter().map(|target| target.as_str()).collect());
+    let caller_name = caller.name.as_str();
+    let state_name = state.name.as_str();
+    let callee_name = callee.name.as_str();
+    match declared.as_slice() {
+        [only] => format!(
+            "machine `{caller_name}` state `{state_name}` calls `{callee_name}`, which is \
+             declared only for target `{only}`. This build realizes `{realized}`, so that body \
+             is an inert sibling and the call has no implementation; scope the caller to \
+             `{only}` as well, or declare `{callee_name}` for the target being built."
+        ),
+        several => format!(
+            "machine `{caller_name}` state `{state_name}` calls `{callee_name}`, which is \
+             declared only for targets {}. This build realizes `{realized}`, so those bodies \
+             are inert siblings and the call has no implementation; scope the caller to one \
+             of those targets, or declare `{callee_name}` for the target being built.",
+            several
+                .iter()
+                .map(|target| format!("`{target}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
     }
 }
