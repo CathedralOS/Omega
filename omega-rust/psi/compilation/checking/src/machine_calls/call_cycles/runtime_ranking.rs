@@ -1158,14 +1158,11 @@ fn expression_is_inert_or_calls(
             inert(dispatch.subject)
                 && program
                     .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .all(|arm| {
-                        let pattern_inert = match arm.pattern {
-                            typed_trees::expression::MatchPattern::Value(pattern) => inert(pattern),
-                            typed_trees::expression::MatchPattern::Wildcard => true,
-                        };
-                        pattern_inert && inert(arm.value)
+                    .match_arms_all(dispatch.arms, |pattern, value| {
+                        !matches!(
+                            pattern,
+                            typed_trees::expression::MatchPattern::Value(pattern) if !inert(pattern)
+                        ) && inert(value)
                     })
         }
         ExpressionNode::Atomic(atomic) => inert(atomic.value),

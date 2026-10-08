@@ -189,6 +189,18 @@ impl ExpressionTable {
         self.match_arms.span_or_empty(arms)
     }
 
+    /// Every arm's value passes `visit`, with wildcard patterns visiting no
+    /// pattern handle.
+    pub fn match_arms_all(
+        &self,
+        arms: HandleSpan<TableMatchArm>,
+        mut visit: impl FnMut(MatchPattern, ExpressionHandle) -> bool,
+    ) -> bool {
+        self.match_arms(arms)
+            .iter()
+            .all(|arm| visit(arm.pattern, arm.value))
+    }
+
     pub fn new() -> Self {
         Self::with_expression_capacity(0)
     }
