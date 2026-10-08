@@ -33,7 +33,7 @@ use crate::rewrites::block_edges::{member_position, terminator_successors};
 use crate::rewrites::sealed;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
+    local_slot_is_place_storage, local_store_shape, slot_is_subject_storage, staging_slot,
     structural_place_declarations, write_role_covers_subject,
 };
 use crate::rewrites::window_hazards::{UnrosteredReach, unrostered_reach};
@@ -261,38 +261,9 @@ fn local_store_row(
     function: &SelectedFunction,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
-    if environment.selected_keys().store64 != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if !matches!(row.operands.len(), 1 | 2)
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands.get(1).is_some_and(|operand| {
-            operand.operand != 1
-                || operand.access != RegisterOperandAccess::Def
-                || !operand.early_clobber
-                || operand.tied_to.is_some()
-                || operand.fixed_view.is_some()
-        })
-        || instruction.operands.len() != row.operands.len()
-        || instruction
-            .operands
-            .iter()
-            .zip(&row.operands)
-            .any(|(actual, expected)| {
-                actual.operand != expected.operand
-                    || actual.access != expected.access
-                    || actual.class != expected.class
-                    || actual.early_clobber != expected.early_clobber
-                    || actual.tied_to != expected.tied_to
-                    || actual.fixed_view != expected.fixed_view
-            })
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
+    local_store_shape(instruction, environment, || {
+        DeadStoreEliminationError::ConstraintMismatch
+    })?;
     if instruction.operands.iter().any(|operand| {
         operand.access == RegisterOperandAccess::Def
             && !scratch_dies(function, operand.virtual_register)
