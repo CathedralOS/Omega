@@ -31,14 +31,16 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     if operation.result.structural().is_none_or(|result| {
         (result.multiplicity != StructuralMultiplicity::Unrestricted
-            // A case-payload copy may instead mint the transfer's `Affine`
-            // result shape: a `SharedBorrow` reference descriptor relocating
-            // a proven payload's loan, or a plain leaf's owned copy the
-            // successor takes custody of.
+            // An affine shared descriptor can relocate a proven payload's
+            // loan. Plain affine contents have no copying authority: they
+            // transfer through an owned projection, not this observation.
             && !(is_case_copy
                 && result.multiplicity == StructuralMultiplicity::Affine
                 && module.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::Reference {
+                            access: terminal_psi::StructuralAccess::SharedBorrow, ..
+                        })
                 })))
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()

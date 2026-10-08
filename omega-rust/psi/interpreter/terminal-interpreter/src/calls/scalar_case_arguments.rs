@@ -165,6 +165,7 @@ impl TerminalExecution {
             consume_affine_projection(
                 &self.program.structural_types,
                 &self.structural_values,
+                &self.structural_cases,
                 frontier,
                 argument,
             )

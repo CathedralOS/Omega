@@ -161,6 +161,7 @@ impl BlockBindings {
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                     crate::custody::validate_nominal_cleanup_action(
                         &execution.program.structural_types,
+                        &execution.structural_cases,
                         &execution.program.machines,
                         &execution.structural_values,
                         &execution.live_affine_frontier,

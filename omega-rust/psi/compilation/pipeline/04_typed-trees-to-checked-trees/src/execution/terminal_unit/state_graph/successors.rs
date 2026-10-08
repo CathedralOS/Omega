@@ -1012,7 +1012,7 @@ fn projected_value_subject(
     if path.is_empty()
         || !path
             .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_) | CheckedUnitStructuralPathSegment::FixedIndex(_)))
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_) | CheckedUnitStructuralPathSegment::FixedIndex(_) | CheckedUnitStructuralPathSegment::Case(_)))
         || program.type_multiplicity(projected_type) != target.multiplicity
         || (target.multiplicity != Multiplicity::Unrestricted
             && root_access != CheckedStructuralAccess::Owned)
@@ -1138,10 +1138,17 @@ fn case_payload_transfer(
     ordinal: u32,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<checked_trees::CheckedStructuralControlTransferSourcePlan> {
+    // Affine contents move through the ordinary projected-value route below.
+    // This observation route must not turn their plain bytes into copyability.
+    if target.access == CheckedStructuralAccess::Owned
+        && target.multiplicity != Multiplicity::Unrestricted
+    {
+        return None;
+    }
     // The argument must name exactly one payload field beneath the edge's
     // proven case: `subject-place ++ [Case{selected}, Field{payload}]`.
-    // Longer tails reach inside the payload field's own subtree and stay
-    // unadmitted.
+    // Deeper owned projections use the ordinary rooted transfer route;
+    // this observation route establishes only the declared payload itself.
     if place.root != subject_place.root
         || place.segments.len() != subject_place.segments.len() + 2
         || place.segments[..subject_place.segments.len()] != subject_place.segments[..]
@@ -1179,7 +1186,7 @@ fn case_payload_transfer(
     })?;
     // Copying the payload out of the borrowed subject must not disturb
     // the subject's custody. Two admitted shapes, each exact on declared
-    // type and multiplicity: an `Owned` target copies a plain-contents
+    // type and multiplicity: an unrestricted `Owned` target copies a plain-contents
     // subtree and compares the member's whole identity; a `SharedBorrow`
     // target re-seats a member that is itself a shared borrow — reading
     // the view out of borrowed storage copies only its descriptor, so the

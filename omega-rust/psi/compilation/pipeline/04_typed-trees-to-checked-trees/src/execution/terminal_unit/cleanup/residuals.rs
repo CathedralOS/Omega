@@ -1,11 +1,13 @@
-//! Type-directed maximal residual complement for finite records and arrays.
+//! Type-directed maximal residual complement for finite structural transfers.
 //!
 //! Only the complement is validated: a partially touched node must be a
-//! record or array whose contained fields are partial-affine leaves, and each
-//! untouched subtree must be a finite tree of them. Closed inline alternatives
+//! record, array, or exactly selected case whose fields are partial-affine
+//! leaves; each untouched subtree must be a finite tree of them. Closed alternatives
 //! remain whole when every alternative is custody-free; this does not select
-//! a case or authorize disposal of resource-bearing case payloads. A moved subtree transfers
-//! whole with its own custody, so its shape (references included) is the
+//! a case or authorize disposal of resource-bearing case payloads. A touched
+//! case instead retains only its selected payload siblings and common fields.
+//! Membership and nominal-hook admission remain the caller's responsibility.
+//! A moved subtree transfers whole with its own custody, so its shape (references included) is the
 //! consumer's concern, not this discard roster's.
 use super::{
     BTreeMap, CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -164,56 +166,21 @@ fn visit(
     let mut count = usize::from(nominal_boundary);
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields, .. } => {
-            if fields.iter().enumerate().any(|(index, field)| {
-                field.identity.is_empty()
-                    || field.relevance.is_erased()
-                    || !is_partial_affine_field_type(&field.field_type)
-                    || fields[..index]
-                        .iter()
-                        .any(|earlier| earlier.identity == field.identity)
-            }) {
-                return None;
-            }
-            let mut matched = 0_usize;
-            let mut matched_boundaries = usize::from(nominal_boundary);
-            for field in fields.iter().rev() {
-                let matching = moved_paths.iter().filter_map(|(path, moved_type)| {
-                    matches!(&path[0], CheckedUnitStructuralPathSegment::Field(identity) if identity == &field.identity)
-                        .then_some((&path[1..], *moved_type))
-                }).collect::<Vec<_>>();
-                let child_boundaries = boundaries.iter().filter_map(|(path, boundary_type)| {
-                    let (segment, remaining) = path.split_first()?;
-                    matches!(segment, CheckedUnitStructuralPathSegment::Field(identity) if identity == &field.identity)
-                        .then_some((remaining, *boundary_type))
-                }).collect::<Vec<_>>();
-                matched = matched.checked_add(matching.len())?;
-                matched_boundaries = matched_boundaries.checked_add(child_boundaries.len())?;
-                let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                    &field.field_type
-                else {
-                    if !matching.is_empty() || !child_boundaries.is_empty() {
-                        return None;
-                    }
-                    continue;
-                };
-                prefix.push(CheckedUnitStructuralPathSegment::Field(
-                    field.identity.clone(),
-                ));
-                count = count.checked_add(visit(
-                    types,
-                    source,
-                    type_identity,
-                    &matching,
-                    &child_boundaries,
-                    prefix,
-                    residuals,
-                    emit,
-                )?)?;
-                prefix.pop();
-            }
-            if matched != moved_paths.len() || matched_boundaries != boundaries.len() {
-                return None;
-            }
+            let child_boundaries = boundaries
+                .iter()
+                .copied()
+                .filter(|(path, _)| !path.is_empty())
+                .collect::<Vec<_>>();
+            count = count.checked_add(visit_fields(
+                types,
+                source,
+                fields,
+                moved_paths,
+                &child_boundaries,
+                prefix,
+                residuals,
+                emit,
+            )?)?;
         }
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
@@ -272,9 +239,168 @@ fn visit(
                 prefix.pop();
             }
         }
+        CheckedUnitStructuralTypeShape::Sum { cases }
+        | CheckedUnitStructuralTypeShape::Mixed { cases, .. } => {
+            let selected_case =
+                moved_paths
+                    .iter()
+                    .chain(boundaries)
+                    .find_map(|(path, _)| match path.first() {
+                        Some(CheckedUnitStructuralPathSegment::Case(identity)) => Some(identity),
+                        _ => None,
+                    })?;
+            let selected = cases.iter().find(|case| &case.identity == selected_case)?;
+            let common = match &declaration.shape {
+                CheckedUnitStructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                _ => &[],
+            };
+            if moved_paths
+                .iter()
+                .chain(boundaries)
+                .any(|(path, _)| match path.first() {
+                    Some(CheckedUnitStructuralPathSegment::Case(identity)) => {
+                        identity != selected_case
+                    }
+                    Some(CheckedUnitStructuralPathSegment::Field(_)) => !matches!(
+                        declaration.shape,
+                        CheckedUnitStructuralTypeShape::Mixed { .. }
+                    ),
+                    None => !nominal_boundary,
+                    _ => true,
+                })
+            {
+                return None;
+            }
+            let payload_moves = moved_paths
+                .iter()
+                .filter_map(|(path, identity)| {
+                    matches!(
+                        path.first(),
+                        Some(CheckedUnitStructuralPathSegment::Case(_))
+                    )
+                    .then(|| (&path[1..], *identity))
+                })
+                .collect::<Vec<_>>();
+            let payload_boundaries = boundaries
+                .iter()
+                .filter_map(|(path, identity)| {
+                    matches!(
+                        path.first(),
+                        Some(CheckedUnitStructuralPathSegment::Case(_))
+                    )
+                    .then(|| (&path[1..], *identity))
+                })
+                .collect::<Vec<_>>();
+            prefix.push(CheckedUnitStructuralPathSegment::Case(
+                selected_case.clone(),
+            ));
+            count = count.checked_add(visit_fields(
+                types,
+                source,
+                &selected.fields,
+                &payload_moves,
+                &payload_boundaries,
+                prefix,
+                residuals,
+                emit,
+            )?)?;
+            prefix.pop();
+            let common_moves = moved_paths
+                .iter()
+                .copied()
+                .filter(|(path, _)| {
+                    matches!(
+                        path.first(),
+                        Some(CheckedUnitStructuralPathSegment::Field(_))
+                    )
+                })
+                .collect::<Vec<_>>();
+            let common_boundaries = boundaries
+                .iter()
+                .copied()
+                .filter(|(path, _)| {
+                    matches!(
+                        path.first(),
+                        Some(CheckedUnitStructuralPathSegment::Field(_))
+                    )
+                })
+                .collect::<Vec<_>>();
+            count = count.checked_add(visit_fields(
+                types,
+                source,
+                common,
+                &common_moves,
+                &common_boundaries,
+                prefix,
+                residuals,
+                emit,
+            )?)?;
+        }
         _ => return None,
     }
     Some(count)
+}
+
+/// Walk one declaration-ordered namespace. Every move and hook must resolve
+/// to its exact structural child; scalar width never substitutes for custody.
+fn visit_fields(
+    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+    fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
+    residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
+    emit: bool,
+) -> Option<usize> {
+    if fields.iter().enumerate().any(|(position, field)| {
+        field.identity.is_empty()
+            || field.relevance.is_erased()
+            || !is_partial_affine_field_type(&field.field_type)
+            || fields[..position]
+                .iter()
+                .any(|earlier| earlier.identity == field.identity)
+    }) {
+        return None;
+    }
+    let mut count = 0_usize;
+    let mut matched = 0_usize;
+    let mut matched_boundaries = 0_usize;
+    for field in fields.iter().rev() {
+        let matching = moved_paths.iter().filter_map(|(path, identity)| {
+            let (segment, remaining) = path.split_first()?;
+            matches!(segment, CheckedUnitStructuralPathSegment::Field(candidate) if candidate == &field.identity)
+                .then_some((remaining, *identity))
+        }).collect::<Vec<_>>();
+        let child_boundaries = boundaries.iter().filter_map(|(path, identity)| {
+            let (segment, remaining) = path.split_first()?;
+            matches!(segment, CheckedUnitStructuralPathSegment::Field(candidate) if candidate == &field.identity)
+                .then_some((remaining, *identity))
+        }).collect::<Vec<_>>();
+        matched = matched.checked_add(matching.len())?;
+        matched_boundaries = matched_boundaries.checked_add(child_boundaries.len())?;
+        let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type else {
+            if !matching.is_empty() || !child_boundaries.is_empty() {
+                return None;
+            }
+            continue;
+        };
+        prefix.push(CheckedUnitStructuralPathSegment::Field(
+            field.identity.clone(),
+        ));
+        count = count.checked_add(visit(
+            types,
+            source,
+            type_identity,
+            &matching,
+            &child_boundaries,
+            prefix,
+            residuals,
+            emit,
+        )?)?;
+        prefix.pop();
+    }
+    (matched == moved_paths.len() && matched_boundaries == boundaries.len()).then_some(count)
 }
 
 pub(super) fn reconstruct(

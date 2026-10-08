@@ -416,28 +416,29 @@ impl StateGraphEmission<'_, '_> {
                             // an owned move instead retains the original root
                             // and path on the edge. The edge transaction first
                             // captures that subtree, then disposes its complement.
-                            let source = match subject.source {
+                            let (source, root_type) = match subject.source {
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                     parameter_index,
-                                } => state_parameters.get(parameter_index as usize).ok_or(
-                                    LoweringError::Unsupported(
-                                        "Unit graph projected subject descriptor disappeared",
-                                    ),
-                                )?.place,
+                                } => {
+                                    let parameter = state_parameters.get(parameter_index as usize).ok_or(
+                                        LoweringError::Unsupported(
+                                            "Unit graph projected subject descriptor disappeared",
+                                        ),
+                                    )?;
+                                    (parameter.place, parameter.structural_type)
+                                },
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                     binding_ordinal,
-                                } => case_emission::result(state, binding_ordinal, operations)?.place(),
+                                } => {
+                                    let result = case_emission::result(state, binding_ordinal, operations)?;
+                                    (result.place(), result.structural_type())
+                                },
                                 _ => return unsupported("Unit graph projected value has no established root"),
                             };
                             let source = edge_evaluation.current_structural_place(source);
-                            let path = subject.path.iter().map(|segment| match segment {
-                                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
-                                    terminal_psi::StructuralPathSegment::Field(identity.clone())),
-                                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Some(
-                                    terminal_psi::StructuralPathSegment::FixedIndex(*index)),
-                                _ => None,
-                            }).collect::<Option<Vec<_>>>().ok_or(
-                                LoweringError::Unsupported("Unit graph projected path segment unsupported"),
+                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                &subject.path, root_type, &self.catalogs.structural_types,
+                                None, &mut std::iter::empty(), None,
                             )?;
                             if target_parameter.multiplicity != language_semantics::Multiplicity::Unrestricted {
                                 argument_path = path;

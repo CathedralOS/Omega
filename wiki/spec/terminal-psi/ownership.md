@@ -41,12 +41,21 @@ of the root's multiplicity. Moving every member of a dense linear sibling claim
 set settles that set; it does not license rebuilding an arbitrary value with a
 hole.
 
-For an admitted finite record/fixed-array affine root, derive its residual
+For an admitted finite structural affine root, derive its residual
 complement from the type and actual moves. Each row binds root identity, canonical
 path, and exact subtree type. List maximal live subtrees in recursive reverse
 declaration/index order. An untouched array is one residual subtree, not an
 expanded list of leaves. A partially moved ancestor cannot be discarded whole.
 An empty complement needs no residual row.
+
+A `Case` path enters the payload namespace of the exact selected sum; it is
+not another owned child. Its active payload fields and any mixed common fields
+participate in the same complement. Inactive cases contribute no values or
+cleanup. Each selected case must remain established at the transfer, and
+conflicting case identities cannot be combined into one residual partition.
+Plain scalar contents do not authorize copying an affine payload: an owned
+projection transfers its original custody, while a leaf-copy observation still
+requires unrestricted data or the separately admitted shared-descriptor loan.
 
 Jump, conditional, and case successors carry this same residual schedule within
 their ordered cleanup actions. Only the selected edge disposes its listed

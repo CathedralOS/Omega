@@ -47,6 +47,10 @@ pub(crate) fn cleanup_retains_descendants(
 
 pub(crate) fn commit_cleanup_action(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
@@ -95,6 +99,7 @@ pub(crate) fn commit_cleanup_action(
             consume_affine_projection(
                 structural_types,
                 structural_values,
+                structural_cases,
                 frontier,
                 &StructuralArgument {
                     place: discard.place,
@@ -104,8 +109,7 @@ pub(crate) fn commit_cleanup_action(
             )?;
             // A projected transfer may already retain descendants of this root.
             // Retire only this disposed subtree, never the transferred sibling.
-            let mut path = root.path.clone();
-            path.extend_from_slice(&discard.path);
+            let path = project_structural_value(structural_types, root, &discard.path)?.path;
             reference_referents.retain(|carrier, _| {
                 carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
             });
@@ -119,6 +123,7 @@ pub(crate) fn commit_cleanup_action(
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             validate_nominal_cleanup_action(
                 structural_types,
+                structural_cases,
                 machines,
                 structural_values,
                 frontier,
@@ -147,6 +152,7 @@ pub(crate) fn commit_cleanup_action(
                 consume_affine_projection(
                     structural_types,
                     structural_values,
+                    structural_cases,
                     frontier,
                     &StructuralArgument {
                         place: cleanup.place,
@@ -176,6 +182,10 @@ pub(crate) fn commit_cleanup_action(
 /// hook designation is declaration metadata, never inferred from its use here.
 pub(crate) fn validate_nominal_cleanup_action(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     frontier: &BTreeSet<StructuralAffineDiscard>,
@@ -244,6 +254,7 @@ pub(crate) fn validate_nominal_cleanup_action(
             consume_affine_projection(
                 structural_types,
                 values,
+                structural_cases,
                 &mut remaining,
                 &StructuralArgument {
                     place: cleanup.place,
@@ -594,11 +605,22 @@ pub(crate) fn remove_affine_root(
 pub(crate) fn consume_affine_projection(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInterpretError> {
     let root = values.get(&argument.place).ok_or(
         TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+    )?;
+    crate::structural_inputs::case_membership::validate_case_projection(
+        structural_types,
+        values,
+        structural_cases,
+        argument.place,
+        &argument.path,
     )?;
     let Some(containing) = frontier
         .iter()
@@ -613,7 +635,18 @@ pub(crate) fn consume_affine_projection(
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
     frontier.remove(&containing);
-    split_affine_frontier_at_projection(structural_types, frontier, containing, &argument.path)
+    let case_membership = |current: &StructuralAffineDiscard| {
+        let selected = project_structural_value(structural_types, root, &current.path).ok()?;
+        let contents = structural_cases.get(&StructuralRuntimePlace::from(&selected))?;
+        (contents.structural_type == selected.structural_type).then_some(contents.case)
+    };
+    split_affine_frontier_at_projection(
+        structural_types,
+        frontier,
+        containing,
+        &argument.path,
+        &case_membership,
+    )
 }
 
 pub(crate) fn split_affine_frontier_at_projection(
@@ -621,6 +654,7 @@ pub(crate) fn split_affine_frontier_at_projection(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     current: StructuralAffineDiscard,
     projected_path: &[StructuralPathSegment],
+    case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
 ) -> Result<(), TerminalInterpretError> {
     if current.path == projected_path {
         return Ok(());
@@ -679,17 +713,51 @@ pub(crate) fn split_affine_frontier_at_projection(
             }
             selected
         }
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            let active_case = case_membership(&current).ok_or_else(malformed)?;
+            let selected_case = cases.iter().find(|case| case.id == active_case).ok_or_else(malformed)?;
+            let mut selected = None;
+            // Common members have their ordinary paths. Payload members live
+            // only below this exact Case namespace; the virtual Case itself
+            // owns no second obligation and adds no physical backing prefix.
+            for (case, fields) in declaration.shape.direct_fields().map(|fields| (None, fields))
+                .into_iter().chain(std::iter::once((Some(selected_case.id), selected_case.fields.as_slice())))
+            {
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    let terminal_psi::StructuralFieldType::Structural(field_type) = field.field_type else {
+                        continue;
+                    };
+                    let segment = StructuralPathSegment::Field(field.identity.clone());
+                    let mut path = current.path.clone();
+                    if let Some(case) = case {
+                        path.push(StructuralPathSegment::Case(case));
+                    }
+                    path.push(segment.clone());
+                    let child = StructuralAffineDiscard { place: current.place, path, structural_type: field_type };
+                    if projected_path.starts_with(&child.path) {
+                        selected = Some(child);
+                    } else if !frontier.insert(child) {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                }
+            }
+            selected
+        }
         StructuralTypeShape::FusedServiceBinding
         | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::ElementView { .. }
-        | StructuralTypeShape::FixedArray { .. }
-        | StructuralTypeShape::Sum { .. }
-        | StructuralTypeShape::Mixed { .. } => None,
+        | StructuralTypeShape::FixedArray { .. } => None,
     }
     .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
-    split_affine_frontier_at_projection(structural_types, frontier, selected, projected_path)
+    split_affine_frontier_at_projection(
+        structural_types,
+        frontier,
+        selected,
+        projected_path,
+        case_membership,
+    )
 }
 
 pub(crate) fn resolve_structural_path_type(

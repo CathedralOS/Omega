@@ -1,4 +1,4 @@
-//! Type-directed maximal residual geometry for finite record/array transfers.
+//! Type-directed maximal residual geometry for finite structural transfers.
 //!
 //! This query grants no custody or disposal authority. Its caller authenticates
 //! the root, moved operands, and cleanup-free residual types independently.
@@ -18,7 +18,9 @@ fn is_partial_affine_path(
         && path.iter().all(|segment| {
             matches!(
                 segment,
-                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::Case(_)
             )
         })
         && crate::runtime_structural_path_tip(types.iter(), root, path).is_some()
@@ -88,40 +90,10 @@ fn visit(
             // Byte predicates constrain the payload, not its disposal. An
             // inline bounded owner remains cleanup-free; a borrowed view does
             // not gain that status merely by carrying the same predicate.
-            if fields.is_empty()
-                || fields.iter().any(|field| {
-                    field.relevance.is_erased()
-                        || !matches!(
-                            field.field_type,
-                            StructuralFieldType::Structural(_)
-                                | StructuralFieldType::Scalar(_)
-                                | StructuralFieldType::IeeeFloat(_)
-                                | StructuralFieldType::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                                | StructuralFieldType::PredicateByteSequence {
-                                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                                    ..
-                                }
-                        )
-                })
-            {
+            if fields.is_empty() {
                 return None;
             }
-            for field in fields.iter().rev() {
-                if let StructuralFieldType::Structural(child_type) = field.field_type {
-                    count = count.checked_add(child(
-                        types,
-                        child_type,
-                        StructuralPathSegment::Field(field.identity.clone()),
-                        moved,
-                        prefix,
-                        max_residuals,
-                        residuals,
-                        emit,
-                    )?)?;
-                }
-            }
+            count = fields_residuals(types, fields, moved, prefix, max_residuals, residuals, emit)?;
         }
         StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
             let mut touched = moved
@@ -155,7 +127,111 @@ fn visit(
                 }
             }
         }
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            // A Case step names a selected namespace, not a child
+            // value. Only that case has live payload siblings. Never enumerate
+            // inactive alternatives or merge different selected cases.
+            let selected_case = moved.iter().find_map(|path| match path.first() {
+                Some(StructuralPathSegment::Case(case)) => Some(*case),
+                _ => None,
+            })?;
+            let selected = cases.iter().find(|case| case.id == selected_case)?;
+            if moved.iter().any(|path| match path.first() {
+                Some(StructuralPathSegment::Case(case)) => *case != selected_case,
+                Some(StructuralPathSegment::Field(_)) => {
+                    declaration.shape.direct_fields().is_none()
+                }
+                _ => true,
+            }) {
+                return None;
+            }
+            let payload_moves = moved
+                .iter()
+                .filter_map(|path| {
+                    matches!(path.first(), Some(StructuralPathSegment::Case(_)))
+                        .then_some(&path[1..])
+                })
+                .collect::<Vec<_>>();
+            prefix.push(StructuralPathSegment::Case(selected_case));
+            count = fields_residuals(
+                types,
+                &selected.fields,
+                &payload_moves,
+                prefix,
+                max_residuals,
+                residuals,
+                emit,
+            )?;
+            prefix.pop();
+            if let Some(common) = declaration.shape.direct_fields() {
+                let common_moves = moved
+                    .iter()
+                    .copied()
+                    .filter(|path| matches!(path.first(), Some(StructuralPathSegment::Field(_))))
+                    .collect::<Vec<_>>();
+                count = count.checked_add(fields_residuals(
+                    types,
+                    common,
+                    &common_moves,
+                    prefix,
+                    max_residuals,
+                    residuals,
+                    emit,
+                )?)?;
+            }
+        }
         _ => return None,
+    }
+    (count <= max_residuals).then_some(count)
+}
+
+fn fields_residuals(
+    types: &[StructuralTypeDeclaration],
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    moved: &[&[StructuralPathSegment]],
+    prefix: &mut Vec<StructuralPathSegment>,
+    max_residuals: usize,
+    residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+    emit: bool,
+) -> Option<usize> {
+    // Keep the same field eligibility as the record complement. A virtual
+    // case namespace must not relax cleanup-free storage requirements.
+    if fields.iter().any(|field| {
+        field.relevance.is_erased()
+            || !matches!(
+                field.field_type,
+                StructuralFieldType::Structural(_)
+                    | StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::IeeeFloat(_)
+                    | StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                    | StructuralFieldType::PredicateByteSequence {
+                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                        ..
+                    }
+            )
+    }) {
+        return None;
+    }
+    let mut count = 0_usize;
+    for field in fields
+        .iter()
+        .rev()
+        .filter(|field| !field.relevance.is_erased())
+    {
+        if let StructuralFieldType::Structural(child_type) = field.field_type {
+            count = count.checked_add(child(
+                types,
+                child_type,
+                StructuralPathSegment::Field(field.identity.clone()),
+                moved,
+                prefix,
+                max_residuals,
+                residuals,
+                emit,
+            )?)?;
+        }
     }
     (count <= max_residuals).then_some(count)
 }

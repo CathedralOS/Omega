@@ -2,9 +2,8 @@
 //! leaf projected out of a live readable root. The verifier already proved
 //! the read-only observation contract — copying never opens a restoration
 //! window, so this leg re-checks only the static shape the verifier's
-//! admission committed to: the fresh result row (`Unrestricted`, plus the
-//! case path's owned `Affine` non-reference copy, plus an `Affine`
-//! `SharedBorrow` loan relocation on either path), a readable
+//! admission committed to: the fresh result row (`Unrestricted`, or an
+//! `Affine` `SharedBorrow` loan relocation on either path), a readable
 //! source signature, and the ordinary or case-qualified path landing on the
 //! exact leaf type. Case membership is proved before this lowering runs;
 //! selecting a payload's declared type cannot establish its active case.
@@ -38,18 +37,9 @@ pub(super) fn lower(
     // Membership metadata was decided on the exact source occurrence in Psi.
     // It survives every snapshot without changing storage or copy permission;
     // bytes are not a separate qualification-custody mode.
-    // A case-qualified path also admits the verifier's owned-copy shape: an
-    // `Affine` result over a non-reference leaf is an owned copy the
-    // successor takes custody of — copying out of a proven-active case
-    // payload never moves the stored value itself. An `Affine` `SharedBorrow`
-    // result is a loan relocation instead of a copy: the verifier registers
-    // it as a live reference carrier rooted at the source, on either path.
-    let owned_case_copy = matches!(path, StructuralCopyPath::Case(_))
-        && result.multiplicity == StructuralMultiplicity::Affine
-        && structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && !matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        });
+    // An `Affine` `SharedBorrow` result is a loan relocation instead of a
+    // copy: the verifier registers a live reference carrier rooted at the
+    // source, on either path.
     let shared_borrow_loan = result.multiplicity == StructuralMultiplicity::Affine
         && structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
@@ -61,9 +51,7 @@ pub(super) fn lower(
                     }
                 )
         });
-    if (result.multiplicity != StructuralMultiplicity::Unrestricted
-        && !owned_case_copy
-        && !shared_borrow_loan)
+    if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_borrow_loan)
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || !matches!(

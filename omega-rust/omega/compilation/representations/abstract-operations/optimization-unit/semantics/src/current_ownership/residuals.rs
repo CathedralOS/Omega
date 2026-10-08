@@ -1,4 +1,6 @@
-//! Independently reconstruct the maximal live record/array path complement.
+//! Independently reconstruct the maximal live structural path complement.
+//! A case step selects active payload debt; inactive alternatives are never
+//! residuals. The caller still authenticates membership and cleanup authority.
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -53,38 +55,17 @@ fn collect_partial_affine_residuals(
 ) -> Option<()> {
     match &structural_types.get(&structural_type)?.shape {
         StructuralTypeShape::Record { fields, .. } => {
-            if fields.is_empty()
-                || fields.iter().any(|field| {
-                    field.relevance.is_erased()
-                        || !matches!(
-                            field.field_type,
-                            StructuralFieldType::Structural(_)
-                                | StructuralFieldType::Scalar(_)
-                                | StructuralFieldType::Atomic(_)
-                                | StructuralFieldType::IeeeFloat(_)
-                                | StructuralFieldType::BoundedInteger(_)
-                                | StructuralFieldType::RefinedScalar(_)
-                                | StructuralFieldType::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                        )
-                })
-            {
+            if fields.is_empty() {
                 return None;
             }
-            for field in fields.iter().rev() {
-                if let StructuralFieldType::Structural(child_type) = field.field_type {
-                    collect_child_residuals(
-                        structural_types,
-                        child_type,
-                        StructuralPathSegment::Field(field.identity.clone()),
-                        moved_paths,
-                        prefix,
-                        max_residuals,
-                        residuals,
-                    )?;
-                }
-            }
+            collect_field_residuals(
+                structural_types,
+                fields,
+                moved_paths,
+                prefix,
+                max_residuals,
+                residuals,
+            )?;
         }
         StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
             // Every untouched child costs one supplied cleanup. Count that
@@ -106,7 +87,98 @@ fn collect_partial_affine_residuals(
                 )?;
             }
         }
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            let selected_case = moved_paths.iter().find_map(|path| match path.first() {
+                Some(StructuralPathSegment::Case(case)) => Some(*case),
+                _ => None,
+            })?;
+            let selected = cases.iter().find(|case| case.id == selected_case)?;
+            let common = structural_types
+                .get(&structural_type)?
+                .shape
+                .direct_fields();
+            if moved_paths.iter().any(|path| match path.first() {
+                Some(StructuralPathSegment::Case(case)) => *case != selected_case,
+                Some(StructuralPathSegment::Field(_)) => common.is_none(),
+                _ => true,
+            }) {
+                return None;
+            }
+            let payload_moves = moved_paths
+                .iter()
+                .filter_map(|path| {
+                    matches!(path.first(), Some(StructuralPathSegment::Case(_)))
+                        .then_some(&path[1..])
+                })
+                .collect::<Vec<_>>();
+            prefix.push(StructuralPathSegment::Case(selected_case));
+            collect_field_residuals(
+                structural_types,
+                &selected.fields,
+                &payload_moves,
+                prefix,
+                max_residuals,
+                residuals,
+            )?;
+            prefix.pop();
+            if let Some(common) = common {
+                let common_moves = moved_paths
+                    .iter()
+                    .copied()
+                    .filter(|path| matches!(path.first(), Some(StructuralPathSegment::Field(_))))
+                    .collect::<Vec<_>>();
+                collect_field_residuals(
+                    structural_types,
+                    common,
+                    &common_moves,
+                    prefix,
+                    max_residuals,
+                    residuals,
+                )?;
+            }
+        }
         _ => return None,
+    }
+    Some(())
+}
+
+fn collect_field_residuals(
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    moved_paths: &[&[StructuralPathSegment]],
+    prefix: &mut Vec<StructuralPathSegment>,
+    max_residuals: usize,
+    residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+) -> Option<()> {
+    if fields.iter().any(|field| {
+        field.relevance.is_erased()
+            || !matches!(
+                field.field_type,
+                StructuralFieldType::Structural(_)
+                    | StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::Atomic(_)
+                    | StructuralFieldType::IeeeFloat(_)
+                    | StructuralFieldType::BoundedInteger(_)
+                    | StructuralFieldType::RefinedScalar(_)
+                    | StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+            )
+    }) {
+        return None;
+    }
+    for field in fields.iter().rev() {
+        if let StructuralFieldType::Structural(child_type) = field.field_type {
+            collect_child_residuals(
+                structural_types,
+                child_type,
+                StructuralPathSegment::Field(field.identity.clone()),
+                moved_paths,
+                prefix,
+                max_residuals,
+                residuals,
+            )?;
+        }
     }
     Some(())
 }

@@ -96,7 +96,12 @@ cleanup and simultaneous successor installation. Affine inputs move once;
 Unrestricted descriptors remain reusable. Rebinding changes the descriptor place,
 not its referent or field backing. Missing/duplicate owners and transfer/discard
 overlap reject before mutation. Fuel suspension preserves the uncommitted edge.
-This whole plain-owned route does not admit partial/qualified owners. Exact
+Projected affine operands retain the original subtree backing and leave their
+maximal live complement for the selected cleanup schedule. Case paths check the
+current discriminator before moving, select only active payload siblings, and
+retain mixed common fields in their independent namespace. They do not create
+fresh affine copies. Qualified and claim-bearing projected owners still need
+their separate transport. Exact
 unqualified mutable byte-view block parameters retain an existing field loan;
 other mutable borrowed block parameters remain unsupported.
 

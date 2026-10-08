@@ -14,6 +14,7 @@ impl TerminalExecution {
         while let Some(action) = remaining.next() {
             let nominal = commit_cleanup_action(
                 &self.program.structural_types,
+                &self.structural_cases,
                 &self.program.machines,
                 &mut self.structural_values,
                 &mut self.reference_referents,

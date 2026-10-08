@@ -376,6 +376,7 @@ impl TerminalExecution {
         crate::custody::consume_affine_projection(
             &self.program.structural_types,
             &self.structural_values,
+            &self.structural_cases,
             &mut frontier,
             &StructuralArgument {
                 place: source,

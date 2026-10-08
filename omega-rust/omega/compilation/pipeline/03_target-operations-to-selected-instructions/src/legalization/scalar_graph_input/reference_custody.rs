@@ -485,16 +485,35 @@ fn leaf_referent(
     }
 }
 
-/// The structural type the field-only path names beneath `current`: a sum or
-/// mixed payload keeps a segment legal while every matching case field
-/// resolves to one structural type, and a plain leaf field resolves to its
-/// canonical standalone declaration.
+/// Resolve declaration geometry without granting case membership or custody.
+/// Case selects its payload namespace; an unqualified field names only a
+/// record or Mixed common member, never an inactive alternative's field.
 fn leaf_type(
     types: &[StructuralTypeDeclaration],
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    let mut case_fields = None;
     for segment in fields {
+        if case_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return None;
+        }
+        if let StructuralPathSegment::Case(case) = segment {
+            let declaration = types.iter().find(|declaration| declaration.id == current)?;
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return None;
+            };
+            case_fields = Some(
+                cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case)?
+                    .fields
+                    .as_slice(),
+            );
+            continue;
+        }
         if matches!(
             segment,
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
@@ -550,41 +569,28 @@ fn leaf_type(
             return None;
         };
         let declaration = types.iter().find(|declaration| declaration.id == current)?;
-        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
-            StructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| case.fields.iter()).collect()
-            }
-            StructuralTypeShape::Mixed { fields, cases } => fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| case.fields.iter()))
-                .collect(),
-            _ => return None,
+        let selected_fields = match case_fields.take() {
+            Some(fields) => fields,
+            None => declaration.shape.direct_fields()?,
         };
-        let mut resolved = None;
-        for field in matching {
-            if field.identity != *identity || field.relevance.is_erased() {
-                continue;
-            }
-            let child = match &field.field_type {
-                StructuralFieldType::Structural(child) => *child,
-                leaf => {
-                    let shape = leaf.canonical_leaf_shape()?;
-                    types
-                        .iter()
-                        .find(|declaration| declaration.shape == shape)
-                        .map(|declaration| declaration.id)?
-                }
-            };
-            match resolved {
-                None => resolved = Some(child),
-                Some(previous) if previous != child => return None,
-                _ => {}
-            }
+        let field = selected_fields
+            .iter()
+            .find(|field| &field.identity == identity)?;
+        if field.relevance.is_erased() {
+            return None;
         }
-        current = resolved?;
+        current = match &field.field_type {
+            StructuralFieldType::Structural(child) => *child,
+            leaf => {
+                let shape = leaf.canonical_leaf_shape()?;
+                types
+                    .iter()
+                    .find(|declaration| declaration.shape == shape)?
+                    .id
+            }
+        };
     }
-    Some(current)
+    case_fields.is_none().then_some(current)
 }
 
 /// The structural contract a place currently carries: a signature parameter, a

@@ -630,7 +630,31 @@ pub(super) fn leaf_type(
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    let mut case_fields = None;
     for segment in fields {
+        if case_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return None;
+        }
+        if let StructuralPathSegment::Case(case) = segment {
+            let declaration = types.get(&current)?;
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return None;
+            };
+            // Case selects a namespace, not a structural child. Disposal of a
+            // selected residual must resolve the payload's declaration before
+            // asking whether it carries descriptors; shape alone grants no
+            // active-case or ownership permission.
+            case_fields = Some(
+                cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case)?
+                    .fields
+                    .as_slice(),
+            );
+            continue;
+        }
         if matches!(
             segment,
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
@@ -676,10 +700,9 @@ pub(super) fn leaf_type(
             return None;
         };
         let declaration = types.get(&current)?;
-        let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } => fields,
-            StructuralTypeShape::Mixed { fields, .. } => fields,
-            _ => return None,
+        let fields = match case_fields.take() {
+            Some(fields) => fields,
+            None => declaration.shape.direct_fields()?,
         };
         let field = fields.iter().find(|field| &field.identity == identity)?;
         if field.relevance.is_erased() {
@@ -696,7 +719,7 @@ pub(super) fn leaf_type(
             }
         };
     }
-    Some(current)
+    case_fields.is_none().then_some(current)
 }
 
 /// The structural contract a place currently carries: a signature parameter, a

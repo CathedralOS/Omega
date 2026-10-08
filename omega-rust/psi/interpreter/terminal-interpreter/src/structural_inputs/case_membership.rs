@@ -227,7 +227,7 @@ impl TerminalExecution {
 
 /// Runtime payload fields overlay their sum's backing. Check each Case before
 /// omitting it from the physical path; two cases may use the same field names.
-fn validate_case_projection(
+pub(crate) fn validate_case_projection(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,

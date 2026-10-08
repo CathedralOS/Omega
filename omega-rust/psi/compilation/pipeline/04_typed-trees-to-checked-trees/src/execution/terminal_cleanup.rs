@@ -149,11 +149,11 @@ fn build_state_plan(
                 continue;
             };
             if !segments.span_or_empty(event.segments).is_empty() {
-                // The case-payload operation materializes a fresh carrier
-                // before the edge retires its parent storage. It is not a
-                // transfer of the whole parent. Keep that parent in the
-                // ordinary discard roster; actual partial moves still
-                // require their separate residual-complement evidence.
+                // A projected argument does not transfer the whole parent.
+                // Keep its lexical death in this roster; selected-edge
+                // emission replaces whole retirement with the actual residual
+                // complement when an affine subtree moves. Copyable reads
+                // leave the parent's custody whole.
                 projected_read_retains_parent(
                     program,
                     state,
@@ -252,10 +252,9 @@ fn build_state_plan(
 ///
 /// Reading a copyable subtree is an observation: the read materializes a
 /// fresh value and the parent survives it, at any field or index path. An
-/// affine subtree is different — that read is a partial move, and this lane
-/// has no residual vocabulary for it — with one exception the physical route
-/// already provides: a proven case test on this edge extracts the selected
-/// payload into a fresh carrier before the edge retires the parent. Crossing
+/// affine subtree is different — that read is a partial move, and this lexical
+/// roster does not enumerate its complement. Selected-edge emission retains
+/// original projected custody and completes that complement separately. Crossing
 /// a case also needs that proof, because an unproven case path names storage
 /// the edge never selected. So the selection proof is required exactly where
 /// it is load-bearing rather than on every projected read, which is what made
@@ -341,9 +340,9 @@ fn projected_read_retains_parent(
     }) {
         return None;
     }
-    // The extraction is the dispatch's leaf copy: the contents judgment above
-    // already admitted plain contents or a shared-view carrier whose
-    // descriptor loans keep their lineage on the fresh carrier.
+    // Membership makes this projected death accountable. It does not grant
+    // copyability: affine emission keeps original subtree custody and supplies
+    // the residual complement; unrestricted observations may copy instead.
     Some(())
 }
 

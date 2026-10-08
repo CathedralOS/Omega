@@ -1785,10 +1785,6 @@ then independent claimed restoration slices -> final closure.
   such a payload currently declines with
   `case payload observation requires a scalar payload`. Do not replace that
   missing event with a scalar dispatch snapshot.
-  Affine case-payload extraction through `StructuralCaseLeafCopy` still declines
-  with `AffineProjectionNotRepresentable` for
-  `borrows/{runtime_affine_local_case_return_exit,runtime_case_return_parameter_order_exit}`;
-  retain their authored exits 42 and 0 while restoring partial-owner transport.
   Qualify the ordinary `omega run --both` route for
   `borrows/indexed_record_field_replacement_exit` and
   `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their

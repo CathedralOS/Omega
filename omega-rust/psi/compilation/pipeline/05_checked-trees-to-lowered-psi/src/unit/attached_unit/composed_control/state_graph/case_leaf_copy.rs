@@ -60,14 +60,11 @@ pub(super) fn emit(
     };
     let leaf = walk_fields(types, &mut canonical, &mut visited, leaf, payload_path)?;
     unique_type(types, leaf)?;
-    // The op mints an unqualified owned copy of the leaf type. The copy carries
-    // the target's own multiplicity: an owned (`Affine`) successor parameter
-    // takes custody of the fresh copy, an `Unrestricted` one takes a plain
-    // value.
-    let result_multiplicity = match target.multiplicity {
-        Multiplicity::Affine => StructuralMultiplicity::Affine,
-        _ => StructuralMultiplicity::Unrestricted,
-    };
+    // Affine payloads use rooted projected transfers, preserving their one
+    // ownership obligation. This operation only materializes copyable data.
+    if target.multiplicity != Multiplicity::Unrestricted {
+        return unsupported("case leaf observation requires copyable payload custody");
+    }
     let producer = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
@@ -77,7 +74,7 @@ pub(super) fn emit(
             qualification_establishments: Vec::new(),
             place: destination,
             structural_type: leaf,
-            multiplicity: result_multiplicity,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
             claims: Vec::new(),

@@ -88,6 +88,7 @@ impl TerminalExecution {
             consume_affine_projection(
                 &self.program.structural_types,
                 &self.structural_values,
+                &self.structural_cases,
                 projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
                 argument,
             )?;
@@ -136,6 +137,7 @@ impl TerminalExecution {
             consume_affine_projection(
                 &self.program.structural_types,
                 &self.structural_values,
+                &self.structural_cases,
                 projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
                 &StructuralArgument {
                     place,
@@ -175,6 +177,7 @@ impl TerminalExecution {
             consume_affine_projection(
                 &self.program.structural_types,
                 &self.structural_values,
+                &self.structural_cases,
                 &mut self.live_affine_frontier,
                 argument,
             )?;
