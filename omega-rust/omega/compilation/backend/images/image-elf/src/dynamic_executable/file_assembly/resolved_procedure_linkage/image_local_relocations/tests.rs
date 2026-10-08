@@ -8,14 +8,12 @@ use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compat
 use crate::{
     ValidatedElfDynamicFileEnvelope, apply_elf_dynamic_address_fixups,
     apply_elf_section_header_placements, emit_elf_dynamic_executable,
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_load_layout,
-    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_section_roster,
-    plan_elf_dynamic_sections, plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-    plan_elf_indexed_section_payloads, plan_elf_procedure_linkage_relocations,
-    plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
+    plan_elf_dynamic_load_layout,
+    plan_elf_dynamic_section_roster,
+    plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
+    plan_elf_indexed_section_payloads,    plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
     plan_elf_relative_section_payload_layout, plan_elf_section_name_table,
-    serialize_elf_dynamic_file_envelope, serialize_elf_dynamic_sections,
-    serialize_elf_dynamic_table, serialize_elf_section_header_table,
+    serialize_elf_dynamic_file_envelope,    serialize_elf_dynamic_table, serialize_elf_section_header_table,
 };
 use arena::Handle;
 use image::{
@@ -24,8 +22,8 @@ use image::{
 };
 use object_file::{RelocationKind, SymbolKind};
 use target::{
-    ForeignLocatorCandidate, NormalizedElfInterpreterPlan, TargetProfile,
-    normalize_elf_interpreter_plan, normalize_foreign_locator,
+    ForeignLocatorCandidate, TargetProfile,
+    normalize_foreign_locator,
 };
 
 /// `.text` offset of the compiler-private callback function.
@@ -170,21 +168,10 @@ fn callback_image(target: TargetProfile) -> FinalImage {
     image
 }
 
-fn interpreter(target: TargetProfile) -> NormalizedElfInterpreterPlan {
-    let path = match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".as_slice(),
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".as_slice(),
-        _ => unreachable!(),
-    };
-    normalize_elf_interpreter_plan(path.to_vec(), target).unwrap()
-}
+use crate::test_support::interpreter;
 
 fn envelope(target: TargetProfile) -> ValidatedElfDynamicFileEnvelope {
-    let inputs = plan_elf_dynamic_link_inputs(callback_image(target), interpreter(target)).unwrap();
-    let sections = plan_elf_dynamic_sections(inputs).unwrap();
-    let payloads = serialize_elf_dynamic_sections(sections).unwrap();
-    let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors).unwrap();
+    let linkage = crate::test_support::resolved_linkage(callback_image(target), target);
     let templates = plan_elf_procedure_linkage_templates(linkage).unwrap();
     let descriptors = plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
     let tags = plan_elf_dynamic_tags(descriptors).unwrap();

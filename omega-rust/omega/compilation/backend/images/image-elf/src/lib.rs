@@ -191,3 +191,39 @@ pub use dynamic_executable::section_headers::section_roster::{
     ElfDynamicSectionRosterPlanningError, ValidatedElfDynamicSectionRoster,
     plan_elf_dynamic_section_roster,
 };
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use crate::{
+        ValidatedElfProcedureLinkageRelocationPlan, plan_elf_dynamic_link_inputs,
+        plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
+        plan_elf_procedure_linkage_relocations, serialize_elf_dynamic_sections,
+    };
+    use image::FinalImage;
+    use target::{NormalizedElfInterpreterPlan, TargetProfile, normalize_elf_interpreter_plan};
+
+    /// The platform dynamic-linker interpreter the ELF fixtures link
+    /// against; the tests only exercise the Linux profiles.
+    pub(crate) fn interpreter(target: TargetProfile) -> NormalizedElfInterpreterPlan {
+        let interpreter_path = match target {
+            TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".as_slice(),
+            TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".as_slice(),
+            _ => unreachable!(),
+        };
+        normalize_elf_interpreter_plan(interpreter_path.to_vec(), target).unwrap()
+    }
+
+    /// The shared dynamic-link staging chain every dynamic-executable test
+    /// drives through section planning to the procedure-linkage relocation
+    /// plan.
+    pub(crate) fn resolved_linkage(
+        image: FinalImage,
+        target: TargetProfile,
+    ) -> ValidatedElfProcedureLinkageRelocationPlan {
+        let inputs = plan_elf_dynamic_link_inputs(image, interpreter(target)).unwrap();
+        let sections = plan_elf_dynamic_sections(inputs).unwrap();
+        let payloads = serialize_elf_dynamic_sections(sections).unwrap();
+        let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
+        plan_elf_procedure_linkage_relocations(descriptors).unwrap()
+    }
+}

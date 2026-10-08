@@ -9,14 +9,11 @@ use super::{
     read_u64, validate_application_coverage, validate_candidate, validate_contents,
 };
 use crate::{
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_load_layout,
-    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_section_roster,
-    plan_elf_dynamic_sections, plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-    plan_elf_indexed_section_payloads, plan_elf_procedure_linkage_relocations,
-    plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
-    plan_elf_relative_section_payload_layout, plan_elf_section_name_table,
-    serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
-    serialize_elf_section_header_table,
+    plan_elf_dynamic_load_layout, plan_elf_dynamic_section_roster,
+    plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
+    plan_elf_indexed_section_payloads, plan_elf_procedure_linkage_section_descriptors,
+    plan_elf_procedure_linkage_templates, plan_elf_relative_section_payload_layout,
+    plan_elf_section_name_table, serialize_elf_dynamic_table, serialize_elf_section_header_table,
 };
 use arena::Handle;
 use image::{
@@ -24,10 +21,7 @@ use image::{
     FinalImageSection, FinalImageSymbol,
 };
 use object_file::{RelocationKind, SymbolKind};
-use target::{
-    ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
-    normalize_foreign_locator,
-};
+use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
 
 fn load_layout(target: TargetProfile) -> ValidatedElfDynamicLoadLayout {
     let mut image = FinalImage::with_capacity(
@@ -86,17 +80,7 @@ fn load_layout(target: TargetProfile) -> ValidatedElfDynamicLoadLayout {
             addend: 0,
             kind,
         });
-    let path = match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".as_slice(),
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".as_slice(),
-        _ => unreachable!(),
-    };
-    let interpreter = normalize_elf_interpreter_plan(path.to_vec(), target).unwrap();
-    let inputs = plan_elf_dynamic_link_inputs(image, interpreter).unwrap();
-    let sections = plan_elf_dynamic_sections(inputs).unwrap();
-    let payloads = serialize_elf_dynamic_sections(sections).unwrap();
-    let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors).unwrap();
+    let linkage = crate::test_support::resolved_linkage(image, target);
     let templates = plan_elf_procedure_linkage_templates(linkage).unwrap();
     let descriptors = plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
     let tags = plan_elf_dynamic_tags(descriptors).unwrap();
