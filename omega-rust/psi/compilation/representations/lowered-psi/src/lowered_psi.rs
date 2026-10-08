@@ -8,6 +8,16 @@ pub use source_custody::{
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 
+/// Source joins that still accompany publication for native settlement. These
+/// contain no semantic program storage and are not a portable product.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredSourceCustody {
+    pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+    pub selected_ieee_float_comparison_occurrences:
+        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
+    pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+}
+
 /// Semantic module and source companions produced by the Psi frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
@@ -28,4 +38,28 @@ pub struct LoweredPsi {
     /// are joined through these rows before the source companions are gone;
     /// Omega does not consume them yet and fails closed on a nonempty roster.
     pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+}
+
+impl LoweredPsi {
+    /// Transfer the semantic program to publication, retaining only source
+    /// joins for consumers whose settlement still depends on checked input.
+    pub fn into_parts(
+        self,
+    ) -> (
+        TerminalModule,
+        Option<TerminalDebugMap>,
+        LoweredSourceCustody,
+    ) {
+        (
+            self.semantic_module,
+            self.debug_map,
+            LoweredSourceCustody {
+                source_call_occurrences: self.source_call_occurrences,
+                selected_ieee_float_comparison_occurrences: self
+                    .selected_ieee_float_comparison_occurrences,
+                selected_integer_comparison_occurrences: self
+                    .selected_integer_comparison_occurrences,
+            },
+        )
+    }
 }

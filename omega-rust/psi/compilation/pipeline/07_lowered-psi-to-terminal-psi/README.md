@@ -2,7 +2,11 @@
 
 [publish_artifact.rs](src/publish_artifact.rs) seals the validated optimization
 result into canonical semantics, optimization provenance, proof and optional
-debug products. It does not consume checked source. The
+debug products. It consumes the optimization result and transfers its semantic
+module into the artifact; only source-join records remain alongside it. Artifact
+reads borrow established storage and cannot trigger a decode or replay. External
+envelope loading still validates its sections before exposing that storage.
+Publication does not consume checked source. The
 [Terminal product contract](../../../../../wiki/spec/terminal-psi/product.md)
 defines separate consumption and the distinction between semantics and receipts.
 
@@ -14,8 +18,8 @@ nominal cleanup. This is a separate source-aware judgment, not part of canonical
 sealing or a grant of native entry authority.
 
 [Boundary-operator custody](src/boundary_operator_custody.rs) binds
-a checked demand roster to that exact artifact. Its entrypoint checks semantic
-identity, replays occurrences, enforces one-to-one application/operation joins
+a checked demand roster to that exact artifact. Its entrypoint reads the
+artifact's own module, checks occurrences, enforces one-to-one application/operation joins
 and complete retained FMA coverage, then constructs the private receipt.
 
 The replay mechanisms have distinct authored roles:

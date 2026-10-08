@@ -26,15 +26,7 @@ impl VerifiedNativeArtifactInput {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<Self, ArtifactLoweringError> {
-        artifact
-            .validate()
-            .map_err(ArtifactLoweringError::CanonicalArtifact)?;
-        // The replay above already decoded this artifact's canonical module
-        // through the codec; admission reads that retained decoding rather
-        // than running the same validations over the same bytes again.
-        let module = artifact
-            .semantic_module()
-            .map_err(ArtifactLoweringError::SemanticDecode)?;
+        let module = artifact.semantic_module();
         super::lower_decoded_artifact(module)?.try_into_native_input(establishments)
     }
 

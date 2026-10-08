@@ -13,7 +13,7 @@ use crate::{
     PsiOptimizationExecutionRecordDecodeError, TerminalArtifactManifest, TerminalDebugMap,
     build_artifact_manifest, decode_debug_map, decode_module,
     decode_psi_optimization_execution_record, encode_debug_map, encode_module,
-    encode_psi_optimization_execution_record, validate_artifact_manifest,
+    encode_psi_optimization_execution_record,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -44,14 +44,11 @@ impl<'artifact> TerminalArtifactView<'artifact> {
 
 /// One exact canonical Terminal-Psi semantic artifact.
 ///
-/// `Clone` copies the private section bytes and the manifest verbatim. The
-/// artifact's invariant is a property of exactly those bytes, so a clone
-/// satisfies it for the same reason the original does, and it carries the
-/// original's replay and decode conclusions rather than re-deriving them. A
-/// caller that needs an owned artifact beside a borrowed one clones it; it
-/// does not reproduce it through `from_bytes(&artifact.to_bytes())`, which
-/// would re-run the whole envelope admission to reach the identical value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Construction establishes canonical sections and retains their semantic
+/// storage. Readers borrow that storage directly; there is no lazy decoding or
+/// replay state. `Clone` explicitly copies both bytes and semantic storage;
+/// in-process consumers should borrow a view instead.
+#[derive(Clone)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
 pub struct CanonicalTerminalArtifact {
     semantic_bytes: Vec<u8>,
@@ -59,47 +56,31 @@ pub struct CanonicalTerminalArtifact {
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
-    replayed: ReplayMemo<()>,
-    /// The canonical semantic module this artifact's bytes decode to, retained
-    /// from the first reader onwards. Decoding is the artifact's most
-    /// expensive admission step and every custody, settlement and realization
-    /// check needs the same module, so the decode is paid once per artifact
-    /// rather than once per reader.
-    semantic_module: ReplayMemo<TerminalModule>,
+    semantic_module: TerminalModule,
 }
 
-/// One conclusion derived from an artifact's sections and retained for later
-/// readers. `replayed: ReplayMemo<()>` holds a successful section replay;
-/// `semantic_module: ReplayMemo<TerminalModule>` holds the decoded module.
-/// The sections are private and never change after construction, so deriving
-/// the same conclusion from the same artifact again reaches the same answer;
-/// the compiler's custody checks interrogate one artifact many times per
-/// compilation. Equality ignores a memo, and its debug form carries no state.
-struct ReplayMemo<Conclusion>(std::sync::OnceLock<Conclusion>);
-
-impl<Conclusion> Default for ReplayMemo<Conclusion> {
-    fn default() -> Self {
-        Self(std::sync::OnceLock::new())
+// Canonical bytes determine the retained module. Comparing or printing that
+// second representation would traverse the program again without adding data.
+impl PartialEq for CanonicalTerminalArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        self.manifest == other.manifest
+            && self.semantic_bytes == other.semantic_bytes
+            && self.optimization_bytes == other.optimization_bytes
+            && self.debug_bytes == other.debug_bytes
     }
 }
 
-impl<Conclusion> PartialEq for ReplayMemo<Conclusion> {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
-}
+impl Eq for CanonicalTerminalArtifact {}
 
-impl<Conclusion> Eq for ReplayMemo<Conclusion> {}
-
-impl<Conclusion> std::fmt::Debug for ReplayMemo<Conclusion> {
+impl std::fmt::Debug for CanonicalTerminalArtifact {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ReplayMemo")
-    }
-}
-
-impl<Conclusion: Clone> Clone for ReplayMemo<Conclusion> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+        formatter
+            .debug_struct("CanonicalTerminalArtifact")
+            .field("manifest", &self.manifest)
+            .field("semantic_byte_count", &self.semantic_bytes.len())
+            .field("optimization", &self.optimization)
+            .field("debug_byte_count", &self.debug_bytes.as_ref().map(Vec::len))
+            .finish_non_exhaustive()
     }
 }
 
@@ -107,73 +88,38 @@ impl CanonicalTerminalArtifact {
     /// Encode one source-free Terminal artifact.
     ///
     /// The sections are this call's own encoding of these inputs, so the
-    /// artifact starts replayed and holds the module it encoded. Retained
+    /// artifact owns the module it encoded without copying it. External
     /// bytes cross a trust boundary and are read back through
     /// [`Self::from_bytes`], which decodes and re-decides every section.
     pub fn from_parts(
-        semantic_module: &TerminalModule,
-        optimization: &PsiOptimizationExecutionRecord,
+        semantic_module: TerminalModule,
+        optimization: PsiOptimizationExecutionRecord,
         debug_map: Option<&TerminalDebugMap>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
         let semantic_bytes =
-            encode_module(semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let optimization_bytes = encode_psi_optimization_execution_record(optimization);
+            encode_module(&semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let optimization_bytes = encode_psi_optimization_execution_record(&optimization);
         let debug_bytes = debug_map
             .map(|debug_map| {
-                encode_debug_map(semantic_module, debug_map)
+                encode_debug_map(&semantic_module, debug_map)
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let manifest =
-            build_artifact_manifest(semantic_module, optimization, None, debug_bytes.as_deref())
-                .map_err(CanonicalTerminalArtifactError::Manifest)?;
-        let artifact = Self {
-            semantic_bytes,
-            optimization_bytes,
-            optimization: optimization.clone(),
-            debug_bytes,
-            manifest,
-            replayed: ReplayMemo::default(),
-            semantic_module: ReplayMemo::default(),
-        };
-        let _ = artifact.replayed.0.set(());
-        let _ = artifact.semantic_module.0.set(semantic_module.clone());
-        Ok(artifact)
-    }
-
-    /// Re-decode every canonical section and reconstruct the manifest.
-    pub fn validate(&self) -> Result<(), CanonicalTerminalArtifactError> {
-        if self.replayed.0.get().is_some() {
-            return Ok(());
-        }
-        let verdict = self.replay_sections();
-        if verdict.is_ok() {
-            let _ = self.replayed.0.set(());
-        }
-        verdict
-    }
-
-    fn replay_sections(&self) -> Result<(), CanonicalTerminalArtifactError> {
-        let semantic_module = self
-            .semantic_module()
-            .map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let optimization = decode_psi_optimization_execution_record(&self.optimization_bytes)
-            .map_err(CanonicalTerminalArtifactError::Optimization)?;
-        if optimization != self.optimization {
-            return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
-        }
-        if let Some(debug_bytes) = self.debug_bytes.as_deref() {
-            decode_debug_map(semantic_module, debug_bytes)
-                .map_err(CanonicalTerminalArtifactError::Debug)?;
-        }
-        validate_artifact_manifest(
-            semantic_module,
+        let manifest = build_artifact_manifest(
+            &semantic_module,
             &optimization,
             None,
-            self.debug_bytes.as_deref(),
-            self.manifest,
+            debug_bytes.as_deref(),
         )
-        .map_err(CanonicalTerminalArtifactError::Manifest)
+        .map_err(CanonicalTerminalArtifactError::Manifest)?;
+        Ok(Self {
+            semantic_bytes,
+            optimization_bytes,
+            optimization,
+            debug_bytes,
+            manifest,
+            semantic_module,
+        })
     }
 
     /// Serialize every canonical Terminal-Psi section into one source-free
@@ -249,7 +195,7 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let artifact = Self::from_parts(&semantic_module, &optimization, debug_map.as_ref())?;
+        let artifact = Self::from_parts(semantic_module, optimization, debug_map.as_ref())?;
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.optimization_bytes() != optimization_bytes
             || artifact.debug_bytes() != debug_bytes
@@ -265,24 +211,17 @@ impl CanonicalTerminalArtifact {
 
     /// Borrow the canonical module and its already established identity.
     /// This does not re-encode, clone or re-admit the artifact.
-    pub fn view(&self) -> Result<TerminalArtifactView<'_>, CodecError> {
-        Ok(TerminalArtifactView {
-            module: self.semantic_module()?,
+    pub fn view(&self) -> TerminalArtifactView<'_> {
+        TerminalArtifactView {
+            module: &self.semantic_module,
             identity: self.manifest.semantic(),
-        })
+        }
     }
 
     /// Transfer admitted semantic storage to an execution owner without a
     /// second byte load. All constructors retain this module before returning.
-    pub fn into_semantics(
-        self,
-    ) -> Result<(TerminalModule, terminal_psi::TerminalPsiIdentity), CodecError> {
-        let module = self.semantic_module.0.into_inner().ok_or(
-            CodecError::MalformedStructuralFoundation(
-                "canonical artifact lost its retained module",
-            ),
-        )?;
-        Ok((module, self.manifest.semantic()))
+    pub fn into_semantics(self) -> (TerminalModule, terminal_psi::TerminalPsiIdentity) {
+        (self.semantic_module, self.manifest.semantic())
     }
 
     /// The canonical semantic module these bytes decode to.
@@ -292,12 +231,8 @@ impl CanonicalTerminalArtifact {
     /// Both establish canonical representation shape, not semantic proof
     /// validity. Readers share that immutable module rather than repeating
     /// its encoding or decoding.
-    pub fn semantic_module(&self) -> Result<&TerminalModule, CodecError> {
-        if let Some(module) = self.semantic_module.0.get() {
-            return Ok(module);
-        }
-        let module = decode_module(&self.semantic_bytes)?;
-        Ok(self.semantic_module.0.get_or_init(|| module))
+    pub fn semantic_module(&self) -> &TerminalModule {
+        &self.semantic_module
     }
 
     pub fn optimization_bytes(&self) -> &[u8] {

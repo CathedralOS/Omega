@@ -13,6 +13,10 @@ in the vocabulary reference while that part is consolidated.
   checks representation shape and `wire` owns byte cursors.
 - [canonical_artifact.rs](src/canonical_artifact.rs) binds semantic, proof,
   optimization, and optional debug bytes into the handoff envelope.
+  Producer construction takes ownership of the module; external ingress
+  decodes once and retains that storage. Views borrow it without fallible
+  decoding or replay caches. Canonical section checks remain at construction,
+  independently of proof admission.
   [publication.rs](src/publication.rs) stages and publishes canonical semantic bytes.
 - [artifact_admission.rs](src/artifact_admission.rs) checks receiver policy,
   independently replays proofs, and compares the complete reconstructed claim

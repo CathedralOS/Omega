@@ -40,12 +40,7 @@ pub fn validate_native_program_entry_settlement(
     if checked_entry.source_machine_symbol() != program_entry.source.machine_symbol() {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
-    artifact.validate().map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
-    let module = artifact.semantic_module().map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
+    let module = artifact.semantic_module();
     let psi = terminal_codec::terminal_psi_identity(module).map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;

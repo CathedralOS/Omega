@@ -171,9 +171,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     pub fn load_envelope(artifact_bytes: &[u8]) -> Result<Self, TerminalArtifactInterpretError> {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
             .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-        let (module, identity) = artifact
-            .into_semantics()
-            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        let (module, identity) = artifact.into_semantics();
         Ok(Self::from_admitted(AdmittedTerminalProgram {
             identity,
             catalogs: Cow::Owned(module),

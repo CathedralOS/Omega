@@ -87,7 +87,7 @@ fn thunk_artifact(
 ) -> terminal_codec::CanonicalTerminalArtifact {
     let optimization = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization execution");
-    terminal_codec::CanonicalTerminalArtifact::from_parts(module, &optimization, None)
+    terminal_codec::CanonicalTerminalArtifact::from_parts(module.clone(), optimization, None)
         .expect("canonical Terminal artifact")
 }
 

@@ -480,8 +480,6 @@ pub struct ComponentDescription {
 /// Producer-side failure to describe a candidate.
 #[derive(Debug)]
 pub enum DescribeError {
-    /// The embedded semantic bytes did not decode to a canonical module.
-    ArtifactDecode(terminal_codec::CodecError),
     /// The embedded canonical artifact bytes failed artifact validation.
     ArtifactFormat(terminal_codec::CanonicalTerminalArtifactError),
     /// The artifact identity could not be reconstructed.
@@ -493,12 +491,6 @@ pub enum DescribeError {
 impl std::fmt::Display for DescribeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ArtifactDecode(error) => {
-                write!(
-                    formatter,
-                    "component semantic artifact did not decode: {error}"
-                )
-            }
             Self::ArtifactFormat(error) => {
                 write!(
                     formatter,
@@ -993,10 +985,7 @@ pub struct ComponentDescriptionFacts<'a> {
 pub fn describe_component_facts(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<ComponentDescription, DescribeError> {
-    let module = facts
-        .artifact
-        .semantic_module()
-        .map_err(DescribeError::ArtifactDecode)?;
+    let module = facts.artifact.semantic_module();
     describe_decoded_component_facts(facts, module)
 }
 
@@ -1667,8 +1656,6 @@ pub fn description_subject(
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&description.artifact_bytes)
             .map_err(DescribeError::ArtifactFormat)?;
-    let module = artifact
-        .semantic_module()
-        .map_err(DescribeError::ArtifactDecode)?;
+    let module = artifact.semantic_module();
     terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)
 }

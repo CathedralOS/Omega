@@ -1952,12 +1952,12 @@ crash and native exit behavior.
     reconstruction, source-shape recognizer, fallback route or revalidation of
     the producer's invariant is a failed architecture check, not a temporary
     feature repair.
-  - Finish producer storage transfer: publication clones the module into
-    `CanonicalTerminalArtifact` while retaining the lowering for source joins.
-    Provider installation and runtime execution now borrow the canonical module;
-    the interpreter reads its sorted tables without copied execution catalogs.
-    Transfer producer storage and remove the remaining source joins. External
-    package/artifact ingress decodes once; it is not an internal handoff API.
+  - Remove the remaining source joins beside Terminal: publication now transfers
+    its semantic module, and provider installation/runtime borrow it directly,
+    but `LoweredSourceCustody` and checked receipts still feed native settlement.
+    Carry their required meaning in the canonical producer output and delete
+    those source-dependent inputs. External package/artifact ingress decodes
+    once; it is not an internal handoff API.
   - Carry representation classes instead of recognizing source spellings.
     Psi assigns the builtin text/string identity and descriptor class; Terminal
     retains it; Omega layout consumes it. Delete backend checks of

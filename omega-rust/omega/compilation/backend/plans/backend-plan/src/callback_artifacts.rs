@@ -30,12 +30,7 @@ impl TerminalCallbackThunkArtifact {
         if private_symbol.is_empty() {
             return Err("Terminal callback thunk has an empty private symbol");
         }
-        artifact
-            .validate()
-            .map_err(|_| "Terminal callback thunk contains an invalid canonical artifact")?;
-        let module = artifact
-            .semantic_module()
-            .map_err(|_| "Terminal callback thunk semantics could not be decoded")?;
+        let module = artifact.semantic_module();
         // The artifact is the isolated module of the placement's selected
         // machine; its call closure may lower additional callee machines. The
         // binding custody is the entry join, not a machine-count silhouette.

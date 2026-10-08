@@ -198,11 +198,28 @@ fn exercise_owned_and_borrowed_instances() {
         .into_retained_terminal_artifact()
         .expect("retained Terminal");
     let before = terminal_codec::module_decode_count();
-    let borrowed = TerminalProgram::borrow(retained.artifact().view().expect("retained view"));
-    let module = retained
-        .artifact()
-        .semantic_module()
-        .expect("retained module");
+    let borrowed = TerminalProgram::borrow(retained.artifact().view());
+    let module = retained.artifact().semantic_module();
+    // Stand in for the producer's owned module, then track its allocation
+    // across publication. Borrowing after a hidden clone is not sufficient.
+    let producer_module = module.clone();
+    let machine_storage = producer_module.machines.as_ptr();
+    let published = terminal_codec::CanonicalTerminalArtifact::from_parts(
+        producer_module,
+        retained.artifact().optimization().clone(),
+        None,
+    )
+    .expect("owned publication");
+    assert_eq!(
+        machine_storage,
+        published.semantic_module().machines.as_ptr()
+    );
+    assert_eq!(
+        published.semantic_bytes(),
+        retained.artifact().semantic_bytes()
+    );
+    let (transferred_module, _) = published.into_semantics();
+    assert_eq!(machine_storage, transferred_module.machines.as_ptr());
     let entry = module
         .machines
         .iter()
@@ -239,6 +256,15 @@ fn exercise_owned_and_borrowed_instances() {
     drop(second);
 
     let envelope = retained.artifact().to_bytes();
+    let restored = terminal_codec::CanonicalTerminalArtifact::from_bytes(&envelope)
+        .expect("canonical envelope round trip");
+    assert_eq!(restored.to_bytes(), envelope);
+    assert_eq!(&restored, retained.artifact());
+    assert!(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&envelope[..envelope.len() - 1])
+            .is_err()
+    );
+    drop(restored);
     let before_load = terminal_codec::module_decode_count();
     let owned = TerminalProgram::load_envelope(&envelope).expect("owned external load");
     assert_eq!(terminal_codec::module_decode_count() - before_load, 1);

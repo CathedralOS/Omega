@@ -6,27 +6,27 @@
 //! function identity and boundary entry plan, never machine bytes or the
 //! producer's source-to-Terminal lowering receipt. Backend callback admission
 //! rechecks that receipt before projecting these native inputs. This stage is
-//! the consumer half of that contract — every thunk replays the ordinary
-//! native pipeline (decode, abstract optimization, target lowering,
+//! the consumer half of that contract — every thunk follows the ordinary
+//! native pipeline (borrowed Terminal input, abstract optimization, target lowering,
 //! instruction selection, register homes, fragment emission, frame
 //! application, fixed-frame text placement) as a standalone module and
 //! materializes as a `CompilerPrivateMachineCodeFunction` the retained
 //! object's private-function channel can publish.
 
-use terminal_psi_to_abstract_operations::{
-    artifact_lowering_error, provider_admission::realization_error,
-};
 use backend_plan::NativeCallbackThunkSettlement;
 use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
+use terminal_psi_to_abstract_operations::{
+    artifact_lowering_error, provider_admission::realization_error,
+};
 
 /// Realize the executable scope's callback thunks into compiler-private code,
 /// preserving original placement identities and relative request order.
 ///
 /// A thunk is a self-contained module: it carries no boundary settlements,
 /// provider installations or callback arguments of its own, so
-/// the shared stages run with empty auxiliary rosters. Any decode, lowering,
+/// the shared stages run with empty auxiliary rosters. Any lowering
 /// or shape violation rejects here with the thunk's placement index in the
 /// diagnostic rather than surfacing as an unrelated program-stage failure.
 pub(crate) fn lower_callback_thunks(
@@ -52,9 +52,6 @@ fn lower_callback_thunk(
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<CompilerPrivateMachineCodeFunction, Vec<Diagnostic>> {
     let artifact = settlement.artifact;
-    artifact
-        .validate()
-        .map_err(|error| realization_error("callback thunk artifact replay", error))?;
     let input =
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(artifact, &[])
             .map_err(artifact_lowering_error)?

@@ -170,9 +170,6 @@ pub fn admit_native_realization<'request>(
 
 pub fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
     match error {
-        ArtifactLoweringError::CanonicalArtifact(error) => {
-            realization_error("canonical artifact replay", error)
-        }
         ArtifactLoweringError::SemanticDecode(error) => {
             realization_error("semantic section", error)
         }

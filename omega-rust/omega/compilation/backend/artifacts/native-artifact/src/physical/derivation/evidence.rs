@@ -12,7 +12,6 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
-use object_file::relocation_kind_tag;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
     hash_relocation_origin, physical_evidence_gap_identity,
@@ -33,6 +32,7 @@ use crate::physical::optimized_operator_occurrence;
 use crate::physical::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject};
 use crate::{NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
+use object_file::relocation_kind_tag;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
@@ -82,9 +82,7 @@ pub(crate) fn derive_physical_evidence(
     {
         publication.validate_object(object)?;
     }
-    let module = terminal_artifact
-        .semantic_module()
-        .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
+    let module = terminal_artifact.semantic_module();
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 

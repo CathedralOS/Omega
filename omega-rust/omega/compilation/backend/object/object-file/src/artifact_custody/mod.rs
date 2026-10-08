@@ -389,7 +389,6 @@ impl OptimizedObjectArtifactCustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactError {
     Source(RelocationFreeObjectContainerError),
-    InvalidTerminalArtifact,
     InvalidObjectManifest,
     SemanticMismatch,
     ProofMismatch,

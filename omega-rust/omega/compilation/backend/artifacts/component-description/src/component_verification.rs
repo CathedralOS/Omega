@@ -628,9 +628,7 @@ pub fn verify_component(
             schema: description.schema,
         });
     }
-    let module = artifact
-        .semantic_module()
-        .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
+    let module = artifact.semantic_module();
     let reconstructed = terminal_codec::terminal_psi_identity(module)
         .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
     if reconstructed != request.expected_subject {

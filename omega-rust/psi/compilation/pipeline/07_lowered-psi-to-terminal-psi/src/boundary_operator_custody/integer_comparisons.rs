@@ -4,12 +4,13 @@
 use super::{CheckedBoundaryOperatorApplicationOccurrence, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::PrimitiveType;
-use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperation};
+use lowered_psi::{LoweredSelectedIntegerComparisonOperation, LoweredSourceCustody};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 pub(super) fn replay(
     checked: &CheckedTrees,
-    lowered: &LoweredPsi,
+    module: &terminal_psi::TerminalModule,
+    source_custody: &LoweredSourceCustody,
     occurrences: &mut Vec<CheckedBoundaryOperatorApplicationOccurrence>,
 ) -> Result<(), &'static str> {
     // Unlike `IeeeFloatCompare`, the three Terminal integer comparison
@@ -20,7 +21,7 @@ pub(super) fn replay(
     // checked application and one exact Terminal operation; a crash-qualified
     // use that reached emission without a row is the producer's fail-closed
     // rejection (`retention/operation_crash_contracts.rs`), not this replay's.
-    for comparison in &lowered.selected_integer_comparison_occurrences {
+    for comparison in &source_custody.selected_integer_comparison_occurrences {
         if !checked
             .facts
             .operators
@@ -63,7 +64,7 @@ pub(super) fn replay(
         }
         let mut matching_operations = 0;
         let mut comparison_result = None;
-        for machine in &lowered.semantic_module.machines {
+        for machine in &module.machines {
             if machine.id != comparison.terminal_machine {
                 continue;
             }
@@ -101,7 +102,7 @@ pub(super) fn replay(
             return unsupported("integer comparison does not name one exact Terminal operation");
         }
         if comparison.negated
-            && !names_one_negation(lowered, comparison.terminal_machine, comparison_result)
+            && !names_one_negation(module, comparison.terminal_machine, comparison_result)
         {
             return unsupported(
                 "negated integer comparison does not name one exact Terminal negation",
@@ -134,15 +135,14 @@ pub(super) fn replay(
 /// module rather than an unchecked label on the row: the crash contract stays
 /// on the comparison, so nothing else would notice a missing negation.
 fn names_one_negation(
-    lowered: &LoweredPsi,
+    module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
     comparison_result: Option<semantic_vocabulary::ValueId>,
 ) -> bool {
     let Some(comparison_result) = comparison_result else {
         return false;
     };
-    lowered
-        .semantic_module
+    module
         .machines
         .iter()
         .filter(|candidate| candidate.id == machine)

@@ -88,8 +88,9 @@ pub fn module_subject(module: &TerminalModule) -> TerminalPsiIdentity {
 pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
     let record = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization record");
-    let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, &record, None)
-        .expect("canonical artifact");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module.clone(), record, None)
+            .expect("canonical artifact");
     let selected = SelectedProviderPlanFacts::from_selected_plans(Vec::new())
         .expect("a provider component seals no requirement of its own");
     let description = describe_component_facts(ComponentDescriptionFacts {

@@ -8,16 +8,20 @@
 
 use checked_trees::{CheckedArithmeticPolicyAdapter, CheckedTrees, NominalMachineUseSite};
 use language_core::operator_spelling::OperatorSpelling;
-use lowered_psi::LoweredPsi;
+use lowered_psi::LoweredSourceCustody;
 use numerics::float_semantics::FloatFormat;
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 use terminal_psi::{FloatResultPolicy, FloatSaturationRule, OperationKind};
 
-pub(super) fn replay(checked: &CheckedTrees, lowered: &LoweredPsi) -> Result<(), &'static str> {
+pub(super) fn replay(
+    checked: &CheckedTrees,
+    module: &terminal_psi::TerminalModule,
+    source_custody: &LoweredSourceCustody,
+) -> Result<(), &'static str> {
     // Surviving call companions are retained by Psi optimization. Reconcile
     // both directions: deleting a call and its adapter must not leave a
     // recorded policy-bearing source occurrence without an executable pair.
-    let source_policies = lowered
+    let source_policies = source_custody
         .source_call_occurrences
         .iter()
         .filter(|source| {
@@ -38,7 +42,7 @@ pub(super) fn replay(checked: &CheckedTrees, lowered: &LoweredPsi) -> Result<(),
         .count();
     let mut matched = 0;
     let mut actual = 0;
-    for machine in &lowered.semantic_module.machines {
+    for machine in &module.machines {
         for block in &machine.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
                 if matches!(operation.kind, OperationKind::FloatResultPolicy { .. }) {
@@ -58,7 +62,7 @@ pub(super) fn replay(checked: &CheckedTrees, lowered: &LoweredPsi) -> Result<(),
                 let ScalarType::IeeeFloat(raw_format) = raw.scalar_type else {
                     continue;
                 };
-                let mut sources = lowered
+                let mut sources = source_custody
                     .source_call_occurrences
                     .iter()
                     .filter(|source| source.terminal_site.operation() == Some(operation.id));
@@ -111,8 +115,7 @@ pub(super) fn replay(checked: &CheckedTrees, lowered: &LoweredPsi) -> Result<(),
                 if calls != 1 {
                     return Err("float result policy changed its source call coordinate");
                 }
-                let declaration = lowered
-                    .semantic_module
+                let declaration = module
                     .boundary_machines
                     .iter()
                     .find(|declaration| declaration.id == *boundary)

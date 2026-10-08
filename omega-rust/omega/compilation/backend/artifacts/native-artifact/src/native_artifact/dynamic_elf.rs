@@ -217,9 +217,6 @@ impl DynamicElfNativeArtifact {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        self.psi_artifact
-            .validate()
-            .map_err(|_| "dynamic native artifact contains an invalid canonical artifact")?;
         let semantic = self.psi_artifact.manifest().semantic();
         if self.object.psi() != semantic {
             return Err("dynamic native artifact semantic identity disagrees with its object");
@@ -253,10 +250,7 @@ impl DynamicElfNativeArtifact {
                 "dynamic native artifact closure receipt drifted from its exact realization inputs",
             );
         }
-        let module = self
-            .psi_artifact
-            .semantic_module()
-            .map_err(|_| "dynamic native artifact canonical semantics failed to decode")?;
+        let module = self.psi_artifact.semantic_module();
         mixed_structural_scalar::validate(module, &self.object)?;
         validate_boundary_application_coverage(
             module,

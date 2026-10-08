@@ -93,11 +93,7 @@ pub fn project_terminal_native_realization_proposal(
             "Terminal native proposal ProgramEntry settlement failed: {error}"
         ))]
     })?;
-    let terminal_module = artifact.semantic_module().map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "Terminal native proposal could not replay canonical semantics: {error}",
-        ))]
-    })?;
+    let terminal_module = artifact.semantic_module();
     let demanded_intrinsics =
         crate::provider_admission::demanded_boundary_identities(terminal_module)?;
     let builtin_proposals =

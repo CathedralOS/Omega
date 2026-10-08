@@ -115,7 +115,7 @@ impl PsiOptimizationStageResult {
         &self.execution
     }
 
-    pub fn into_lowered(self) -> LoweredPsi {
-        self.lowered
+    pub fn into_parts(self) -> (LoweredPsi, PsiOptimizationExecutionRecord) {
+        (self.lowered, self.execution)
     }
 }

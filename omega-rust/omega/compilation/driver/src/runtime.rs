@@ -102,9 +102,7 @@ impl std::error::Error for TerminalRuntimeError {}
 pub fn execute(
     request: TerminalRuntimeRequest<'_>,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let artifact = request.artifact.view().map_err(|error| {
-        TerminalRuntimeError::Artifact(TerminalArtifactInterpretError::SemanticDecode(error))
-    })?;
+    let artifact = request.artifact.view();
     let program = TerminalProgram::borrow(artifact);
     if let Some(provisions) = request.provisions
         && (provisions.identity() != program.terminal_psi()

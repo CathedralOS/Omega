@@ -19,9 +19,7 @@ pub fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let view = artifact.view().map_err(|error| {
-        realization_error("checked-provider installation", format!("{error:?}"))
-    })?;
+    let view = artifact.view();
     let installation = crate::provider_installation::admit_provider_installation_with_projection(
         plan, view, &selected,
     )

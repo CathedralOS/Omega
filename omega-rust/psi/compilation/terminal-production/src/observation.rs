@@ -42,7 +42,7 @@ const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 6] = [
     ),
     (
         "terminal-production/boundary-scope",
-        "LoweredPsi+CanonicalTerminalArtifact",
+        "LoweredSourceCustody+CanonicalTerminalArtifact",
         "BoundaryOperatorScope",
     ),
 ];

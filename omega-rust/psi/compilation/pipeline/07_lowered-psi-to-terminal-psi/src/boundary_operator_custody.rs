@@ -5,7 +5,7 @@ mod integer_comparisons;
 mod result_policies;
 
 use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use lowered_psi::LoweredSourceCustody;
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
 
@@ -75,33 +75,29 @@ impl CheckedBoundaryOperatorApplicationOccurrence {
 pub fn checked_boundary_operator_scope(
     checked: &CheckedTrees,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    lowered: &LoweredPsi,
+    source_custody: &LoweredSourceCustody,
 ) -> Result<CheckedBoundaryOperatorApplicationScope, &'static str> {
-    let semantic = terminal_codec::terminal_psi_identity(&lowered.semantic_module)
-        .map_err(|_| "checked boundary-operator scope has invalid semantics")?;
-    if semantic != artifact.manifest().semantic() {
-        return Err("checked boundary-operator scope semantics differ from the published artifact");
-    }
-    result_policies::replay(checked, lowered)?;
+    let module = artifact.semantic_module();
+    result_policies::replay(checked, module, source_custody)?;
     Ok(CheckedBoundaryOperatorApplicationScope {
         terminal_artifact_identity: artifact.manifest().identity(),
         applications: checked.facts.operators.boundary_applications.clone(),
-        occurrences: checked_boundary_operator_occurrences(checked, lowered)?,
+        occurrences: checked_boundary_operator_occurrences(checked, module, source_custody)?,
     })
 }
 
 fn checked_boundary_operator_occurrences(
     checked: &CheckedTrees,
-    lowered: &LoweredPsi,
+    module: &terminal_psi::TerminalModule,
+    source_custody: &LoweredSourceCustody,
 ) -> Result<Vec<CheckedBoundaryOperatorApplicationOccurrence>, &'static str> {
     let mut occurrences = Vec::new();
-    float_comparisons::replay(checked, lowered, &mut occurrences)?;
-    integer_comparisons::replay(checked, lowered, &mut occurrences)?;
+    float_comparisons::replay(checked, module, source_custody, &mut occurrences)?;
+    integer_comparisons::replay(checked, module, source_custody, &mut occurrences)?;
     // Boundary calls already carry ordinary source-call custody. Rejoin that
     // custody to the operator application instead of inferring coverage from
     // a selected provider or treating a missing row as an empty demand scope.
-    for operation in lowered
-        .semantic_module
+    for operation in module
         .machines
         .iter()
         .flat_map(|machine| &machine.blocks)
@@ -110,8 +106,7 @@ fn checked_boundary_operator_occurrences(
         let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
             continue;
         };
-        let declaration = lowered
-            .semantic_module
+        let declaration = module
             .boundary_machines
             .iter()
             .find(|declaration| declaration.id == boundary)
@@ -119,7 +114,7 @@ fn checked_boundary_operator_occurrences(
         if declaration.kind != terminal_psi::BoundaryRequirementKind::Operator {
             continue;
         }
-        let mut sources = lowered
+        let mut sources = source_custody
             .source_call_occurrences
             .iter()
             .filter(|source| source.terminal_site.operation() == Some(operation.id));

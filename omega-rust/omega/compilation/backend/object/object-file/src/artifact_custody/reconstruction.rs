@@ -12,16 +12,11 @@ pub(super) fn validate_terminal_join(
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     source: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<(), OptimizedObjectArtifactError> {
-    terminal
-        .validate()
-        .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
     let terminal_manifest = terminal.manifest();
     if terminal_manifest.installation().is_some() {
         return Err(OptimizedObjectArtifactError::InstallationAlreadyPresent);
     }
-    let module = terminal
-        .semantic_module()
-        .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
+    let module = terminal.semantic_module();
     let input = source.verified_input();
     if module != input.context().module() || terminal_manifest.semantic() != source.object().psi {
         return Err(OptimizedObjectArtifactError::SemanticMismatch);

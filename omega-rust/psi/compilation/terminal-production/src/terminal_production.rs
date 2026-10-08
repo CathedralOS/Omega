@@ -5,7 +5,7 @@ use checked_trees_to_lowered_psi::{
     LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
 };
 use diagnostics::Diagnostic;
-use lowered_psi::LoweredPsi;
+use lowered_psi::{LoweredPsi, LoweredSourceCustody};
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
 };
@@ -90,10 +90,11 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             _ => None,
         };
-        let (artifact, lowered) = observer
+        let (artifact, source_custody) = observer
             .record_result(TerminalProductionStage::Publication, || {
-                publish_terminal_artifact(optimized)
-            })?;
+                lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
+            })
+            .map_err(TerminalArtifactProductionError::Artifact)?;
         let receipt = match entry_receipt {
             Some(receipt) => {
                 rejoin_program_entry_receipt(&receipt, &artifact)
@@ -104,7 +105,7 @@ impl<'a> TerminalProductionRequest<'a> {
         };
         let boundary_operator_scope = observer
             .record_result(TerminalProductionStage::BoundaryOperatorScope, || {
-                checked_boundary_operator_scope(checked, &artifact, &lowered)
+                checked_boundary_operator_scope(checked, &artifact, &source_custody)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok(ProducedTerminalArtifact {
@@ -112,10 +113,10 @@ impl<'a> TerminalProductionRequest<'a> {
             receipt,
             unoptimized,
             boundary_operator_scope,
-            source_call_occurrences: lowered.source_call_occurrences,
-            selected_ieee_float_comparison_occurrences: lowered
+            source_call_occurrences: source_custody.source_call_occurrences,
+            selected_ieee_float_comparison_occurrences: source_custody
                 .selected_ieee_float_comparison_occurrences,
-            selected_integer_comparison_occurrences: lowered
+            selected_integer_comparison_occurrences: source_custody
                 .selected_integer_comparison_occurrences,
         })
     }
@@ -141,17 +142,6 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Optimization)?;
         Ok((unoptimized, optimized))
     }
-}
-
-/// Publication consumes exactly the validated optimization result; retained
-/// source evidence is extracted only after canonical publication succeeds.
-fn publish_terminal_artifact(
-    optimized: PsiOptimizationStageResult,
-) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
-{
-    let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized)
-        .map_err(TerminalArtifactProductionError::Artifact)?;
-    Ok((artifact, optimized.into_lowered()))
 }
 
 #[derive(Debug)]
@@ -188,8 +178,8 @@ impl std::error::Error for TerminalArtifactProductionError {}
 fn checked_boundary_operator_scope(
     checked: &CheckedTrees,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    lowered: &LoweredPsi,
+    source_custody: &LoweredSourceCustody,
 ) -> Result<CheckedBoundaryOperatorApplicationScope, LoweringError> {
-    lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, lowered)
+    lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, source_custody)
         .map_err(LoweringError::Unsupported)
 }

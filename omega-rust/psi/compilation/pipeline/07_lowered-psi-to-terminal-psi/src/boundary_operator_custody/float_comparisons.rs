@@ -1,17 +1,17 @@
 use super::{CheckedBoundaryOperatorApplicationOccurrence, unsupported};
 use checked_trees::CheckedTrees;
-use lowered_psi::LoweredPsi;
+use lowered_psi::LoweredSourceCustody;
 
 pub(super) fn replay(
     checked: &CheckedTrees,
-    lowered: &LoweredPsi,
+    module: &terminal_psi::TerminalModule,
+    source_custody: &LoweredSourceCustody,
     occurrences: &mut Vec<CheckedBoundaryOperatorApplicationOccurrence>,
 ) -> Result<(), &'static str> {
     // An implicit Match comparison owns its arm application, not the enclosing
     // expression's result. Preserve that distinction when projecting source-free
     // demands; no comparison may disappear from the published occurrence roster.
-    let terminal_comparison_count = lowered
-        .semantic_module
+    let terminal_comparison_count = module
         .machines
         .iter()
         .flat_map(|machine| &machine.blocks)
@@ -23,10 +23,14 @@ pub(super) fn replay(
             )
         })
         .count();
-    if terminal_comparison_count != lowered.selected_ieee_float_comparison_occurrences.len() {
+    if terminal_comparison_count
+        != source_custody
+            .selected_ieee_float_comparison_occurrences
+            .len()
+    {
         return unsupported("IEEE comparison occurrences do not cover the exact Terminal roster");
     }
-    for comparison in &lowered.selected_ieee_float_comparison_occurrences {
+    for comparison in &source_custody.selected_ieee_float_comparison_occurrences {
         if !checked
             .facts
             .operators
@@ -56,7 +60,7 @@ pub(super) fn replay(
             return unsupported("IEEE comparison changed its exact selected application");
         }
         let mut matching_operations = 0;
-        for machine in &lowered.semantic_module.machines {
+        for machine in &module.machines {
             if machine.id != comparison.terminal_machine {
                 continue;
             }

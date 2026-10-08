@@ -229,9 +229,6 @@ impl NativeArtifact {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        self.psi_artifact
-            .validate()
-            .map_err(|_| "native artifact contains an invalid canonical artifact")?;
         let semantic = self.psi_artifact.manifest().semantic();
         if self.object.psi() != semantic || self.image.psi() != semantic {
             return Err("native artifact semantic identity disagrees with its object or image");
@@ -260,10 +257,7 @@ impl NativeArtifact {
         }
         image_emission::validate_direct_executable_image(&self.object, &self.image)
             .map_err(|_| "native artifact image failed object-to-image replay")?;
-        let module = self
-            .psi_artifact
-            .semantic_module()
-            .map_err(|_| "native artifact canonical semantics failed to decode")?;
+        let module = self.psi_artifact.semantic_module();
         mixed_structural_scalar::validate(module, &self.object)?;
         validate_boundary_application_coverage(
             module,
