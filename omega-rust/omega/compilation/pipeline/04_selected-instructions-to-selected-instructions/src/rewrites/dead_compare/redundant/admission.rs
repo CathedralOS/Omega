@@ -43,7 +43,6 @@ use super::super::admission::{
 };
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };

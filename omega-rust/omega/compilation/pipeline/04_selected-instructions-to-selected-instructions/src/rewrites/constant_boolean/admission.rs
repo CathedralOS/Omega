@@ -10,7 +10,6 @@
 //! and preserved unit roles, and whose effect axis is checked against the
 //! bound machine-effect catalog.
 use crate::rewrites::operand_probes::{effect_declaration};
-use crate::rewrites::block_edges::function_at;
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;

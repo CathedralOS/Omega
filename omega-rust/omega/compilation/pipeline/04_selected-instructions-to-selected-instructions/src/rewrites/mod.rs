@@ -237,7 +237,6 @@ use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedFunction, SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
-use crate::rewrites::block_edges::function_at;
 
 /// One step per block plus one per instruction across the whole plan — the
 /// scan surface every family's measured-step contract charges first.

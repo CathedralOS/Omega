@@ -26,7 +26,7 @@ use super::{
     DeadStoreEliminationError, DeadStoreEliminationReceipt, ValidatedDeadStoreElimination,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,

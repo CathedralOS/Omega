@@ -29,7 +29,6 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::function_at;
 
 /// Independently consume the proposed program: the replay re-derives the
 /// projected-access fold and its reconstructed access record from the

@@ -122,7 +122,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,

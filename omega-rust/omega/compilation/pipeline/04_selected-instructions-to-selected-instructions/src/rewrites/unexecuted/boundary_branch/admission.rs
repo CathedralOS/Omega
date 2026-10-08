@@ -19,7 +19,6 @@ use selected_instructions::{
 
 use super::{BoundaryBranchError, Outcome, branch_domain, outcome};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,

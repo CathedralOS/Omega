@@ -15,7 +15,6 @@ use semantic_vocabulary::{ScalarType, ValueId};
 use super::RuntimeSplitError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{control, require_dominated_uses};
-use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission {
     pub block_index: usize,

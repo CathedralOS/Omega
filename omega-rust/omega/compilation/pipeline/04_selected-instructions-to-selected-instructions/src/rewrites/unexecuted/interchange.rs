@@ -161,7 +161,6 @@ pub(super) fn derive_interchange<'source>(
     use crate::rewrites::unexecuted::commuting_accesses as accesses;
     use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
     use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
-    use crate::rewrites::block_edges::function_at;
 
     let (plan, function) = crate::rewrites::plan_function(
         source, function_index, environment, || InterchangeError::SourceMismatch)?;

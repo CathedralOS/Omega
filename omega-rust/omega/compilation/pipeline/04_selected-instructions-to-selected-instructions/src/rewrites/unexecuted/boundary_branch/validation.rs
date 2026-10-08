@@ -33,7 +33,6 @@ use super::{
     ValidatedBoundaryBranch, branch_domain, outcome,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,

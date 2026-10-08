@@ -56,8 +56,7 @@ use selected_instructions::{
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface, function_at,
-    terminator_successors,
+    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface, terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 

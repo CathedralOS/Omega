@@ -13,7 +13,6 @@ use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
 use super::RuntimeRematerializationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{control, require_dominated_uses};
-use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,

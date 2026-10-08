@@ -115,7 +115,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{all_edges, function_at, plain_edge};
+use crate::rewrites::block_edges::{all_edges, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
     RunRelocationRejection, schedulable, speculatable,

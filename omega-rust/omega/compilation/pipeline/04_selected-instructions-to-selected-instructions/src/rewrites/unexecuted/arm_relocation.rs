@@ -100,8 +100,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, RelocationCrossing, all_edges, crossed_window, function_at,
-    predecessor_source_index,
+    CrossingDirection, RelocationCrossing, all_edges, crossed_window, predecessor_source_index,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{

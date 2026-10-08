@@ -4,7 +4,6 @@
 //! same compare definition — in-block or across predecessor edges — and
 //! prove one compare operand sits at a carrier-domain pole that fixes the
 //! predicate, or collapses it to equality, without consulting the other.
-use crate::rewrites::block_edges::function_at;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};

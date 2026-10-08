@@ -12,7 +12,6 @@ use selected_instructions::{
 
 use super::AddressFoldError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,

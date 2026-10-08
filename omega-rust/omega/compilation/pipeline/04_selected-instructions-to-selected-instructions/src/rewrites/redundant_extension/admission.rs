@@ -16,7 +16,6 @@ use semantic_vocabulary::IntegerValue;
 
 use super::RedundantExtensionError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub block_index: usize,

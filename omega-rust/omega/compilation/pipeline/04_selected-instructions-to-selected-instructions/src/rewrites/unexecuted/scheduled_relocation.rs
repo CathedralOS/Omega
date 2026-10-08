@@ -73,8 +73,7 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    function_at, CrossingDirection, RelocationCrossing, block_instructions, crossed_window,
+use crate::rewrites::block_edges::{CrossingDirection, RelocationCrossing, block_instructions, crossed_window,
     edge_surface, terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;

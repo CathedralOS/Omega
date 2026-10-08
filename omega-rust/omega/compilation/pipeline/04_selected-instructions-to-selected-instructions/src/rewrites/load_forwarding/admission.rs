@@ -98,7 +98,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, terminator_successors};
+use crate::rewrites::block_edges::{terminator_successors};
 use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
