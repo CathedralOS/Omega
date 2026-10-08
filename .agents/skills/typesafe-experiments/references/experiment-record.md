@@ -2004,3 +2004,61 @@ deployment. NOT DEPLOYED. Reusable lesson: Jev-shaped surfaces need
 verifiable evidence in the packet — self-reported claims are unverifiable
 by construction. If commit-evidence receipts (e.g., a landed report-file
 artifact referenced by hash) ever exist, this surface becomes real.
+
+## 2026-10-08 — first local dogfood of the shipped instruments: two correct, one scored miss
+
+Setting: main at `c40dc9d9ca2`, Windows, key in `~/.config/typesafe/`,
+no cloud wave. Every number below is from the real workflow, not a replay.
+
+- **test_affected augment** on the tools+skills-only diff of
+  `e12a4d30582`/`741c3a4924e`: baseline fell back to `all()` library tests
+  (tools/ is an unknown input) and would not have run the Python tools
+  tests; Jev flagged exactly `tools::tests` and nothing else. Correct and
+  useful — the one suite covering the change.
+- **corpus_gate --jev** on `--filter pass/time,fail/proofs`: one real
+  structural move at HEAD — `fail/proofs/higher_order_machine_schema_contract_mismatch`
+  gained two `public interface selects private data \`Index\`` diagnostics
+  ahead of its pinned one. `record_safe 0.45` ("would pin a regression"),
+  SUSPECT row at `caused_by_commit 0.10` under the HEAD skill-pointer
+  commit. Correct on both counts; it changed the next action (attribute,
+  do not `--record`). Note `--bisect` classifies this move `moved`/good:
+  bisecting it needed a grep probe on the runner record.
+- **jev_attribute** on that move — three runs, scored against a 15-step,
+  25m42s bisect that found first-bad `f2102aedea5` ("psi: admit erased
+  static applications in immutable checking", 2026-10-07):
+  1. Crashed: `git()` decoded a 31 MB commit diff with the Windows code
+     page (fixed: UTF-8 with replacement). Then HTTP 400
+     `max_tokens_exceeded` on a 164 KB payload, reported only as "no
+     response" (fixed: `typesafe_key.post` prints the status and
+     `detail.error_type`; the tool batches candidates under 60 KB).
+  2. Signature named `declaration_visibility.rs`; `--paths` restricted to
+     the two visibility files. Solo re-ask on `6ba9c43af35` (my code-reading
+     hypothesis, which rewrote `declaration_visibility()`): `contains 0.96 /
+     introduces 0.76`, neighbors `absent`. **Confidently wrong** — a
+     two-point build (`attr-before`/`attr-after`) showed the fixture emits
+     only the pinned diagnostic on both sides of that commit. The 0.96 was
+     agreement with a seeded hypothesis, not evidence; the signature steered
+     it. Also observed: empty path-restricted excerpts hedged ~48/58
+     candidates to batch `contains`, swamping the 10-solo cap (fixed:
+     explicit `touches_excerpt_scope: false` + "(no changes in the excerpt
+     scope)"; such rows are never solo re-asked).
+  3. Neutral signature (observation only), 53-commit path-filtered window
+     `6ba9c43af35..c40dc9d9ca2`, three declarations directories as
+     `--paths`, run before the bisect answer and not altered after: 53/53
+     `absent`, `cause-outside-window 0.19`, 18.1 s. **Miss.** `f2102aedea5`
+     was in the window and touched the excerpt scope
+     (`03_…/declarations/state.rs`), but its added lines do not contain the
+     diagnostic text — it *enables* the diagnostic. The literal-evidence
+     question cannot see that class; nothing in the ranking distinguished
+     the culprit from 52 innocents.
+
+Reading: the two instruments whose packets carry the deciding evidence
+(diff → catalog, diff → golden) were right; the one whose evidence lives in
+behavior rather than diff text was not. jev_attribute's measured value on
+the 2026-09-24 marker-blob case came from the defect text being literally
+in the diff. Standing rules recorded in testing.md: all-`absent` means
+bisect, not "outside the window"; signatures describe the observation and
+never name a suspect. Open: whether a `could this change enable a new
+visibility selection` causal question over the touched-file list (not the
+excerpt) recovers this class without flagging the 52 — untested; do not
+tune it on this exposed case.
