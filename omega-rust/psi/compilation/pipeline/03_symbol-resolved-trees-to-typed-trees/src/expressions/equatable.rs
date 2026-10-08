@@ -89,10 +89,7 @@ pub(crate) fn data_definition_by_symbol(
     program: &SymbolResolvedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<&DataDefinition> {
-    program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.symbol == symbol)
+    program.data_definition_by_symbol(symbol)
 }
 
 /// The canonical declared name for a resolved named-type symbol: the authored

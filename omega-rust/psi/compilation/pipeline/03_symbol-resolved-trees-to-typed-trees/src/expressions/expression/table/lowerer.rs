@@ -113,10 +113,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let Some(program) = self.program else {
             return;
         };
-        let Some(owner) = program
-            .data_definitions
-            .iter()
-            .find(|owner| owner.symbol == symbol)
+        let Some(owner) = program.data_definition_by_symbol(symbol)
         else {
             return;
         };

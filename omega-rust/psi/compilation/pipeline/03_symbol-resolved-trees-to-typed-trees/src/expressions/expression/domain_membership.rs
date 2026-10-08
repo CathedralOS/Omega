@@ -96,10 +96,7 @@ fn case_membership_test(
         return None;
     }
 
-    let data_definition = program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)?;
+    let data_definition = program.data_definition_by_symbol(type_symbol)?;
     let exact_case_belongs_to_type = program
         .data_members(data_definition.members)
         .iter()
@@ -154,10 +151,7 @@ fn domain_definition<'p>(
     program: &'p resolved::SymbolResolvedTrees,
     domain_symbol: symbols::SymbolHandle,
 ) -> Result<&'p resolved::domain::DomainDefinition, Diagnostic> {
-    program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
+    program.domain_definition_by_symbol(domain_symbol)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "cannot lower executable membership for unknown domain symbol {}",

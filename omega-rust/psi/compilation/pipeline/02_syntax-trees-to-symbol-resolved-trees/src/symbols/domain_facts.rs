@@ -462,10 +462,7 @@ fn resolved_domain_byte_predicate(
     program: &SymbolResolvedTrees,
     domain_symbol: SymbolHandle,
 ) -> Option<ByteSequencePredicate> {
-    let domain = program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)?;
+    let domain = program.domain_definition_by_symbol(domain_symbol)?;
     let [symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
         program.proof_facts(domain.facts)
     else {

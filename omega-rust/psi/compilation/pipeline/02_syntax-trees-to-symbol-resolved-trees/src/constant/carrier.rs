@@ -242,17 +242,11 @@ pub(super) fn receiving_parameters(
     if conflicting || !selected.is_valid() {
         return None;
     }
-    if let Some(template) = program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.symbol == selected)
+    if let Some(template) = program.data_definition_by_symbol(selected)
     {
         return Some(program.data_type_parameters(template.type_parameters));
     }
-    let domain = program
-        .domain_definitions
-        .iter()
-        .find(|definition| definition.symbol == selected)?;
+    let domain = program.domain_definition_by_symbol(selected)?;
     let parameters = program.data_type_parameters(domain.type_parameters);
     let carrier_binder = parameters.first().is_some_and(|parameter| matches!(parameter.kind, symbol_resolved_trees::data::TypeParameterKind::Type)
         && matches!(&domain.target_type, TypeReference::Named { symbol, .. } if *symbol == parameter.symbol));

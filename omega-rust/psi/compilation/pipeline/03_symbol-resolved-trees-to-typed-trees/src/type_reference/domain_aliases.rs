@@ -43,10 +43,7 @@ pub(crate) fn expand_domain_reference(
                 })
                 .collect());
         }
-        let Some(domain) = program
-            .domain_definitions
-            .iter()
-            .find(|domain| domain.symbol == symbol)
+        let Some(domain) = program.domain_definition_by_symbol(symbol)
         else {
             // Preserve unresolved spellings for the validation layer, which
             // owns the ordinary unknown-domain diagnostic.
@@ -61,10 +58,7 @@ pub(crate) fn expand_domain_reference(
                 .copied()
                 .chain(std::iter::once(symbol))
                 .filter_map(|candidate| {
-                    program
-                        .domain_definitions
-                        .iter()
-                        .find(|domain| domain.symbol == candidate)
+                    program.domain_definition_by_symbol(candidate)
                 })
                 .map(|domain| domain.name.to_string())
                 .collect::<Vec<_>>()

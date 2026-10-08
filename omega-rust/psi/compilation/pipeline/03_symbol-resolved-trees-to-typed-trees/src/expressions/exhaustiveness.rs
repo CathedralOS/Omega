@@ -768,10 +768,7 @@ fn classify_declared_domain(
     program: &SymbolResolvedTrees,
     domain_symbol: symbols::SymbolHandle,
 ) -> LeafContribution {
-    let Some(domain) = program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
+    let Some(domain) = program.domain_definition_by_symbol(domain_symbol)
     else {
         return LeafContribution::NotCase;
     };

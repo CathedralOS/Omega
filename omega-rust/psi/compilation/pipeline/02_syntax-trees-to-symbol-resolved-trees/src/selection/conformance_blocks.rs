@@ -734,10 +734,7 @@ fn collect_declared_result_dispatch(
     terms: &mut Vec<String>,
     alias_stack: &mut Vec<SymbolHandle>,
 ) {
-    let Some(definition) = program
-        .domain_definitions
-        .iter()
-        .find(|definition| definition.symbol == symbol)
+    let Some(definition) = program.domain_definition_by_symbol(symbol)
     else {
         terms.push(format!("declared:{name}"));
         return;
@@ -748,10 +745,7 @@ fn collect_declared_result_dispatch(
     if let Some(alias) = definition.alias.as_ref() {
         alias_stack.push(definition.symbol);
         for constituent in &alias.constituents {
-            let constituent_name = program
-                .domain_definitions
-                .iter()
-                .find(|candidate| candidate.symbol == constituent.domain_symbol)
+            let constituent_name = program.domain_definition_by_symbol(constituent.domain_symbol)
                 .map(|candidate| candidate.name.as_str())
                 .unwrap_or("<unresolved-domain>");
             collect_declared_result_dispatch(

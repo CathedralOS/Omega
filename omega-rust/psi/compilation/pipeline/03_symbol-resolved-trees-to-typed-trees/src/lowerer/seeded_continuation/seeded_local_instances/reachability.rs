@@ -19,10 +19,7 @@ pub(super) fn all_instances_reachable_from_ordinary_data(
     while cursor < reachable.len() {
         let symbol = reachable[cursor];
         cursor += 1;
-        let Some(definition) = source
-            .data_definitions
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+        let Some(definition) = source.data_definition_by_symbol(symbol)
         else {
             return false;
         };

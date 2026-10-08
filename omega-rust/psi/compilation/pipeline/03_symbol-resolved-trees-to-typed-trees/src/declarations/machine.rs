@@ -141,10 +141,7 @@ fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: symbols::S
         return;
     }
     let Some(owner) = lowerer
-        .source_trees
-        .data_definitions
-        .iter()
-        .find(|owner| owner.symbol == symbol)
+        .source_trees.data_definition_by_symbol(symbol)
     else {
         return;
     };

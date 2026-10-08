@@ -166,10 +166,7 @@ fn normalize_constraint_span(
         }
 
         expanded_alias = true;
-        let source_domain = source
-            .domain_definitions
-            .iter()
-            .find(|candidate| candidate.symbol == domain.symbol)
+        let source_domain = source.domain_definition_by_symbol(domain.symbol)
             .expect("typed alias declaration must have a resolved source");
         for atom in crate::type_reference::domain_aliases::expand_domain_reference(
             source,

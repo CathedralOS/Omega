@@ -719,10 +719,7 @@ fn type_matches(
             symbol.is_valid()
                 && name.as_str() == source.symbols.name(symbol)
                 && validated_instances.contains(&symbol)
-                && source
-                    .data_definitions
-                    .iter()
-                    .find(|definition| definition.symbol == symbol)
+                && source.data_definition_by_symbol(symbol)
                     .is_some_and(|definition| {
                         let Some(TypeReference::Generic(origin)) =
                             definition.generic_instance.as_ref()

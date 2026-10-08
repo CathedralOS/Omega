@@ -18,10 +18,7 @@ pub(super) fn is_derived(
         .machines
         .iter()
         .find(|candidate| candidate.symbol == origin.template);
-    let owner = program
-        .data_definitions
-        .iter()
-        .find(|candidate| candidate.symbol == origin.closed_owner);
+    let owner = program.data_definition_by_symbol(origin.closed_owner);
     let valid = origin.template_source.is_source_backed()
         && origin.template.is_valid()
         && origin.closed_owner.is_valid()

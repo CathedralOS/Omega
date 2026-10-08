@@ -72,10 +72,7 @@ pub(super) fn validate_nominal_destinations(
         let Some(literal) = literal else {
             continue;
         };
-        let Some(definition) = program
-            .data_definitions
-            .iter()
-            .find(|definition| definition.symbol == expected)
+        let Some(definition) = program.data_definition_by_symbol(expected)
         else {
             continue;
         };

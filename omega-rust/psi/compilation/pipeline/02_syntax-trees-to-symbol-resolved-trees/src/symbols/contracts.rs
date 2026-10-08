@@ -583,10 +583,7 @@ pub(crate) fn finalize_outcome_specific_contract_symbols(
                     pending.result_data_source_span,
                 )
                 .unwrap_or_else(SymbolHandle::invalid);
-            let data = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == data_symbol)
+            let data = program.data_definition_by_symbol(data_symbol)
                 .ok_or_else(|| {
                     Diagnostic::error(format!(
                         "outcome-specific ensures lost declared result sum `{}` during symbol assignment",

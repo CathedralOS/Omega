@@ -418,10 +418,7 @@ fn collect_member_domain_symbols(
     if ancestors.contains(&data_symbol) {
         return;
     }
-    let Some(data) = program
-        .data_definitions
-        .iter()
-        .find(|data| data.symbol == data_symbol)
+    let Some(data) = program.data_definition_by_symbol(data_symbol)
     else {
         return;
     };
@@ -586,10 +583,7 @@ fn domain_definition(
     program: &SymbolResolvedTrees,
     symbol: SymbolHandle,
 ) -> Option<&symbol_resolved_trees::domain::DomainDefinition> {
-    program
-        .domain_definitions
-        .iter()
-        .find(|domain| domain.symbol == symbol)
+    program.domain_definition_by_symbol(symbol)
 }
 
 fn expression_is_bare_result(

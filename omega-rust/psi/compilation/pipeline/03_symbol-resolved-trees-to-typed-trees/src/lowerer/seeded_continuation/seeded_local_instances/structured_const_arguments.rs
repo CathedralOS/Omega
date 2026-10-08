@@ -17,10 +17,7 @@ pub(super) fn carrier_is_supported(
         return false;
     };
     exact_named_type(source, *symbol, name.as_str())
-        && source
-            .data_definitions
-            .iter()
-            .find(|definition| definition.symbol == *symbol)
+        && source.data_definition_by_symbol(*symbol)
             .is_some_and(|definition| {
                 data_carrier_is_supported(source, definition, &mut Vec::new())
             })
@@ -112,10 +109,7 @@ fn type_carrier_is_supported(
             if scalar_atom(source, *symbol).is_some() {
                 return true;
             }
-            source
-                .data_definitions
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            source.data_definition_by_symbol(*symbol)
                 .is_some_and(|definition| data_carrier_is_supported(source, definition, visiting))
         }
         TypeReference::FixedArray(array) => {
@@ -150,10 +144,7 @@ fn decoded_value_matches(
             if let Some(atom) = scalar_atom(source, *symbol) {
                 return scalar_value_matches(atom, value);
             }
-            let Some(definition) = source
-                .data_definitions
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            let Some(definition) = source.data_definition_by_symbol(*symbol)
             else {
                 return false;
             };
