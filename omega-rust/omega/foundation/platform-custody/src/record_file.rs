@@ -12,18 +12,6 @@ mod lock;
 mod stage;
 
 pub use lock::RecordFileLock;
-fn is_windows_reserved_path_component(component: &str) -> bool {
-    let stem = component.split('.').next().unwrap_or(component);
-    let uppercase = stem.to_ascii_uppercase();
-    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || uppercase
-            .strip_prefix("COM")
-            .or_else(|| uppercase.strip_prefix("LPT"))
-            .is_some_and(|suffix| {
-                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
-            })
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecordFileLimits {
     pub maximum_bytes: usize,
