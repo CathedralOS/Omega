@@ -15,6 +15,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::BTreeSet;
+use crate::candidates::candidate_function;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -26,11 +27,7 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

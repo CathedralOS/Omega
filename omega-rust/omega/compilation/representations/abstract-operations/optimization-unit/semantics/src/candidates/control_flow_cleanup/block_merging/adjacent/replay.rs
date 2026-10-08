@@ -15,6 +15,7 @@ use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
+use crate::candidates::candidate_function;
 use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
     recompute_psi_optimization_unit_identity,
@@ -30,11 +31,7 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.predecessor) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.predecessor.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.predecessor.machine)?;
     // These rewrites substitute scalar bindings only.
     if function
         .blocks
