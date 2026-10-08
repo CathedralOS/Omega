@@ -71,10 +71,7 @@ pub(super) fn validate_boundary_machine(
         else {
             return malformed("boundary requirement has an unknown argument index");
         };
-        let Some(domain) = module
-            .structural_domains
-            .iter()
-            .find(|domain| domain.id == requirement.domain)
+        let Some(domain) = module.structural_domain(requirement.domain)
         else {
             return malformed("boundary requirement references an unknown domain");
         };

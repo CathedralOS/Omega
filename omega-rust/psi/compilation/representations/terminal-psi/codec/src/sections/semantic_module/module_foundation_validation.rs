@@ -716,10 +716,7 @@ fn validate_structural_qualifications(
         }))
     {
         let carrier = carrier?;
-        let Some(declaration) = module
-            .structural_domains
-            .iter()
-            .find(|row| row.id == domain)
+        let Some(declaration) = module.structural_domain(domain)
         else {
             return malformed("structural qualification references an unknown domain");
         };

@@ -423,10 +423,7 @@ pub fn validate_entry_shape(
     if image_domain != storage_domain {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    let Some(domain) = module
-        .structural_domains
-        .iter()
-        .find(|row| row.id == *image_domain)
+    let Some(domain) = module.structural_domain(*image_domain)
     else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
