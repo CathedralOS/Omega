@@ -7,7 +7,7 @@ use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
 use crate::installation_record::codec::structural::scalar::{access_tag, decode_access};
-use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
+use crate::installation_record::{InstallationError, Reader, push_u64};
 
 pub(crate) fn encode_structural_argument(
     bytes: &mut Vec<u8>,
@@ -26,52 +26,11 @@ pub(crate) fn encode_path(
     bytes: &mut Vec<u8>,
     path: &[StructuralPathSegment],
 ) -> Result<(), InstallationError> {
-    push_u32(
+    super::super::encode_path_segments(
         bytes,
-        u32::try_from(path.len())
-            .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?,
-    );
-    for segment in path {
-        match segment {
-            StructuralPathSegment::Case(case) => {
-                bytes.extend_from_slice(&[7, 0, 0, 0]);
-                push_u64(bytes, case.get());
-            }
-            StructuralPathSegment::Referent => {
-                bytes.push(3);
-                bytes.extend_from_slice(&[0; 3]);
-            }
-            StructuralPathSegment::Field(identity) => {
-                if identity.is_empty() {
-                    return Err(InstallationError::InvalidSettlementArgumentField);
-                }
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u32(
-                    bytes,
-                    u32::try_from(identity.len())
-                        .map_err(|_| InstallationError::SettlementArgumentFieldTooLong)?,
-                );
-                bytes.extend_from_slice(identity.as_bytes());
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.push(2);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u64(bytes, *index);
-            }
-            StructuralPathSegment::FixedByteRange { start, end } => {
-                bytes.extend_from_slice(&[4, 0, 0, 0]);
-                push_u64(bytes, *start);
-                push_u64(bytes, *end);
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.extend_from_slice(&[6, 0, 0, 0]);
-                push_u64(bytes, index.get());
-                push_u64(bytes, obligation.get());
-            }
-        }
-    }
-    Ok(())
+        path,
+        InstallationError::InvalidSettlementArgumentField,
+    )
 }
 
 pub(crate) fn decode_path(

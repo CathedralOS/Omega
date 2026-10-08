@@ -659,49 +659,7 @@ fn encode_structural_path(
     bytes: &mut Vec<u8>,
     path: &[StructuralPathSegment],
 ) -> Result<(), InstallationError> {
-    push_u32(
-        bytes,
-        u32::try_from(path.len())
-            .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?,
-    );
-    for segment in path {
-        match segment {
-            StructuralPathSegment::Case(case) => {
-                bytes.extend_from_slice(&[7, 0, 0, 0]);
-                push_u64(bytes, case.get());
-            }
-            StructuralPathSegment::Referent => {
-                bytes.extend_from_slice(&[3, 0, 0, 0]);
-            }
-            StructuralPathSegment::Field(identity) => {
-                if identity.is_empty() {
-                    return Err(InstallationError::InvalidBoundaryResult);
-                }
-                bytes.extend_from_slice(&[1, 0, 0, 0]);
-                push_u32(
-                    bytes,
-                    u32::try_from(identity.len())
-                        .map_err(|_| InstallationError::SettlementArgumentFieldTooLong)?,
-                );
-                bytes.extend_from_slice(identity.as_bytes());
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.extend_from_slice(&[2, 0, 0, 0]);
-                push_u64(bytes, *index);
-            }
-            StructuralPathSegment::FixedByteRange { start, end } => {
-                bytes.extend_from_slice(&[4, 0, 0, 0]);
-                push_u64(bytes, *start);
-                push_u64(bytes, *end);
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.extend_from_slice(&[6, 0, 0, 0]);
-                push_u64(bytes, index.get());
-                push_u64(bytes, obligation.get());
-            }
-        }
-    }
-    Ok(())
+    super::encode_path_segments(bytes, path, InstallationError::InvalidBoundaryResult)
 }
 
 fn decode_structural_path(
