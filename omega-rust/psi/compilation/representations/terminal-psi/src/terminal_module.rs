@@ -97,7 +97,7 @@ pub use types::{
     ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, live_field,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,
