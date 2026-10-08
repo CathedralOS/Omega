@@ -110,6 +110,15 @@ pub(super) fn encode_call_unit(
     Ok(())
 }
 
+fn decode_claim_transfers(reader: &mut Reader<'_>) -> Result<Vec<ClaimTransfer>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(ClaimTransfer {
+            claim: reader.id("ClaimId")?,
+            argument_index: reader.u32()?,
+        })
+    })
+}
+
 pub(super) fn decode_call_unit(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::CallUnit {
         callee: reader.id("MachineId")?,
@@ -117,12 +126,7 @@ pub(super) fn decode_call_unit(reader: &mut Reader<'_>) -> Result<OperationKind,
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_counted(reader, |reader| {
-            Ok(ClaimTransfer {
-                claim: reader.id("ClaimId")?,
-                argument_index: reader.u32()?,
-            })
-        })?,
+        claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })
@@ -185,12 +189,7 @@ pub(super) fn decode_call_dynamic(reader: &mut Reader<'_>) -> Result<OperationKi
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_counted(reader, |reader| {
-            Ok(ClaimTransfer {
-                claim: reader.id("ClaimId")?,
-                argument_index: reader.u32()?,
-            })
-        })?,
+        claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })
@@ -238,12 +237,7 @@ pub(super) fn decode_call_structural_scalar(
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_counted(reader, |reader| {
-            Ok(ClaimTransfer {
-                claim: reader.id("ClaimId")?,
-                argument_index: reader.u32()?,
-            })
-        })?,
+        claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })
@@ -324,12 +318,7 @@ pub(super) fn decode_call_structural(reader: &mut Reader<'_>) -> Result<Operatio
     Ok(OperationKind::CallStructural {
         callee: reader.id("MachineId")?,
         structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_counted(reader, |reader| {
-            Ok(ClaimTransfer {
-                claim: reader.id("ClaimId")?,
-                argument_index: reader.u32()?,
-            })
-        })?,
+        claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
         selected_evidence: decode_counted(reader, |reader| {
@@ -425,12 +414,7 @@ pub(super) fn decode_call_structural_with_scalar_arguments(
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
-        claim_transfers: decode_counted(reader, |reader| {
-            Ok(ClaimTransfer {
-                claim: reader.id("ClaimId")?,
-                argument_index: reader.u32()?,
-            })
-        })?,
+        claim_transfers: decode_claim_transfers(reader)?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,
         crash_continuations: decode_crash_routes(reader)?,
     })
