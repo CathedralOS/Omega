@@ -9,7 +9,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn expression_type_reference(
     program: &dyn ::validation::CheckingInput,
@@ -217,43 +217,13 @@ fn data_field_type_reference(
     member_symbol: SymbolHandle,
     member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            data_field_type_reference(program, *referee, member_symbol, member_name)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            data_field_type_reference(program, *base_type, member_symbol, member_name)
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            ..
-        } => data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
-            |data_definition| {
-                ::validation::field_domains::data_field_type_by_symbol_or_name(
-                    program,
-                    data_definition,
-                    member_symbol,
-                    member_name,
-                )
-            },
-        ),
-        TypeReferenceNode::Named { symbol, name } => {
-            data_definition_by_symbol_or_name(program, *symbol, name).and_then(|data_definition| {
-                ::validation::field_domains::data_field_type_by_symbol_or_name(
-                    program,
-                    data_definition,
-                    member_symbol,
-                    member_name,
-                )
-            })
-        }
-        TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Unit => None,
-    }
+    ::validation::field_domains::data_field_type_reference_by_symbol_or_name(
+        program,
+        type_reference,
+        member_symbol,
+        member_name,
+        data_definition_by_symbol_or_name,
+    )
 }
 
 fn data_definition_by_symbol_or_name<'program>(

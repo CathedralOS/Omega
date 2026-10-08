@@ -281,6 +281,60 @@ pub fn data_field_type_by_symbol_or_name(
         })
 }
 
+/// The declared type of `member_symbol`/`member_name` reached through
+/// `type_reference`: reference and constraint shells peel, Named and Generic
+/// resolve to their data definition through `data_definition` (call sites
+/// carry their own symbol/name precedence), and the member lookup is the
+/// same symbol-preferred, name-fallback contract as
+/// [`data_field_type_by_symbol_or_name`]. Every other node kind carries no
+/// named member surface.
+pub fn data_field_type_reference_by_symbol_or_name(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    member_symbol: SymbolHandle,
+    member_name: &typed_trees::name::Identifier,
+    data_definition: impl for<'program> Fn(
+        &'program dyn crate::CheckingInput,
+        SymbolHandle,
+        &typed_trees::name::Identifier,
+    ) -> Option<&'program typed_trees::data::DataDefinition>,
+) -> Option<TypeReferenceHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => data_field_type_reference_by_symbol_or_name(
+            program,
+            *referee,
+            member_symbol,
+            member_name,
+            data_definition,
+        ),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => data_definition(program, *base_symbol, base_name).and_then(|data_definition| {
+            data_field_type_by_symbol_or_name(program, data_definition, member_symbol, member_name)
+        }),
+        TypeReferenceNode::Named { symbol, name } => {
+            data_definition(program, *symbol, name).and_then(|data_definition| {
+                data_field_type_by_symbol_or_name(
+                    program,
+                    data_definition,
+                    member_symbol,
+                    member_name,
+                )
+            })
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => None,
+    }
+}
+
 /// The readable form of a declared type: peel `&`/`&mut` reference shells and
 /// domain `Constrained` wrappers. A write-only reference exposes no readable
 /// storage and returns `None`; fixed-array elements and nominal fields are
