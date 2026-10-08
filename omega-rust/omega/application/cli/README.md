@@ -55,9 +55,12 @@ loans or readonly byte views. Explicit counts stay within the original primitive
 extent; a pointer to one array element does not grant its allocation's tail.
 Descriptor-backed or
 indefinite waits, CPU clocks and other missing imports decline explicitly;
-there is no tree fallback. The CLI compares host-presented exit status only, not
-stdout/stderr or full semantic traces. Typed crashes and sponsor-fuel exhaustion
-are distinct declines, not numeric exits or divergence verdicts.
+there is no tree fallback. The CLI compares host-presented termination only, not
+stdout/stderr or full semantic traces. Typed `Trap` compares against the executing
+host's architectural trap presentation, never against arbitrary signal death or
+a numeric exit fallback. Other unmapped crashes and sponsor-fuel exhaustion
+decline explicitly. Windows exception status can share its bits with an authored
+exit code; presentation agreement does not prove the underlying cause.
 
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must

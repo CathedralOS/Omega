@@ -731,14 +731,13 @@ defines the complete product bar.
   duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,
   and transfer after disposal, reject. Fuel exhaustion commits no disposal;
   retry cannot repeat one. No affine occurrence outlives its required edge.
-  Current Terminal failure for the output-bearing controls:
-  `program-entry-arrival-values` for their one structural entry parameter on
+  The output-bearing projected, indexed and composed controls run with exit 0
+  and authored hook-order stdout in both native and Terminal execution on
   macOS ARM64. Keep `pass/drops/runtime_projected_nominal_core_exit` and
   `pass/drops/runtime_composed_nominal_return_hook_exit` as
   host-independent native/Terminal value-preservation controls; they do not
   establish observable hook order.
-  **TERMINAL-RUNTIME-DRIVERS** owns that provision and subsequent exact host
-  bindings. Reproduce with `python tools/corpus_gate.py --both --filter
+  Preserve those observable controls with `python tools/corpus_gate.py --both --filter
   runtime_projected_nominal_cleanup_exit,runtime_indexed_nominal_cleanup_exit,runtime_composed_nominal_output_hook_exit`.
   Tree comparison is being retired and does not establish Terminal acceptance.
 
@@ -1845,8 +1844,11 @@ then independent claimed restoration slices -> final closure.
   Selected-reference backing retains its separate capability attribution.
   CLI comparison consumes the exact native report before publication; missing
   imports decline without reinterpreting trees or rerunning source/Build.
-  Host crash-presentation comparison remains unavailable in the CLI, which
-  compares numeric exit presentation only. A same-target native failure returns
+  Preserve `errors/runtime_trap_process_presentation`: CLI comparison matches
+  typed Trap to the host's exact architectural termination presentation and
+  rejects unrelated signals or numeric exit fallbacks; unmapped Abort still
+  declines. Presentation agreement is not crash-site or full-trace equality.
+  A same-target native failure returns
   no retained intermediate
   artifact; observing that Terminal program requires intermediate-artifact error
   custody rather than a second source compilation. Qualify Windows native

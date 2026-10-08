@@ -3,7 +3,10 @@
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
+mod process_exit;
 mod standard_input;
+
+pub use process_exit::ProcessExitObservation;
 
 use crate::temporary_directory::TemporaryDirectory;
 use compiler::{CompileOptions, CompileReport};
@@ -40,67 +43,7 @@ pub enum ExecutionOutcome {
     },
 }
 
-/// Portable observation of one child process's termination.
-///
-/// `ExitStatus::code` reports `None` when the host delivers no exit code —
-/// on Unix that means signal death — and collapsing it into a numeric
-/// fallback conflates signal termination with a real exit code. The
-/// observation keeps the distinction for presentation and comparison. It is
-/// host presentation, not the exact semantic process-exit event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProcessExitObservation {
-    /// The process terminated through the host's exit-code channel.
-    Exited(i32),
-    /// The process died on a Unix signal without reporting an exit code.
-    Signaled(i32),
-    /// The process ended with no observable exit code on this host.
-    Terminated,
-}
-
-impl ProcessExitObservation {
-    pub fn observe(status: &std::process::ExitStatus) -> Self {
-        if let Some(code) = status.code() {
-            return Self::Exited(code);
-        }
-        #[cfg(unix)]
-        if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(status) {
-            return Self::Signaled(signal);
-        }
-        Self::Terminated
-    }
-
-    /// The reported exit code, or `None` when the host supplied none.
-    pub const fn code(self) -> Option<i32> {
-        match self {
-            Self::Exited(code) => Some(code),
-            Self::Signaled(_) | Self::Terminated => None,
-        }
-    }
-
-    /// Compare only what the executing host exposes. Unix wait status retains
-    /// the low eight bits; Windows retains the full i32 bit pattern. Mapping
-    /// belongs here, not in the interpreter: its semantic status must remain
-    /// exact, and agreement here cannot establish full semantic trace equality.
-    fn matches_host_presentation(self, semantic_status: i32) -> bool {
-        let expected_status = if cfg!(unix) {
-            semantic_status & 255
-        } else {
-            semantic_status
-        };
-        self.code() == Some(expected_status)
-    }
-
-    /// One-line presentation of the termination for run diagnostics.
-    pub fn describe(self) -> String {
-        match self {
-            Self::Exited(code) => format!("exit {code}"),
-            Self::Signaled(signal) => format!("signal {signal}"),
-            Self::Terminated => "terminated without an exit code".to_owned(),
-        }
-    }
-}
-
-/// Host-presented exit comparison only, not an equivalence proof, a semantic
+/// Host-presented termination comparison only, not an equivalence proof, a semantic
 /// trace comparison or an output comparison. Stored codes remain exact
 /// interpreter statuses even when the host presents fewer bits.
 #[derive(Debug)]
@@ -109,6 +52,8 @@ pub enum InterpreterComparison {
     Declined(String),
     Agrees { exit_code: i32 },
     Disagrees { interpreter_exit_code: i32 },
+    AgreesCrash { cause: terminal_psi::CrashCause },
+    DisagreesCrash { cause: terminal_psi::CrashCause },
     Failed(Vec<Diagnostic>),
 }
 
@@ -247,10 +192,14 @@ fn compare_interpretation(
                     );
                 }
                 TerminalExecutionStatus::Crashed(crash) => {
-                    return InterpreterComparison::Declined(format!(
-                        "Terminal observed {:?}; host crash-presentation comparison is unavailable",
-                        crash.cause
-                    ));
+                    return match native_exit.matches_crash_presentation(crash.cause) {
+                        Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },
+                        Some(false) => InterpreterComparison::DisagreesCrash { cause: crash.cause },
+                        None => InterpreterComparison::Declined(format!(
+                            "Terminal observed {:?}; host crash-presentation comparison is unavailable",
+                            crash.cause
+                        )),
+                    };
                 }
             };
             if native_exit.matches_host_presentation(exit_code) {

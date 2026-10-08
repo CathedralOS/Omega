@@ -54,6 +54,18 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                     eprintln!("interp exit: {exit_code}");
                     native_code
                 }
+                InterpreterComparison::AgreesCrash { cause } => {
+                    eprintln!("interp crash: {cause:?} (host presentation agrees)");
+                    native_code
+                }
+                InterpreterComparison::DisagreesCrash { cause } => {
+                    eprintln!("interp crash: {cause:?}");
+                    eprintln!(
+                        "DIVERGENCE: native {} vs interp crash {cause:?}",
+                        exit.describe()
+                    );
+                    201
+                }
                 InterpreterComparison::Disagrees {
                     interpreter_exit_code,
                 } => {
