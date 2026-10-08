@@ -30,6 +30,16 @@ pub(crate) struct ByteSequenceView {
     descriptor_home: Option<crate::values::TerminalStructuralValue>,
 }
 
+/// Two views are the same storage when they share backing and window. Equal
+/// contents in distinct backings are distinct endpoints.
+impl PartialEq for ByteSequenceView {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.backing, &other.backing) && self.window == other.window
+    }
+}
+
+impl Eq for ByteSequenceView {}
+
 impl ByteSequenceView {
     pub(crate) fn new(bytes: Vec<u8>) -> Self {
         let length = bytes.len();

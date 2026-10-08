@@ -111,6 +111,34 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)
     }
 
+    /// A byte selected inside a byte view or bounded owner has no catalog
+    /// child of its own; it names the unique declared `u8` carrier, the same
+    /// endpoint judgment primitive loans of inline bytes use.
+    fn inline_byte_source_type(
+        &self,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        let byte = StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .ok()?,
+        ));
+        let types = self.program.structural_types();
+        if !matches!(
+            types.get(&root)?.shape,
+            StructuralTypeShape::ByteSequence(_)
+        ) || !matches!(path, [StructuralPathSegment::FixedIndex(_)])
+        {
+            return None;
+        }
+        let mut matching = types
+            .values()
+            .filter(|declaration| declaration.shape == byte)
+            .map(|declaration| declaration.id);
+        let declaration = matching.next()?;
+        matching.next().is_none().then_some(declaration)
+    }
+
     fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
@@ -183,6 +211,8 @@ impl TerminalExecution<'_> {
                 &source.path,
             ) {
                 tip.id
+            } else if let Some(byte) = self.inline_byte_source_type(root_type, &source.path) {
+                byte
             } else {
                 self.resolve_live_projection(source.place, &source.path, source.access)?
                     .structural_type
@@ -248,13 +278,20 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
-                let original_type = terminal_semantics::runtime_structural_path_tip(
+                let root_type = self.live_structural_type(source.place)?;
+                let tip = terminal_semantics::runtime_structural_path_tip(
                     self.program.structural_types().values(),
-                    self.live_structural_type(source.place)?,
+                    root_type,
                     &source.path,
                 )
-                .ok_or_else(malformed)?
-                .id;
+                .map(|tip| tip.id);
+                // A byte inside a byte view has no structural projection; the
+                // loan below names the view's own backing byte.
+                let inline_byte = match tip {
+                    Some(_) => None,
+                    None => self.inline_byte_source_type(root_type, &source.path),
+                };
+                let original_type = tip.or(inline_byte).ok_or_else(malformed)?;
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !terminal_semantics::reference_storage_source_compatible(
@@ -278,23 +315,36 @@ impl TerminalExecution<'_> {
                     )?,
                 )
                 .map_err(|_| malformed())?;
-                let mut view =
-                    self.resolve_live_projection(source.place, &source.path, source.access)?;
+                let projected = match inline_byte {
+                    Some(_) => None,
+                    None => Some(self.resolve_live_projection(
+                        source.place,
+                        &source.path,
+                        source.access,
+                    )?),
+                };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
-                let region = if let Some(region) = self.reference_byte_region(&view)? {
+                let captured = match &projected {
+                    Some(view) => self.reference_byte_region(view)?,
+                    None => None,
+                };
+                let (mut view, region) = if let Some(region) = captured {
                     if byte_offset
                         .checked_add(byte_length)
                         .is_none_or(|end| end > region.byte_length)
                     {
                         return Err(malformed());
                     }
-                    ReferenceByteRegion {
-                        endpoint: crate::primitive_storage::shifted_byte_endpoint(
-                            &region.endpoint,
-                            byte_offset,
-                        )?,
-                        byte_length,
-                    }
+                    (
+                        projected.ok_or_else(malformed)?,
+                        ReferenceByteRegion {
+                            endpoint: crate::primitive_storage::shifted_byte_endpoint(
+                                &region.endpoint,
+                                byte_offset,
+                            )?,
+                            byte_length,
+                        },
+                    )
                 } else {
                     let parameter = StructuralParameterDeclaration {
                         place: source.place,
@@ -308,11 +358,13 @@ impl TerminalExecution<'_> {
                     let mut loan =
                         self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
                     self.position_reference_storage(&mut loan, byte_offset, byte_length)?;
-                    view = loan.referent;
-                    ReferenceByteRegion {
-                        endpoint: loan.storage.endpoint,
-                        byte_length,
-                    }
+                    (
+                        loan.referent,
+                        ReferenceByteRegion {
+                            endpoint: loan.storage.endpoint,
+                            byte_length,
+                        },
+                    )
                 };
                 view.structural_type = referent_type;
                 byte_region = Some(region);
@@ -389,11 +441,14 @@ impl TerminalExecution<'_> {
         // exactly the same affine complement as transfer. It never removes the
         // referent or the scalar storage of surviving siblings.
         let mut frontier = self.live_affine_frontier.clone();
-        self.consume_affine_projection(&mut frontier, &StructuralArgument {
+        self.consume_affine_projection(
+            &mut frontier,
+            &StructuralArgument {
                 place: source,
                 path: path.to_vec(),
                 access: StructuralAccess::Owned,
-            })?;
+            },
+        )?;
         self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;
         if path.is_empty() {

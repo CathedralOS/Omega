@@ -213,6 +213,17 @@ impl TerminalExecution<'_> {
                 }
                 *index = start;
             }
+            PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                if loan.scalar_type != byte_type()? {
+                    return Err(malformed());
+                }
+                let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                let end = start.checked_add(width).ok_or_else(malformed)?;
+                if end > bytes.len() {
+                    return Err(malformed());
+                }
+                *index = start;
+            }
             PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_) => {
                 let source_width = usize::from(
                     terminal_semantics::reference_storage_byte_width(loan.scalar_type)
@@ -372,6 +383,12 @@ pub(crate) fn shifted_byte_endpoint(
         PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
             Ok(PrimitiveStorageEndpoint::OwnedArrayElement {
                 home: *home,
+                index: index.checked_add(byte_offset).ok_or_else(malformed)?,
+            })
+        }
+        PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+            Ok(PrimitiveStorageEndpoint::ViewByte {
+                bytes: bytes.clone(),
                 index: index.checked_add(byte_offset).ok_or_else(malformed)?,
             })
         }

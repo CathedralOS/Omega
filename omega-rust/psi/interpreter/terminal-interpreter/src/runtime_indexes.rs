@@ -92,6 +92,12 @@ impl TerminalExecution<'_> {
                             .len(),
                     )
                     .map_err(|_| malformed())?,
+                    // A byte view or bounded owner held by the root itself
+                    // has the live extent its binding currently names.
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ) if position == 0 => self.byte_sequence_length(root)?,
                     _ => return Err(malformed()),
                 };
                 let element = terminal_semantics::runtime_index_selects(value, length)

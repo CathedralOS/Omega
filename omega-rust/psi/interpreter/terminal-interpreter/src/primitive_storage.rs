@@ -67,6 +67,13 @@ pub(crate) enum PrimitiveStorageEndpoint {
         home: PrimitiveStorageHome,
         index: usize,
     },
+    /// One byte of an immutable shared byte view. A shared loan cannot change
+    /// the bytes it observes, so the view's own backing is the endpoint; no
+    /// write reaches it.
+    ViewByte {
+        bytes: crate::byte_sequences::ByteSequenceView,
+        index: usize,
+    },
 }
 
 /// Encoding is retained with the endpoint, not reconstructed from a later
@@ -202,6 +209,11 @@ impl TerminalExecution<'_> {
                 self.byte_sequence_values.get(&argument.place),
                 Some(crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { .. })
             )
+            || (!argument.path.is_empty()
+                && matches!(
+                    self.byte_sequence_values.get(&argument.place),
+                    Some(crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_))
+                ))
         {
             let (storage, scalar_type, shared_view) = self.primitive_access(
                 argument.place,
@@ -221,6 +233,18 @@ impl TerminalExecution<'_> {
                         .allocate_staged(identity_cursor)?,
                     argument.path.clone(),
                 ),
+                // The view descriptor's own identity names its observed byte.
+                PrimitiveStorageEndpoint::ViewByte { index, .. } => {
+                    let view = self
+                        .structural_values
+                        .get(&argument.place)
+                        .ok_or_else(malformed)?;
+                    let mut path = view.path.clone();
+                    path.push(StructuralPathSegment::FixedIndex(
+                        u64::try_from(*index).map_err(|_| malformed())?,
+                    ));
+                    (view.opaque_identity, path)
+                }
                 _ => return Err(malformed()),
             };
             (
@@ -343,6 +367,34 @@ impl TerminalExecution<'_> {
             return self.primitive_view_access(&referent, canonical.as_slice(), scalar_type, false);
         }
         self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
+    }
+
+    /// A selected element of a byte carrier is a `u8`. A borrowed view's
+    /// extent is runtime state, so the static judgment proves no element; the
+    /// caller checks the selected index against the binding's live extent.
+    fn byte_element_scalar(
+        &self,
+        structural_type: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Result<ScalarType, TerminalInterpretError> {
+        if matches!(
+            self.program
+                .structural_types()
+                .get(&structural_type)
+                .ok_or_else(malformed)?
+                .shape,
+            terminal_psi::StructuralTypeShape::ByteSequence(_)
+        ) {
+            return Ok(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
+            ));
+        }
+        terminal_semantics::primitive_projection_type(
+            self.program.structural_types().values(),
+            structural_type,
+            path,
+        )
+        .ok_or_else(malformed)
     }
 
     pub(crate) fn capture_primitive_home(
@@ -509,12 +561,7 @@ impl TerminalExecution<'_> {
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
-            let scalar_type = terminal_semantics::primitive_projection_type(
-                self.program.structural_types().values(),
-                structural_type,
-                path,
-            )
-            .ok_or_else(malformed)?;
+            let scalar_type = self.byte_element_scalar(structural_type, path)?;
             let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
             let extent = crate::structural_inputs::byte_arrays::byte_array_length(
                 &self.program.structural_types(),
@@ -533,6 +580,35 @@ impl TerminalExecution<'_> {
             return Ok((
                 PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ArrayElement {
                     array: array.clone(),
+                    index,
+                }),
+                scalar_type,
+                shared_view,
+            ));
+        }
+        // A shared byte view's element is a byte of the immutable backing the
+        // view observes; that backing cannot change while the loan lives.
+        if let Some(crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes)) =
+            byte_sequence_values.get(&place)
+        {
+            let value = structural_values.get(&place).ok_or_else(malformed)?;
+            let [StructuralPathSegment::FixedIndex(index)] = path else {
+                return Err(malformed());
+            };
+            let scalar_type = self.byte_element_scalar(structural_type, path)?;
+            let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
+            let index = usize::try_from(*index).map_err(|_| malformed())?;
+            if writing
+                || value.structural_type != structural_type
+                || !bytes.matches_descriptor_home(value)
+                || scalar_type != ScalarType::Integer(byte_type)
+                || index >= bytes.len()
+            {
+                return Err(malformed());
+            }
+            return Ok((
+                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ViewByte {
+                    bytes: bytes.clone(),
                     index,
                 }),
                 scalar_type,
@@ -1112,6 +1188,18 @@ impl TerminalExecution<'_> {
                     },
                 )
             }
+            PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                let ScalarType::Integer(integer) = scalar_type else {
+                    return Err(malformed());
+                };
+                bytes
+                    .get(index)
+                    .map(|byte| TerminalScalarValue::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(u128::from(*byte)),
+                    })
+                    .ok_or_else(malformed)
+            }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
@@ -1246,6 +1334,7 @@ impl TerminalExecution<'_> {
                 let byte = u8::try_from(value).map_err(|_| malformed())?;
                 self.stored_byte_array_write(&array, index, byte)?;
             }
+            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
         }
         Ok(())
     }

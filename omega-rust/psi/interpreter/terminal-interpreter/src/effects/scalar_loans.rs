@@ -289,7 +289,9 @@ impl TerminalExecution<'_> {
             PrimitiveStorageEndpoint::ArrayElement { array, .. } => &array.referent,
             // The frame-home resolver already requires unqualified parameters
             // and unqualified, claim-free structural results for array locals.
-            PrimitiveStorageEndpoint::OwnedArrayElement { .. } => return Ok(()),
+            // An immutable view byte carries no replacement authority at all.
+            PrimitiveStorageEndpoint::OwnedArrayElement { .. }
+            | PrimitiveStorageEndpoint::ViewByte { .. } => return Ok(()),
         };
         self.validate_storage_loan_qualifications(target)
     }
