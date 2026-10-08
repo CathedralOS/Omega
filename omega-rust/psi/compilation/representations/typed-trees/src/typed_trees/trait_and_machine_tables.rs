@@ -451,6 +451,13 @@ impl TypedTrees {
         machine::machine_by_symbol(self.machines(), symbol)
     }
 
+    /// The machine spelled `name`, if any.
+    pub fn machine_by_name_str(&self, name: &str) -> Option<&machine::Machine> {
+        self.machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+    }
+
     /// The state `state_symbol` of machine `machine_symbol`, or `None` when
     /// either symbol names no declared machine or state.
     pub fn machine_state(

@@ -616,9 +616,7 @@ fn proof_argument_declared_type(
     if let Some(member_name) = self_member_name(program, argument)
         && let Some(machine_name) = proof_fact_machine_name(owner)
         && let Some(attached_data) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .machine_by_name_str(machine_name)
             .and_then(|machine| machine.attached_data.as_ref())
         && let Some(definition) = program
             .data_definition_by_name(attached_data)

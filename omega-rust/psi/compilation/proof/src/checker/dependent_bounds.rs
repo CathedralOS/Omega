@@ -288,9 +288,7 @@ fn dependent_field_floor_at(
 ) -> Option<i64> {
     let program = proof_plan.program;
     let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)?;
+        .machine_by_name_str(machine_name)?;
     let attached = machine.attached_data.as_ref()?;
     let data = program
         .data_definition_by_name_str(attached.as_str())?;
@@ -360,9 +358,7 @@ pub(crate) fn obligation_data_binding<'plan>(
 ) -> Option<&'plan str> {
     let program = proof_plan.program;
     let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)?;
+        .machine_by_name_str(machine_name)?;
     let state = program
         .machine_states(machine)
         .iter()
@@ -380,9 +376,7 @@ pub(crate) fn state_preserves_field(
 ) -> bool {
     let program = proof_plan.program;
     let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
+        .machine_by_name_str(machine_name)
     else {
         return false;
     };
