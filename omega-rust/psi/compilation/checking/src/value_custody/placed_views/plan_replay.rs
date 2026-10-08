@@ -1,6 +1,5 @@
 use access_plans::{AccessFieldEntry, FieldAccess};
 use diagnostics::Diagnostic;
-use language_core::atomic::AtomicObservingCompareExchangeOperation;
 use language_semantics::Multiplicity;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -229,25 +228,7 @@ pub(crate) fn validate_plans(
                         )));
                         continue;
                     }
-                    let mut observing_results = Vec::new();
-                    if operations.compare_exchange {
-                        let operation = AtomicObservingCompareExchangeOperation::Decisive;
-                        observing_results.push(
-                            typed_trees::typed_trees::PlacedAtomicObservingResultContract {
-                                operation,
-                                result_shape: operation.result_shape(),
-                            },
-                        );
-                    }
-                    if operations.compare_exchange_once {
-                        let operation = AtomicObservingCompareExchangeOperation::SingleAttempt;
-                        observing_results.push(
-                            typed_trees::typed_trees::PlacedAtomicObservingResultContract {
-                                operation,
-                                result_shape: operation.result_shape(),
-                            },
-                        );
-                    }
+                    let observing_results = super::placed_atomic_observing_results(*operations);
                     Some(typed_trees::typed_trees::PlacedAtomicResidentContract {
                         field_symbol: schema_field.symbol,
                         resident_type: schema_field.type_reference,

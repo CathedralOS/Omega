@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use access_plans::{AtomicPermissions, FieldAccess, ValidatedPlacementPlan};
 use diagnostics::Diagnostic;
-use language_core::atomic::AtomicObservingCompareExchangeOperation;
 use language_semantics::Multiplicity;
 use typed_trees::TypedTrees;
 
@@ -21,26 +20,9 @@ fn observing_result_contracts(
     if multiplicity != Multiplicity::Unrestricted {
         return Err(multiplicity);
     }
-    let mut observing_results = Vec::new();
-    if operations.compare_exchange {
-        let operation = AtomicObservingCompareExchangeOperation::Decisive;
-        observing_results.push(
-            typed_trees::typed_trees::PlacedAtomicObservingResultContract {
-                operation,
-                result_shape: operation.result_shape(),
-            },
-        );
-    }
-    if operations.compare_exchange_once {
-        let operation = AtomicObservingCompareExchangeOperation::SingleAttempt;
-        observing_results.push(
-            typed_trees::typed_trees::PlacedAtomicObservingResultContract {
-                operation,
-                result_shape: operation.result_shape(),
-            },
-        );
-    }
-    Ok(Some(observing_results))
+    Ok(Some(validation::placed_atomic_observing_results(
+        operations,
+    )))
 }
 
 pub(super) fn install_placed_view_plan(
