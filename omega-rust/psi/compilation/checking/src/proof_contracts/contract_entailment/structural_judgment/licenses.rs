@@ -4,7 +4,7 @@
 //! stores; all candidate computation and shape checking lives here.
 use super::super::{
     BinaryOperator, ExpressionNode, Machine, SymbolHandle,
-    TraitDefinition, structural_term,
+    TraitDefinition, structural_term_pair,
 };
 use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
@@ -60,10 +60,7 @@ fn for_each_ensures_equality(
             else {
                 continue;
             };
-            let (Some(left), Some(right)) = (
-                structural_term(program, binary.left),
-                structural_term(program, binary.right),
-            ) else {
+            let Some((left, right)) = structural_term_pair(program, binary) else {
                 continue;
             };
             arm(left, right);

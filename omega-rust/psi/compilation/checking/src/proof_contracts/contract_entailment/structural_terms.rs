@@ -206,6 +206,18 @@ pub(super) fn structural_term(
     structural_term_in_scope(program, None, expression)
 }
 
+/// Both operands of `binary` read as structural terms, or `None` when
+/// either stays opaque — the pair every equality/ordering consumer opens.
+pub(super) fn structural_term_pair(
+    program: &dyn crate::CheckingInput,
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> Option<(StructuralTerm, StructuralTerm)> {
+    Some((
+        structural_term(program, binary.left)?,
+        structural_term(program, binary.right)?,
+    ))
+}
+
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
 /// name-free binary operands (see `binary_term_in_scope`).
 pub(super) fn structural_term_in_scope(

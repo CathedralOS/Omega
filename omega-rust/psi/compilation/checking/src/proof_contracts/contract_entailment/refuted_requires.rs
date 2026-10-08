@@ -4,7 +4,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term, structural_term_in_scope,
+    structural_term, structural_term_in_scope, structural_term_pair,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -487,10 +487,7 @@ pub(crate) fn collect_instantiated_conjuncts(
             collect_instantiated_conjuncts(program, binary.right, map, equations);
         }
         BinaryOperator::Equal => {
-            let (Some(left), Some(right)) = (
-                structural_term(program, binary.left),
-                structural_term(program, binary.right),
-            ) else {
+            let Some((left, right)) = structural_term_pair(program, binary) else {
                 return;
             };
             equations.push((

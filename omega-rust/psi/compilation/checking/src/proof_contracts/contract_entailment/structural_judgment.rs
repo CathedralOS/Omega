@@ -1,7 +1,7 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
     StatementNode, SymbolHandle, TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker,
-    structural_call_machine_name, structural_term, term_contains,
+    structural_call_machine_name, structural_term, structural_term_pair, term_contains,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
@@ -306,10 +306,7 @@ impl<'program> StructuralJudge<'program> {
                 self.intake(program, binary.right);
             }
             BinaryOperator::Equal if !self.case_facts_only => {
-                let (Some(left), Some(right)) = (
-                    structural_term(program, binary.left),
-                    structural_term(program, binary.right),
-                ) else {
+                let Some((left, right)) = structural_term_pair(program, binary) else {
                     return;
                 };
                 self.intake_case_equation(left.clone(), right.clone(), 0);
@@ -1472,10 +1469,7 @@ impl<'program> StructuralJudge<'program> {
                 ) {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
-                let (Some(left), Some(right)) = (
-                    structural_term(program, binary.left),
-                    structural_term(program, binary.right),
-                ) else {
+                let Some((left, right)) = structural_term_pair(program, binary) else {
                     return StructuralJudgment::Unknown;
                 };
                 let equality = self.judge_equation(self.resolve(left), self.resolve(right), 0);

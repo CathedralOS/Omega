@@ -17,7 +17,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term, structural_term_in_scope,
+    structural_term, structural_term_in_scope, structural_term_pair,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -507,10 +507,7 @@ fn for_each_substituted_contract_fact(
             if binary.operator != BinaryOperator::Equal {
                 return None;
             }
-            let (Some(left), Some(right)) = (
-                structural_term(program, binary.left),
-                structural_term(program, binary.right),
-            ) else {
+            let Some((left, right)) = structural_term_pair(program, binary) else {
                 return None;
             };
             Some((
@@ -640,10 +637,7 @@ pub(crate) fn intake_statement_citation_for_edge(
         if binary.operator != BinaryOperator::Equal {
             return;
         }
-        let (Some(left), Some(right)) = (
-            structural_term(program, binary.left),
-            structural_term(program, binary.right),
-        ) else {
+        let Some((left, right)) = structural_term_pair(program, binary) else {
             return;
         };
         let left = StructuralJudge::substitute_term(&left, &map);
@@ -665,10 +659,7 @@ pub(crate) fn intake_statement_citation_for_edge(
         if binary.operator != BinaryOperator::Equal {
             continue;
         }
-        let (Some(left), Some(right)) = (
-            structural_term(program, binary.left),
-            structural_term(program, binary.right),
-        ) else {
+        let Some((left, right)) = structural_term_pair(program, binary) else {
             continue;
         };
         judge.intake_equation(
@@ -876,10 +867,7 @@ pub(crate) fn instantiated_fact_established(
                 && instantiated_fact_established(program, judge, parameters, binary.right, map)
         }
         BinaryOperator::Equal => {
-            let (Some(left), Some(right)) = (
-                structural_term(program, binary.left),
-                structural_term(program, binary.right),
-            ) else {
+            let Some((left, right)) = structural_term_pair(program, binary) else {
                 return false;
             };
             let left = StructuralJudge::substitute_term(&left, map);
