@@ -35,13 +35,11 @@ impl TerminalExecution<'_> {
         let mut bytes = Vec::with_capacity(length);
         bytes.extend_from_slice(left.bytes());
         bytes.extend_from_slice(right.bytes());
-        let value = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
         self.byte_sequence_values.insert(
             result.place,
             ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),

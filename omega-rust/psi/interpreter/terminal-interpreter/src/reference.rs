@@ -348,13 +348,11 @@ impl TerminalExecution<'_> {
         }
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        let carrier = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let carrier = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&carrier),
             ReferenceReferent {

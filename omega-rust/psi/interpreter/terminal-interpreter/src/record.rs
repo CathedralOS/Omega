@@ -58,13 +58,11 @@ impl TerminalExecution<'_> {
         if fields.len() != declarations.clone().count() {
             return Err(malformed());
         }
-        let mut value = TerminalStructuralValue {
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
+        let mut value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
         let mut staged = BTreeMap::new();
         let mut storage = ConstructorStorage::default();
         let mut staged_bytes = BTreeMap::new();

@@ -34,6 +34,24 @@ pub struct TerminalStructuralValue {
     pub path: Vec<StructuralPathSegment>,
 }
 
+impl TerminalStructuralValue {
+    /// A fresh root value minted for `structural_type`: new opaque identity,
+    /// authored qualifications, no projected state, and no path.
+    pub fn minted(
+        opaque_identity: u64,
+        structural_type: StructuralTypeId,
+        qualifications: Vec<StructuralDomainId>,
+    ) -> Self {
+        Self {
+            opaque_identity,
+            structural_type,
+            qualifications,
+            projected_qualifications: Vec::new(),
+            path: Vec::new(),
+        }
+    }
+}
+
 /// Exact target-neutral runtime carrier for a selected scalar sum case.
 ///
 /// This is deliberately distinct from an opaque host structural value: a
