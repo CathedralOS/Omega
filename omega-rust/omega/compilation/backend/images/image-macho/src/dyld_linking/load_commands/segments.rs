@@ -1,4 +1,6 @@
-use crate::file_layout::bytes::{write_fixed_string_16, write_u32, write_u64};
+use crate::file_layout::bytes::{
+    write_fixed_string_16, write_reserved_u32s, write_u32, write_u64,
+};
 use crate::file_layout::constants::{
     MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
 };
@@ -12,10 +14,7 @@ pub(crate) fn write_macho_pagezero_segment(bytes: &mut Vec<u8>) {
     write_u64(bytes, MACHO_EXECUTABLE_BASE);
     write_u64(bytes, 0);
     write_u64(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 4);
 }
 
 pub(crate) fn write_macho_executable_text_segment(
@@ -56,12 +55,9 @@ pub(crate) fn write_macho_executable_text_segment(
         u32::try_from(text_offset).expect("Mach-O text offset overflow"),
     );
     write_u32(bytes, 2);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 2);
     write_u32(bytes, 0x80000400);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 3);
 }
 
 pub(crate) fn write_macho_executable_data_segment(
@@ -135,8 +131,7 @@ pub(crate) fn write_macho_linkedit_segment(
     );
     write_u32(bytes, 1);
     write_u32(bytes, 1);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 2);
 }
 
 fn write_macho_executable_data_section(bytes: &mut Vec<u8>, data_offset: usize, data_size: usize) {
@@ -152,12 +147,7 @@ fn write_macho_executable_data_section(bytes: &mut Vec<u8>, data_offset: usize, 
         u32::try_from(data_offset).expect("Mach-O data section offset overflow"),
     );
     write_u32(bytes, 3);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 6);
 }
 
 fn write_macho_executable_bss_section(
@@ -175,10 +165,7 @@ fn write_macho_executable_bss_section(
     );
     write_u32(bytes, 0);
     write_u32(bytes, alignment_power(bss_alignment));
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 2);
     write_u32(bytes, 1);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 3);
 }

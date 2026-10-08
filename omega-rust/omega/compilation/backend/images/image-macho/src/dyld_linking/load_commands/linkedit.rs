@@ -1,4 +1,4 @@
-use crate::file_layout::bytes::write_u32;
+use crate::file_layout::bytes::{write_reserved_u32s, write_u32};
 use crate::file_layout::constants::{
     MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE, MACHO_DYSYMTAB_COMMAND_SIZE,
     MACHO_SYMTAB_COMMAND_SIZE,
@@ -24,10 +24,7 @@ pub(crate) fn write_macho_code_signature_command(
 pub(crate) fn write_empty_macho_symtab_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x2);
     write_u32(bytes, MACHO_SYMTAB_COMMAND_SIZE as u32);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 4);
 }
 
 pub(crate) fn write_empty_macho_dysymtab_command(bytes: &mut Vec<u8>) {
@@ -63,12 +60,7 @@ pub(crate) fn write_macho_dyld_info_command(
         bytes,
         u32::try_from(bind_size).expect("Mach-O bind size overflow"),
     );
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_reserved_u32s(bytes, 6);
 }
 
 #[cfg(test)]

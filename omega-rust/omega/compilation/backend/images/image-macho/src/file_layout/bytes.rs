@@ -26,3 +26,7 @@ pub(crate) fn write_u32(bytes: &mut Vec<u8>, value: u32) {
 pub(crate) fn write_u64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend(value.to_le_bytes());
 }
+
+pub(crate) fn write_reserved_u32s(bytes: &mut Vec<u8>, count: usize) {
+    bytes.resize(bytes.len() + count * 4, 0);
+}
