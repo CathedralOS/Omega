@@ -72,15 +72,7 @@ impl TerminalExecution<'_> {
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
     ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError> {
-        let scalar_arguments = arguments
-            .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let scalar_arguments = self.scalar_values_at(arguments)?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         Ok((scalar_arguments, prepared_arguments))

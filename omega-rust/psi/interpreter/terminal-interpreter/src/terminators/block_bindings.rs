@@ -220,15 +220,7 @@ impl TerminalExecution<'_> {
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-        let scalar_arguments = arguments
-            .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let scalar_arguments = self.scalar_values_at(arguments)?;
         let scalars = bind_arguments(&block.parameters, &scalar_arguments)?;
         if block.structural_parameters.len() != structural_arguments.len() {
             return Err(TerminalInterpretError::StructuralArgumentCount {

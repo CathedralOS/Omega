@@ -442,6 +442,22 @@ impl<'artifact> TerminalExecution<'artifact> {
         u64::try_from(value).map_err(|_| malformed())
     }
 
+    /// Every scalar bound to `arguments`, in order.
+    pub(crate) fn scalar_values_at(
+        &self,
+        arguments: &[ValueId],
+    ) -> Result<Vec<TerminalScalarValue>, TerminalInterpretError> {
+        arguments
+            .iter()
+            .map(|argument| {
+                self.values
+                    .get(argument)
+                    .copied()
+                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+            })
+            .collect()
+    }
+
     /// Final values of direct primitive structural entry arguments, ordered by
     /// their dense structural-argument positions.
     pub fn structural_primitive_values(&self) -> Vec<TerminalStructuralPrimitiveValue> {
