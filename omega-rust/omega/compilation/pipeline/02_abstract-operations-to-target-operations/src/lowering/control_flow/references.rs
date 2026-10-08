@@ -586,11 +586,7 @@ pub(super) fn leaf_type(
         }
         if let StructuralPathSegment::Case(case) = segment {
             let declaration = types.get(&current)?;
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return None;
-            };
+            let cases = declaration.shape.sum_cases()?;
             // Case selects a namespace, not a structural child. Disposal of a
             // selected residual must resolve the payload's declaration before
             // asking whether it carries descriptors; shape alone grants no

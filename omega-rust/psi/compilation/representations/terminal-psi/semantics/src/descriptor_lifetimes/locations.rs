@@ -55,11 +55,7 @@ pub fn descriptor_location(
                 DescriptorPathSegment::FixedIndex(*index)
             }
             StructuralPathSegment::Case(id) if case_fields.is_none() => {
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                    &declaration.shape
-                else {
-                    return None;
-                };
+                let cases = declaration.shape.sum_cases()?;
                 let mut matching = cases.iter().filter(|case| case.id == *id);
                 case_fields = Some(matching.next()?.fields.as_slice());
                 if matching.next().is_some() {
@@ -142,26 +138,41 @@ fn resolved_path(
         let declaration = declaration(types, tip?)?;
         result.push(match segment {
             DescriptorPathSegment::Referent if case_fields.is_none() => {
-                let StructuralTypeShape::Reference { referent, .. } = declaration.shape else { return None; };
-                tip = Some(referent); StructuralPathSegment::Referent
+                let StructuralTypeShape::Reference { referent, .. } = declaration.shape else {
+                    return None;
+                };
+                tip = Some(referent);
+                StructuralPathSegment::Referent
             }
             DescriptorPathSegment::FixedIndex(index) if case_fields.is_none() => {
                 tip = fixed_element(&declaration.shape, *index)?;
                 StructuralPathSegment::FixedIndex(*index)
             }
             DescriptorPathSegment::Case(id) if case_fields.is_none() => {
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape else { return None; };
+                let cases = declaration.shape.sum_cases()?;
                 let mut matching = cases.iter().filter(|case| case.id == *id);
                 case_fields = Some(matching.next()?.fields.as_slice());
-                if matching.next().is_some() { return None; }
+                if matching.next().is_some() {
+                    return None;
+                }
                 StructuralPathSegment::Case(*id)
             }
             DescriptorPathSegment::Field(id) => {
-                let fields = match case_fields.take() { Some(fields) => fields, None => fields(declaration)? };
-                let mut matching = fields.iter().filter(|field| field.id == *id && !field.relevance.is_erased());
+                let fields = match case_fields.take() {
+                    Some(fields) => fields,
+                    None => fields(declaration)?,
+                };
+                let mut matching = fields
+                    .iter()
+                    .filter(|field| field.id == *id && !field.relevance.is_erased());
                 let field = matching.next()?;
-                if matching.next().is_some() { return None; }
-                tip = match field.field_type { StructuralFieldType::Structural(id) => Some(id), _ => None };
+                if matching.next().is_some() {
+                    return None;
+                }
+                tip = match field.field_type {
+                    StructuralFieldType::Structural(id) => Some(id),
+                    _ => None,
+                };
                 StructuralPathSegment::Field(field.identity.clone())
             }
             _ => return None,

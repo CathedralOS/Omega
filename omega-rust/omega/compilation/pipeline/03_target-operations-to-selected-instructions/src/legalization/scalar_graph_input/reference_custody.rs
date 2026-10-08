@@ -500,11 +500,7 @@ fn leaf_type(
         }
         if let StructuralPathSegment::Case(case) = segment {
             let declaration = types.iter().find(|declaration| declaration.id == current)?;
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return None;
-            };
+            let cases = declaration.shape.sum_cases()?;
             case_fields = Some(
                 cases
                     .iter()

@@ -132,11 +132,7 @@ pub fn static_field_projection<'types>(
     };
     let (mut canonical, carrier) = crate::canonical_static_projection(types.clone(), root, prefix)?;
     let fields = if let Some(case) = selected_case {
-        let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-            &carrier.shape
-        else {
-            return None;
-        };
+        let cases = carrier.shape.sum_cases()?;
         let mut matching = cases.iter().filter(|candidate| candidate.id == case);
         let selected = matching.next()?;
         if matching.next().is_some() {
@@ -198,11 +194,7 @@ fn walk_record_fields<'types>(
             if payload_fields.is_some() {
                 return None;
             }
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return None;
-            };
+            let cases = declaration.shape.sum_cases()?;
             payload_fields = Some(
                 cases
                     .iter()

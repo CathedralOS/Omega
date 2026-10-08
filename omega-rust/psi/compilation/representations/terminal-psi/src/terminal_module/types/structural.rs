@@ -125,6 +125,14 @@ impl StructuralTypeShape {
         }
     }
 
+    /// The case roster of a sum or mixed shape.
+    pub fn sum_cases(&self) -> Option<&[StructuralCaseDeclaration]> {
+        match self {
+            Self::Sum { cases } | Self::Mixed { cases, .. } => Some(cases),
+            _ => None,
+        }
+    }
+
     /// Whether this shape is a bounded owned `[u8; N]` carrier.
     pub const fn is_bounded_owned_byte_sequence(&self) -> bool {
         matches!(

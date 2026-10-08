@@ -392,11 +392,7 @@ fn walk_primitive_projection<'a>(
             if payload_fields.is_some() {
                 return None;
             }
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return None;
-            };
+            let cases = declaration.shape.sum_cases()?;
             let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
             let selected = matching.next()?;
             if matching.next().is_some() {

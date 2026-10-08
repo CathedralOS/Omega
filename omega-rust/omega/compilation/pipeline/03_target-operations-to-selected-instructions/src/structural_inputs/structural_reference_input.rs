@@ -1550,11 +1550,7 @@ pub(crate) fn case_projection(
             .find(|declaration| declaration.id == current)?;
         let (next, displacement) = match segment {
             Segment::Case(identity) => {
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                    &declaration.shape
-                else {
-                    return None;
-                };
+                let cases = declaration.shape.sum_cases()?;
                 let case_position = cases.iter().position(|case| case.id == *identity)?;
                 let Segment::Field(field) = segments.next()? else {
                     return None;

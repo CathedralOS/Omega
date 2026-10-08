@@ -684,11 +684,7 @@ pub(crate) fn plan_case_payload_leaf(
     if declarations.next().is_some() {
         return None;
     }
-    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-        &declaration.shape
-    else {
-        return None;
-    };
+    let cases = declaration.shape.sum_cases()?;
     let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
     let case = selected.next()?;
     if selected.next().is_some() {
