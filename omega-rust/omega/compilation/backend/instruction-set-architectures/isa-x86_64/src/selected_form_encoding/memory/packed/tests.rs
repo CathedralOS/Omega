@@ -219,10 +219,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         (MachineSemanticKind::LoadPacked6, 6),
         (MachineSemanticKind::LoadPacked7, 7),
     ] {
-        let declaration = effects
-            .declarations
-            .iter()
-            .find(|row| row.semantic == semantic)
+        let declaration = effects.declaration_by_semantic(semantic)
             .unwrap();
         assert_eq!(
             declaration.alternatives[0].encoded.memory,

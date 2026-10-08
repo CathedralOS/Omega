@@ -70,10 +70,7 @@ fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
                     )
                     .unwrap();
                     let effects = &encoded.footprint().encoded;
-                    let row = catalog
-                        .declarations
-                        .iter()
-                        .find(|row| row.semantic == semantic)
+                    let row = catalog.declaration_by_semantic(semantic)
                         .unwrap();
                     assert_eq!(effects, &row.alternatives[0].encoded);
                     assert_eq!(

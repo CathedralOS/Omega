@@ -401,10 +401,7 @@ mod tests {
             )
             .unwrap();
             let declaration = validated
-                .catalog()
-                .declarations
-                .iter()
-                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
+                .catalog().declaration_by_semantic(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             assert_eq!(declaration.constraint, crate::X86_64_HOSTED_READ_BYTE);
             assert_eq!(declaration.alternatives[0].encoded, effects());

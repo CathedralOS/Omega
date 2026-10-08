@@ -188,10 +188,7 @@ mod tests {
             let effects = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
             crate::validate_x86_64_machine_effect_catalog(target, &constraints, effects.clone())
                 .unwrap();
-            let row = effects
-                .declarations
-                .iter()
-                .find(|row| row.semantic == selected_instructions::MachineSemanticKind::ZeroBytes)
+            let row = effects.declaration_by_semantic(selected_instructions::MachineSemanticKind::ZeroBytes)
                 .unwrap();
             assert_eq!(
                 row.memory,

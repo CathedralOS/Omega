@@ -785,10 +785,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected arithmetic row {key:?}"));
             let declaration = catalog
-                .catalog()
-                .declarations
-                .iter()
-                .find(|entry| entry.constraint == *key && entry.semantic == *semantic)
+                .catalog().declaration(*key && entry.semantic == *semantic)
                 .unwrap_or_else(|| panic!("effect catalog missing arithmetic declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");

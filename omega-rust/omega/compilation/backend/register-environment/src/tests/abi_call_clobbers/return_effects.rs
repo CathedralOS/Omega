@@ -112,10 +112,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected return row {key:?}"));
             let declaration = catalog
-                .catalog()
-                .declarations
-                .iter()
-                .find(|entry| entry.constraint == *key)
+                .catalog().declaration(*key)
                 .unwrap_or_else(|| panic!("effect catalog missing return declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");

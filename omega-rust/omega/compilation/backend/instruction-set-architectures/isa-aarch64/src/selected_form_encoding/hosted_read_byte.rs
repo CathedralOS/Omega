@@ -616,10 +616,7 @@ mod tests {
             )
             .unwrap();
             let declaration = validated
-                .catalog()
-                .declarations
-                .iter()
-                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
+                .catalog().declaration_by_semantic(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             let expected_key = if target == NativeTarget::linux_arm64() {
                 crate::AARCH64_HOSTED_READ_BYTE
