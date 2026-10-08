@@ -212,7 +212,10 @@ fn expression_type_reference_in_state(
                     | BinaryOperator::And
                     | BinaryOperator::Or
             ) {
-                return builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool);
+                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    symbols::BuiltinTypeAtom::Bool,
+                );
             }
             operands[0].or(operands[1]).or_else(|| {
                 contextual_type_reference_in_state(program, state_symbol, statement_index)
@@ -288,7 +291,7 @@ fn float_type_reference(
         typed_trees::types::PrimitiveType::F64 => symbols::BuiltinTypeAtom::F64,
         _ => return None,
     };
-    builtin_type_reference(program, atom)
+    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(program, atom)
 }
 
 fn symbol_type_reference_in_state(
@@ -476,17 +479,4 @@ fn indexed_element_type_reference(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,
     }
-}
-
-fn builtin_type_reference(
-    program: &dyn crate::CheckingInput,
-    atom: symbols::BuiltinTypeAtom,
-) -> Option<TypeReferenceHandle> {
-    let symbol = program
-        .symbols
-        .child_handles(program.symbols.root())?
-        .find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))?;
-    program
-        .type_reference_table
-        .find_named_type_reference(symbol)
 }
