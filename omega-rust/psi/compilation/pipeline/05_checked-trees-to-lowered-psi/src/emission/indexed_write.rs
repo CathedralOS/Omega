@@ -406,12 +406,7 @@ impl<'a> IndexedWriteTarget<'a> {
             } => {
                 if !structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        && declaration.is_bounded_owned_byte_sequence()
                 }) {
                     return unsupported("byte write local is not a bounded owner");
                 }

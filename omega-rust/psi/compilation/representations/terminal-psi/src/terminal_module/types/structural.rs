@@ -77,6 +77,16 @@ pub struct StructuralFieldDeclaration {
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
 }
 
+impl StructuralTypeDeclaration {
+    /// Whether this declaration names a bounded owned byte-sequence carrier.
+    pub fn is_bounded_owned_byte_sequence(&self) -> bool {
+        matches!(
+            self.shape,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+        )
+    }
+}
+
 impl StructuralTypeShape {
     /// The fields addressed directly on the carrier, without a `Case` step: a
     /// record's fields, or a mixed shape's common fields, which sit at one

@@ -279,13 +279,7 @@ pub fn byte_owned_result_predicates(
         return None;
     };
     if !module.structural_types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
+        declaration.id == structural_type && declaration.is_bounded_owned_byte_sequence()
     }) {
         return None;
     }

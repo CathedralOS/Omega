@@ -216,13 +216,7 @@ pub(crate) fn owned_byte_predicates(
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
         || !unit.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+            declaration.id == structural_type && declaration.is_bounded_owned_byte_sequence()
         })
     {
         return None;
