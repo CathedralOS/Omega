@@ -16,14 +16,8 @@ pub(crate) fn lower_proof_facts(
     let mut lowered = HandleSpan::empty();
 
     for (offset, fact) in lowerer.source_trees.proof_facts(facts).iter().enumerate() {
-        let source_fact = Handle::from_parts(
-            facts
-                .start()
-                .arena_index()
-                .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
-                .expect("proof fact source handle overflow"),
-            facts.start().generation(),
-        );
+        let source_fact =
+            facts.handle_at(u32::try_from(offset).expect("proof fact offset overflow"));
         let source_span = lowerer.source_trees.proof_fact_source_span(source_fact);
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {

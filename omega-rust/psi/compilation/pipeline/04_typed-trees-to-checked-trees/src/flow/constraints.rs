@@ -21,7 +21,7 @@ pub(super) fn append_contiguous_borrow_root_constraints(
             constraint_refs,
             refs,
             FlowConstraintKind::BorrowWritableRoot {
-                root: Handle::from_parts(start.arena_index() + offset, start.generation()),
+                root: roots.handle_at(offset),
             },
         );
     }
@@ -42,7 +42,7 @@ pub(super) fn append_contiguous_borrow_access_constraints(
             constraint_refs,
             refs,
             FlowConstraintKind::BorrowAccess {
-                access: Handle::from_parts(start.arena_index() + offset, start.generation()),
+                access: accesses.handle_at(offset),
             },
         );
     }

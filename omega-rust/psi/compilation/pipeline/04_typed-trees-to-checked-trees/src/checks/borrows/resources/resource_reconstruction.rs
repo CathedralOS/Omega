@@ -399,10 +399,7 @@ pub(crate) fn span_handle<T>(
     span: arena::HandleSpan<T>,
     offset: usize,
 ) -> Option<arena::Handle<T>> {
-    let offset = u32::try_from(offset).ok()?;
-    let arena_index = span.start().arena_index().checked_add(offset)?;
-    Some(arena::Handle::from_parts(
-        arena_index,
-        span.start().generation(),
-    ))
+    u32::try_from(offset)
+        .ok()
+        .map(|offset| span.handle_at(offset))
 }

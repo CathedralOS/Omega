@@ -143,7 +143,6 @@ pub(crate) fn returned_value_loans(
     // The fact builder resolved each statement against the loans recorded
     // before it; the state's span keeps that order. Lineage is not read here,
     // so a call-result root needs no separate marker.
-    let span_start = borrow_state.loans.start();
     let prior_loans: Vec<StateLoanTracker> = borrow
         .loans
         .span_or_empty(borrow_state.loans)
@@ -151,7 +150,7 @@ pub(crate) fn returned_value_loans(
         .zip(0u32..)
         .take_while(|(loan, _)| loan.statement_index < statement_index)
         .map(|(loan, offset)| StateLoanTracker {
-            handle: Handle::from_parts(span_start.arena_index() + offset, span_start.generation()),
+            handle: borrow_state.loans.handle_at(offset),
             owner_symbol: loan.owner_symbol,
             owner_name: program.symbols.name(loan.owner_symbol).into(),
             kind: loan.kind.clone(),

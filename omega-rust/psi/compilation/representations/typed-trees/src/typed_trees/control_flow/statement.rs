@@ -134,7 +134,9 @@ impl StatementTable {
         offset: u32,
         expression: crate::expression::ExpressionHandle,
     ) {
-        *self.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
+        *self
+            .expression_handles
+            .get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_name_path_member(&mut self, span: &mut HandleSpan<Identifier>, member: Identifier) {
@@ -371,14 +373,7 @@ impl StatementTable {
         types: &mut crate::types::TypeReferenceTable,
         symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let statement_handles: Vec<_> = (0..statements.count())
-            .map(|offset| {
-                Handle::from_parts(
-                    statements.start().arena_index() + offset,
-                    statements.start().generation(),
-                )
-            })
-            .collect();
+        let statement_handles: Vec<_> = statements.handles().collect();
         for handle in statement_handles {
             let statement = self.statement(handle).clone();
             match statement {
@@ -549,7 +544,10 @@ impl StatementTable {
     pub fn named_transition_target(
         &self,
         handle: TransitionTargetHandle,
-    ) -> Option<(&TableNamePath, HandleSpan<crate::expression::ExpressionHandle>)> {
+    ) -> Option<(
+        &TableNamePath,
+        HandleSpan<crate::expression::ExpressionHandle>,
+    )> {
         match self.transition_target(handle) {
             TransitionTargetNode::Named {
                 path, arguments, ..

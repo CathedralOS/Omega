@@ -75,14 +75,10 @@ impl Iterator for SupplementalChildHandles<'_> {
     fn nth(&mut self, mut ordinal: usize) -> Option<Self::Item> {
         loop {
             if ordinal < self.children.len() {
-                let start = self.children.start();
-                let selected = SymbolHandle::from_parts(
-                    start.arena_index() + ordinal as u32,
-                    start.generation(),
-                );
+                let selected = self.children.handle_at(ordinal as u32);
                 let remaining = self.children.count() - ordinal as u32 - 1;
                 self.children = HandleSpan::from_parts_or_empty(
-                    SymbolHandle::from_parts(selected.arena_index() + 1, selected.generation()),
+                    self.children.handle_at(ordinal as u32 + 1),
                     remaining,
                 );
                 return Some(selected);
