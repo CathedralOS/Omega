@@ -56,14 +56,14 @@ pub(crate) fn structural_carrier_type(
     }
 }
 
-/// Rejoin direct and composed Unit scalar parameters and routed-Service receipts to the
-/// exact typed state signature before raw checked-to-Terminal lowering erases
-/// their authored source partition. Owner-selected Fused provenance is
+/// Rejoin ordinary and composed body parameters and routed-Service receipts to
+/// the exact typed state signature before checked-to-Terminal lowering erases
+/// their authored source partition. Parameter custody does not depend on the
+/// body's completion type: Unit, scalar and structural results use the same
+/// state signatures. Owner-selected Fused provenance is
 /// validated by the compiler's later custody gate; this layer independently
 /// rejects missing, fabricated, or source-substituted checked custody.
-pub(crate) fn validate_direct_unit_parameter_custody(
-    checked: &CheckedTrees,
-) -> Result<(), LoweringError> {
+pub(crate) fn validate_body_parameter_custody(checked: &CheckedTrees) -> Result<(), LoweringError> {
     let has_receipt = |parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
         parameters
             .iter()
@@ -76,18 +76,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
         .iter()
         .any(|plan| has_receipt(&plan.structural_parameters))
         || flow
-            .terminal_unit_effects
-            .composed_machines
-            .iter()
-            .filter(|machine| {
-                !matches!(
-                    machine.result,
-                    checked_trees::CheckedControlResultPlan::Unit
-                )
-            })
-            .flat_map(|machine| &machine.states)
-            .any(|state| has_receipt(&state.structural_parameters))
-        || flow
             .terminal_partial_affine_unit_cleanups
             .machines
             .iter()
@@ -99,7 +87,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .any(|plan| has_receipt(&plan.machine.structural_parameters));
     if unsupported_receipt {
         return unsupported(
-            "fused Service parameter receipt appears outside supported Unit parameter custody",
+            "fused Service parameter receipt appears outside ordinary body parameter custody",
         );
     }
 
@@ -119,12 +107,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
         .terminal_unit_effects
         .composed_machines
         .iter()
-        .filter(|machine| {
-            matches!(
-                machine.result,
-                checked_trees::CheckedControlResultPlan::Unit
-            )
-        })
         .flat_map(|machine| {
             machine.states.iter().map(move |state| {
                 (
@@ -185,7 +167,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        // This new composed-state join concerns routed Binding custody only.
+        // Composed-state replay here concerns routed Binding custody only.
         // Source carriers still trigger replay when a producer drops receipts;
         // unrelated composed signatures retain their existing validators.
         if !direct && !carries_receipt && source_carriers.iter().all(Option::is_none) {

@@ -95,7 +95,7 @@ mod structural_completion;
 
 use bodies::{UnitBody, UnitPlans};
 pub(crate) use boundaries::{retain_admitted_unit_boundary, retain_exact_unit_boundary};
-pub(crate) use parameters::validate_direct_unit_parameter_custody;
+pub(crate) use parameters::validate_body_parameter_custody;
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{

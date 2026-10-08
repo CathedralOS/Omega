@@ -1,8 +1,10 @@
-//! Exact source-actual replay for service arguments of ordinary Unit calls.
+//! Exact source-actual replay for service arguments of ordinary calls.
 //!
 //! Calls transport an existing whole parameter or borrowed record field. The
 //! actual's formal position, source root and path are recovered independently;
 //! unrelated arguments and surrounding operations impose no body-shape rule.
+//! The callee's completion type cannot change the Binding occurrence an actual
+//! supplies; all ordinary and composed bodies participate in this same join.
 
 use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::{
@@ -29,28 +31,21 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             parameters: &plan.structural_parameters,
             operations: &plan.operations,
         })
-        .chain(
-            flow.composed_machines
-                .iter()
-                .filter(|plan| matches!(plan.result, checked_trees::CheckedControlResultPlan::Unit))
-                .flat_map(|plan| {
-                    plan.states.iter().map(move |state| StatePlan {
-                        machine: plan.machine,
-                        state: state.state,
-                        parameters: &state.structural_parameters,
-                        operations: &state.operations,
-                    })
-                }),
-        )
+        .chain(flow.composed_machines.iter().flat_map(|plan| {
+            plan.states.iter().map(move |state| StatePlan {
+                machine: plan.machine,
+                state: state.state,
+                parameters: &state.structural_parameters,
+                operations: &state.operations,
+            })
+        }))
         .collect::<Vec<_>>();
     for caller in &plans {
         for call in caller
             .operations
             .iter()
             .filter_map(|operation| operation.call())
-            .filter(|call| {
-                call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-            })
+            .filter(|call| call.is_module())
         {
             let targets = plans
                 .iter()
@@ -82,7 +77,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 continue;
             }
             let [target] = targets.as_slice() else {
-                return unsupported("service call has no unique direct or composed Unit target");
+                return unsupported("service call has no unique ordinary or composed target");
             };
             let target_source = target_source.ok_or(LoweringError::Unsupported(
                 "service call lost its exact target state",

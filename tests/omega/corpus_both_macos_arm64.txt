@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 4.5, "load1_start": 4.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.98, "load1_start": 3.72, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -115,6 +115,7 @@ pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-e
 pass/borrows/transition_shared_borrow_result built 7025ms exit:181 interpreter-exit:181 interpreter:agrees @3fa817733300+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 69713ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
+pass/calls/borrowed_scalar_result_with_binding_exit built 14692ms exit:70 interpreter-exit:70 interpreter:agrees @9be6967d04c3+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 6887ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 6706ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/cyclic_copy_arguments_exit built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
@@ -126,6 +127,7 @@ pass/calls/mixed_value_forwarding_exit built 1368ms exit:70 interpreter-exit:70 
 pass/calls/nested_call_tail_roots_exit built 12707ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 7164ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/runtime_atomic_case_shared_argument_exit built 1638ms exit:0 interpreter-exit:0 interpreter:agrees @aea569c35b63
+pass/calls/runtime_borrowed_binding_field_state_loan_exit built 14775ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/calls/runtime_call_carrier_partition_exit built 14438ms exit:0 interpreter-exit:0 interpreter:agrees @b6ec5f4824ac+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 11916ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_case_terminal_payload_result_exit built 1414ms exit:0 interpreter-exit:0 interpreter:agrees @9d538dd9a056
@@ -182,6 +184,7 @@ pass/calls/runtime_stored_reference_computation_argument_exit built 1923ms exit:
 pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:0 interpreter-exit:0 interpreter:agrees @560687158d28
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
+pass/calls/serviceful_borrowed_scalar_exit built 8387ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/calls/unread_multistate_receiver_exit built 1256ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/capabilities/acquires_through_helper_return built 3368ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
@@ -298,6 +301,8 @@ pass/host/runtime_console_bounded_line_lf_exit built 1331ms exit:13 stdout:match
 pass/host/runtime_console_bounded_line_middle_window_exit built 1289ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @65bf3438e399+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 1282ms exit:22 stdout:match interpreter-exit:22 interpreter-stdout:match interpreter:agrees @65bf3438e399+wt
 pass/host/runtime_descriptor_binary_output_exit built 11413ms exit:0 interpreter-exit:0 interpreter:agrees @b5f60150b9b9+wt
+pass/host/runtime_descriptor_binding_record_result_exit built 12049ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
+pass/host/runtime_descriptor_binding_state_forwarding_input_exit built 11909ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/host/runtime_descriptor_direct_array_exit built 14250ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit built 19489ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @198156d53e16
 pass/host/runtime_descriptor_mutable_view_input_exit built 15268ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @46782946f3c8+wt
@@ -330,6 +335,7 @@ pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:ag
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
+pass/providers/borrowed_service_field_forward_exit built 8241ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
 pass/providers/direct_boundary_array_snapshot_exit built 4962ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a

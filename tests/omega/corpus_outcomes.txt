@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 4.28, "load1_start": 4.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.38, "load1_start": 3.61, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -242,6 +242,8 @@ fail/borrows/array_element_loan_before_establishment rejected 718ms expected @cb
 	cannot prove default-domain field requirement for call inspect from main::entry: parameter value.value requires i32::Positive
 fail/borrows/bare_self_mut_operand_beside_self_view rejected 374ms expected @cbe9ad8ebf41+wt
 	state `take` receives `main` as both mutable and read-only
+fail/borrows/binding_state_mutable_from_shared rejected 1578ms expected @9be6967d04c3+wt
+	argument `service` for state `finish` is declared `&mut` (`&mut Binding<Ping>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/borrow_duplicate_mut rejected 277ms expected @c08960bee2b1+wt
 	state `swap` receives `main.value` as mutable more than once
 fail/borrows/borrow_local_alias_active rejected 1467ms expected @c5d32a00863
@@ -3105,6 +3107,8 @@ pass/host/runtime_console_bounded_line_middle_window_exit checked 3402ms check-t
 pass/host/runtime_console_bounded_line_partial_eof_exit checked 3250ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_byte_echo_exit checked 3670ms check-target:macos_arm64 @dac9585f443
 pass/host/runtime_descriptor_binary_output_exit checked 11190ms check-target:macos_arm64 @b5f60150b9b9+wt
+pass/host/runtime_descriptor_binding_record_result_exit checked 14931ms check-target:macos_arm64 @9be6967d04c3+wt
+pass/host/runtime_descriptor_binding_state_forwarding_input_exit checked 14685ms check-target:macos_arm64 @9be6967d04c3+wt
 pass/host/runtime_descriptor_direct_array_exit checked 14364ms check-target:macos_arm64 @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 19456ms check-target:macos_arm64 @198156d53e16
 pass/host/runtime_descriptor_mutable_view_input_exit checked 15309ms check-target:macos_arm64 @46782946f3c8+wt

@@ -496,7 +496,10 @@ impl TerminalExecution<'_> {
                 // A shared loan moves no custody and grants no write, so it
                 // may present any aggregate, including one holding service
                 // bindings or claims, as the exact view its path selects. An
-                // exclusive loan still requires a plain owned shape.
+                // exclusive storage loan still requires a plain owned shape.
+                // Fused bindings have no storage to snapshot: either borrowed
+                // access forwards the same admitted occurrence, with exclusive
+                // authority checked against its exact source declaration below.
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
@@ -506,7 +509,10 @@ impl TerminalExecution<'_> {
                                 .structural_types()
                                 .get(&parameter.structural_type)
                                 .map(|declaration| &declaration.shape),
-                            Some(StructuralTypeShape::PrimitiveScalar(_))
+                            Some(
+                                StructuralTypeShape::PrimitiveScalar(_)
+                                    | StructuralTypeShape::FusedServiceBinding
+                            )
                         )
                         || (parameter.access == StructuralAccess::SharedBorrow
                             && self
@@ -515,10 +521,6 @@ impl TerminalExecution<'_> {
                                 .get(&parameter.structural_type)
                                 .is_some_and(|declaration| {
                                     declaration.shape.is_composite_shape()
-                                        || matches!(
-                                            declaration.shape,
-                                            StructuralTypeShape::FusedServiceBinding
-                                        )
                                 })) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted

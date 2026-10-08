@@ -1772,11 +1772,11 @@ then independent claimed restoration slices -> final closure.
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
   loans, padding-containing or non-scalar host buffers, non-hosted roots and required
-  receiver qualifications. Bare `Binding` state forwarding still fails stage 05
-  with "fused Service parameter receipt appears outside supported Unit parameter
-  custody": the descriptor helper's `io: &Binding<DescriptorIo>` may call an
-  import directly but cannot forward that formal to a state before calling it.
-  Complete that erased-custody join without adding a host-helper recognizer.
+  receiver qualifications. Preserve
+  `host/runtime_descriptor_binding_{state_forwarding_input,record_result}_exit`
+  and `fail/borrows/binding_state_mutable_from_shared`: scalar and structural
+  completion must retain the original Binding occurrence without elevating
+  shared access to mutable access.
   Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
