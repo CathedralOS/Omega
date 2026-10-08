@@ -2,7 +2,7 @@
 //! validation against the closed inventory.
 
 use crate::register_model::packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
-use crate::register_model::physical_model::{GPR64, VECTOR128, complement, sorted_units};
+use crate::register_model::physical_model::{GPR64, VECTOR128, complement};
 use crate::register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_ATOMIC_BITWISE_UPDATE,
     X86_64_ATOMIC_COMPARE_EXCHANGE, X86_64_ATOMIC_LOAD, X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE,
@@ -41,7 +41,8 @@ use crate::{
     x86_64_system_v_mixed_unit_call_keys,
 };
 use register_model::{
-    PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
+        sorted_units,
+PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,

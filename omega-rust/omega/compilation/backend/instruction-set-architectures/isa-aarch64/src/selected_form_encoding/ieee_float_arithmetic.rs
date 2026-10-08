@@ -63,7 +63,7 @@
 //! SIMD scalar three-same `FCMGT`/`FCMEQ`, and three-same logical `BSL`.
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
-use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
+use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
 use selected_instructions::{
     IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
@@ -83,12 +83,6 @@ const LEFT_SCRATCH: u8 = 16;
 const RIGHT_SCRATCH: u8 = 17;
 const MASK_SCRATCH: u8 = 18;
 
-fn sorted(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
-    let mut units = units.into_iter().collect::<Vec<_>>();
-    units.sort_unstable();
-    units.dedup();
-    units
-}
 
 fn view_units(name: &str) -> Vec<RegisterUnitId> {
     crate::aarch64_physical_register_model()
@@ -100,12 +94,12 @@ fn view_units(name: &str) -> Vec<RegisterUnitId> {
 
 /// FPCR selects the rounding mode the operations honor.
 pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
-    sorted(view_units("fpcr"))
+    sorted_units(view_units("fpcr"))
 }
 
 /// Both lanes of every scratch register.
 pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-    sorted(["q16", "q17", "q18"].into_iter().flat_map(view_units))
+    sorted_units(["q16", "q17", "q18"].into_iter().flat_map(view_units))
 }
 
 /// The form reads its operands (operands `0..n`) and defines operand `n`.

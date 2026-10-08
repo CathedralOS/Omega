@@ -4,11 +4,12 @@
 use calling_conventions::MachineRegister;
 use register_model::{
     PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, reservation_overlay,
+    sorted_units,
     RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target::Architecture;
 
 pub(crate) const GPR64: RegisterClassId = RegisterClassId(0);
@@ -346,28 +347,28 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
         },
     ];
     let reservations = vec![
-        overlay(
+        reservation_overlay(
             "x86.floating-control",
             ReservationReason::Architectural,
             vec![mxcsr_unit],
         ),
-        overlay("x86.stack-pointer", ReservationReason::StackPointer, rsp),
-        overlay(
+        reservation_overlay("x86.stack-pointer", ReservationReason::StackPointer, rsp),
+        reservation_overlay(
             "x86.instruction-pointer",
             ReservationReason::Architectural,
             vec![rip_unit],
         ),
-        overlay(
+        reservation_overlay(
             "x86.frame-pointer",
             ReservationReason::FramePointer,
             gpr_units["rbp"].clone(),
         ),
-        overlay(
+        reservation_overlay(
             "omega.x86.dispatch",
             ReservationReason::Dispatch,
             gpr_units["r14"].clone(),
         ),
-        overlay(
+        reservation_overlay(
             "omega.x86.metering",
             ReservationReason::Metering,
             gpr_units["r15"].clone(),
@@ -383,13 +384,6 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
     }
 }
 
-pub(crate) fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
-    units
-        .into_iter()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
 
 fn units_for(units: &BTreeMap<String, Vec<RegisterUnitId>>, names: &[&str]) -> Vec<RegisterUnitId> {
     sorted_units(names.iter().flat_map(|name| units[*name].iter().copied()))
@@ -410,17 +404,6 @@ fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<Reg
     names.iter().map(|name| views[*name]).collect()
 }
 
-fn overlay(
-    name: &str,
-    reason: ReservationReason,
-    units: Vec<RegisterUnitId>,
-) -> RegisterReservationOverlay {
-    RegisterReservationOverlay {
-        name: name.into(),
-        reason,
-        units: sorted_units(units),
-    }
-}
 
 /// The canonical x86-64 physical register model, validated once per process.
 ///

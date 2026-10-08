@@ -4,11 +4,12 @@
 use calling_conventions::MachineRegister;
 use register_model::{
     PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, reservation_overlay,
+    sorted_units,
     RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target::Architecture;
 
 pub(crate) const GPR64: RegisterClassId = RegisterClassId(0);
@@ -332,37 +333,37 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
         },
     ];
     let reservations = vec![
-        overlay(
+        reservation_overlay(
             "aarch64.stack-pointer",
             ReservationReason::StackPointer,
             vec![sp_unit],
         ),
-        overlay(
+        reservation_overlay(
             "aarch64.zero-register",
             ReservationReason::Architectural,
             vec![zero_unit],
         ),
-        overlay(
+        reservation_overlay(
             "aarch64.instruction-pointer",
             ReservationReason::Architectural,
             vec![pc_unit],
         ),
-        overlay(
+        reservation_overlay(
             "aarch64.frame-pointer",
             ReservationReason::FramePointer,
             vec![named_units["x29"]],
         ),
-        overlay(
+        reservation_overlay(
             "darwin.aarch64.platform",
             ReservationReason::Platform,
             vec![x18],
         ),
-        overlay(
+        reservation_overlay(
             "omega.aarch64.dispatch",
             ReservationReason::Dispatch,
             vec![named_units["x27"]],
         ),
-        overlay(
+        reservation_overlay(
             "omega.aarch64.metering",
             ReservationReason::Metering,
             vec![named_units["x28"]],
@@ -378,13 +379,6 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     }
 }
 
-pub(crate) fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
-    units
-        .into_iter()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
 
 pub(crate) fn complement(
     all: &[RegisterUnitId],
@@ -401,17 +395,6 @@ fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<Reg
     names.iter().map(|name| views[*name]).collect()
 }
 
-fn overlay(
-    name: &str,
-    reason: ReservationReason,
-    units: Vec<RegisterUnitId>,
-) -> RegisterReservationOverlay {
-    RegisterReservationOverlay {
-        name: name.into(),
-        reason,
-        units: sorted_units(units),
-    }
-}
 
 /// The canonical AArch64 physical register model, validated once per
 /// process.

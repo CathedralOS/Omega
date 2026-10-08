@@ -1,28 +1,21 @@
 //! Fixed register Unit calls retain independent SysV banks and positional Microsoft slots.
 
 use super::{x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys};
+use register_model::call_constraint_keys;
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 /// System V rows ordered by GPR count (0–6), then IEEE register count (1–8).
 pub fn x86_64_system_v_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    keys(800..856)
+    call_constraint_keys(800..856)
 }
 
 /// Microsoft rows ordered by occupied slot count (1–4), then nonzero IEEE slot mask.
 pub fn x86_64_microsoft_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    keys(900..926)
+    call_constraint_keys(900..926)
 }
 
-fn keys(variants: std::ops::Range<u16>) -> Vec<RegisterConstraintKey> {
-    variants
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: u32::from(variant),
-        })
-        .collect()
-}
 
 fn append_row(
     constraints: &mut Vec<RegisterInstructionConstraint>,

@@ -138,3 +138,22 @@ pub fn validate_register_reservation_profile(
         identity,
     })
 }
+
+pub fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
+    let mut units = units.into_iter().collect::<Vec<_>>();
+    units.sort_unstable();
+    units.dedup();
+    units
+}
+
+pub fn reservation_overlay(
+    name: &str,
+    reason: ReservationReason,
+    units: Vec<RegisterUnitId>,
+) -> RegisterReservationOverlay {
+    RegisterReservationOverlay {
+        name: name.into(),
+        reason,
+        units: sorted_units(units),
+    }
+}

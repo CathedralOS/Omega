@@ -63,7 +63,7 @@ use super::{
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
 use crate::selected_form_encoding::request_validation::resolve_registers;
-use register_model::{RegisterConstraintKey, RegisterUnitId};
+use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
     IeeeFloatToIntegerDomain, MachineAlternative, MachineAlternativeApplicability, MachineBarrier,
@@ -88,20 +88,14 @@ fn view_units(name: &str) -> Vec<RegisterUnitId> {
         .clone()
 }
 
-fn sorted(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
-    let mut units = units.into_iter().collect::<Vec<_>>();
-    units.sort_unstable();
-    units.dedup();
-    units
-}
 
 /// MXCSR selects the rounding mode the operations honor.
 pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
-    sorted(view_units("mxcsr"))
+    sorted_units(view_units("mxcsr"))
 }
 
 pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-    sorted(view_units("xmm4").into_iter().chain(view_units("xmm5")))
+    sorted_units(view_units("xmm4").into_iter().chain(view_units("xmm5")))
 }
 
 fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
@@ -140,7 +134,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     if form.operation.rounding_direction().is_some() {
         let model = crate::x86_64_physical_register_model();
         let stack_pointer = model.view_named("rsp").expect("canonical stack pointer").id;
-        encoded.implicit_unit_uses = sorted(
+        encoded.implicit_unit_uses = sorted_units(
             encoded
                 .implicit_unit_uses
                 .into_iter()
@@ -158,7 +152,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
         encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
     }
     if conversion_control(form) {
-        encoded.implicit_unit_clobbers = sorted(clobbers().into_iter().chain(view_units("rflags")));
+        encoded.implicit_unit_clobbers = sorted_units(clobbers().into_iter().chain(view_units("rflags")));
     }
     if traps(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;

@@ -575,3 +575,12 @@ fn validate_constraint_unit_set(
     }
     Ok(())
 }
+
+pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConstraintKey> {
+    variants
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: u32::from(variant),
+        })
+        .collect()
+}

@@ -1,18 +1,19 @@
 //! Fixed register calls with independently allocated integer and IEEE input banks.
 
 use super::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
+use register_model::call_constraint_keys;
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 /// AAPCS64 rows ordered by GPR count (0–8), then IEEE register count (1–8).
 pub fn aarch64_aapcs64_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    keys(800..872)
+    call_constraint_keys(800..872)
 }
 
 /// Darwin rows ordered by GPR count (0–8), then IEEE register count (1–8).
 pub fn aarch64_darwin_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    keys(872..944)
+    call_constraint_keys(872..944)
 }
 
 /// Integer aggregate results ordered by fragment count (1–2), then the mixed
@@ -20,17 +21,9 @@ pub fn aarch64_darwin_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
 /// Existing integer-only aggregate key ordinals remain unchanged.
 pub fn aarch64_mixed_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let first = if darwin { 1300 } else { 1100 };
-    keys(first..first + 144)
+    call_constraint_keys(first..first + 144)
 }
 
-fn keys(variants: std::ops::Range<u16>) -> Vec<RegisterConstraintKey> {
-    variants
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: u32::from(variant),
-        })
-        .collect()
-}
 
 pub(super) fn append_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
