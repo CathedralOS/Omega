@@ -33,7 +33,9 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
-pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
+pub use operator_provider_evidence::{
+    selected_requirement_plan, selected_use_plan, specialized_provider_machines,
+};
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,

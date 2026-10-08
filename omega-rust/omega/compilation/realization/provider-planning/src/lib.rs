@@ -60,7 +60,7 @@ pub use provider_planning::{
     replay_selected_provider_provenance, same_semantic_name, satisfies_plan_name,
     select_derived_provider_plans, selected_provider_plan_facts,
     selected_provider_plan_facts_with_independent_components, selected_requirement_checked_adapter,
-    selected_requirement_plan, selected_use_plan,
+    selected_requirement_plan, selected_use_plan, specialized_provider_machines,
 };
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,

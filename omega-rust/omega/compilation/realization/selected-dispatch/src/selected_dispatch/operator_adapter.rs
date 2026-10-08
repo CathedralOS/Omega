@@ -113,45 +113,21 @@ pub(super) fn resolve_checked_adapter_for_operator(
         plan,
         row,
     );
-    let specialized = checked
-        .typed
-        .machine_specializations
-        .iter()
-        .filter(|specialization| {
-            validation::machine_specialization_matches_template_identity(
-                &checked.typed,
-                specialization,
-                machine_identity,
-                *machine_package_identity,
-            ) && specialization
-                .operator_realizations
-                .iter()
-                .any(|realization| {
-                    realization.requirement_symbol == operator.symbol
-                        && application.is_some_and(|application| {
-                            specialized_application_realization::applications_match(
-                                checked,
-                                application,
-                                realization,
-                            )
-                        })
-                })
-        })
-        .filter_map(|specialization| {
-            checked
-                .typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)
-        })
-        .filter(|machine| {
-            checked
-                .typed
-                .symbols
-                .symbol_package_identity(machine.symbol)
-                == *machine_package_identity
-        })
-        .collect::<Vec<_>>();
+    let specialized = provider_planning::specialized_provider_machines(
+        checked,
+        machine_identity,
+        *machine_package_identity,
+        operator.symbol,
+        |realization| {
+            application.is_some_and(|application| {
+                specialized_application_realization::applications_match(
+                    checked,
+                    application,
+                    realization,
+                )
+            })
+        },
+    );
     let requires_specialization =
         application.is_some_and(|application| !application.arguments.is_empty());
     let provider = if requires_specialization {

@@ -317,45 +317,21 @@ fn selected_operator_provider_evidence(
             plan,
             row,
         );
-        let specialized_providers = checked
-            .typed
-            .machine_specializations
-            .iter()
-            .filter(|specialization| {
-                validation::machine_specialization_matches_template_identity(
-                    &checked.typed,
-                    specialization,
-                    machine_identity,
-                    *machine_package_identity,
-                ) && specialization
-                    .operator_realizations
-                    .iter()
-                    .any(|realization| {
-                        realization.requirement_symbol == operator.symbol
-                            && demanded_application.is_none_or(|application| {
-                                validation::checked_operator_application_matches_realization(
-                                    &checked.typed,
-                                    application,
-                                    realization,
-                                )
-                            })
-                    })
-            })
-            .filter_map(|specialization| {
-                checked
-                    .typed
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == specialization.instance)
-            })
-            .filter(|machine| {
-                checked
-                    .typed
-                    .symbols
-                    .symbol_package_identity(machine.symbol)
-                    == *machine_package_identity
-            })
-            .collect::<Vec<_>>();
+        let specialized_providers = specialized_provider_machines(
+            checked,
+            machine_identity,
+            *machine_package_identity,
+            operator.symbol,
+            |realization| {
+                demanded_application.is_none_or(|application| {
+                    validation::checked_operator_application_matches_realization(
+                        &checked.typed,
+                        application,
+                        realization,
+                    )
+                })
+            },
+        );
         let requires_specialization =
             demanded_application.is_some_and(|application| !application.arguments.is_empty());
         let checked_providers = if requires_specialization {
@@ -556,4 +532,50 @@ pub(crate) fn provider_type_symbol(
     });
     let owner = owners.next()?;
     owners.next().is_none().then_some(owner.symbol)
+}
+
+/// Machines specialized from `machine_identity`'s template inside
+/// `machine_package_identity` that carry an operator realization of
+/// `requirement_symbol` satisfying the caller's application predicate, each
+/// filtered to the same package identity. Shared by provider evidence (which
+/// admits a realization when no application is demanded) and the dispatch
+/// adapter (which requires a present application match): the absent-vs-present
+/// policy stays in each caller's `application_matches`.
+pub fn specialized_provider_machines<'checked>(
+    checked: &'checked checked_trees::CheckedTrees,
+    machine_identity: &str,
+    machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    requirement_symbol: symbols::SymbolHandle,
+    application_matches: impl Fn(&typed_trees::operator::ClosedOperatorRealizationApplication) -> bool,
+) -> Vec<&'checked typed_trees::machine::Machine> {
+    checked
+        .typed
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            validation::machine_specialization_matches_template_identity(
+                &checked.typed,
+                specialization,
+                machine_identity,
+                machine_package_identity,
+            ) && specialization
+                .operator_realizations
+                .iter()
+                .any(|realization| {
+                    realization.requirement_symbol == requirement_symbol
+                        && application_matches(realization)
+                })
+        })
+        .filter_map(|specialization| {
+            checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.instance)
+        })
+        .filter(|machine| {
+            checked.typed.symbols.symbol_package_identity(machine.symbol)
+                == machine_package_identity
+        })
+        .collect()
 }
