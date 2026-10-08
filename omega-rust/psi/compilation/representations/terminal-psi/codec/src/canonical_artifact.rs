@@ -19,6 +19,29 @@ use crate::{
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
 const ARTIFACT_FORMAT_MARKER: u16 = 3;
 
+/// An immutable semantic module paired with the identity of its canonical
+/// artifact. This view borrows either producer-retained storage or storage
+/// admitted at external ingress; consumers do not reconstruct it from bytes.
+///
+/// Private fields prevent pairing an unrelated module with an artifact's
+/// identity. Canonical encoding establishes representation shape, not proof
+/// validity or permission to install a provider.
+#[derive(Debug, Clone, Copy)]
+pub struct TerminalArtifactView<'artifact> {
+    module: &'artifact TerminalModule,
+    identity: terminal_psi::TerminalPsiIdentity,
+}
+
+impl<'artifact> TerminalArtifactView<'artifact> {
+    pub const fn module(self) -> &'artifact TerminalModule {
+        self.module
+    }
+
+    pub const fn identity(self) -> terminal_psi::TerminalPsiIdentity {
+        self.identity
+    }
+}
+
 /// One exact canonical Terminal-Psi semantic artifact.
 ///
 /// `Clone` copies the private section bytes and the manifest verbatim. The
@@ -240,16 +263,22 @@ impl CanonicalTerminalArtifact {
         &self.semantic_bytes
     }
 
+    /// Borrow the canonical module and its already established identity.
+    /// This does not re-encode, clone or re-admit the artifact.
+    pub fn view(&self) -> Result<TerminalArtifactView<'_>, CodecError> {
+        Ok(TerminalArtifactView {
+            module: self.semantic_module()?,
+            identity: self.manifest.semantic(),
+        })
+    }
+
     /// The canonical semantic module these bytes decode to.
     ///
-    /// The module is produced by [`crate::decode_module`], which replays every
-    /// codec validation — scalar qualification, canonical ordering, the
-    /// structural foundation, the module representation — and re-encodes the
-    /// result to reject any non-canonical byte sequence. A reader of this
-    /// module therefore holds exactly the evidence a direct
-    /// `decode_module(artifact.semantic_bytes())` would establish; the only
-    /// difference is that the artifact pays for that decode once and retains
-    /// the conclusion, because its bytes are private and immutable.
+    /// Producer construction retains the module checked by `encode_module`;
+    /// external ingress retains the module reconstructed by `decode_module`.
+    /// Both establish canonical representation shape, not semantic proof
+    /// validity. Readers share that immutable module rather than repeating
+    /// its encoding or decoding.
     pub fn semantic_module(&self) -> Result<&TerminalModule, CodecError> {
         if let Some(module) = self.semantic_module.0.get() {
             return Ok(module);

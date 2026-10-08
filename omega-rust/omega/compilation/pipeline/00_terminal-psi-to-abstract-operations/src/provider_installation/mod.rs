@@ -17,8 +17,8 @@ use semantic_vocabulary::{MachineId, OperationId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 
 /// Bind Omega's provider policy only to exact rows preserved from the verified
-/// terminal catalog. Psi independently replays artifact verification before it
-/// returns the private-field installation carrier consumed by its interpreter.
+/// terminal catalog. Installation checks selections against the retained
+/// artifact view before returning the private-field carrier used by execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderAdapter {
     pub requirement_identity: String,

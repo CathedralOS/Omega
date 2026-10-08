@@ -16,9 +16,10 @@
 //! semantic section, and [`interpret_terminal_artifact`] returns
 //! only the semantic result under the accepting effect handler. The two
 //! `TerminalExecution` starts below are steps 1 and 2 for a caller that drives
-//! `resume` itself; [`admit_provider_installation_from_artifact`] decodes and
-//! verifies the same way and admits provider selections against the
-//! verified catalog instead of running.
+//! `resume` itself. Provider admission borrows an already retained artifact
+//! through [`admit_provider_installation`], or decodes external semantic bytes
+//! through [`admit_provider_installation_from_artifact`]. Both check the same
+//! selection policy against the catalog instead of running.
 //!
 //! The domains beside this file: `execution` owns the live state and the
 //! interpreter loop; `structural_inputs` the host-supplied entry inputs and
@@ -122,7 +123,7 @@ pub fn interpret_terminal_artifact(
     .map(MeasuredTerminalExecution::into_value)
 }
 
-/// Decode and verify an artifact, then admit only selections that exactly name
+/// Decode a canonical artifact, then admit only selections that exactly name
 /// rows in its canonical provider catalog.
 pub fn admit_provider_installation_from_artifact(
     semantic_bytes: &[u8],
@@ -131,7 +132,24 @@ pub fn admit_provider_installation_from_artifact(
     admit_provider_installation_with_assumed_bindings_from_artifact(semantic_bytes, selections, &[])
 }
 
-/// Decode and verify an artifact, then admit its provider selections and the
+/// Admit receiving-host selections against a retained canonical artifact.
+/// The immutable view preserves the module/identity relationship; selection
+/// and assumption checks are identical to external byte admission. No module
+/// decoding or identity reconstruction is needed within the same invocation.
+pub fn admit_provider_installation(
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    selections: &[ProviderInstallationSelection],
+    assumptions: &[AssumedBindingSelection],
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
+    admit_provider_selections(
+        artifact.module(),
+        artifact.identity(),
+        selections,
+        assumptions,
+    )
+}
+
+/// Decode a canonical artifact, then admit its provider selections and the
 /// consuming root's assumed binding contract relationships as one
 /// installation bound to that exact artifact identity.
 ///
@@ -160,6 +178,17 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
+    let identity = terminal_codec::terminal_psi_identity(&module)
+        .map_err(ProviderInstallationError::SemanticDecode)?;
+    admit_provider_selections(&module, identity, selections, assumptions)
+}
+
+fn admit_provider_selections(
+    module: &terminal_psi::TerminalModule,
+    identity: terminal_psi::TerminalPsiIdentity,
+    selections: &[ProviderInstallationSelection],
+    assumptions: &[AssumedBindingSelection],
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     for selection in selections {
         if selection.provider_identity.is_empty()
@@ -178,10 +207,9 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
             });
         }
     }
-    let assumed_bindings = admit_assumed_bindings(&module, &installed, assumptions)?;
+    let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
     Ok(AdmittedProviderInstallation {
-        terminal_psi: terminal_codec::terminal_psi_identity(&module)
-            .map_err(ProviderInstallationError::SemanticDecode)?,
+        terminal_psi: identity,
         supplies: installed
             .into_iter()
             .map(|(boundary, machine)| {

@@ -88,7 +88,7 @@ name = "corpus_runner"
 path = "tests/corpus_runner.rs"
 harness = false
 
-# One canonical module decode per realization, counted. It drives a corpus
+# No canonical module decode during retained realization, counted. It drives a corpus
 # fixture by path rather than embedding Omega source.
 [[test]]
 name = "terminal_decode_once"

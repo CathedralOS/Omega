@@ -1934,15 +1934,17 @@ crash and native exit behavior.
     without adding the dependency to the production target. The gate names the
     forbidden edge and the owning stage; it does not maintain a second pipeline
     roster unrelated to `omega-rust/pipeline.md`.
-  - Enforce product facades. Only the Psi driver depends on Psi stage 00–07 and
-    intermediate source representations; only the Omega driver depends on
-    Omega stage 00–09, realization and backend internals. Package manager,
+  - Enforce product facades. Only the respective compiler drivers assemble
+    the Psi 00–07 and Omega 00–09 production sequences. Transforms still depend
+    directly on their declared input/output representations and independently
+    owned semantic, foundation and backend libraries. Package manager,
     application, interpreter, inspection and test runners depend on those
     drivers/facades plus shared request/artifact contracts. Add `cargo metadata`
     guards for these application/package/interpreter boundaries. Remove the
-    application's direct stage 05–07, lowered/Terminal representation,
-    proof-admission, target and package-compilation dependencies; inspection
-    requests an explicit Psi-driver stop instead of calling `lower_machine`.
+    application's remaining target and package-compilation implementation
+    dependencies. Public Terminal artifact/view types remain shared contracts,
+    not implementation access to hide behind a driver re-export. Inspection
+    must continue through the compiler's explicit production operation.
   - Enforce complete producer records. Stage 05 may consume checked plans, not
     `checked.typed`, source statement/expression tables, validation helpers or
     source-node kinds. Omega may consume canonical Terminal Psi, Build rows and
@@ -1952,14 +1954,12 @@ crash and native exit behavior.
     reconstruction, source-shape recognizer, fallback route or revalidation of
     the producer's invariant is a failed architecture check, not a temporary
     feature repair.
-  - Preserve Terminal artifact custody rather than replaying it. An internal
-    provider-installation input explicitly distinguishes a borrowed retained
-    `TerminalModule` from an owned module decoded once at external byte ingress.
-    Stage 00 passes the artifact's retained module; it never calls the
-    interpreter's byte-admission API on `semantic_bytes` produced by the same
-    compile. Remove the `INDEPENDENT_PSI_REPLAY_DECODES` expectation and the
-    source-scanning exemption for Psi's “deliberately independent” replay.
-    External package/artifact admission keeps independent decoding.
+  - Finish borrowed Terminal custody beyond provider installation: runtime
+    execution still calls `TerminalProgram::load(artifact.semantic_bytes())`,
+    and publication clones the module into `CanonicalTerminalArtifact` while
+    retaining the lowering for source joins. Transfer producer storage and use
+    the common lifetime-bound artifact view for in-process consumers. External
+    package/artifact ingress decodes once; it is not an internal handoff API.
   - Carry representation classes instead of recognizing source spellings.
     Psi assigns the builtin text/string identity and descriptor class; Terminal
     retains it; Omega layout consumes it. Delete backend checks of

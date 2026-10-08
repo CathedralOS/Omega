@@ -15,7 +15,7 @@ mod sections;
 
 pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,
-    CanonicalTerminalArtifactError,
+    CanonicalTerminalArtifactError, TerminalArtifactView,
 };
 pub use codec_error::CodecError;
 pub use sections::artifact_manifest::{

@@ -66,6 +66,14 @@ stage or intermediate-representation crates and cannot invent a stage order,
 skip checks or retain sidecars. Focused tools select an explicit driver stop or
 inspect the driver's returned product; they are not alternate compile modes.
 
+This limits orchestration, not access to independent libraries. Transforms
+consume their declared input/output representations and use the semantic,
+foundation and backend libraries that own their reusable operations. Public
+Terminal artifact/view types are shared contracts for producers, realization,
+interpretation and presentation. A downstream consumer needing an established
+fact receives it in the preceding output; wrapping a call back into a producing
+stage behind a driver does not repair that dependency.
+
 One Psi invocation owns its arenas and lends a lifetime-bound Terminal artifact
 view to immediate consumers. Publication transfers the same artifact into an
 owned encoded form; external ingress decodes and admits that form once. Omega

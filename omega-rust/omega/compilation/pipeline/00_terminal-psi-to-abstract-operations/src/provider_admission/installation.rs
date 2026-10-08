@@ -19,18 +19,11 @@ pub fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    // The artifact replayed its sections before admission reached here, so
-    // its canonical module is already decoded; installation reads that
-    // retained decoding rather than running the same codec validations over
-    // the same bytes a second time.
-    let module = artifact.semantic_module().map_err(|error| {
+    let view = artifact.view().map_err(|error| {
         realization_error("checked-provider installation", format!("{error:?}"))
     })?;
     let installation = crate::provider_installation::admit_provider_installation_with_projection(
-        plan,
-        module,
-        artifact.semantic_bytes(),
-        &selected,
+        plan, view, &selected,
     )
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;
     Ok(Some(installation))

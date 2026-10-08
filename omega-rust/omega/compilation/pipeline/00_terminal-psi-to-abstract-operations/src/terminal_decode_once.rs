@@ -25,14 +25,21 @@
 //!
 //! The scan covers `omega-rust/omega/` Rust sources minus `tests/` and
 //! `tests.rs` files, `examples/`, `target/`, and dot-directories; Psi-side
-//! decodes — the codec itself and the terminal interpreter's deliberately
-//! independent provider-installation replay — live outside that root by
-//! design. Needles are spelled through `concat!` so this file's own text
+//! decodes at external byte ingress live outside that root. Internal provider
+//! installation passes a retained view, not bytes. Needles use `concat!` so this file's own text
 //! never satisfies a pattern it enforces.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[test]
+fn provider_installation_uses_retained_artifact_custody() {
+    let source = include_str!("provider_installation/admission.rs");
+    assert!(source.contains("TerminalArtifactView<'_>"));
+    assert!(!source.contains("admit_provider_installation_from_artifact("));
+    assert!(!source.contains("semantic_bytes"));
+}
 
 /// The `decode_module` call needle spelled without the contiguous literal;
 /// see the module header.

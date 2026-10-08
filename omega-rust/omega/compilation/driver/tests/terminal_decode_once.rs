@@ -6,18 +6,10 @@
 //! and the native artifact each need the same module, and each used to decode
 //! the same bytes again to get it.
 //!
-//! This witness pins what a realization now pays. The artifact's canonical
-//! module is decoded once and retained by `CanonicalTerminalArtifact`, so the
-//! Omega-side realization adds no decode of its own; the one decode the
-//! realization still runs is Psi's deliberately independent provider-
-//! installation replay, which re-derives the module from the artifact's bytes
-//! alone and must agree with the Omega plan's Terminal identity. That
-//! independent replay is a trust boundary and is not consolidated away.
-//!
-//! Measured on the fixture below: a realization demanded the artifact's
-//! canonical module 11 times and decoded it 11 times; it now decodes once.
-//! Replaying the realized artifact afterwards decoded twice and now decodes
-//! not at all.
+//! This witness pins zero decodes during retained native realization,
+//! including provider installation. The artifact retains its immutable module
+//! and lends a sealed view with the corresponding identity. External ingress
+//! still decodes; crossing between consumers inside one compile does not.
 //!
 //! The counter is process-global, so this target holds exactly one test.
 
@@ -41,14 +33,8 @@ use terminal_psi_to_abstract_operations::provider_admission;
 const FIXTURE: &str =
     "tests/omega/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
 
-/// Psi's independent provider-installation admission decodes the artifact's
-/// semantic bytes on its own, by design: Omega's plan replay and Psi's
-/// installation must agree without sharing a decoded module. That is the one
-/// decode a realization of this fixture pays.
-const INDEPENDENT_PSI_REPLAY_DECODES: u64 = 1;
-
 #[test]
-fn native_realization_decodes_the_terminal_module_once() {
+fn native_realization_borrows_the_retained_terminal_module() {
     let target_name = "linux_x86_64";
     let main = repo_root().join(FIXTURE);
     let prepared = reviewed_repository_fixture_package_inputs(&main, Some(target_name))
@@ -157,9 +143,8 @@ fn native_realization_decodes_the_terminal_module_once() {
     );
 
     assert_eq!(
-        realization_decodes, INDEPENDENT_PSI_REPLAY_DECODES,
-        "a native realization pays exactly one canonical module decode: Psi's independent \
-         provider-installation replay. Any further decode means a consumer stopped reading the \
-         artifact's retained module."
+        realization_decodes, 0,
+        "native realization, including provider installation, must borrow the retained artifact \
+         rather than decode its semantic bytes again"
     );
 }
