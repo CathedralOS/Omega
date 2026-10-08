@@ -265,7 +265,7 @@ impl<'program> Evaluator<'program> {
                 let primitive = PrimitiveType::from_landed_integer(landing.landed_type);
                 (primitive, landing.domain)
             }),
-            ExpressionNode::Indexed(_) => {
+            ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
                 let reference = self.expression_type_reference(expression, frame)?;
                 Some((
                     self.program.primitive_type_reference(reference)?,
@@ -338,13 +338,6 @@ impl<'program> Evaluator<'program> {
                 if members.len() == 1 {
                     return frame.local_scalar(path.head_symbol);
                 }
-                let reference = self.expression_type_reference(expression, frame)?;
-                Some((
-                    self.program.primitive_type_reference(reference)?,
-                    self.program.arithmetic_domain_for_type_reference(reference),
-                ))
-            }
-            ExpressionNode::Member(_) => {
                 let reference = self.expression_type_reference(expression, frame)?;
                 Some((
                     self.program.primitive_type_reference(reference)?,

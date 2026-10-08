@@ -182,7 +182,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::UndeterminedNaN(format) => Ok(Value::UndeterminedNaN(format)),
             ExpressionNode::String(value) => self.allocate_text(value.to_vec()),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
-            ExpressionNode::Member(_) => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 let field = self.eval_read_cell(handle, frame)?;
                 let value = field.borrow().clone();
                 self.observe_reference_value(value)
@@ -380,11 +380,6 @@ impl<'program> Evaluator<'program> {
                     return self.eval_recast_to_type(value, cast.target_type);
                 }
                 self.eval_cast(value, source, target, cast.domain)
-            }
-            ExpressionNode::Indexed(_) => {
-                let cell = self.eval_read_cell(handle, frame)?;
-                let value = cell.borrow().clone();
-                self.observe_reference_value(value)
             }
             ExpressionNode::ArrayLiteral(values) => {
                 let mut elements = Vec::new();
