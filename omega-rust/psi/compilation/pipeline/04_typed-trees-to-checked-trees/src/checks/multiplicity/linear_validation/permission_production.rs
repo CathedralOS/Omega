@@ -27,7 +27,7 @@ pub(crate) fn apply_statement_permission_production(
     statement: &StatementNode,
     evaluation: checked_trees::FlowPermissionEvaluation,
     places: &mut [LinearPlace],
-    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    remaining: &mut super::super::cleanup_dispositions::RemainingCustody,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
     conditional_carrier_transfers: &mut Vec<usize>,
@@ -46,6 +46,42 @@ pub(crate) fn apply_statement_permission_production(
             .into_iter()
             .map(|target| (target, statement_source))
             .collect::<Vec<_>>();
+    if let Some((machine, state)) = program
+        .machine_by_symbol(machine_symbol)
+        .zip(program.state_by_symbol(state_symbol))
+    {
+        for (expression, _) in crate::checks::ownership_occurrences::observed_linear_temporaries(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            &facts.operators,
+        ) {
+            if temporary_owners
+                .iter()
+                .any(|owner| owner.expression == expression)
+            {
+                continue;
+            }
+            let target = validation::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(expression),
+                segments: Vec::new(),
+            };
+            written_targets.extend(
+                written_owner_targets(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &target,
+                    expression,
+                    places,
+                )
+                .into_iter()
+                .map(|target| (target, statement_source)),
+            );
+        }
+    }
     for owner in temporary_owners.iter().filter(|owner| {
         matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
             && owner.evaluation == evaluation
@@ -209,6 +245,7 @@ pub(crate) fn apply_statement_permission_production(
             });
             place.live = false;
         }
+        remaining.transfer_storage(event.root, &event_path);
     }
     temporary_results::append_constructed_argument_transfers(
         program,
@@ -325,6 +362,44 @@ pub(crate) fn apply_statement_permission_production(
             segments,
             obligation_live,
         });
+    }
+    // Returning a completed expression transfers its established frontier;
+    // it is not an implicit cleanup of a freshly created linear value.
+    if let StatementNode::Expression(expression) = statement
+        && program.state_by_symbol(state_symbol).is_some_and(|state| {
+            statement_index + 1
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len()
+        })
+    {
+        for place in places
+            .iter_mut()
+            .filter(|place| place.root == facts::PlaceRoot::Expression(*expression) && place.live)
+        {
+            permission_events.push(FlowPermissionEventFact {
+                evaluation,
+                machine_symbol,
+                state_symbol,
+                source: statement_source,
+                kind: PermissionEventKind::Transfer,
+                multiplicity: place.multiplicity,
+                access: PermissionAccess::Owned,
+                claim_identity: place
+                    .claim_identity
+                    .unwrap_or(PermissionClaimIdentity::Unknown),
+                provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                root: place.root,
+                segments: facts
+                    .flow
+                    .ownership
+                    .segments
+                    .insert_many(place.path.iter().copied()),
+                obligation_live: place.multiplicity == Multiplicity::Linear,
+            });
+            place.live = false;
+        }
     }
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;

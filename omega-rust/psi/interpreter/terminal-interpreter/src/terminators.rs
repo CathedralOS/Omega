@@ -380,7 +380,7 @@ impl TerminalExecution<'_> {
             if !self.boundary_claim_path_inhabited(result.structural_type, source, &binding.path)? {
                 continue;
             }
-            crate::custody::mint_boundary_result_claim(
+            crate::custody::bind_result_claim(
                 &mut claims,
                 binding,
                 result.place,

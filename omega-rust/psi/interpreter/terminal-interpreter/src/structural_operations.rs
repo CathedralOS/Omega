@@ -4,7 +4,6 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::remove_affine_root;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -673,9 +672,6 @@ impl TerminalExecution<'_> {
                     StructuralAccess::Owned
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow
-                ) && matches!(
-                    parameter.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                 ) && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
             })
@@ -710,13 +706,8 @@ impl TerminalExecution<'_> {
                             value.structural_type == structural_type
                                 && value.qualifications.is_empty()
                         })
-                    && matches!(
-                        result.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                    )
                     && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty())
+                    && result.projected_qualifications.is_empty())
                 .then_some(StructuralAccess::Owned)
             })
             .ok_or(malformed())?;
@@ -784,12 +775,8 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_move_structural_field")
         };
         let result = operation.result.structural().ok_or_else(malformed)?;
-        if !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        ) || !result.qualifications.is_empty()
+        if !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
         {
             return Err(malformed());
@@ -798,6 +785,8 @@ impl TerminalExecution<'_> {
         if field_type != result.structural_type {
             return Err(malformed());
         }
+        let mut frontier = self.live_affine_frontier.clone();
+        let claims = self.stage_window_move_custody(source, path, &hole, result, &mut frontier)?;
         let moved = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
@@ -807,7 +796,8 @@ impl TerminalExecution<'_> {
         };
         self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
         self.structural_values.insert(result.place, moved);
-        self.track_affine_result(result);
+        self.live_affine_frontier = frontier;
+        self.live_claims = claims;
         Ok(OperationFlow::Advance)
     }
 
@@ -836,15 +826,11 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (hole, field_type) = self.structural_window_hole(destination, path, field)?;
-        let affine = self
-            .live_affine_frontier
-            .iter()
-            .any(|entry| entry.place == value.place && entry.path.is_empty());
         let mut frontier = self.live_affine_frontier.clone();
-        if affine && !remove_affine_root(&mut frontier, value.place) {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
-        }
+        frontier.retain(|entry| entry.place != value.place);
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
+        let claims =
+            self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
         // An established scalar case carries its tag and payload as one value
         // rather than as runtime cells; it lands in the hole exactly as an
         // `EstablishRecord` member of the same case type would.
@@ -867,6 +853,7 @@ impl TerminalExecution<'_> {
             }
             self.scalar_case_values.remove(&value.place);
             self.live_affine_frontier = frontier;
+            self.live_claims = claims;
             return Ok(OperationFlow::Advance);
         }
         let child = self.structural_values.get(&value.place).cloned().ok_or(
@@ -878,6 +865,7 @@ impl TerminalExecution<'_> {
         self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
         self.structural_values.remove(&value.place);
         self.live_affine_frontier = frontier;
+        self.live_claims = claims;
         Ok(OperationFlow::Advance)
     }
 

@@ -10,8 +10,12 @@
 //! projection. Its fields already carry substituted nested types and extents;
 //! reading the template instead would either reject legal observations or lose
 //! the selected instance's scalar type and arithmetic policy.
+//! A scalar read lends established storage; it does not copy or consume the
+//! containing owner. Linear claims therefore stay on that owner's ordinary
+//! custody path, just as neighboring reference permissions do. Rejecting an
+//! owner by multiplicity here would confuse observation with whole-value
+//! transfer and prevent reading a detached linear field before consuming it.
 
-use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
@@ -645,12 +649,6 @@ fn structural_source(
                 }
             }
         };
-    if !matches!(
-        program.type_multiplicity(source_type),
-        Multiplicity::Affine | Multiplicity::Unrestricted
-    ) {
-        return None;
-    }
     // A borrow local observes its referent without moving its reference.
     // An expression result must already own its home before it can be read.
     let carrier = match program.type_reference_table.type_reference(source_type) {
@@ -666,10 +664,8 @@ fn structural_source(
     // A scalar observation moves neither its record nor neighboring reference
     // permissions. Establishment and use-site custody are checked separately;
     // a whole-content transfer classifier is not a storage-read judgment.
-    // This route still carries no linear-claim requirements.
-    if !crate::linear_claim_frontier(program, carrier).is_empty() {
-        return None;
-    }
+    // The owner's claims remain live: observing one scalar neither transfers
+    // the owner nor proves that its disposal obligation has been discharged.
     let record = program.closed_data_definition(carrier)?;
     if !record.symbol.is_valid()
         || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data

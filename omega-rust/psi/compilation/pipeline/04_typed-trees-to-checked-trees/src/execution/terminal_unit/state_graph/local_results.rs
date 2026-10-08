@@ -80,17 +80,6 @@ fn validate(
         || !(result.type_identity == expected_identity
             || referent_identity.as_ref() == Some(&result.type_identity))
         || result.multiplicity != carrier_multiplicity
-        // Unrestricted results carry no owned custody; storage-content gates
-        // only bound results that hold storage. A borrowed
-        // view's death is the end of the loan, not a disposal.
-        || (source_multiplicity != Multiplicity::Unrestricted
-            && !(validation::has_contents(
-                program,
-                local.type_reference, validation::ContentsRequirement::StructuralConstruction) || validation::has_contents(
-                program,
-                local.type_reference, validation::ContentsRequirement::OwnedOrSharedView) || validation::reference_result_custody::is_reference_record(
-                program, local.type_reference,
-            )))
     {
         return None;
     }
@@ -123,6 +112,9 @@ fn validate(
     // this operation's result identity and selected successor partition. The
     // normal-edge planner subsequently selects no-code or executable disposal;
     // nominal hooks must not be mistaken for missing ownership receipts here.
+    // The result already identifies its established structural storage. A
+    // whole-type content gate would reject a valid residual disposition after
+    // contained claims leave; selected normal-edge actions own that geometry.
     (result.multiplicity == Multiplicity::Affine && disposable_locals.contains(&local.symbol))
         .then_some(())
 }

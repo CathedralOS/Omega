@@ -631,22 +631,22 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: multi-block transport (composed-control emission requires
-    closure after each operation sequence), keeping evaluation order,
-    disjoint siblings, exact open-place agreement and contained loans.
-    Indexed paths work; whole-root, referent, scalar-field and nominal-cleanup
-    restrictions stay until their evidence exists.
+  - Missing: contained-loan transport and qualification of whole-root,
+    referent and nominal-cleanup windows. Keep evaluation order, disjoint
+    siblings and exact open-place agreement across recoverable failure,
+    suspension/resume/cancellation and crash/process-exit abandonment;
+    do not invent rollback. Qualify the remaining paths on supported hosts.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the
   checked interpreter and supported native targets, without staging caller
   storage. Keep `pass/ownership/runtime_borrowed_record_transform_exit`
+  (exit 42), `pass/ownership/runtime_borrowed_projected_claim_transform_exit`
   (exit 42) and `pass/ownership/move_keyword_field_assignment` (exit 41).
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
-  `fail/ownership/borrowed_storage_boundary_call`. Cover recoverable failure,
-  suspension/resume/cancellation and crash/process-exit abandonment without
-  invented rollback.
+  `fail/ownership/borrowed_storage_boundary_call` and
+  `fail/ownership/linear_temporary_scalar_observation`.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize

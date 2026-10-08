@@ -20,7 +20,8 @@
 //! `TargetUnitOperation::StoreStructuralField`; selection realizes both
 //! directions with one chunked copy routine rather than a second copy machine.
 //!
-//! Only plain subtrees move this way. A reference-bearing field carries loan
+//! Resource claims do not change the byte layout: the selected operation
+//! already transports their custody. A reference-bearing field carries loan
 //! custody a byte copy cannot relocate, so it keeps rejecting here.
 //!
 //! A root window (`field: None`, empty path) is whole-value assignment
@@ -138,7 +139,6 @@ pub(super) fn store_field(
     )?;
     let multiplicity = if let Some(home) = live.structural_homes.get(&value.place) {
         if home.structural_type() != field_type
-            || home.has_claims()
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
             || home.layout.shape() != shape
@@ -170,14 +170,12 @@ pub(super) fn store_field(
         }
         declaration.multiplicity
     };
-    if super::references::contains_reference(types, field_type)
-        || multiplicity == StructuralMultiplicity::Linear
-    {
+    if super::references::contains_reference(types, field_type) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    // The store consumes an affine value as record construction consumes a
+    // The store consumes an owned value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
-    if multiplicity == StructuralMultiplicity::Affine {
+    if multiplicity != StructuralMultiplicity::Unrestricted {
         live.structural_homes.remove(&value.place);
     }
     operations.push(TargetUnitOperation::StoreStructuralField {
@@ -255,18 +253,13 @@ fn window_root(
                         == Some(root))
         }
         // An owned local home's authority is its live home row: the producer
-        // completed it under clean transferable custody and nothing else may
-        // have claimed it since.
+        // completed it under transferable custody. Its original claims do not
+        // make the home immutable; the window owns the regional transfer.
         abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => live
             .structural_homes
             .get(&result.place)
             .is_some_and(|home| {
                 home.operation_result() == Some((*producer, result))
-                    && matches!(
-                        home.multiplicity(),
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                    )
-                    && !home.has_claims()
                     && home.qualifications().is_empty()
                     && home.projected_qualifications().is_empty()
             }),

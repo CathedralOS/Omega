@@ -48,15 +48,12 @@ pub(in crate::lowering) fn lower_field_store(
             if function.arrival_parameter(destination.place) != Some(destination)
                 || !matches!(
                     destination.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    StructuralAccess::Owned
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
                 )
-                || destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || !destination.qualifications.is_empty()
                 || !destination.projected_qualifications.is_empty()
-                || function
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == destination.place)
             {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,
@@ -129,14 +126,7 @@ pub(in crate::lowering) fn lower_field_store(
                     .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ))?;
-                if home.has_claims()
-                    || !home.qualifications().is_empty()
-                    || !home.projected_qualifications().is_empty()
-                    || !matches!(
-                        home.multiplicity(),
-                        terminal_psi::StructuralMultiplicity::Affine
-                            | terminal_psi::StructuralMultiplicity::Unrestricted
-                    )
+                if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty()
                 {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
@@ -173,14 +163,8 @@ pub(in crate::lowering) fn lower_field_store(
                     function.machine,
                 ))?;
             if parameter.access != StructuralAccess::Owned
-                || home.has_claims()
                 || !home.qualifications().is_empty()
                 || !home.projected_qualifications().is_empty()
-                || !matches!(
-                    home.multiplicity(),
-                    terminal_psi::StructuralMultiplicity::Affine
-                        | terminal_psi::StructuralMultiplicity::Unrestricted
-                )
             {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,

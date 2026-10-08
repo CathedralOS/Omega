@@ -12,7 +12,7 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use target_operations::TargetUnitScalarArgumentSource as Source;
-use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use terminal_psi::StructuralAccess;
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
@@ -107,7 +107,6 @@ pub(super) fn validate(
             {
                 if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != extent.field_type
-                    || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
@@ -120,8 +119,6 @@ pub(super) fn validate(
                     plan,
                 )?;
                 if home.structural_type() != extent.field_type
-                    || home.multiplicity() == StructuralMultiplicity::Linear
-                    || home.has_claims()
                     || !home.qualifications().is_empty()
                     || !home.projected_qualifications().is_empty()
                     || home.layout.shape() != extent.shape

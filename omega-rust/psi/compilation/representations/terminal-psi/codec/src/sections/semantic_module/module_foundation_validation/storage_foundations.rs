@@ -228,9 +228,6 @@ fn field_store_parent(
         referent
     } else if let Some(parameter) = machine.structural_parameter(destination) {
         if !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::Owned
                 | terminal_psi::StructuralAccess::MutableBorrow
@@ -251,25 +248,17 @@ fn field_store_parent(
         else {
             return malformed("structural field store destination has no record home");
         };
-        if !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-        {
+        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
             return malformed("structural field store has invalid local custody");
         }
         // Foundation validation also checks the exact producer/place binding;
-        // ordered availability and whole affine liveness belong to verification.
+        // ordered availability and regional claim liveness belong to execution.
+        // A scalar write preserves resource claims; their presence on the
+        // original producer does not make the containing storage immutable.
         result.structural_type
     };
     let carrier_path = reference.map_or(path, |(_, suffix)| suffix);
     if !terminal_psi::is_structural_scalar_store_path(carrier_path)
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == destination)
         || machine
             .content_entry_claims
             .iter()

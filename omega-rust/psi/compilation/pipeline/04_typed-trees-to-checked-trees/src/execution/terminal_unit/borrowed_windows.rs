@@ -303,8 +303,9 @@ impl OpenWindows {
     /// needs only the store; otherwise first displace the old value into
     /// `displaced_ordinal` and dispose it on the statement's continuation.
     /// Neither route depends on how the owned replacement was produced.
-    /// Overwriting a linear field would drop a live obligation and remains
-    /// outside this replacement route.
+    /// A linear replacement may repair a vacancy, but cannot overwrite a
+    /// live obligation. Decide that from the exact place's checked custody,
+    /// not from the replacement's multiplicity alone.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn replace(
         &mut self,
@@ -354,9 +355,6 @@ impl OpenWindows {
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
     ) -> Option<FieldReplacement> {
-        if produced.multiplicity == Multiplicity::Linear {
-            return None;
-        }
         let index = usize::try_from(statement_index).ok()?;
         let mut destination_place = validation::canonical_place_from_expression_in_state(
             program,
@@ -456,6 +454,9 @@ impl OpenWindows {
                 needs_displacement && produced.multiplicity == Multiplicity::Affine,
             )
         };
+        if produced.multiplicity == Multiplicity::Linear && (needs_displacement || needs_cleanup) {
+            return None;
+        }
         let place = CheckedUnitStructuralArgumentPlan {
             source,
             path,

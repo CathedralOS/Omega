@@ -569,7 +569,7 @@ fn argument_contract(
             && !unrestricted
             && !linear
             && !owned_reference_record
-            && !validation::has_contents(program, referent, validation::ContentsRequirement::PlainOwned)
+            && !validation::has_contents(program, referent, validation::ContentsRequirement::LinearOwned)
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
@@ -617,12 +617,13 @@ fn argument_contract(
                 // matched above), so a field's represented domain or range is
                 // carried by that declaration rather than copied: the callee
                 // is checked against the same field constraints. An owned
-                // move still needs the plain-contents fence, because moving
-                // a constrained value owes its own value correspondence.
+                // move needs finite owned storage, not claim-free storage:
+                // descendant claims cross through the call's custody plan.
+                // Exact source/formal correspondence retains qualifications.
                 let owned_contents = validation::has_contents(
                     program,
                     local.type_reference,
-                    validation::ContentsRequirement::PlainOwned,
+                    validation::ContentsRequirement::LinearOwned,
                 );
                 // A loan retains the complete owner's claims and disposal debt.
                 // Captured access authorizes this observation, and the exact
@@ -820,41 +821,50 @@ fn argument_contract(
                         }
                     && event.root == place.root
                     && event.access == PermissionAccess::Owned
-                    && (linear
-                        || facts.flow.ownership.segments.span_or_empty(event.segments)
-                            == place.segments.as_slice())
+                    && facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .starts_with(place.segments.as_slice())
             });
-        let event = events.next()?;
-        // Owned parameters transfer custody. Linear handoffs
-        // retain a known live claim; affine handoffs have neither a claim
-        // identity nor a live obligation.
-        let expected_move_kind = PermissionEventKind::Transfer;
-        if linear {
-            // Moving one whole aggregate transfers every live claim below it.
-            // This operand check establishes typed source events; the enclosing
-            // call's custody replay joins their complete paths and identities to
-            // the callee entry/outcome set before retaining the operation.
-            let mut claims = Vec::new();
-            for event in std::iter::once(event).chain(events) {
-                let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-                if event.kind != expected_move_kind
-                    || event.multiplicity != Multiplicity::Linear
-                    || event.claim_identity == PermissionClaimIdentity::Unknown
+        // Permission production tracks a claim-free owner as one affine row,
+        // and a claimed owner through its exact descendant claim frontier.
+        // Root multiplicity cannot classify those claims: an affine record
+        // can contain linear children. The enclosing custody replay checks
+        // the complete roster against the callee's entry/outcome set; the
+        // owned storage contract carries its residual affine complement.
+        let mut affine_transfer = false;
+        let mut claims = Vec::new();
+        for event in events.by_ref() {
+            let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
+            if event.kind != PermissionEventKind::Transfer || segments.len() != event.segments.len()
+            {
+                return None;
+            }
+            if event.claim_identity == PermissionClaimIdentity::Unknown {
+                if affine_transfer
+                    || event.obligation_live
+                    || event.multiplicity != selected_multiplicity
+                    || event.multiplicity == Multiplicity::Linear
+                    || segments != place.segments.as_slice()
+                {
+                    return None;
+                }
+                affine_transfer = true;
+            } else {
+                let relative = segments.strip_prefix(place.segments.as_slice())?;
+                if event.multiplicity != Multiplicity::Linear
                     || !event.obligation_live
-                    || segments.len() != event.segments.len()
                     || claims.contains(&event.claim_identity)
-                    || validation::structural_claim_path(program, formal_type, segments).is_err()
+                    || validation::structural_claim_path(program, formal_type, relative).is_err()
                 {
                     return None;
                 }
                 claims.push(event.claim_identity);
             }
-        } else if events.next().is_some()
-            || event.kind != expected_move_kind
-            || event.multiplicity != result.multiplicity
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.obligation_live
-        {
+        }
+        if !affine_transfer && claims.is_empty() {
             return None;
         }
     }

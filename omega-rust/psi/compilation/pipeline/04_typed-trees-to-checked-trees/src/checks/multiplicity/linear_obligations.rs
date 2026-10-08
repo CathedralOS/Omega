@@ -687,6 +687,10 @@ pub(super) fn move_event_is_production_target(
             };
             target
         }
+        StatementNode::Expression(expression) => validation::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(*expression),
+            segments: Vec::new(),
+        },
         _ => return false,
     };
     (target.root) == event.root && target.segments.as_slice() == path

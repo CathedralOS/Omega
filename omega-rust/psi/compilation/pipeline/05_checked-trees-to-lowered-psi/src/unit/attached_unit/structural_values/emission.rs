@@ -49,48 +49,6 @@ pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
     ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError>
     + 'a;
 
-/// Fresh linear construction carries the claims the checker established at
-/// the binding statement. They rebase onto the caller's claim namespace
-/// exactly like a linear boundary call result's: a held identity resolves,
-/// a claim established at this statement mints its caller binding, and each
-/// binding lands on the producing operation's result so downstream receipts
-/// and custody joins resolve it the same way.
-pub(in crate::unit::attached_unit) fn establishment_claims(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    claims: &mut crate::emission::claim_bindings::ClaimBindings<'_>,
-) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    let authored_state = crate::declarations::state_declaration(checked, state)?.1;
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(authored_state.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        // This plan is the named-local producer, so its owner must be the
-        // checked local. Anonymous producers use their expression root at
-        // preparation, then share the same claim namespace and rebase below.
-        return if result.multiplicity == Multiplicity::Linear {
-            unsupported("linear structural value has no authored local")
-        } else {
-            Ok(Vec::new())
-        };
-    };
-    let prepared = crate::emission::claim_bindings::prepare_establishment_claims(
-        checked,
-        machine,
-        state,
-        result.statement_index as usize,
-        facts::PlaceRoot::Symbol(local.symbol),
-        local.type_reference,
-    )?;
-    let mut result_claims =
-        crate::emission::claim_bindings::emit_establishment_claims(&prepared, claims)?;
-    result_claims.sort();
-    Ok(result_claims)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     checked: &CheckedTrees,
@@ -281,6 +239,7 @@ pub(crate) fn emit(
         result_access,
         published_places: Vec::new(),
         arrival_claims: Vec::new(),
+        completion_claims: result_claims.clone(),
     };
     // An owned projection of an already established place transfers one child
     // and preserves the remaining siblings
@@ -334,7 +293,7 @@ pub(crate) fn emit(
         // The root's claim roster is on its producing operation's result,
         // or -- when its value completed at a control join -- on the
         // completed binding the join published for it.
-        let published_claims = emission
+        let mut published_claims = emission
             .operations
             .structural_values
             .iter()
@@ -351,6 +310,55 @@ pub(crate) fn emit(
             .flat_map(|(_, claims)| claims)
             .cloned()
             .collect::<Vec<_>>();
+        // Invocation parameters have no producing operation. Join their
+        // checked entry frontier to the same physical source home and claim
+        // namespace, including a later state's retained entry-place alias.
+        if let Some((position, _)) =
+            emission
+                .evaluation
+                .structural_parameters
+                .iter()
+                .find(|(_, parameter)| {
+                    parameter.place == projected.root && parameter.access == StructuralAccess::Owned
+                })
+        {
+            let parameter = checked
+                .state_parameters(authored_state)
+                .get(*position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "projected parameter has no source declaration",
+                ))?;
+            for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+                if event.state_symbol != state
+                    || event.root != facts::PlaceRoot::Symbol(parameter.symbol)
+                    || event.source != language_semantics::PermissionEventSource::StateEntry
+                    || event.kind != language_semantics::PermissionEventKind::Establish
+                    || event.access != language_semantics::PermissionAccess::Owned
+                    || event.multiplicity != Multiplicity::Linear
+                    || !event.obligation_live
+                {
+                    continue;
+                }
+                let path = validation::structural_claim_path(
+                    &checked.typed,
+                    parameter.type_reference,
+                    checked
+                        .facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments),
+                )
+                .map_err(LoweringError::Unsupported)?;
+                published_claims.push(terminal_psi::StructuralResultClaimBinding {
+                    claim: crate::terminal_identities::lookup_claim_id(
+                        emission.calls.claims.bindings(),
+                        event.claim_identity,
+                    )?,
+                    path: lower_structural_path(&path)?,
+                });
+            }
+        }
         for binding in &result_claims {
             let mut published_path = alias_path.clone();
             published_path.extend(binding.path.iter().cloned());
@@ -469,19 +477,7 @@ pub(crate) fn emit(
     if let StructuralPlaceKind::OperationResult { .. } = completed_declaration.kind
         && !result_claims.is_empty()
     {
-        let produced = emission
-            .operations
-            .operations
-            .iter_mut()
-            .filter_map(|operation| match &mut operation.result {
-                OperationResult::Structural(result) => Some(result),
-                _ => None,
-            })
-            .find(|result| result.place == place)
-            .ok_or(LoweringError::Unsupported(
-                "linear structural value producer is missing",
-            ))?;
-        produced.claims = result_claims;
+        Emission::bind_completion_claims(emission.operations, place, &result_claims)?;
     }
     let completed = completed_storage::completed_result(
         place,
@@ -753,6 +749,11 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// Claim identities arriving through whole-owned edges. These are copied
     /// from the source custody, never attached to a fictitious producer.
     pub(super) arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
+    /// Authenticated claims of the value being completed, relative to its
+    /// current constructor context. A child carries the selected suffix before
+    /// its parent can consume it; attaching claims only to the outermost result
+    /// would create them after the actual establishment.
+    completion_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
 }
 
 pub(super) struct ValueContinuation {
@@ -791,6 +792,28 @@ impl ProjectedMove {
 }
 
 impl Emission<'_, '_, '_> {
+    fn bind_completion_claims(
+        operations: &mut OperationBuffer,
+        place: PlaceId,
+        claims: &[terminal_psi::StructuralResultClaimBinding],
+    ) -> Result<(), LoweringError> {
+        let produced = operations
+            .operations
+            .iter_mut()
+            .find_map(|operation| match &mut operation.result {
+                OperationResult::Structural(result) if result.place == place => Some(result),
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "owned completion has no operation result",
+            ))?;
+        if !produced.claims.is_empty() && produced.claims != claims {
+            return unsupported("owned completion changes its established claim identities");
+        }
+        produced.claims = claims.to_vec();
+        Ok(())
+    }
+
     /// Execute this call's retained preparation only when the value evaluator
     /// reaches its node. The ordinary argument schedule interleaves scalar
     /// observations and structural producers in authored formal order.
@@ -940,9 +963,24 @@ impl Emission<'_, '_, '_> {
         child_type: StructuralTypeId,
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
+        segment: terminal_psi::StructuralPathSegment,
     ) -> Result<StructuralArgument, LoweringError> {
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
+        let child_claims = self
+            .completion_claims
+            .iter()
+            .filter_map(|claim| {
+                claim
+                    .path
+                    .strip_prefix(std::slice::from_ref(&segment))
+                    .map(|path| terminal_psi::StructuralResultClaimBinding {
+                        claim: claim.claim,
+                        path: path.to_vec(),
+                    })
+            })
+            .collect();
+        let parent_claims = std::mem::replace(&mut self.completion_claims, child_claims);
         self.structural_type = child_type;
         self.multiplicity = crate::terminal_identities::structural_multiplicity(
             crate::reference_custody::result_multiplicity(self.checked, reference),
@@ -950,6 +988,7 @@ impl Emission<'_, '_, '_> {
         let argument = self.constructor_operand(value, reference);
         self.structural_type = parent_type;
         self.multiplicity = parent_multiplicity;
+        self.completion_claims = parent_claims;
         argument
     }
 
@@ -993,6 +1032,19 @@ impl Emission<'_, '_, '_> {
         let parent_reference = std::mem::replace(&mut self.type_reference, reference);
         let result = self
             .value(value, None)
+            .and_then(|place| {
+                if !self.completion_claims.is_empty()
+                    && self.operations.operations.iter().any(|operation| {
+                        operation
+                            .result
+                            .structural()
+                            .is_some_and(|result| result.place == place)
+                    })
+                {
+                    Self::bind_completion_claims(self.operations, place, &self.completion_claims)?;
+                }
+                Ok(place)
+            })
             .and_then(|place| self.retain_checked_memberships(place, node.qualification_decisions));
         self.type_reference = parent_reference;
         self.sources = sources;

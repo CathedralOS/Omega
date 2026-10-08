@@ -5,6 +5,9 @@
 //! A whole record operand uses the same result route, with an owned block edge
 //! materializing independent unrestricted storage or transferring affine storage.
 //! Merely relabeling its source place would alias copies and reuse a declaration.
+//! Each nested constructor publishes its own claim frontier before its parent
+//! consumes it. The enclosing frontier is projected through the exact child
+//! path; attaching claims only at the outer result loses the child's transfer.
 
 use super::CheckedTrees;
 mod emission;
@@ -15,5 +18,4 @@ pub(crate) mod record;
 pub(crate) mod structural_case;
 
 pub(crate) use emission::emit;
-pub(in crate::unit::attached_unit) use emission::establishment_claims;
 pub(super) use locals::bind_local;

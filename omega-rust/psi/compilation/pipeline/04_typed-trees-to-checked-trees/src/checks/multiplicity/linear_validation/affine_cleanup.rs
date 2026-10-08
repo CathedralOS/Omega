@@ -50,13 +50,21 @@ pub(crate) fn append_owned_cleanup_permission_events(
             }
         } else if tracked_places
             .iter()
-            .any(|place| place.root == facts::PlaceRoot::Symbol(symbol))
+            .any(|place| place.root == facts::PlaceRoot::Symbol(symbol) && place.live)
             || type_multiplicity(program, type_reference) == Multiplicity::Unrestricted
         {
             return;
         }
         let multiplicity = tracked_root.map_or(Multiplicity::Affine, |place| place.multiplicity);
         let root = facts::PlaceRoot::Symbol(symbol);
+        // A transparent owner has contained claims rather than a fabricated
+        // aggregate claim. Once those claims have left, its remaining home
+        // still needs an ordinary exit disposition with the actual transfers
+        // excluded. A whole-owner transfer, unlike a projection transfer,
+        // leaves no source home to retire.
+        if !remaining.is_present(root, &[]) && !remaining.is_reserved(root) {
+            return;
+        }
         let paths = remaining
             .cleanup_paths(root)
             .map(|paths| {

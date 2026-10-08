@@ -249,6 +249,35 @@ impl OperationFrame<'_, '_> {
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<PlaceId, LoweringError> {
+        // Extraction completes an owned value just like any other structural
+        // producer. Reuse its checked establishment identities rather than
+        // dropping contained claims because the source home was borrowed.
+        let authored_state = crate::declarations::state_declaration(self.checked, self.state)?.1;
+        let prepared_claims = match self
+            .checked
+            .statement_table
+            .statements(authored_state.statement_nodes)
+            .get(statement_index as usize)
+        {
+            Some(checked_trees::statement::StatementNode::LocalData(local)) => {
+                crate::emission::claim_bindings::prepare_establishment_claims(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    statement_index as usize,
+                    facts::PlaceRoot::Symbol(local.symbol),
+                    local.type_reference,
+                )?
+            }
+            // A displacement is not a new lexical establishment. Its old
+            // value is governed by the selected replacement death instead.
+            _ => Vec::new(),
+        };
+        let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
+            &prepared_claims,
+            &mut self.calls.claims,
+        )?;
+        result_claims.sort();
         let mut evaluation = WindowEvaluation {
             checked: self.checked,
             machine: self.machine,
@@ -261,6 +290,7 @@ impl OperationFrame<'_, '_> {
         self.windows.emit_move(
             moved,
             result,
+            result_claims,
             self.parameters,
             self.structural_types.declarations(),
             self.type_ids,

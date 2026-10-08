@@ -44,9 +44,7 @@ pub(super) fn argument(
             // length, not that predicate proof; geometry must not turn valid
             // predicate weakening into native qualification equality. Direct uses
             // of the unvalidated core remain responsible for supplying that proof.
-            if home.access() != StructuralAccess::Owned
-                || home.multiplicity() != declaration.multiplicity
-            {
+            if home.access() != StructuralAccess::Owned {
                 return Err(invalid());
             }
             // Partial owned transfer selects bytes from the completed root home;
@@ -55,6 +53,7 @@ pub(super) fn argument(
             let offset = if argument.path.is_empty() {
                 if home.structural_type() != declaration.structural_type
                     || home.layout != expected_layout
+                    || home.multiplicity() != declaration.multiplicity
                 {
                     return Err(invalid());
                 }
@@ -105,18 +104,35 @@ pub(super) fn argument(
                 .iter()
                 .find(|parameter| parameter.place == argument.place)
                 .ok_or_else(invalid)?;
-            if !argument.path.is_empty()
-                || parameter.access != StructuralAccess::Owned
-                || parameter.multiplicity != declaration.multiplicity
-                || parameter.structural_type != declaration.structural_type
-                || parameter.shape != expected_shape
-            {
+            if parameter.access != StructuralAccess::Owned {
                 return Err(invalid());
             }
+            let offset = if argument.path.is_empty() {
+                if parameter.multiplicity != declaration.multiplicity
+                    || parameter.structural_type != declaration.structural_type
+                    || parameter.shape != expected_shape
+                {
+                    return Err(invalid());
+                }
+                0
+            } else {
+                let (selected, shape, offset) =
+                    crate::lowering::structural_layout::resolve_structural_projection_path(
+                        parameter.structural_type,
+                        &argument.path,
+                        types,
+                        &mut BTreeMap::new(),
+                        &mut BTreeSet::new(),
+                    )?;
+                if selected != declaration.structural_type || shape != expected_shape {
+                    return Err(invalid());
+                }
+                offset
+            };
             (
                 parameter.placement.clone().into(),
                 parameter.structural_type,
-                0,
+                offset,
             )
         };
     Ok(TargetStructuralArgument {

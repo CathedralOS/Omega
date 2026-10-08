@@ -134,6 +134,50 @@ pub(crate) fn prepare_permission_events(
             .to_vec();
         let temporary_owners =
             temporary_results::shared_temporary_owners(program, facts, machine, state, &calls);
+        // Expression-owned completions need the same claim namespace as
+        // named destinations. A name/projection already refers to existing
+        // custody; only a real expression root reserves a new owner here.
+        for (statement_index, statement) in statements.iter().enumerate() {
+            for (expression, reference) in
+                crate::checks::ownership_occurrences::observed_linear_temporaries(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    &facts.operators,
+                )
+            {
+                reserve_owner_places(
+                    program,
+                    facts::PlaceRoot::Expression(expression),
+                    reference,
+                    &mut places,
+                );
+            }
+            let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+                continue;
+            };
+            let Some(place) = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                *expression,
+            ) else {
+                continue;
+            };
+            if place.root != facts::PlaceRoot::Expression(*expression) {
+                continue;
+            }
+            if let Some(reference) = validation::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &place,
+            ) {
+                reserve_owner_places(program, place.root, reference, &mut places);
+            }
+        }
         for owner in &temporary_owners {
             reserve_owner_places(
                 program,

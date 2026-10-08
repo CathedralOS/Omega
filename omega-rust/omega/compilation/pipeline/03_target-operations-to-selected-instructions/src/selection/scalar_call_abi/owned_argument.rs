@@ -138,11 +138,14 @@ pub(super) fn validate_owned_arguments(
                     .parameters
                     .iter()
                     .find(|parameter| parameter.semantic.place == semantic.place)?;
-                if !semantic.path.is_empty()
-                    || parameter.semantic.access != StructuralAccess::Owned
-                    || parameter.semantic.structural_type != target.structural_type
+                // The incoming ABI placement describes the complete root,
+                // not the selected child's layout. The exact projection and
+                // byte offset were rejoined above against that root type.
+                let root_shape = super::owned_value_shape(source, target.root_structural_type)?;
+                if parameter.semantic.access != StructuralAccess::Owned
+                    || parameter.semantic.structural_type != target.root_structural_type
                     || placement != &parameter.target.placement
-                    || placement.shape != shape
+                    || placement.shape != root_shape
                     || !crate::selection::aggregate_result_input::owned_argument_placement(
                         placement,
                     )

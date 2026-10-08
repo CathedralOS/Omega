@@ -130,6 +130,18 @@ impl TerminalExecution<'_> {
         if !transported.is_empty() {
             return Err(invalid());
         }
+        self.stage_result_affine_frontier(result, frontier)?;
+        Ok(remaining)
+    }
+
+    /// Establish only the affine complement of a completed value. Constructors
+    /// and borrowed extractions have the same result partition: each declared
+    /// linear descendant owns its own claim, never an overlapping affine debt.
+    pub(crate) fn stage_result_affine_frontier(
+        &self,
+        result: &StructuralOperationResult,
+        frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    ) -> Result<(), TerminalInterpretError> {
         if result.multiplicity == StructuralMultiplicity::Affine {
             let root = StructuralAffineDiscard {
                 place: result.place,
@@ -139,30 +151,16 @@ impl TerminalExecution<'_> {
             if !frontier.insert(root) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            // Linear descendants have their own dispositions. Exclude them
-            // from the affine complement instead of owning them twice.
-            for claim in &result.claims {
-                let containing = frontier
+            crate::custody::exclude_linear_regions(
+                &self.program.structural_types(),
+                frontier,
+                result
+                    .claims
                     .iter()
-                    .find(|entry| {
-                        entry.place == result.place && claim.path.starts_with(&entry.path)
-                    })
-                    .cloned()
-                    .ok_or_else(invalid)?;
-                frontier.remove(&containing);
-                crate::custody::split_affine_frontier_at_projection(
-                    &self.program.structural_types(),
-                    frontier,
-                    containing,
-                    &claim.path,
-                    // Claim paths cannot enter a case namespace. A newly
-                    // constructed value has no runtime membership yet; do not
-                    // infer one from a claim's type or field spelling.
-                    &|_| None,
-                )?;
-            }
+                    .map(|claim| (result.place, claim.path.as_slice())),
+            )?;
         }
-        Ok(remaining)
+        Ok(())
     }
 
     pub(crate) fn commit_constructor_operands(

@@ -154,15 +154,13 @@ fn lower_store(
             (destination.structural_type(), path)
         };
     if operation.result != OperationResult::Unit
-        || !matches!(
-            destination.multiplicity(),
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
         || destination.parameter().is_some_and(|parameter| {
             !matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || !has_empty_structural_custody(machine, parameter.place)
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) || !has_unqualified_storage(machine, parameter.place)
         })
         || !terminal_psi::is_structural_scalar_store_path(storage_path)
         || !path
@@ -187,8 +185,7 @@ fn lower_store(
         .ok_or_else(invalid)?;
     // A mixed shape's common field is a direct field at one offset in every
     // case, stored without case knowledge exactly as a record field.
-    let Some(fields) = declaration.shape.direct_fields()
-    else {
+    let Some(fields) = declaration.shape.direct_fields() else {
         return Err(invalid());
     };
     let declaration = fields
@@ -242,17 +239,8 @@ pub(super) fn owned_store_destination(
     let result = operation.result.structural()?;
     (result.place == place
         && result.structural_type == structural_type
-        && matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && machine
-            .entry_claims
-            .iter()
-            .all(|claim| claim.input != place)
         && machine
             .content_entry_claims
             .iter()
@@ -454,6 +442,17 @@ pub(super) fn dominating_scalar_type(
 }
 
 pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
+    has_unqualified_storage(machine, place)
+        && machine
+            .entry_claims
+            .iter()
+            .all(|claim| claim.input != place)
+}
+
+/// Scalar mutation preserves resource claims. Qualifications and content
+/// evidence still require their own transport; resource custody does not
+/// make an otherwise exclusive storage home immutable.
+pub(super) fn has_unqualified_storage(machine: &TerminalMachine, place: PlaceId) -> bool {
     machine
         .structural_parameters
         .iter()
@@ -467,10 +466,6 @@ pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: Pla
         .is_some_and(|parameter| {
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
         })
-        && machine
-            .entry_claims
-            .iter()
-            .all(|claim| claim.input != place)
         && machine
             .content_entry_claims
             .iter()
@@ -549,8 +544,7 @@ fn observed_scalar_field(
     // common fields through `direct_relevant_scalar_field`.
     let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
     let declaration = exact_structural_type(structural_types, carrier.structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields()
-    else {
+    let Some(fields) = declaration.shape.direct_fields() else {
         return None;
     };
     unique_relevant_scalar_field(fields, field, true)
@@ -563,8 +557,7 @@ fn direct_relevant_scalar_field(
     allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = exact_structural_type(structural_types, structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields()
-    else {
+    let Some(fields) = declaration.shape.direct_fields() else {
         return None;
     };
     unique_relevant_scalar_field(fields, field, allow_refined_scalar)

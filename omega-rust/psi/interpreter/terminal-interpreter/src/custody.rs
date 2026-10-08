@@ -9,6 +9,7 @@
 //! backing independently of that obsolete root binding.
 
 mod field_stores;
+mod windows;
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::LiveClaim;
@@ -32,10 +33,10 @@ use terminal_psi::{
     TerminalAffineCleanupAction,
 };
 
-/// Mint one boundary-result claim into a live claim map. A binding inhabiting
+/// Bind one authenticated completed-result claim into a live claim map. A binding inhabiting
 /// a non-empty result path carries Linear multiplicity — the path itself
 /// already resolves the claim to exactly one value.
-pub(crate) fn mint_boundary_result_claim(
+pub(crate) fn bind_result_claim(
     live_claims: &mut BTreeMap<ClaimId, crate::execution::LiveClaim>,
     binding: &StructuralResultClaimBinding,
     place: PlaceId,
@@ -625,6 +626,41 @@ pub(crate) fn remove_affine_root(
         return false;
     };
     frontier.remove(&root)
+}
+
+/// Fresh affine storage owes only the complement of its linear regions.
+/// Invocation entry and value completion share this partition; a claim can
+/// never overlap a second whole-root affine disposal obligation.
+pub(crate) fn exclude_linear_regions<'a>(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: impl IntoIterator<Item = (PlaceId, &'a [StructuralPathSegment])>,
+) -> Result<(), TerminalInterpretError> {
+    let mut claims = claims.into_iter();
+    let Some(first_claim) = claims.next() else {
+        return Ok(());
+    };
+    let affine_roots = frontier
+        .iter()
+        .map(|entry| entry.place)
+        .collect::<BTreeSet<_>>();
+    for (place, path) in std::iter::once(first_claim).chain(claims) {
+        if !affine_roots.contains(&place) {
+            continue;
+        }
+        let containing = frontier
+            .iter()
+            .find(|entry| entry.place == place && path.starts_with(&entry.path))
+            .cloned()
+            .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+        frontier.remove(&containing);
+        // Claim paths cannot enter a case namespace. Membership is separate
+        // runtime evidence; never infer it from a claim's type or spelling.
+        split_affine_frontier_at_projection(structural_types, frontier, containing, path, &|_| {
+            None
+        })?;
+    }
+    Ok(())
 }
 
 pub(crate) fn consume_affine_projection(

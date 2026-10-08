@@ -105,9 +105,11 @@ pub(super) fn resolve(
         for claim in &plan.states[0].entry_claims {
             aliased[0].insert(claim.parameter_index, claim.parameter_index);
         }
-        // Every claim parameter must be an owned linear parameter whose incoming
+        // Every claim parameter must be an owned carrier whose incoming
         // edges all move one exact source parameter and replay that source claim's
         // checked Transfer event at the edge's authored call coordinate.
+        // A projected linear claim can belong to an affine carrier; the exact
+        // entry path, not the carrier's root multiplicity, identifies custody.
         for (position, state) in plan.states.iter().enumerate() {
             if !live[position] {
                 continue;
@@ -121,9 +123,9 @@ pub(super) fn resolve(
                     ))?;
                 if claim.carry != CarryPolicy::STRICT
                     || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                    || parameter.multiplicity != Multiplicity::Linear
+                    || parameter.multiplicity == Multiplicity::Unrestricted
                 {
-                    return unsupported("Unit graph claim is not exact owned linear custody");
+                    return unsupported("Unit graph claim is not exact owned claim custody");
                 }
                 let incoming = incoming(state.state);
                 if position != 0 && incoming.is_empty() {
@@ -152,9 +154,11 @@ pub(super) fn resolve(
                         "Unit graph claim transfer source parameter is missing",
                     ))?;
                     if source_parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                        || source_parameter.multiplicity != Multiplicity::Linear
+                        || source_parameter.multiplicity != parameter.multiplicity
                     {
-                        return unsupported("Unit graph claim source is not owned linear custody");
+                        return unsupported(
+                            "Unit graph claim source differs from owned carrier custody",
+                        );
                     }
                 }
             }

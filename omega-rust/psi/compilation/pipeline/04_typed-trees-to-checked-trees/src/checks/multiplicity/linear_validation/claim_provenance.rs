@@ -62,6 +62,20 @@ pub(crate) fn written_linear_targets(
             };
             (place, assignment.value)
         }
+        StatementNode::Expression(expression) => {
+            let Some(place) = validation::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                *expression,
+            ) else {
+                return Vec::new();
+            };
+            if place.root != facts::PlaceRoot::Expression(*expression) {
+                return Vec::new();
+            }
+            (place, *expression)
+        }
         _ => return Vec::new(),
     };
     written_owner_targets(

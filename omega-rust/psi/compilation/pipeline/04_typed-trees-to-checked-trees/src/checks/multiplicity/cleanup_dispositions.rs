@@ -9,11 +9,15 @@ use checked_trees::{
     FlowPermissionEventFact,
 };
 use facts::{Place, PlaceRoot, PlaceSegment};
-use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+use language_semantics::{
+    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
+};
 
 #[derive(Clone, Default)]
 pub(crate) struct RemainingCustody {
-    transferred: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
+    // Moved regions and conditional claim regions that were never established
+    // both lie outside the owner's cleanup complement.
+    excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
     constructing: Vec<(
         PlaceRoot,
         super::construction_frontier::ConstructionFrontier,
@@ -51,7 +55,7 @@ impl RemainingCustody {
 
     pub(super) fn is_present(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         !self
-            .transferred
+            .excluded
             .iter()
             .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
             && self
@@ -126,7 +130,7 @@ impl RemainingCustody {
                     && event.source == PermissionEventSource::StateExit)
             {
                 let exclusions = self
-                    .transferred
+                    .excluded
                     .iter()
                     .filter(|(root, _)| *root == event.root)
                     .map(|(root, path)| Place {
@@ -158,10 +162,15 @@ impl RemainingCustody {
         match event.kind {
             PermissionEventKind::Establish => {
                 // A strict child cannot revive its consumed containing owner.
-                self.transferred
+                self.excluded
                     .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
+                // A conditional claim with no live establishment denotes an
+                // absent payload, not a dead value available for cleanup.
+                if event.multiplicity == Multiplicity::Linear && !event.obligation_live {
+                    self.remove(event.root, path);
+                }
                 if !self
-                    .transferred
+                    .excluded
                     .iter()
                     .any(|(root, removed)| *root == event.root && path.starts_with(removed))
                     && let Some((_, frontier)) = self
@@ -189,14 +198,21 @@ impl RemainingCustody {
 
     fn remove(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
         if self
-            .transferred
+            .excluded
             .iter()
             .any(|(prior_root, prior)| *prior_root == root && path.starts_with(prior))
         {
             return;
         }
-        self.transferred
+        self.excluded
             .retain(|(prior_root, prior)| *prior_root != root || !prior.starts_with(path));
-        self.transferred.push((root, path.to_vec()));
+        self.excluded.push((root, path.to_vec()));
+    }
+
+    /// A captured owned move transfers its selected storage along with the
+    /// claim frontier. Descendant claim events alone cannot record a whole
+    /// carrier transfer: retaining that home would dispose it on the edge.
+    pub(super) fn transfer_storage(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
+        self.remove(root, path);
     }
 }

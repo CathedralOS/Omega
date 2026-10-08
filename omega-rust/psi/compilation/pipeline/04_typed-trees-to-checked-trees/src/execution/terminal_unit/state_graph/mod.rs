@@ -663,9 +663,10 @@ pub(super) fn build_traced(
                         && ![
                             validation::ContentsRequirement::CleanupOwned,
                             validation::ContentsRequirement::RepresentedOwned,
-                            // Plain owned contents arrive as one whole move,
-                            // exactly as a statement sequence admits them.
-                            validation::ContentsRequirement::PlainOwned,
+                            // Finite storage arrives as one whole move even
+                            // when an affine root contains linear descendants.
+                            // Edge custody separately transports their claims.
+                            validation::ContentsRequirement::LinearOwned,
                         ]
                         .into_iter()
                         .any(|requirement| validation::has_contents(program, reference(), requirement))

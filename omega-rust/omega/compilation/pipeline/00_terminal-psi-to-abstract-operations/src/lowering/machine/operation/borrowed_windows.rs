@@ -76,15 +76,10 @@ fn lower_move(
     let invalid = || LoweringError::InvalidBorrowedStorageWindow(operation.id);
     let result = operation.result.structural().ok_or_else(invalid)?;
     // The moved subtree is a fresh operation result under exact-once custody:
-    // no shared/linear multiplicity, no qualifications, and no pre-attached
-    // claims can ride the extraction.
-    if !matches!(
-        result.multiplicity,
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-    ) || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-    {
+    // its complete declared claims move with it, independently of the
+    // original place's restoration debt. Opaque qualifications still need
+    // their own transport evidence.
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
         return Err(invalid());
     }
     if !matches!(

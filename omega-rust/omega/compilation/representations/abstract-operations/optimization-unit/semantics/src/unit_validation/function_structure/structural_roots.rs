@@ -108,7 +108,8 @@ pub(crate) fn validate_structural_root_operations(
                 exact_store_destination(parameter)
                     && matches!(
                         parameter.access,
-                        terminal_psi::StructuralAccess::MutableBorrow
+                        terminal_psi::StructuralAccess::Owned
+                            | terminal_psi::StructuralAccess::MutableBorrow
                             | terminal_psi::StructuralAccess::WriteOnlyBorrow
                     )
                     && parameter.qualifications.is_empty()
@@ -123,7 +124,6 @@ pub(crate) fn validate_structural_root_operations(
                         producer: *producer,
                         structural_type: result.structural_type,
                     })
-                    && result.claims.is_empty()
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && function
@@ -437,15 +437,6 @@ pub(crate) fn validate_structural_root_operations(
                     // independently establish dominance and live custody.
                     let exact_destination = exact_scalar_store_destination(destination);
                     let valid = exact_destination
-                        && matches!(
-                            destination.multiplicity(),
-                            terminal_psi::StructuralMultiplicity::Unrestricted
-                                | terminal_psi::StructuralMultiplicity::Affine
-                        )
-                        && function
-                            .entry_claim_declarations
-                            .iter()
-                            .all(|claim| claim.input != destination.place())
                         && function
                             .content_entry_claims
                             .iter()
@@ -654,14 +645,8 @@ pub(crate) fn validate_structural_root_operations(
                         && window_field_type(function, structural_types, source, path, *field)
                             == Some(result.structural_type)
                         && root_window_loan(source, path, *field)
-                        && matches!(
-                            result.multiplicity,
-                            terminal_psi::StructuralMultiplicity::Unrestricted
-                                | terminal_psi::StructuralMultiplicity::Affine
-                        )
                         && result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
-                        && result.claims.is_empty()
                         && matches!(
                             place_kinds.get(&result.place),
                             Some(StructuralPlaceKind::OperationResult {
@@ -1204,14 +1189,8 @@ fn borrowed_window_root(
                             })
                     });
             producer_admits
-                && matches!(
-                    result.multiplicity,
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                        | terminal_psi::StructuralMultiplicity::Affine
-                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
                 && matches!(
                     place_kinds.get(&result.place),
                     Some(StructuralPlaceKind::OperationResult {

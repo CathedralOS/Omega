@@ -252,12 +252,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let Some(result) = operation.result.structural() else {
         return malformed("structural field move has no structural result");
     };
-    if !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-    {
-        return malformed("structural field move result carries attached custody");
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+        return malformed("structural field move result carries unattested qualifications");
     }
+    // A moved value retains its declared linear frontier. Result claim-path
+    // structure is checked by the common result foundation; current custody
+    // and its transfer are not a second storage-shape classification here.
     let Some(root_type) = window_root_type(machine, *source, path, *field) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
@@ -372,13 +372,8 @@ fn borrowed_field_store_root_type(
         .filter_map(|producer| producer.result.structural())
         .find(|result| {
             result.place == place
-                && matches!(
-                    result.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
         })
         .map(|result| result.structural_type)
 }

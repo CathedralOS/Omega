@@ -18,9 +18,7 @@ use crate::LegalizationError;
 use crate::structural_inputs::structural_reference_input::{self, RuntimeElement};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-};
+use terminal_psi::{StructuralAccess, StructuralOperationResult, StructuralPathSegment};
 
 /// The resolved bytes one window names beneath its root.
 pub(in crate::legalization) struct WindowExtent {
@@ -69,9 +67,10 @@ pub(in crate::legalization) fn extent(
     } else {
         None
     };
-    let root_type = match root {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
-            if root.access != StructuralAccess::MutableBorrow
+    let root_type =
+        match root {
+            abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
+                if root.access != StructuralAccess::MutableBorrow
                 || !(function.structural_parameters.contains(root)
                     || (function
                         .blocks
@@ -81,27 +80,22 @@ pub(in crate::legalization) fn extent(
                             root,
                             &plan.structural_types,
                         )))
-                || !function.entry_claims.is_empty()
+                || function.entry_claim_declarations.iter().any(|claim| claim.input == root.place)
             {
                 return Err(LegalizationError::custody());
             }
-            root.structural_type
-        }
-        // An owned completed local home carries no borrowed-window custody;
-        // its authority was admitted upstream from the completing producer.
-        abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
-            if !matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-            ) || !result.claims.is_empty()
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-            {
-                return Err(LegalizationError::custody());
+                root.structural_type
             }
-            result.structural_type
-        }
-    };
+            // An owned completed local home carries no borrowed-window custody;
+            // its authority was admitted upstream from the completing producer.
+            abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+                {
+                    return Err(LegalizationError::custody());
+                }
+                result.structural_type
+            }
+        };
     let (root_type, path) = referent.as_ref().map_or((root_type, path), |referent| {
         (referent.referent, referent.path.as_slice())
     });
@@ -143,8 +137,8 @@ pub(in crate::legalization) fn extent(
 }
 
 /// The extent a `MoveStructuralField` copies out: the window's field, whose
-/// declared type the fresh result carries under exact-once custody with no
-/// shared or linear multiplicity, qualification or claim.
+/// declared type the fresh result carries under exact-once custody. Resource
+/// claims retain that result declaration; they do not alter the copied extent.
 pub(in crate::legalization) fn moved(
     function: &PsiOptimizationFunction,
     root: &abstract_operations::StructuralWindowRoot,
@@ -156,11 +150,6 @@ pub(in crate::legalization) fn moved(
 ) -> Result<WindowExtent, LegalizationError> {
     let extent = extent(function, root, path, field, plan, custody)?;
     if result.structural_type != extent.field_type
-        || !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        )
-        || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {

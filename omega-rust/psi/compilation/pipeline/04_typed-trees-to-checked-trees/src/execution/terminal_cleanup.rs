@@ -573,20 +573,14 @@ pub(super) fn state_exit_result_locals(
         let (statement_index, local) = program.state_local_declaration(state, symbol)?;
         if local.symbol != symbol
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
-            // Disposal preserves the established value until its death. Its
-            // represented predicates do not add a cleanup operation; the exact
-            // permission ledger owns that decision. Normal-edge planning must
-            // retain the selected nominal action and its prerequisites before
-            // publishing the graph; a hook does not change the local's custody.
-            || !(validation::has_contents(
-                program,
-                local.type_reference, validation::ContentsRequirement::StructuralConstruction) || validation::has_contents(program, local.type_reference, validation::ContentsRequirement::OwnedOrSharedView)
-                // Stored reference leaves own descriptors, not their backing.
-                // Their exact loan roster supports the same whole disposal.
-                || validation::reference_result_custody::is_reference_record(program, local.type_reference))
         {
             return None;
         }
+        // The selected disposition names remaining custody, not permission to
+        // discard the original complete type. Transferred linear children or
+        // nominal hooks can make that whole-type classifier inapplicable.
+        // Join the lexical home here; normal-edge action selection retains
+        // the exact complement and hook prerequisites before publishing it.
         if statements[..=statement_index]
             .iter()
             .any(|statement| matches!(statement, StatementNode::Transition(_)))

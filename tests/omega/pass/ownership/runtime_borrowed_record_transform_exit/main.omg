@@ -1,22 +1,47 @@
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::drop;
 
-data Inventory { slots: i32; }
+data Inventory [linear] { slots: i32; }
+machine Inventory::drop(inventory: &mut Inventory) {}
+data Holder { inventory: Inventory; }
 
 machine Inventory::bump(inventory: Inventory) -> Inventory {
-    Inventory { slots: ((inventory.slots as i32 in Wrapping) + 1) as i32 }
+    transition inventory.slots == 41 {
+        true -> increment(inventory)
+        false -> preserve(inventory)
+    }
+    state increment(inventory: Inventory) -> Inventory {
+        let slots: i32 = inventory.slots;
+        drop(inventory);
+        Inventory { slots: ((slots as i32 in Wrapping) + 1) as i32 }
+    }
+    state preserve(inventory: Inventory) -> Inventory { inventory }
 }
 
 data Main {
     console: Binding<Console>;
-    inventory: Inventory;
+}
+
+machine apply(holder: &mut Holder) -> i32 {
+    let taken: Inventory = holder.inventory;
+    // `bump` takes its subject BY VALUE, so the call consumes `taken` and
+    // carries no `&`; the result restores the owner the move emptied.
+    holder.inventory = move Inventory::bump(taken);
+    holder.inventory.slots
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.inventory.slots = 41;
-    let taken: Inventory = main.inventory;
-    // `bump` takes its subject BY VALUE, so the call consumes `taken` and
-    // carries no `&`; the result restores the owner the move emptied.
-    main.inventory = move Inventory::bump(taken);
-    main.console.exit_process(main.inventory.slots);
+    let mut holder: Holder = Holder { inventory: Inventory { slots: 41 } };
+    let transformed: i32 = apply(&mut holder);
+    holder.inventory.slots = 7;
+    let preserved: i32 = apply(&mut holder);
+    let final_inventory: Inventory = holder.inventory;
+    let final_slots: i32 = final_inventory.slots;
+    drop(final_inventory);
+    transition transformed == 42 && preserved == 7 && final_slots == 7 {
+        true -> finish(main, 42)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

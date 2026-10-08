@@ -237,7 +237,7 @@ impl TerminalExecution<'_> {
             )?;
         }
         let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
+        let mut callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
             &callee.structural_parameters,
             &structural_values,
             &prepared_arguments.scalar_cases,
@@ -252,9 +252,14 @@ impl TerminalExecution<'_> {
             &callee.content_entry_claims,
             &structural_values,
         )?;
-        self.next_operation += 1;
-        self.live_claims = remaining_claims;
-        let mut caller_affine_frontier = std::mem::take(&mut self.live_affine_frontier);
+        crate::custody::exclude_linear_regions(
+            &self.program.structural_types(),
+            &mut callee_affine_frontier,
+            live_claims
+                .values()
+                .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
+        )?;
+        let mut caller_affine_frontier = self.live_affine_frontier.clone();
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -265,6 +270,8 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
+        self.next_operation += 1;
+        self.live_claims = remaining_claims;
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
         let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
         retire_transferred_call_sources(

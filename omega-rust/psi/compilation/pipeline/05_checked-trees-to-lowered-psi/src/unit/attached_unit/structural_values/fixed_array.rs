@@ -37,20 +37,19 @@ impl emission::Emission<'_, '_, '_> {
             return unsupported("fixed array source has a nonarray carrier");
         };
         let element_reference = *element_type;
-        let element_multiplicity = crate::terminal_identities::structural_multiplicity(
-            crate::reference_custody::result_multiplicity(self.checked, element_reference),
-        );
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
         let source_count = self.values.len();
         let mut operands = Vec::with_capacity(elements.len());
-        for value in elements {
-            self.structural_type = element;
-            self.multiplicity = element_multiplicity;
-            let argument = self.constructor_operand(*value, element_reference);
-            self.structural_type = parent_type;
-            self.multiplicity = parent_multiplicity;
-            operands.push(argument?);
+        for (element_position, value) in elements.iter().enumerate() {
+            let element_index = u64::try_from(element_position)
+                .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
+            operands.push(self.child_constructor_operand(
+                element,
+                *value,
+                element_reference,
+                terminal_psi::StructuralPathSegment::FixedIndex(element_index),
+            )?);
         }
         let place = place_id(allocate_dense(self.next_place)?);
         self.temporary_places.push(emit_completed(

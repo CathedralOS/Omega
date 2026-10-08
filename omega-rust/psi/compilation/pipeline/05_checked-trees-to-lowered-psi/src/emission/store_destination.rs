@@ -48,21 +48,19 @@ pub(crate) fn local_store_root<'a>(
 /// Field replacement and restoration windows share the same root contract.
 /// A store cannot preserve opaque root evidence merely by restoring a field.
 /// Byte-owner writes instead retain their predicates in the byte operation.
+/// Claims are current regional custody, not opaque type evidence: scalar
+/// writes preserve them and structural moves/stores transport their exact
+/// frontier. The original producer's claim roster cannot forbid all later
+/// mutations of a home with a linear child.
 pub(crate) fn unqualified_local_store_root(
     symbol: symbols::SymbolHandle,
     locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
     let (argument, produced) = local_store_root(symbol, locals, operations)?;
-    if !matches!(
-        produced.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !produced.qualifications.is_empty()
-        || !produced.projected_qualifications.is_empty()
-        || !produced.claims.is_empty()
-    {
+    if !produced.qualifications.is_empty() || !produced.projected_qualifications.is_empty() {
         return unsupported(
-            "store local carries custody or evidence the replacement does not restore",
+            "store local carries qualification evidence the replacement does not restore",
         );
     }
     Ok((argument.place, produced.structural_type))
@@ -120,5 +118,3 @@ pub(crate) fn descriptor_home(
         !produced.qualifications.is_empty(),
     ))
 }
-
-

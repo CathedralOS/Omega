@@ -421,6 +421,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result,
+            value,
             discard_result_on_return,
             ..
         } = operation
@@ -464,17 +465,36 @@ impl OperationFrame<'_, '_> {
         // claim and holds each contained linear member as an independent
         // path-indexed claim, so an affine result can own several linear
         // claims and a linear result owns exactly its whole-root one.
-        // `establishment_claims` already selects the live linear owned
-        // establishments at this statement and lowers each one's own path, so
-        // it answers both shapes and returns nothing when there is no linear
-        // member to carry.
-        let result_claims = structural_values::establishment_claims(
+        // A completed value has its own expression root unless the exact
+        // local initializer receives it. Use the retained value occurrence,
+        // not an assumption that every structural producer is a declaration.
+        let occurrence = checked.facts.values.structural_values.nodes.get(*value);
+        let authored_state = crate::declarations::state_declaration(checked, state)?.1;
+        let owner = match checked
+            .statement_table
+            .statements(authored_state.statement_nodes)
+            .get(result.statement_index as usize)
+        {
+            Some(checked_trees::statement::StatementNode::LocalData(local))
+                if local.initial_value == occurrence.expression =>
+            {
+                facts::PlaceRoot::Symbol(local.symbol)
+            }
+            _ => facts::PlaceRoot::Expression(occurrence.expression),
+        };
+        let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
             checked,
             machine,
             state,
-            result,
+            result.statement_index as usize,
+            owner,
+            occurrence.type_reference,
+        )?;
+        let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
+            &prepared_claims,
             &mut calls.claims,
         )?;
+        result_claims.sort();
         // The evaluator supplies its current namespaces at the exact operand
         // occurrence. Recursive construction and calls share normal frame
         // publication; no stale snapshot or second result home is introduced.

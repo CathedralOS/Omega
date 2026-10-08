@@ -8,5 +8,7 @@ data Main {}
 
 machine Main::main() -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
+    // Observing a scalar lends the storage; it cannot discharge its owner.
+    let observed: i32 = receipt.code;
     0
 }

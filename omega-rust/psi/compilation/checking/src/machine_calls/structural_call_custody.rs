@@ -1420,19 +1420,30 @@ fn received_result_claims<'facts>(
     source_state: &typed_trees::state::State,
     call: &FlowCallFact,
 ) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
-    let receiving_root = match program
+    let receiving_place = match program
         .statement_table
         .statement_at(source_state, call.statement_index)
     {
         Some(StatementNode::LocalData(local))
             if local.initial_value == call.authored_expression =>
         {
-            Some(facts::PlaceRoot::Symbol(local.symbol))
+            Some(crate::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(local.symbol),
+                segments: Vec::new(),
+            })
         }
         Some(StatementNode::Assignment(assignment))
             if assignment.value == call.authored_expression =>
         {
-            return Err("assigned claim-bearing call result needs its destination prefix");
+            Some(
+                crate::canonical_place_from_expression_in_state(
+                    program,
+                    caller_state,
+                    call.statement_index,
+                    assignment.target,
+                )
+                .ok_or("structural result assignment has no exact receiving place")?,
+            )
         }
         _ => None,
     };
@@ -1448,18 +1459,28 @@ fn received_result_claims<'facts>(
                 PermissionEventSource::Statement { statement_index }
                 | PermissionEventSource::Call { statement_index, .. }
                 if statement_index == call.statement_index)
-            || (Some(event.root) != receiving_root
-                && event.root != facts::PlaceRoot::Expression(call.authored_expression))
         {
             continue;
         }
+        // Establishment paths are rooted at their destination home, whereas
+        // the call result frontier is rooted at the returned value. Rebase
+        // through the exact receiving projection, never its sibling fields.
+        // An anonymous producer already uses its own expression root.
+        let segments = retained_claim_segments(facts, event.segments)?;
+        let relative = if event.root == facts::PlaceRoot::Expression(call.authored_expression) {
+            segments
+        } else if let Some(place) = &receiving_place
+            && event.root == place.root
+            && let Some(relative) = segments.strip_prefix(place.segments.as_slice())
+        {
+            relative
+        } else {
+            continue;
+        };
         if event.claim_identity == PermissionClaimIdentity::Unknown {
             return Err("structural result establishment has no claim identity");
         }
-        received.push((
-            retained_claim_segments(facts, event.segments)?,
-            event.claim_identity,
-        ));
+        received.push((relative, event.claim_identity));
     }
     Ok(received)
 }

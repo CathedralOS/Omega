@@ -1,6 +1,6 @@
 //! Project selected cleanup dispositions into the ordinary effect graph.
 //!
-//! Custody, not a type mention, selects each root. Its already-transferred
+//! Custody, not a type mention, selects each root. Its transferred or absent
 //! subtrees are excluded before nominal hooks are visited. This is a may-effect
 //! set: an unknown active case contributes its possible remaining variants;
 //! repeated array elements contribute one target edge, not invented call sites.

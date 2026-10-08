@@ -161,7 +161,10 @@ impl TerminalExecution<'_> {
             }
             Ok(())
         } else {
-            self.consume_affine_projection(frontier, argument)
+            if !self.stage_constructor_operand(argument, frontier, &mut Vec::new())? {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            Ok(())
         }
     }
 }

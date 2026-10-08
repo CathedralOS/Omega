@@ -69,10 +69,8 @@ pub(super) fn reconstruct(
         .iter()
         .find(|parameter| parameter.place == argument.place)
     {
-        if !argument.path.is_empty()
-            || parameter.structural_type != destination.structural_type
-            || parameter.access != destination.access
-            || parameter.multiplicity != destination.multiplicity
+        if parameter.access != destination.access
+            || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
         {
             return Err(LegalizationError::custody());
         }
@@ -87,11 +85,17 @@ pub(super) fn reconstruct(
                     .find(|retained| retained.place == argument.place)
             })
             .ok_or(LegalizationError::custody())?;
+        let root_shape =
+            crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+                parameter.structural_type,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
         if retained.structural_type != parameter.structural_type
             || retained.access != parameter.access
             || retained.multiplicity != parameter.multiplicity
-            || retained.shape != shape
-            || retained.placement.shape != shape
+            || retained.shape != root_shape
+            || retained.placement.shape != root_shape
             || retained.projected_qualifications != parameter.projected_qualifications
         {
             return Err(LegalizationError::custody());
@@ -99,7 +103,12 @@ pub(super) fn reconstruct(
         (
             retained.placement.clone().into(),
             parameter.structural_type,
-            0,
+            owned_projection(
+                parameter.structural_type,
+                destination.structural_type,
+                argument,
+                plan,
+            )?,
         )
     } else if let Some((block, parameter)) = block_parameter {
         // The edge has already established this destination's owned storage.
@@ -110,7 +119,7 @@ pub(super) fn reconstruct(
         if block == caller.entry
             || parameter.access != destination.access
             || argument.access != parameter.access
-            || parameter.multiplicity != destination.multiplicity
+            || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
             || !target::control_flow::sources::dominates(caller, block, call_site.0)
             || !caller.structural_places.iter().any(|place| {
                 place.id == parameter.place
@@ -160,7 +169,9 @@ pub(super) fn reconstruct(
         )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
-        if result.multiplicity != destination.multiplicity {
+        // A projected child has its own custody contract. The enclosing
+        // aggregate's multiplicity cannot classify that selected value.
+        if argument.path.is_empty() && result.multiplicity != destination.multiplicity {
             return Err(LegalizationError::custody());
         }
         let offset = owned_projection(

@@ -160,6 +160,59 @@ pub(super) fn statement_steps(
     order.steps
 }
 
+/// An observation borrows its temporary receiver; it cannot discharge the
+/// receiver's resource claims. Keep the actual completed expression root so
+/// ordinary permission production and scope-exit checking own those claims.
+pub(super) fn observed_linear_temporaries(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
+    let mut owners = Vec::new();
+    let occurrences = statement_steps(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        &[],
+        operators,
+    );
+    for occurrence in &occurrences {
+        let StatementStep::Observe { place, .. } = &occurrence.step else {
+            continue;
+        };
+        let facts::PlaceRoot::Expression(expression) = place.root else {
+            continue;
+        };
+        // Saved subjects retain their producer identity without evaluating it
+        // again. Only a completion on this occurrence creates a temporary.
+        if !occurrences.iter().any(|occurrence| matches!(occurrence.step, StatementStep::Complete(completed) if completed == expression))
+            || owners.iter().any(|(owner, _)| *owner == expression) {
+            continue;
+        }
+        let root = CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        };
+        let Some(reference) = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &root,
+        ) else {
+            continue;
+        };
+        if !super::multiplicity::linear_claim_frontier(program, reference).is_empty() {
+            owners.push((expression, reference));
+        }
+    }
+    owners
+}
+
 struct StatementOrder<'a> {
     program: &'a dyn ::validation::CheckingInput,
     state: &'a typed_trees::state::State,

@@ -458,7 +458,7 @@ impl TerminalExecution<'_> {
         // receipted claims retire before the returned bindings install.
         if let terminal_psi::OperationResult::Structural(result) = &operation.result {
             for binding in &result.claims {
-                crate::custody::mint_boundary_result_claim(
+                crate::custody::bind_result_claim(
                     &mut self.live_claims,
                     binding,
                     result.place,

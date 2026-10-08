@@ -112,6 +112,7 @@ impl BorrowedWindowLedger {
         &mut self,
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &CheckedUnitStructuralResultBindingPlan,
+        result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
         type_ids: &[(String, StructuralTypeId)],
@@ -177,7 +178,7 @@ impl BorrowedWindowLedger {
                 multiplicity: terminal_multiplicity(result.multiplicity),
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
-                claims: Vec::new(),
+                claims: result_claims,
             }),
             OperationKind::MoveStructuralField {
                 source: place.source,
