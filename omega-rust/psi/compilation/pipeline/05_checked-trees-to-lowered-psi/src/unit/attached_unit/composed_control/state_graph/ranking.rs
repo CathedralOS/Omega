@@ -323,7 +323,7 @@ fn rank_type(machine: &TerminalMachine, value: ValueId) -> Result<IntegerType, L
     machine
         .parameters
         .iter()
-        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(machine.block_parameters())
         .copied()
         .chain(machine.operations().filter_map(|operation| {
             if let OperationResult::Scalar(value) = operation.result {

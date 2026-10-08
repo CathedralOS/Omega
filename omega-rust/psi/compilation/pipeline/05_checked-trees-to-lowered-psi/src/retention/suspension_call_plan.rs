@@ -249,18 +249,12 @@ fn scalar_declaration(module: &TerminalModule, value: ValueId) -> Option<ValueDe
         machine
             .parameters
             .iter()
+            .chain(machine.block_parameters())
             .chain(
                 machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| block.parameters.iter()),
+                    .operations()
+                    .filter_map(|operation| operation.result.scalar_ref()),
             )
-            .chain(machine.blocks.iter().flat_map(|block| {
-                block
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.scalar_ref())
-            }))
             .find(|declaration| declaration.id == value)
             .copied()
     })

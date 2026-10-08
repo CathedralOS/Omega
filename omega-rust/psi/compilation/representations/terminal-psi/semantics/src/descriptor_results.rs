@@ -364,9 +364,7 @@ fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
         .map(|parameter| parameter.structural_type)
         .or_else(|| {
             machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters)
+                .block_structural_parameters()
                 .find(|parameter| parameter.place == place)
                 .map(|parameter| parameter.structural_type)
         })

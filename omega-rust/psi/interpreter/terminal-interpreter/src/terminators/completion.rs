@@ -208,12 +208,11 @@ impl TerminalExecution<'_> {
     /// The completed result has already been removed before this retirement.
     pub(super) fn retire_return_inputs(&mut self) {
         if let Some(machine) = self.program.machines().get(&self.current_machine) {
-            for parameter in machine.structural_parameters.iter().chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            ) {
+            for parameter in machine
+                .structural_parameters
+                .iter()
+                .chain(machine.block_structural_parameters())
+            {
                 if parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     || parameter.access != StructuralAccess::Owned
                 {

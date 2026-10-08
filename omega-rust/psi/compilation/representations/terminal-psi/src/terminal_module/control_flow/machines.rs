@@ -108,6 +108,20 @@ impl TerminalMachine {
         self.blocks.iter().flat_map(|block| &block.operations)
     }
 
+    /// Every block's value parameters, in block order.
+    pub fn block_parameters(&self) -> impl Iterator<Item = &ValueDeclaration> + '_ {
+        self.blocks.iter().flat_map(|block| &block.parameters)
+    }
+
+    /// Every block's structural parameters, in block order.
+    pub fn block_structural_parameters(
+        &self,
+    ) -> impl Iterator<Item = &StructuralParameterDeclaration> + '_ {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+    }
+
     /// The operation with `id`, searched across every block's roster.
     pub fn operation(&self, id: OperationId) -> Option<&Operation> {
         self.operations().find(|operation| operation.id == id)
@@ -138,11 +152,7 @@ impl TerminalMachine {
     pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
         self.structural_parameters
             .iter()
-            .chain(
-                self.blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(self.block_structural_parameters())
             .find(|parameter| parameter.place == place)
     }
 }

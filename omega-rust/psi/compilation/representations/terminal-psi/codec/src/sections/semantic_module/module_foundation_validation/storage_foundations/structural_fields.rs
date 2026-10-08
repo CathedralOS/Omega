@@ -311,7 +311,7 @@ fn declared_scalar_type(
         .parameters
         .iter()
         .chain(machine.result.scalar_ref())
-        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(machine.block_parameters())
         .chain(machine.blocks.iter().flat_map(|block| {
             block
                 .operations
@@ -383,12 +383,7 @@ fn mutable_borrowed_parameter_type(
     machine
         .structural_parameters
         .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(machine.block_structural_parameters())
         .find(|parameter| {
             parameter.place == place
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow

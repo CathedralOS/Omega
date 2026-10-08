@@ -102,12 +102,7 @@ impl Emission<'_, '_, '_> {
             .iter()
             .map(|(_, parameter)| parameter)
             .chain(self.evaluation.block_structural_parameters.iter())
-            .chain(
-                self.evaluation
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(self.evaluation.block_structural_parameters.iter())
             .find(|parameter| parameter.place == argument.place)
             .map(|parameter| parameter.structural_type)
             .or_else(|| {

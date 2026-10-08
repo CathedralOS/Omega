@@ -528,7 +528,7 @@ fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<Scalar
     machine
         .parameters
         .iter()
-        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(machine.block_parameters())
         .map(|declaration| (declaration.id, declaration.scalar_type))
         .chain(
             machine

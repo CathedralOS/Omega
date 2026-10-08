@@ -1065,12 +1065,7 @@ impl TerminalExecution<'_> {
         let mut parameters = machine
             .structural_parameters
             .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(machine.block_structural_parameters())
             .filter(|parameter| parameter.place == *source);
         if let Some(parameter) = parameters.next() {
             if parameters.next().is_some()

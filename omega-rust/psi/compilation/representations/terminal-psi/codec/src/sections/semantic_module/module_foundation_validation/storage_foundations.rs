@@ -136,7 +136,7 @@ pub(super) fn validate_establish_reference(
             .parameters
             .iter()
             .chain(machine.result.scalar_ref())
-            .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+            .chain(machine.block_parameters())
             .chain(
                 machine
                     .operations()
@@ -275,9 +275,7 @@ fn place_structural_type(
         return Some(parameter.structural_type);
     }
     if let Some(parameter) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+        .block_structural_parameters()
         .find(|parameter| parameter.place == place)
     {
         return Some(parameter.structural_type);

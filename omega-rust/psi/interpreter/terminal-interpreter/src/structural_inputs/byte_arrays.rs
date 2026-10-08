@@ -191,7 +191,6 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-
     /// Both array arguments and local descriptor establishments pin the same
     /// payload home. The cursor is committed only after the caller validates
     /// the complete operation; no byte payload is copied into another store.
@@ -322,8 +321,7 @@ impl TerminalExecution<'_> {
                 )?
                 .pop()
                 .ok_or_else(malformed)?;
-                let Some(fields) = self.program.record_fields(&parent.structural_type)
-                else {
+                let Some(fields) = self.program.record_fields(&parent.structural_type) else {
                     return Err(malformed());
                 };
                 let field = fields
@@ -526,12 +524,7 @@ impl TerminalExecution<'_> {
         let source = machine
             .structural_parameters
             .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(machine.block_structural_parameters())
             .find(|source| source.place == argument.place)
             .cloned()
             .or_else(|| {
