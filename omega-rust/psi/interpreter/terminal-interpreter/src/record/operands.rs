@@ -64,6 +64,22 @@ impl TerminalExecution<'_> {
         Ok(affine || claimed)
     }
 
+    /// Stage `argument` and reject custody transfer into an unrestricted
+    /// result: only affine or claimed operands may hand custody over.
+    pub(crate) fn stage_unrestricted_operand(
+        &self,
+        argument: &StructuralArgument,
+        frontier: &mut BTreeSet<StructuralAffineDiscard>,
+        consumed: &mut Vec<StructuralArgument>,
+        result: &StructuralOperationResult,
+    ) -> Result<bool, TerminalInterpretError> {
+        let transfers_custody = self.stage_constructor_operand(argument, frontier, consumed)?;
+        if transfers_custody && result.multiplicity == StructuralMultiplicity::Unrestricted {
+            return Err(malformed());
+        }
+        Ok(transfers_custody)
+    }
+
     /// Stage the constructor's ownership transaction beside its staged bytes.
     /// A child keeps its identity when its path is rebased into the parent.
     /// Only an authored whole linear establishment can introduce a new claim;
