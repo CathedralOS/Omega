@@ -256,3 +256,30 @@ pub fn proof_range_goal(
         _ => None,
     }
 }
+
+/// The canonical byte spelling of an integer type or value shared by range
+/// facts and rewrite encodings.
+pub(crate) fn encode_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerType) {
+    canonical.push(match scalar_type.carrier() {
+        IntegerCarrier::Fixed => 1,
+        IntegerCarrier::Address => 2,
+    });
+    canonical.push(match scalar_type.sign() {
+        IntegerSign::Signed => 1,
+        IntegerSign::Unsigned => 2,
+    });
+    canonical.extend_from_slice(&scalar_type.bits().to_le_bytes());
+}
+
+pub(crate) fn encode_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
+    match value {
+        IntegerValue::Signed(value) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&value.to_le_bytes());
+        }
+        IntegerValue::Unsigned(value) => {
+            canonical.push(2);
+            canonical.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+}

@@ -1,8 +1,8 @@
 //! Revision-bound integer range carriers and canonical identities.
 
-use super::integer_intervals::integer_value_cmp;
+use super::integer_intervals::{encode_integer_type, encode_integer_value, integer_value_cmp};
 use super::super::{
-    AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerSign, IntegerType,
+    AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerType,
     IntegerValue, OperationId, ProofQuestionIdentity, ScalarConstantFactIdentity, ValueId,
     ValueRangeFactIdentity,
 };
@@ -100,9 +100,9 @@ pub fn value_range_fact_identity(
     canonical.extend_from_slice(&valid_in.machine.get().to_le_bytes());
     canonical.extend_from_slice(&valid_in.value.get().to_le_bytes());
     canonical.extend_from_slice(&value.get().to_le_bytes());
-    encode_range_integer_type(&mut canonical, scalar_type);
-    encode_range_integer_value(&mut canonical, minimum);
-    encode_range_integer_value(&mut canonical, maximum);
+    encode_integer_type(&mut canonical, scalar_type);
+    encode_integer_value(&mut canonical, minimum);
+    encode_integer_value(&mut canonical, maximum);
     match support {
         ValueRangeSupport::ScalarConstant(identity) => {
             canonical.push(1);
@@ -144,27 +144,4 @@ pub fn value_range_fact_identity(
 }
 
 
-fn encode_range_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerType) {
-    canonical.push(match scalar_type.carrier() {
-        IntegerCarrier::Fixed => 1,
-        IntegerCarrier::Address => 2,
-    });
-    canonical.push(match scalar_type.sign() {
-        IntegerSign::Signed => 1,
-        IntegerSign::Unsigned => 2,
-    });
-    canonical.extend_from_slice(&scalar_type.bits().to_le_bytes());
-}
 
-fn encode_range_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
-    match value {
-        IntegerValue::Signed(value) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&value.to_le_bytes());
-        }
-        IntegerValue::Unsigned(value) => {
-            canonical.push(2);
-            canonical.extend_from_slice(&value.to_le_bytes());
-        }
-    }
-}

@@ -20,7 +20,7 @@ use optimization_core::{
 };
 use semantic_vocabulary::{
     AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity,
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
     PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{

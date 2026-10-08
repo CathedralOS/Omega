@@ -1,7 +1,10 @@
 //! Model-neutral canonical writers shared by rewrite identities and candidate encoding.
+pub(super) use crate::optimization_unit::integer_intervals::{
+    encode_integer_type, encode_integer_value,
+};
 
 use super::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueDefinitionSite,
+    ScalarType, ValueDefinitionSite,
 };
 /// The rewrite-candidate definition-site table, which is **not** the canonical
 /// [`super::ValueDefinitionSite`] identity encoding.
@@ -58,27 +61,4 @@ pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     }
 }
 
-pub(super) fn encode_integer_type(bytes: &mut Vec<u8>, integer: IntegerType) {
-    bytes.push(match integer.carrier() {
-        IntegerCarrier::Fixed => 1,
-        IntegerCarrier::Address => 2,
-    });
-    bytes.push(match integer.sign() {
-        IntegerSign::Signed => 1,
-        IntegerSign::Unsigned => 2,
-    });
-    bytes.extend_from_slice(&integer.bits().to_le_bytes());
-}
 
-pub(super) fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
-    match value {
-        IntegerValue::Signed(value) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        IntegerValue::Unsigned(value) => {
-            bytes.push(2);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-    }
-}

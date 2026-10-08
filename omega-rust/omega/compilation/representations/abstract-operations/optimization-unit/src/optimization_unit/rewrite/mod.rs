@@ -16,7 +16,7 @@ use optimization_core::{
     OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerCarrier, IntegerSign, IntegerType,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerType,
     IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
     ValueId,
 };
