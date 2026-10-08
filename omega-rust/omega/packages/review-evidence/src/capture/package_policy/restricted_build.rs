@@ -10,10 +10,8 @@
 
 use crate::capture::PackageReviewInput;
 use crate::record::{
-    PackagePolicyEvaluationSponsorLimits, PackagePolicyFilesystemSponsorLimits,
-    PackagePolicyRestrictedBuildBounds, PackagePolicyRestrictedBuildGrant,
-    PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
-    PackagePolicyRestrictedBuildRequest,
+    PackagePolicyRestrictedBuildGrant, PackagePolicyRestrictedBuildGrantRoot,
+    PackagePolicyRestrictedBuildOperation, PackagePolicyRestrictedBuildRequest,
 };
 use package_compilation::build_execution::{
     RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
@@ -46,30 +44,7 @@ fn request(
         },
         read_grants: request.read_grants().iter().map(grant).collect(),
         write_grants: request.write_grants().iter().map(grant).collect(),
-        bounds: PackagePolicyRestrictedBuildBounds {
-            filesystem_sponsor_limits: bounds.filesystem_sponsor_limits().map(|limits| {
-                PackagePolicyFilesystemSponsorLimits {
-                    maximum_entries: limits.maximum_entries,
-                    maximum_total_logical_bytes: limits.maximum_total_logical_bytes,
-                    maximum_object_extent: limits.maximum_object_extent,
-                }
-            }),
-            evaluation_sponsor_limits: bounds.evaluation_sponsor_limits().map(|limits| {
-                PackagePolicyEvaluationSponsorLimits {
-                    maximum_fuel_units: limits.maximum_fuel_units(),
-                    maximum_build_log_bytes: limits.maximum_build_log_bytes(),
-                    maximum_filesystem_operation_attempts: limits
-                        .maximum_filesystem_operation_attempts(),
-                    maximum_live_filesystem_handles: limits.maximum_live_filesystem_handles(),
-                    maximum_live_cells: limits.maximum_live_cells(),
-                    maximum_live_text_bytes: limits.maximum_live_text_bytes(),
-                    maximum_result_cells: limits.maximum_result_cells(),
-                    maximum_result_text_bytes: limits.maximum_result_text_bytes(),
-                }
-            }),
-            required_outputs: bounds.required_outputs().to_vec(),
-            artifact_only: bounds.artifact_only(),
-        },
+        bounds: bounds.into(),
         build_execution_profile: request.build_execution_profile(),
         selected_target_profile: request.selected_target_profile(),
     }
