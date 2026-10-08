@@ -48,7 +48,6 @@ use optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
-pub(crate) use projection::derive_validated_optimization_scope;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use target::NativeTarget;
 use target_operations::{

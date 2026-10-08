@@ -209,11 +209,6 @@ impl ComponentProgressManifest {
         self.selected_provider_closure_digest
     }
 
-    /// Replays both the report coordinate and collision-resistant commitment.
-    pub fn matches_selected_provider_closure(&self, selected: &SelectedProviderPlanFacts) -> bool {
-        self.selected_provider_closure_report_identity == selected.compatibility_report_identity()
-            && self.selected_provider_closure_digest == selected.identity_digest()
-    }
 
     pub fn pending(&self) -> &[ComponentBuildBoundProgressDemand] {
         &self.pending

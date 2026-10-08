@@ -30,7 +30,6 @@ mod tests;
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
     ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
-    derive_validated_optimization_scope,
 };
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
@@ -452,19 +451,6 @@ impl NativeArtifact {
         self.boundary_application_coverage.as_ref()
     }
 
-    /// Replay this artifact under a receiving authority's exact accepted
-    /// target policy. Base validation cannot decide which policy a receiver
-    /// accepts; this join makes policy substitution explicit.
-    pub fn validate_for_terminal_authority_policy(
-        &self,
-        accepted: TerminalAuthorityPolicyIdentity,
-    ) -> Result<(), &'static str> {
-        self.validate()?;
-        if self.terminal_authority_policy_identity != accepted {
-            return Err("native artifact terminal-authority policy is not accepted");
-        }
-        Ok(())
-    }
 
     pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope.clone()
@@ -625,29 +611,6 @@ impl NativePhysicalEvidenceScope {
         .map(Self::ValidatedOptimizedProjection)
     }
 
-    /// Admit the exact surviving D29 operator and D41 boundary-call roster of
-    /// one independently validated optimized abstract projection.
-    pub fn from_validated_optimization(
-        final_plan: &AbstractOperationPlan,
-        terminal: TerminalPsiIdentity,
-        validation: OptimizedAbstractPlanProjectionIdentity,
-        final_unit: OptimizationUnitIdentity,
-        boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
-    ) -> Result<Self, &'static str> {
-        let coverage_identity =
-            boundary_application_coverage_identity(Some(boundary_application_coverage))
-                .expect("present boundary-application coverage has an identity");
-        Ok(Self::ValidatedOptimizedProjection(
-            derive_validated_optimization_scope(
-                final_plan,
-                terminal,
-                validation,
-                final_unit,
-                boundary_application_coverage,
-                coverage_identity,
-            )?,
-        ))
-    }
 
     const fn requires_boundary_application_coverage(&self) -> bool {
         matches!(

@@ -180,11 +180,6 @@ impl ProcessStaticServiceRegistry {
         &self.active
     }
 
-    pub fn registration_for_key(&self, logical_key: &str) -> Option<&ActiveServiceRegistration> {
-        self.active
-            .iter()
-            .find(|registration| registration.logical_key == logical_key)
-    }
 
     pub fn register(
         &mut self,
@@ -239,98 +234,6 @@ impl ProcessStaticServiceRegistry {
         Ok(())
     }
 
-    pub fn atomic_handover(
-        &mut self,
-        candidate: ServiceRegistrationCandidate,
-        receipt: AtomicServiceHandoverReceipt,
-    ) -> Result<ServiceHandoverCompletion, Box<ServiceHandoverError>> {
-        let ProcessStaticServicePolicy::AtomicTransfer {
-            handover_contract_identity,
-        } = &self.contract.policy
-        else {
-            return Err(Box::new(ServiceHandoverError {
-                candidate,
-                receipt,
-                diagnostic: "process-static service does not publish atomic transfer".into(),
-            }));
-        };
-        if let Err(diagnostic) = validate_candidate(&self.contract, &candidate) {
-            return Err(Box::new(ServiceHandoverError {
-                candidate,
-                receipt,
-                diagnostic,
-            }));
-        }
-        let Some(previous_index) = self
-            .active
-            .iter()
-            .position(|registration| registration.logical_key == candidate.logical_key)
-        else {
-            return Err(Box::new(ServiceHandoverError {
-                candidate,
-                receipt,
-                diagnostic: "atomic service handover has no active previous registration".into(),
-            }));
-        };
-        let previous = &self.active[previous_index];
-        let receipt_matches = receipt.service_identity == self.contract.service_identity
-            && receipt.handover_contract_identity == *handover_contract_identity
-            && receipt.logical_key == candidate.logical_key
-            && receipt.previous_registration_identity == previous.registration_identity
-            && receipt.previous_component_era_identity == previous.component_era_identity
-            && receipt.candidate_registration_identity == candidate.registration_identity
-            && receipt.candidate_component_era_identity == candidate.component_era_identity
-            && receipt.candidate_establishment_receipt_identity
-                == candidate.establishment_receipt_identity;
-        let diagnostic = if receipt.handover_receipt_identity.trim().is_empty() {
-            Some("atomic service handover has no receipt identity")
-        } else if self
-            .consumed_handover_receipts
-            .contains(&receipt.handover_receipt_identity)
-        {
-            Some("atomic service handover receipt is replayed")
-        } else if !receipt_matches {
-            Some(
-                "atomic service handover receipt does not bind the exact contract, previous registration, and candidate",
-            )
-        } else if candidate.registration_identity == previous.registration_identity {
-            Some("atomic service handover must establish a distinct registration identity")
-        } else if self.active.iter().enumerate().any(|(index, registration)| {
-            index != previous_index
-                && registration.registration_identity == candidate.registration_identity
-        }) {
-            Some("atomic service handover candidate identity is already active")
-        } else if !receipt.new_published_atomically {
-            Some("atomic service handover does not prove atomic publication")
-        } else if !receipt.previous_registration_retired {
-            Some("atomic service handover does not retire the previous registration")
-        } else if !receipt.obligations_transferred {
-            Some("atomic service handover does not transfer previous obligations")
-        } else {
-            None
-        };
-        if let Some(diagnostic) = diagnostic {
-            return Err(Box::new(ServiceHandoverError {
-                candidate,
-                receipt,
-                diagnostic: diagnostic.into(),
-            }));
-        }
-
-        let previous_registration_identity = previous.registration_identity;
-        let completion = ServiceHandoverCompletion {
-            service_identity: self.contract.service_identity.clone(),
-            logical_key: candidate.logical_key.clone(),
-            previous_registration_identity,
-            new_registration_identity: candidate.registration_identity,
-            handover_receipt_identity: receipt.handover_receipt_identity.clone(),
-        };
-        self.active[previous_index] = candidate.into();
-        sort_active(&mut self.active);
-        self.consumed_handover_receipts
-            .push(receipt.handover_receipt_identity);
-        Ok(completion)
-    }
 }
 
 impl From<ServiceRegistrationCandidate> for ActiveServiceRegistration {
@@ -356,9 +259,6 @@ impl ServiceRegistrationError {
         self.diagnostic.as_str()
     }
 
-    pub fn into_candidate(self) -> ServiceRegistrationCandidate {
-        self.candidate
-    }
 }
 
 #[derive(Debug)]

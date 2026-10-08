@@ -9,9 +9,7 @@
 //! agreement with that template, `manifest` derives and replays the manifest,
 //! and `codec` owns the canonical wire forms.
 
-use isa_x86_64::{
-    ValidatedX86_64SemanticUnitWrapperTemplate, X86_64SemanticUnitWrapperResolutionError,
-};
+use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
@@ -39,7 +37,6 @@ pub use composition::compose_optimized_program_storage_semantic_wrapper_object;
 
 use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
 use manifest::{construct_manifest, validate_manifest};
-use validation::validate_object_preserving_seal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
@@ -122,17 +119,6 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
         Ok(OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(&canonical))
     }
 
-    /// The object check for a plan whose `identity` the caller assigned from
-    /// `recomputed_identity()` on this unchanged value (the stage's retained,
-    /// just-composed plan): the digest conjunct
-    /// cannot differ and is not reserialized; every shape and template check
-    /// still runs.
-    pub fn validate_preserving_seal(
-        &self,
-        template: &ValidatedX86_64SemanticUnitWrapperTemplate,
-    ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
-        validate_object_preserving_seal(self, template)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

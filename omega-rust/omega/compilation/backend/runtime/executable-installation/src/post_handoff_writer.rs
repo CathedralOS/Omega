@@ -902,20 +902,6 @@ impl ResolvedPostHandoffEntryWriterContext {
         self.invocation == *invocation
     }
 
-    /// Replay this sealed context against the exact installed realization and
-    /// destination geometry without resolving or exposing its numeric words.
-    pub fn validate_for_destination(
-        &self,
-        installed_code: &InstalledCode,
-        destination_site: PlacementSite,
-        destination_len: usize,
-    ) -> Result<(), InstallationDiagnostic> {
-        installed_code.validate_written_post_handoff_context(
-            self,
-            destination_site,
-            destination_len,
-        )
-    }
 }
 
 fn non_authoritative_post_handoff_entry_writer_context_fingerprint(

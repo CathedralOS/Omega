@@ -5,9 +5,7 @@ use std::collections::BTreeSet;
 
 use installation_evidence::InstalledArtifactOccurrenceDigest;
 
-use crate::{
-    CoexistingExecutableTcbReport, CoexistingExecutableTcbSet, ExecutableTcbProfileAcceptance,
-};
+use crate::{CoexistingExecutableTcbSet, ExecutableTcbProfileAcceptance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentEraLedgerId(u64);
@@ -355,26 +353,8 @@ impl ComponentEraEntryLedger {
         &self.entry_contract_identity
     }
 
-    pub fn live_eras(&self) -> impl Iterator<Item = (u64, ComponentEraEntryState, usize)> + '_ {
-        self.eras.iter().map(|record| {
-            (
-                record.candidate.era_identity,
-                record.state,
-                record.active_entries,
-            )
-        })
-    }
 
-    pub fn live_executable_tcb_report(&self) -> CoexistingExecutableTcbReport {
-        self.executable_tcbs.live_report()
-    }
 
-    pub fn program_local_root_authority_holds(&self, era_identity: u64) -> Option<usize> {
-        self.eras
-            .iter()
-            .find(|record| record.candidate.era_identity == era_identity)
-            .map(|record| record.program_local_root_epoch_leases.len())
-    }
 
     pub fn publish(
         &mut self,
@@ -487,171 +467,8 @@ impl ComponentEraEntryLedger {
         Ok(())
     }
 
-    /// Acquire one non-duplicable lifecycle hold for program-local authority
-    /// rooted in the exact current published entry contract.
-    ///
-    /// A closing/stale era, mismatched contract, or reused lease identity
-    /// rejects without changing the ledger.
-    pub fn acquire_program_local_root_epoch_lease(
-        &mut self,
-        identity: ProgramLocalRootEpochLeaseId,
-        era_identity: u64,
-        entry_contract_identity: &str,
-    ) -> Result<ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseAcquisitionError> {
-        let reject = |rejection: ProgramLocalRootEpochLeaseAcquisitionRejection| {
-            ProgramLocalRootEpochLeaseAcquisitionError {
-                identity,
-                era_identity,
-                entry_contract_identity: entry_contract_identity.to_owned(),
-                rejection,
-            }
-        };
-        if self
-            .issued_program_local_root_epoch_leases
-            .contains(&identity)
-        {
-            return Err(reject(
-                ProgramLocalRootEpochLeaseAcquisitionRejection::IdentityConsumed,
-            ));
-        }
-        if self.current_era != Some(era_identity) {
-            return Err(reject(
-                ProgramLocalRootEpochLeaseAcquisitionRejection::NotCurrentEra,
-            ));
-        }
-        let Some(record) = self
-            .eras
-            .iter_mut()
-            .find(|record| record.candidate.era_identity == era_identity)
-        else {
-            return Err(reject(
-                ProgramLocalRootEpochLeaseAcquisitionRejection::UnpublishedEra,
-            ));
-        };
-        let exact_contract = !entry_contract_identity.is_empty()
-            && entry_contract_identity == self.entry_contract_identity
-            && entry_contract_identity == record.candidate.entry_contract_identity;
-        if record.state != ComponentEraEntryState::Open || !exact_contract {
-            return Err(reject(
-                ProgramLocalRootEpochLeaseAcquisitionRejection::OpenContractJoin,
-            ));
-        }
 
-        let inserted = record.program_local_root_epoch_leases.insert(identity);
-        debug_assert!(inserted, "globally fresh lease is fresh in its era");
-        self.issued_program_local_root_epoch_leases.insert(identity);
-        Ok(ProgramLocalRootEpochLease {
-            identity,
-            ledger: self.identity,
-            binding_contract_identity: self.binding_contract_identity.clone(),
-            entry_contract_identity: self.entry_contract_identity.clone(),
-            era_identity,
-            artifact_occurrence_digest: record.candidate.artifact_occurrence_digest,
-            artifact_instance_compatibility_report_identity: record
-                .candidate
-                .artifact_instance_compatibility_report_identity,
-            entry_plan_identity: record.candidate.entry_plan_identity.clone(),
-            entry_plan_admission_receipt_identity: record
-                .candidate
-                .entry_plan_admission_receipt_identity
-                .clone(),
-            candidate: record.candidate.clone(),
-        })
-    }
 
-    /// Revalidate an issued lease at an establishment instant.
-    ///
-    /// Holding a lease pins lifecycle retirement, but does not keep an era
-    /// open for new introductions. A lease acquired before a routing switch
-    /// therefore cannot be used to establish fresh authority after its era has
-    /// begun closing.
-    pub fn validate_program_local_root_epoch_lease(
-        &self,
-        lease: &ProgramLocalRootEpochLease,
-    ) -> Result<(), ProgramLocalRootEpochLeaseValidationRejection> {
-        let Some(record) = self
-            .eras
-            .iter()
-            .find(|record| record.candidate.era_identity == lease.era_identity)
-        else {
-            return Err(ProgramLocalRootEpochLeaseValidationRejection::ForeignEra);
-        };
-        let exact = self.current_era == Some(lease.era_identity)
-            && record.state == ComponentEraEntryState::Open
-            && lease.ledger == self.identity
-            && lease.binding_contract_identity == self.binding_contract_identity
-            && lease.entry_contract_identity == self.entry_contract_identity
-            && lease.entry_contract_identity == record.candidate.entry_contract_identity
-            && lease.artifact_occurrence_digest == record.candidate.artifact_occurrence_digest
-            && lease.artifact_instance_compatibility_report_identity
-                == record
-                    .candidate
-                    .artifact_instance_compatibility_report_identity
-            && lease.entry_plan_identity == record.candidate.entry_plan_identity
-            && lease.entry_plan_admission_receipt_identity
-                == record.candidate.entry_plan_admission_receipt_identity
-            && lease.candidate == record.candidate
-            && self
-                .issued_program_local_root_epoch_leases
-                .contains(&lease.identity)
-            && record
-                .program_local_root_epoch_leases
-                .contains(&lease.identity);
-        if !exact {
-            return Err(ProgramLocalRootEpochLeaseValidationRejection::NotLiveInCurrentOpenEra);
-        }
-        Ok(())
-    }
-
-    /// Return one exact program-local root lifecycle hold.
-    ///
-    /// Rejection returns the opaque lease intact so the rightful ledger can
-    /// still release it; success consumes it and decrements the era hold once.
-    pub fn release_program_local_root_epoch_lease(
-        &mut self,
-        lease: ProgramLocalRootEpochLease,
-    ) -> Result<(), ProgramLocalRootEpochLeaseReleaseError> {
-        let Some(record) = self
-            .eras
-            .iter_mut()
-            .find(|record| record.candidate.era_identity == lease.era_identity)
-        else {
-            return Err(ProgramLocalRootEpochLeaseReleaseError {
-                lease,
-                rejection: ProgramLocalRootEpochLeaseReleaseRejection::ForeignEra,
-            });
-        };
-        let exact = lease.ledger == self.identity
-            && lease.binding_contract_identity == self.binding_contract_identity
-            && lease.entry_contract_identity == self.entry_contract_identity
-            && lease.entry_contract_identity == record.candidate.entry_contract_identity
-            && lease.artifact_occurrence_digest == record.candidate.artifact_occurrence_digest
-            && lease.artifact_instance_compatibility_report_identity
-                == record
-                    .candidate
-                    .artifact_instance_compatibility_report_identity
-            && lease.entry_plan_identity == record.candidate.entry_plan_identity
-            && lease.entry_plan_admission_receipt_identity
-                == record.candidate.entry_plan_admission_receipt_identity
-            && lease.candidate == record.candidate
-            && self
-                .issued_program_local_root_epoch_leases
-                .contains(&lease.identity)
-            && record
-                .program_local_root_epoch_leases
-                .contains(&lease.identity);
-        if !exact {
-            return Err(ProgramLocalRootEpochLeaseReleaseError {
-                lease,
-                rejection: ProgramLocalRootEpochLeaseReleaseRejection::ExactPublishedEraJoin,
-            });
-        }
-        let removed = record
-            .program_local_root_epoch_leases
-            .remove(&lease.identity);
-        debug_assert!(removed, "exact live lease was present");
-        Ok(())
-    }
 
     pub fn enter(
         &mut self,
@@ -736,35 +553,6 @@ impl ComponentEraEntryLedger {
         Ok(())
     }
 
-    pub fn establish_quiescence(
-        &mut self,
-        receipt: ComponentEraQuiescenceReceipt,
-    ) -> Result<(), EraQuiescenceError> {
-        let Some(record) = self
-            .eras
-            .iter_mut()
-            .find(|record| record.candidate.era_identity == receipt.era_identity)
-        else {
-            return Err(EraQuiescenceError {
-                receipt,
-                rejection: EraQuiescenceRejection::EraNotLive,
-            });
-        };
-        let exact = receipt.binding_contract_identity == self.binding_contract_identity
-            && record.state == ComponentEraEntryState::Closing
-            && record.active_entries == 0
-            && record.program_local_root_epoch_leases.is_empty()
-            && receipt.residual_lifetime_cohort_holds == 0
-            && receipt.all_dispositions_complete;
-        if !exact {
-            return Err(EraQuiescenceError {
-                receipt,
-                rejection: EraQuiescenceRejection::ClosingCohortJoin,
-            });
-        }
-        record.state = ComponentEraEntryState::Quiescent;
-        Ok(())
-    }
 
     pub fn retire(
         &mut self,
@@ -1157,7 +945,4 @@ impl ProgramLocalRootEpochLeaseReleaseError {
         self.rejection.diagnostic()
     }
 
-    pub fn into_lease(self) -> ProgramLocalRootEpochLease {
-        self.lease
-    }
 }

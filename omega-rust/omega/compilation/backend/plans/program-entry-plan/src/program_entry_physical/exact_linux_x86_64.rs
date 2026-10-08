@@ -126,23 +126,4 @@ pub fn exact_linux_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEnt
 }
 
 impl ProgramEntryPhysicalContractPlan {
-    /// Replay the complete target-owned Linux x86-64 physical-entry contract.
-    /// Constructor compatibility remains deliberately broader for synthetic
-    /// compiler fixtures; runtime custody must use this exact verdict. The
-    /// authored contract retains no numeric entry-stack guarantee, so this
-    /// verdict rejects any injected closure rather than comparing one.
-    pub fn matches_exact_linux_x86_64_physical_contract(&self) -> bool {
-        let expected = exact_linux_x86_64_physical_boundary_entry_plan();
-        self.target_slot == target::TargetProfile::LinuxX64.program_entry_slot()
-            && self.target_package == target::ProgramEntryPhysicalContractPackage::LinuxX86_64
-            && self.target_package_source_digest
-                == exact_linux_x86_64_physical_contract_package_source_digest()
-            && self.requirement_identity == LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY
-            && self.parameter_type_identities.len() == 1
-            && self.parameter_type_identities[0] == LINUX_X86_64_ADDRESS_TYPE_IDENTITY
-            && self.result_type_identity == LINUX_X86_64_I32_TYPE_IDENTITY
-            && self.calling_plan_report_fingerprint == expected.contract_report_fingerprint()
-            && &self.boundary_entry_plan == expected.plan()
-            && self.guaranteed_entry_stack.is_none()
-    }
 }

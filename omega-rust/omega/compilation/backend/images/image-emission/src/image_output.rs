@@ -58,19 +58,6 @@ impl ExecutableImageEmissionRequest {
         }
     }
 
-    /// Bind `code_signature_identifier` as the Mach-O CodeDirectory identity.
-    /// The caller supplies the build-validated authored application
-    /// identifier; emission writes it verbatim and rejects an empty string
-    /// rather than silently falling back to the leaf.
-    pub fn with_code_signature_identifier(self, code_signature_identifier: Option<String>) -> Self {
-        match self {
-            Self::Direct { subsystem, .. } => Self::Direct {
-                subsystem,
-                code_signature_identifier,
-            },
-            Self::DynamicElf { .. } => self,
-        }
-    }
 
     /// The identity a direct request binds into Mach-O signing, if any.
     pub fn code_signature_identifier(&self) -> Option<&str> {
@@ -191,12 +178,6 @@ impl RequestedExecutableImageError {
         }
     }
 
-    pub fn into_unexpected_interpreter(self) -> Option<NormalizedElfInterpreterPlan> {
-        match self {
-            Self::UnexpectedDynamicElfInterpreter { interpreter, .. } => Some(interpreter),
-            _ => None,
-        }
-    }
 }
 
 impl std::fmt::Display for RequestedExecutableImageError {

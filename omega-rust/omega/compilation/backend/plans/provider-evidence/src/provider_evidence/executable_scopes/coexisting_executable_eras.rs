@@ -86,33 +86,6 @@ impl CoexistingExecutableTcbEntry {
             })
     }
 
-    /// Return every exact evidence identity for a universally established
-    /// axis. `None` means at least one contributing row lacks the guarantee.
-    pub fn universal_containment_evidence(
-        &self,
-        guarantee: ContainmentGuarantee,
-    ) -> Option<Vec<AttributedContainmentEvidence>> {
-        if !self.has_universal_containment(guarantee) {
-            return None;
-        }
-        Some(
-            self.contributions
-                .iter()
-                .filter_map(|contribution| {
-                    contribution
-                        .entry
-                        .containment
-                        .iter()
-                        .find(|evidence| evidence.guarantee == guarantee)
-                        .cloned()
-                        .map(|evidence| AttributedContainmentEvidence {
-                            source: contribution.source,
-                            evidence,
-                        })
-                })
-                .collect(),
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

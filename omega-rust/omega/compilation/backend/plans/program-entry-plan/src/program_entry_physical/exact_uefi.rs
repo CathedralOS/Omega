@@ -121,30 +121,4 @@ pub fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPl
 }
 
 impl ProgramEntryPhysicalContractPlan {
-    /// Replay the complete target-owned UEFI x64 physical-entry contract.
-    /// Constructor compatibility remains deliberately broader for synthetic
-    /// compiler fixtures; runtime custody must use this exact verdict.
-    pub fn matches_exact_uefi_x64_physical_contract(&self) -> bool {
-        let Some(guarantee) = &self.guaranteed_entry_stack else {
-            return false;
-        };
-        let Some(replayed) = replayed_uefi_x64_physical_calling_plan(&self.boundary_entry_plan)
-        else {
-            return false;
-        };
-        self.target_slot == target::TargetProfile::UefiX64.program_entry_slot()
-            && self.target_package == target::ProgramEntryPhysicalContractPackage::UefiX64
-            && self.target_package_source_digest
-                == exact_uefi_x64_physical_contract_package_source_digest()
-            && self.requirement_identity == UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY
-            && self.parameter_type_identities.len() == 2
-            && self.parameter_type_identities[0] == UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY
-            && self.parameter_type_identities[1] == UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY
-            && self.result_type_identity == UEFI_X64_STATUS_TYPE_IDENTITY
-            && self.calling_plan_report_fingerprint == replayed.contract_report_fingerprint()
-            && guarantee
-                .application()
-                .matches_exact_uefi_x64_entry_stack_application()
-            && guarantee.matches_exact_uefi_x64_entry_stack_guarantee()
-    }
 }

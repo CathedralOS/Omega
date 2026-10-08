@@ -737,9 +737,6 @@ impl TerminalAuthorityDisposition {
         &self.classes
     }
 
-    pub fn is_authority_class_empty(&self) -> bool {
-        self.classes.is_empty()
-    }
 
     /// Whether every class exercised by `other` is admitted by this
     /// disposition. Both inputs are canonical sets, so containment never

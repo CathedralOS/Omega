@@ -66,17 +66,11 @@ impl ExecutableTcbProfileAcceptance {
         &self.manifest
     }
 
-    pub fn known_entry_count(&self) -> usize {
-        self.manifest.known_entries.len()
-    }
 
     pub fn marked_incomplete_causes(&self) -> &[IncompleteCause] {
         &self.marked_incomplete_causes
     }
 
-    pub fn is_marked_incomplete(&self) -> bool {
-        !self.marked_incomplete_causes.is_empty()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

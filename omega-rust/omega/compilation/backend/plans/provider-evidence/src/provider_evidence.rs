@@ -211,42 +211,6 @@ impl SelectedProviderPlanFacts {
             && self.plans.iter().any(|member| member == plan)
     }
 
-    /// Compatibility constructor for focused tests and legacy callers. New
-    /// compiler paths resolve authored names once and call
-    /// [`Self::from_selected_plans`] directly.
-    pub fn from_selection(
-        candidates: &[ProviderPlan],
-        selected_names: &[String],
-    ) -> Result<Self, String> {
-        let mut names = BTreeSet::new();
-        for name in selected_names {
-            if !names.insert(name.as_str()) {
-                return Err(format!(
-                    "selected provider plan `{name}` appears more than once"
-                ));
-            }
-        }
-
-        let mut plans = Vec::with_capacity(names.len());
-        for name in names {
-            let matches = candidates
-                .iter()
-                .filter(|candidate| candidate.name == name)
-                .collect::<Vec<_>>();
-            let [plan] = matches.as_slice() else {
-                return Err(match matches.len() {
-                    0 => format!(
-                        "selected provider plan `{name}` is absent from the validated candidate set"
-                    ),
-                    count => format!(
-                        "selected provider plan `{name}` matches {count} candidates; selection must identify exactly one plan"
-                    ),
-                });
-            };
-            plans.push((*plan).clone());
-        }
-        Self::from_selected_plans(plans)
-    }
 
     pub fn plans(&self) -> &[ProviderPlan] {
         &self.plans
@@ -327,88 +291,11 @@ impl SelectedProviderPlanFacts {
         self.execution_scope
     }
 
-    /// Re-scope one selected closure before attaching opaque admissions. The
-    /// provider-plan identity is unchanged; execution scope is artifact
-    /// installation context rather than source/provider identity.
-    pub fn with_execution_scope(
-        mut self,
-        execution_scope: crate::ExecutionScope,
-    ) -> Result<Self, String> {
-        if !self.opaque_executable_admissions.is_empty() {
-            return Err(
-                "selected provider closure must choose its execution scope before opaque executable admissions"
-                    .into(),
-            );
-        }
-        if matches!(execution_scope, crate::ExecutionScope::IsolatedProvider(0)) {
-            return Err("isolated execution scope has the reserved zero identity".into());
-        }
-        self.execution_scope = execution_scope;
-        Ok(self)
-    }
 
     pub fn is_empty(&self) -> bool {
         self.plans.is_empty()
     }
 
-    /// Bind trusted opaque-executable evidence to exact rows in this selected
-    /// closure. Loader names are checked only for row drift; they never become
-    /// executable identity.
-    pub fn with_opaque_executable_admissions(
-        mut self,
-        candidates: impl IntoIterator<Item = crate::OpaqueExecutableAdmissionCandidate>,
-    ) -> Result<Self, String> {
-        let mut occupied = self
-            .opaque_executable_admissions
-            .iter()
-            .map(|admission| {
-                let candidate = admission.candidate();
-                (
-                    candidate.provider_plan_report_identity,
-                    candidate.provider_plan_digest,
-                    candidate.method.clone(),
-                    candidate.requirement_identity.clone(),
-                )
-            })
-            .collect::<BTreeSet<_>>();
-        for candidate in candidates {
-            if candidate.execution_scope != self.execution_scope {
-                return Err(format!(
-                    "opaque executable admission scope {:?} does not match selected closure scope {:?}",
-                    candidate.execution_scope, self.execution_scope
-                ));
-            }
-            let key = (
-                candidate.provider_plan_report_identity,
-                candidate.provider_plan_digest,
-                candidate.method.clone(),
-                candidate.requirement_identity.clone(),
-            );
-            if !occupied.insert(key) {
-                return Err(format!(
-                    "opaque executable admission duplicates selected row `{}` / `{}` in provider plan {:#018x}",
-                    candidate.method,
-                    candidate.requirement_identity,
-                    candidate.provider_plan_report_identity
-                ));
-            }
-            self.opaque_executable_admissions.push(
-                crate::provider_evidence::executable_scopes::executable_tcb_manifest::validate_opaque_executable_admission(
-                    &self.plans,
-                    candidate,
-                )?,
-            );
-        }
-        self.opaque_executable_admissions.sort_by(|left, right| {
-            let left = left.candidate();
-            let right = right.candidate();
-            left.provider_plan_report_identity
-                .cmp(&right.provider_plan_report_identity)
-                .then_with(|| left.method.cmp(&right.method))
-                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
-        });
-        Ok(self)
-    }
 
     pub fn opaque_executable_admissions(&self) -> &[crate::ValidatedOpaqueExecutableAdmission] {
         &self.opaque_executable_admissions
@@ -687,41 +574,6 @@ impl SelectedProviderPlanFacts {
             })
     }
 
-    /// Resolve one root closure from its concrete reach plus exact bounded
-    /// requirement dependencies. Absence rejects; an upper bound is never
-    /// silently used as the selected row. A requirement identity realized by
-    /// more than one selected plan is ambiguous unscoped and rejects —
-    /// resolve it through the owning root's plan with
-    /// [`Self::resolve_installation_reach_for_plan`].
-    pub fn resolve_installation_reach(
-        &self,
-        concrete_reach: &[String],
-        requirement_identities: &[String],
-    ) -> Result<Vec<String>, String> {
-        let mut resolved = concrete_reach.to_vec();
-        for requirement_identity in requirement_identities {
-            let selected_identity = self.selected_requirement_identity(requirement_identity);
-            if let Some(row) = self.installation_reach_resolution(selected_identity) {
-                resolved.extend(row.resolved_row.iter().cloned());
-                continue;
-            }
-            if self
-                .installation_reach_resolutions
-                .iter()
-                .any(|resolution| resolution.requirement_identity == *selected_identity)
-            {
-                return Err(format!(
-                    "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan; resolve it through the root's selected provider plan"
-                ));
-            }
-            return Err(format!(
-                "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
-            ));
-        }
-        resolved.sort();
-        resolved.dedup();
-        Ok(resolved)
-    }
 
     /// Resolve one root closure from its concrete reach plus exact bounded
     /// requirement dependencies, addressed through the root's own selected

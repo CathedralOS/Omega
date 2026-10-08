@@ -2,9 +2,8 @@
 
 use crate::provider_plan::ProviderPlanDigest;
 use crate::{
-    ContainmentEvidence, ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry,
-    ExecutableTcbManifest, ExecutionScope, ImplementationEvidence, ProviderIdentity,
-    ScopeCompleteness,
+    ContainmentEvidence, ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope,
+    ProviderIdentity, ScopeCompleteness,
 };
 
 /// Deployment admission joining one caller-visible endpoint to the separate
@@ -74,67 +73,6 @@ impl ExecutableTcbManifestSet {
         &self.isolated
     }
 
-    pub fn attach_isolated_scope(
-        &mut self,
-        mut candidate: IsolatedExecutableScopeCandidate,
-    ) -> Result<(), String> {
-        validate_candidate(&mut candidate)?;
-        let isolated_scope = ExecutionScope::IsolatedProvider(candidate.isolated_scope_identity);
-        if manifest_scope(&candidate.isolated_manifest) != isolated_scope {
-            return Err(format!(
-                "isolated executable manifest scope {:?} does not match admitted scope {:?}",
-                manifest_scope(&candidate.isolated_manifest),
-                isolated_scope
-            ));
-        }
-        validate_manifest_scope(&candidate.isolated_manifest)?;
-        if self
-            .isolated
-            .iter()
-            .any(|admitted| admitted.scope() == isolated_scope)
-        {
-            return Err(format!(
-                "isolated executable scope {:#018x} is attached more than once",
-                candidate.isolated_scope_identity
-            ));
-        }
-
-        let parent_scope = manifest_scope(&self.root);
-        let endpoint = ExecutableTcbEntry {
-            provider_identity: candidate.provider_identity,
-            provider_plan_report_identity: candidate.provider_plan_report_identity,
-            provider_plan_digest: candidate.provider_plan_digest,
-            selected_requirement: None,
-            executable_identity: ExecutableIdentity::IsolatedProviderEndpoint {
-                scope_identity: candidate.isolated_scope_identity,
-                endpoint_identity: candidate.endpoint_identity,
-            },
-            implementation_evidence: ImplementationEvidence::AdmittedIsolatedEndpoint {
-                endpoint_receipt_identity: candidate.endpoint_receipt_identity,
-                isolated_manifest_receipt_identity: candidate
-                    .isolated_manifest_receipt_identity
-                    .clone(),
-            },
-            origin: ExecutableEntryOrigin::StaticSelection,
-            execution_scope: parent_scope,
-            containment: candidate.containment,
-        };
-        if self.root.known_entries.contains(&endpoint) {
-            return Err("isolated provider endpoint is attached more than once".into());
-        }
-        self.root.known_entries.push(endpoint.clone());
-        self.isolated.push(AdmittedIsolatedExecutableScope {
-            endpoint,
-            manifest_receipt_identity: candidate.isolated_manifest_receipt_identity,
-            manifest: candidate.isolated_manifest,
-        });
-        self.isolated
-            .sort_by_key(|admitted| match admitted.scope() {
-                ExecutionScope::IsolatedProvider(identity) => identity,
-                ExecutionScope::CallerAddressSpace => 0,
-            });
-        Ok(())
-    }
 }
 
 fn validate_candidate(candidate: &mut IsolatedExecutableScopeCandidate) -> Result<(), String> {

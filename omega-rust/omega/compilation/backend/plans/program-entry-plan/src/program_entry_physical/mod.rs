@@ -253,13 +253,6 @@ impl ProgramEntryPhysicalContractPlan {
         self.target_package_source_digest
     }
 
-    pub fn target_package_source_matches(&self, source: &[u8]) -> bool {
-        self.target_package_source_digest
-            == ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-                self.target_package,
-                source,
-            )
-    }
 
     pub const fn non_authoritative_target_package_source_report_fingerprint(&self) -> u64 {
         self.non_authoritative_target_package_source_report_fingerprint
