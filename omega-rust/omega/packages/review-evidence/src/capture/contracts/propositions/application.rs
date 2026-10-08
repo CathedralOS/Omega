@@ -158,9 +158,7 @@ pub(crate) fn project_contract_proposition(
         ));
     }
     let declaration = compilation
-        .propositions()
-        .iter()
-        .find(|candidate| candidate.symbol == application.proposition)
+        .proposition_definition_by_symbol(application.proposition)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "reviewed {} `{}` contract refers to an unresolved or generic proposition endpoint",

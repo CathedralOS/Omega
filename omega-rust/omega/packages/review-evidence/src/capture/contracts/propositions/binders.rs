@@ -161,9 +161,7 @@ pub(crate) fn project_proposition_evidence_projection(
     }
 
     let declaration = compilation
-        .propositions()
-        .iter()
-        .find(|candidate| candidate.symbol == term.proposition.declaration)
+        .proposition_definition_by_symbol(term.proposition.declaration)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "reviewed {} `{}` evidence projection `{}.{}` has an unresolved source proposition endpoint",

@@ -30,9 +30,7 @@ pub fn project_checked_conformance_policy<'a>(
 ) -> Result<PackagePolicyClosedConformanceApplication, Vec<Diagnostic>> {
     let compilation = &input.into();
     let declaration = compilation
-        .conformances()
-        .iter()
-        .find(|declaration| declaration.symbol == application.declaration)
+        .conformance_by_symbol(application.declaration)
         .ok_or_else(|| rejected("an application without its exact declaration"))?;
     let parameters = compilation
         .conformance_type_parameters(declaration)
