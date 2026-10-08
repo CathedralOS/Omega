@@ -62,11 +62,10 @@ pub(in crate::encoding::recovery) fn plan(
         methods: reader.sequence(1, service::method)?,
         rows: reader.sequence(1, row)?,
         grants: reader.sequence(1, |reader| {
-            Ok(match reader.byte()? {
-                0 => PackageReviewProviderGrantSelectorKind::PlanName,
-                1 => PackageReviewProviderGrantSelectorKind::ProviderSlot,
-                _ => return Err(Error::InvalidTag),
-            })
+            Ok(super::tag!(reader => {
+            0 => PackageReviewProviderGrantSelectorKind::PlanName,
+            1 => PackageReviewProviderGrantSelectorKind::ProviderSlot,
+        }))
         })?,
     })
 }
@@ -97,15 +96,13 @@ pub(in crate::encoding::recovery) fn family(
         family_identity: nominal(reader)?,
         provider_type_declaration: nominal(reader)?,
         target: target(reader)?,
-        authority: match reader.byte()? {
+        authority: super::tag!(reader => {
             0 => PackageReviewProviderSelectionAuthority::BuildOverride,
             1 => PackageReviewProviderSelectionAuthority::TargetDefault,
-            _ => return Err(Error::InvalidTag),
-        },
-        coverage: match reader.byte()? {
+        }),
+        coverage: super::tag!(reader => {
             0 => PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         coordinates: reader.sequence(53, |reader| {
             Ok(PackagePolicyProviderFamilyCoordinate {
                 requirement_identity: reader.string()?,

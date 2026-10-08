@@ -38,19 +38,17 @@ pub(in crate::encoding::recovery) fn semantic_dependency(
             _ => return Err(Error::InvalidTag),
         },
         dependency: nominal(reader)?,
-        kind: match reader.byte()? {
+        kind: super::super::tag!(reader => {
             0 => PackageReviewSemanticDependencyKind::NominalIdentity,
             1 => PackageReviewSemanticDependencyKind::Layout,
             2 => PackageReviewSemanticDependencyKind::OwnershipBehavior,
             3 => PackageReviewSemanticDependencyKind::AutomaticCleanup,
             4 => PackageReviewSemanticDependencyKind::AutomaticCleanupMachine,
-            _ => return Err(Error::InvalidTag),
-        },
-        exposure: match reader.byte()? {
+        }),
+        exposure: super::super::tag!(reader => {
             0 => PackageReviewSemanticDependencyExposure::PrivateImplementation,
             1 => PackageReviewSemanticDependencyExposure::PublicInterface,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 
@@ -58,14 +56,13 @@ pub(in crate::encoding::recovery) fn authority_class(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDangerousAuthorityClass, Error> {
     use PackageReviewDangerousAuthorityClass as Class;
-    Ok(match reader.byte()? {
-        0 => Class::Filesystem,
-        1 => Class::MachineControl,
-        2 => Class::PortIo,
-        3 => Class::InterruptControl,
-        4 => Class::InterruptEntry,
-        5 => Class::RootMemory,
-        6 => Class::Process,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::super::tag!(reader => {
+            0 => Class::Filesystem,
+            1 => Class::MachineControl,
+            2 => Class::PortIo,
+            3 => Class::InterruptControl,
+            4 => Class::InterruptEntry,
+            5 => Class::RootMemory,
+            6 => Class::Process,
+        }))
 }

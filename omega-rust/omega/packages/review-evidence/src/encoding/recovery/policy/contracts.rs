@@ -79,12 +79,11 @@ pub(in crate::encoding::recovery) fn proposition_application(
 pub(in crate::encoding::recovery) fn binder_argument(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionBinderArgument, Error> {
-    let kind = match reader.byte()? {
-        0 => PackageReviewPropositionBinderArgumentKind::Type,
-        1 => PackageReviewPropositionBinderArgumentKind::Const,
-        2 => PackageReviewPropositionBinderArgumentKind::Machine,
-        _ => return Err(Error::InvalidTag),
-    };
+    let kind = super::tag!(reader => {
+            0 => PackageReviewPropositionBinderArgumentKind::Type,
+            1 => PackageReviewPropositionBinderArgumentKind::Const,
+            2 => PackageReviewPropositionBinderArgumentKind::Machine,
+        });
     let value = match reader.byte()? {
         0 => PackageReviewPropositionBinderValue::Type(type_identity(reader)?),
         1 => PackageReviewPropositionBinderValue::GenericBinder(reader.u32()?),

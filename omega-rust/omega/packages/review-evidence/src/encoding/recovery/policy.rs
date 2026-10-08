@@ -109,3 +109,16 @@ macro_rules! recover_canonical_component {
     };
 }
 pub(crate) use recover_canonical_component;
+
+/// Tag dispatch: `match reader.byte()?` mapping byte tags to variants with a
+/// trailing invalid-tag rejection. Every tag-typed decoder restates it.
+macro_rules! tag {
+    ($reader:expr => { $($tag:literal => $variant:expr),+ $(,)? }) => {
+        match $reader.byte()? {
+            $($tag => $variant,)+
+            _ => return Err(Error::InvalidTag),
+        }
+    };
+}
+
+pub(crate) use tag;

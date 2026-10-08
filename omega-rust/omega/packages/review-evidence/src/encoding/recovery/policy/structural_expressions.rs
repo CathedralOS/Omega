@@ -35,12 +35,11 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 right: reader.boxed(boolean_expression)?,
             },
             6 => Expression::IntegerComparison {
-                kind: match reader.byte()? {
-                    0 => PackageReviewIntegerComparisonKind::Equal,
-                    1 => PackageReviewIntegerComparisonKind::LessThan,
-                    2 => PackageReviewIntegerComparisonKind::LessOrEqual,
-                    _ => return Err(Error::InvalidTag),
-                },
+                kind: super::tag!(reader => {
+            0 => PackageReviewIntegerComparisonKind::Equal,
+            1 => PackageReviewIntegerComparisonKind::LessThan,
+            2 => PackageReviewIntegerComparisonKind::LessOrEqual,
+        }),
                 left: reader.boxed(scalar_expression)?,
                 right: reader.boxed(scalar_expression)?,
             },
@@ -84,15 +83,14 @@ pub(in crate::encoding::recovery) fn boolean_expression(
 fn ieee_float_comparison_kind(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewIeeeFloatComparisonKind, Error> {
-    Ok(match reader.byte()? {
-        0 => PackageReviewIeeeFloatComparisonKind::Equal,
-        1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
-        2 => PackageReviewIeeeFloatComparisonKind::LessThan,
-        3 => PackageReviewIeeeFloatComparisonKind::LessOrEqual,
-        4 => PackageReviewIeeeFloatComparisonKind::NotLessThan,
-        5 => PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::tag!(reader => {
+            0 => PackageReviewIeeeFloatComparisonKind::Equal,
+            1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
+            2 => PackageReviewIeeeFloatComparisonKind::LessThan,
+            3 => PackageReviewIeeeFloatComparisonKind::LessOrEqual,
+            4 => PackageReviewIeeeFloatComparisonKind::NotLessThan,
+            5 => PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
+        }))
 }
 
 pub(in crate::encoding::recovery) fn structural_field(

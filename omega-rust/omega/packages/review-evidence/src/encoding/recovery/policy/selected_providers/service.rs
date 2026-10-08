@@ -26,16 +26,14 @@ pub(in crate::encoding::recovery) fn method(
                 parameter_index: reader.usize()?,
                 carrier_identity: reader.string()?,
                 domain: reader.string()?,
-                predicate_body: match reader.byte()? {
-                    0 => DomainPredicateBody::Bodyless,
-                    1 => DomainPredicateBody::Present,
-                    _ => return Err(Error::InvalidTag),
-                },
+                predicate_body: super::super::tag!(reader => {
+            0 => DomainPredicateBody::Bodyless,
+            1 => DomainPredicateBody::Present,
+        }),
                 effective_carry: carry(reader)?,
-                authority_flow: match reader.byte()? {
-                    0 => ServiceEntryAuthorityFlow::Accepts,
-                    _ => return Err(Error::InvalidTag),
-                },
+                authority_flow: super::super::tag!(reader => {
+            0 => ServiceEntryAuthorityFlow::Accepts,
+        }),
             })
         })?,
         completion: match reader.byte()? {
@@ -69,11 +67,10 @@ pub(in crate::encoding::recovery) fn method(
                 subject_projections: reader.sequence(8, Reader::string)?,
                 establishment_routes: reader.sequence(9, |reader| {
                     Ok(ServiceProgressEstablishmentRoute {
-                        kind: match reader.byte()? {
-                            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                            _ => return Err(Error::InvalidTag),
-                        },
+                        kind: super::super::tag!(reader => {
+            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+        }),
                         requirement_identity: reader.string()?,
                     })
                 })?,
@@ -85,25 +82,21 @@ pub(in crate::encoding::recovery) fn method(
 
 pub(in crate::encoding::recovery) fn carry(reader: &mut Reader<'_>) -> Result<CarryPolicy, Error> {
     Ok(CarryPolicy {
-        suspension: match reader.byte()? {
+        suspension: super::super::tag!(reader => {
             0 => CarrySuspension::Forbidden,
             1 => CarrySuspension::Allowed,
-            _ => return Err(Error::InvalidTag),
-        },
-        cpu: match reader.byte()? {
+        }),
+        cpu: super::super::tag!(reader => {
             0 => CarryCpu::Origin,
             1 => CarryCpu::Any,
-            _ => return Err(Error::InvalidTag),
-        },
-        host_thread: match reader.byte()? {
+        }),
+        host_thread: super::super::tag!(reader => {
             0 => CarryHostThread::Origin,
             1 => CarryHostThread::Any,
-            _ => return Err(Error::InvalidTag),
-        },
-        address: match reader.byte()? {
+        }),
+        address: super::super::tag!(reader => {
             0 => CarryAddress::Stable,
             1 => CarryAddress::Movable,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }

@@ -36,11 +36,10 @@ pub(in crate::encoding::recovery) fn value_placement(
 pub(in crate::encoding::recovery) fn eightbyte(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewSystemVEightbyteClass, Error> {
-    Ok(match reader.byte()? {
-        0 => PackageReviewSystemVEightbyteClass::Integer,
-        1 => PackageReviewSystemVEightbyteClass::Sse,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::super::tag!(reader => {
+            0 => PackageReviewSystemVEightbyteClass::Integer,
+            1 => PackageReviewSystemVEightbyteClass::Sse,
+        }))
 }
 
 pub(in crate::encoding::recovery) fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {

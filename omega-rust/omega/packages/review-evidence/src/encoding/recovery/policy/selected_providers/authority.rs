@@ -23,11 +23,10 @@ pub(in crate::encoding::recovery) fn authority(
                 subject_projections: reader.sequence(41, nominal)?,
                 establishment_routes: reader.sequence(83, |reader| {
                     Ok(PackagePolicyServiceProgressRoute {
-                        kind: match reader.byte()? {
-                            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                            _ => return Err(Error::InvalidTag),
-                        },
+                        kind: super::super::tag!(reader => {
+            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+        }),
                         requirement_owner: nominal(reader)?,
                         requirement: nominal(reader)?,
                     })

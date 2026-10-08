@@ -38,20 +38,19 @@ pub(in crate::encoding::recovery) fn operator_spelling(
     reader: &mut Reader<'_>,
 ) -> Result<language_core::OperatorSpelling, Error> {
     use language_core::OperatorSpelling;
-    Ok(match reader.byte()? {
-        0 => OperatorSpelling::Add,
-        1 => OperatorSpelling::Subtract,
-        2 => OperatorSpelling::Multiply,
-        3 => OperatorSpelling::Divide,
-        4 => OperatorSpelling::Modulo,
-        5 => OperatorSpelling::Equal,
-        6 => OperatorSpelling::NotEqual,
-        7 => OperatorSpelling::Less,
-        8 => OperatorSpelling::LessEqual,
-        9 => OperatorSpelling::Greater,
-        10 => OperatorSpelling::GreaterEqual,
-        11 => OperatorSpelling::Index,
-        12 => OperatorSpelling::Range,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::super::tag!(reader => {
+            0 => OperatorSpelling::Add,
+            1 => OperatorSpelling::Subtract,
+            2 => OperatorSpelling::Multiply,
+            3 => OperatorSpelling::Divide,
+            4 => OperatorSpelling::Modulo,
+            5 => OperatorSpelling::Equal,
+            6 => OperatorSpelling::NotEqual,
+            7 => OperatorSpelling::Less,
+            8 => OperatorSpelling::LessEqual,
+            9 => OperatorSpelling::Greater,
+            10 => OperatorSpelling::GreaterEqual,
+            11 => OperatorSpelling::Index,
+            12 => OperatorSpelling::Range,
+        }))
 }

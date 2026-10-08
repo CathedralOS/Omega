@@ -33,12 +33,11 @@ pub(in crate::encoding::recovery) fn physical(
 pub(in crate::encoding::recovery) fn policy(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBoundaryCallingPolicy, Error> {
-    Ok(match reader.byte()? {
-        0 => PackageReviewBoundaryCallingPolicy::MicrosoftX64,
-        1 => PackageReviewBoundaryCallingPolicy::SystemVAMD64,
-        2 => PackageReviewBoundaryCallingPolicy::Aapcs64,
-        3 => PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64,
-        4 => PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::tag!(reader => {
+            0 => PackageReviewBoundaryCallingPolicy::MicrosoftX64,
+            1 => PackageReviewBoundaryCallingPolicy::SystemVAMD64,
+            2 => PackageReviewBoundaryCallingPolicy::Aapcs64,
+            3 => PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64,
+            4 => PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64,
+        }))
 }

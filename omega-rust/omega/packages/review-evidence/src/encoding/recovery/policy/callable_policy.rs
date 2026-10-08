@@ -43,14 +43,13 @@ pub(in crate::encoding::recovery) fn callable(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallable, Error> {
     Ok(PackagePolicyCallable {
-        role: match reader.byte()? {
+        role: super::tag!(reader => {
             0 => PackagePolicyCallableRole::Boundary,
             1 => PackagePolicyCallableRole::Public,
             2 => PackagePolicyCallableRole::Build,
             3 => PackagePolicyCallableRole::PrivateAssumption,
             4 => PackagePolicyCallableRole::PrivateExternal,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         identity: nominal(reader)?,
         target_context: super::identity::target_context(reader)?,
         supply: supply(reader)?,
@@ -119,15 +118,14 @@ pub(in crate::encoding::recovery) fn callable(
 pub(in crate::encoding::recovery) fn supply(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableSupply, Error> {
-    Ok(match reader.byte()? {
-        0 => PackageReviewCallableSupply::CheckedBody,
-        1 => PackageReviewCallableSupply::Requirement,
-        2 => PackageReviewCallableSupply::Boundary,
-        3 => PackageReviewCallableSupply::AdmissionClaim,
-        4 => PackageReviewCallableSupply::ExternalRealization,
-        5 => PackageReviewCallableSupply::TopLevelRequirement,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::tag!(reader => {
+            0 => PackageReviewCallableSupply::CheckedBody,
+            1 => PackageReviewCallableSupply::Requirement,
+            2 => PackageReviewCallableSupply::Boundary,
+            3 => PackageReviewCallableSupply::AdmissionClaim,
+            4 => PackageReviewCallableSupply::ExternalRealization,
+            5 => PackageReviewCallableSupply::TopLevelRequirement,
+        }))
 }
 
 pub(in crate::encoding::recovery) fn callable_conformance(

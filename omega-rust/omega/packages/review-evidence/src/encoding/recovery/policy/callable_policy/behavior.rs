@@ -23,14 +23,13 @@ pub(in crate::encoding::recovery) fn capability(
 ) -> Result<PackagePolicyCapabilityFlow, Error> {
     Ok(PackagePolicyCapabilityFlow {
         capability: nominal(reader)?,
-        kind: match reader.byte()? {
+        kind: super::super::tag!(reader => {
             0 => flow_effects::CapabilityFlowKind::Uses,
             1 => flow_effects::CapabilityFlowKind::Returns,
             2 => flow_effects::CapabilityFlowKind::Acquires,
             3 => flow_effects::CapabilityFlowKind::Stores,
             4 => flow_effects::CapabilityFlowKind::Derives,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     })
 }
 
@@ -38,11 +37,10 @@ pub(in crate::encoding::recovery) fn crash(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCrash, Error> {
     Ok(PackagePolicyCrash {
-        interface: match reader.byte()? {
+        interface: super::super::tag!(reader => {
             0 => PackageReviewCrashInterface::InternalInferred,
             1 => PackageReviewCrashInterface::PublishedCeiling,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         published: reader.sequence(9, crash_route)?,
         structural_runtime_requirements: reader
             .option(|reader| reader.sequence(1, boolean_expression))?,
@@ -66,11 +64,10 @@ pub(in crate::encoding::recovery) fn crash_route(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCrashRoute, Error> {
     Ok(PackagePolicyCrashRoute {
-        cause: match reader.byte()? {
+        cause: super::super::tag!(reader => {
             0 => PackageReviewCrashCause::Trap,
             1 => PackageReviewCrashCause::Abort,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         alternative_guards: reader.sequence(1, |reader| {
             Ok(match reader.byte()? {
                 0 => PackagePolicyCrashGuard::Truth,
@@ -85,11 +82,10 @@ pub(in crate::encoding::recovery) fn mutation(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyMutation, Error> {
     Ok(PackagePolicyMutation {
-        completeness: match reader.byte()? {
+        completeness: super::super::tag!(reader => {
             0 => PackageReviewWriteFrameCompleteness::Complete,
             1 => PackageReviewWriteFrameCompleteness::Opaque,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         paths: reader.sequence(8, |reader| reader.string())?,
     })
 }
@@ -112,11 +108,10 @@ pub(in crate::encoding::recovery) fn termination(
                     establishment_routes: reader.sequence(83, |reader| {
                         use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
                         Ok(PackagePolicyServiceProgressRoute {
-                            kind: match reader.byte()? {
-                                0 => Kind::CheckedRequirement,
-                                1 => Kind::BoundaryRequirement,
-                                _ => return Err(Error::InvalidTag),
-                            },
+                            kind: super::super::tag!(reader => {
+            0 => Kind::CheckedRequirement,
+            1 => Kind::BoundaryRequirement,
+        }),
                             requirement_owner: nominal(reader)?,
                             requirement: nominal(reader)?,
                         })

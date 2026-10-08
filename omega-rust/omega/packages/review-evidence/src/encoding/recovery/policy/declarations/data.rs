@@ -22,11 +22,10 @@ pub(in crate::encoding::recovery) fn data_field(
     Ok(PackageReviewDataField {
         identity: reader.option(|reader| reader.u64())?,
         name: reader.string()?,
-        relevance: match reader.byte()? {
+        relevance: super::super::tag!(reader => {
             0 => language_core::BindingRelevance::Relevant,
             1 => language_core::BindingRelevance::Erased,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         type_identity: type_identity(reader)?,
     })
 }

@@ -10,7 +10,7 @@ pub(in crate::encoding::recovery) fn target(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewRepresentationTarget, Error> {
     Ok(PackageReviewRepresentationTarget {
-        profile: match reader.byte()? {
+        profile: super::super::tag!(reader => {
             0 => PackageReviewRepresentationTargetProfile::LinuxArm64,
             1 => PackageReviewRepresentationTargetProfile::LinuxX64,
             2 => PackageReviewRepresentationTargetProfile::MacosArm64,
@@ -19,19 +19,16 @@ pub(in crate::encoding::recovery) fn target(
             5 => PackageReviewRepresentationTargetProfile::CrossPlatformCli,
             6 => PackageReviewRepresentationTargetProfile::LocalUnchecked,
             7 => PackageReviewRepresentationTargetProfile::MacosX64,
-            _ => return Err(Error::InvalidTag),
-        },
-        architecture: match reader.byte()? {
+        }),
+        architecture: super::super::tag!(reader => {
             0 => PackageReviewRepresentationArchitecture::Aarch64,
             1 => PackageReviewRepresentationArchitecture::X86_64,
-            _ => return Err(Error::InvalidTag),
-        },
-        object_format: match reader.byte()? {
+        }),
+        object_format: super::super::tag!(reader => {
             0 => PackageReviewRepresentationObjectFormat::Elf,
             1 => PackageReviewRepresentationObjectFormat::MachO,
             2 => PackageReviewRepresentationObjectFormat::Coff,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         pointer_size: reader.u16()?,
         pointer_alignment: reader.u16()?,
     })

@@ -18,11 +18,10 @@ pub(in crate::encoding::recovery) fn domain_shape(
         type_parameters: reader.sequence(3, type_parameter)?,
         target_type: type_identity(reader)?,
         index_arguments: reader.sequence(8, type_identity)?,
-        predicate_body: match reader.byte()? {
+        predicate_body: super::super::tag!(reader => {
             0 => language_semantics::DomainPredicateBody::Bodyless,
             1 => language_semantics::DomainPredicateBody::Present,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         predicate_facts: reader.sequence(2, contract_fact)?,
         alias_expansion: reader.option(|reader| reader.sequence(2, alias_atom))?,
         classification: match reader.byte()? {
@@ -31,11 +30,10 @@ pub(in crate::encoding::recovery) fn domain_shape(
             _ => return Err(Error::InvalidTag),
         },
         semantic_roles: reader.sequence(1, |reader| {
-            Ok(match reader.byte()? {
-                0 => PackageReviewDomainSemanticRole::DenotationDimension,
-                1 => PackageReviewDomainSemanticRole::ArithmeticPolicy,
-                _ => return Err(Error::InvalidTag),
-            })
+            Ok(super::super::tag!(reader => {
+            0 => PackageReviewDomainSemanticRole::DenotationDimension,
+            1 => PackageReviewDomainSemanticRole::ArithmeticPolicy,
+        }))
         })?,
         establishment_routes: reader.sequence(42, establishment_route)?,
     })

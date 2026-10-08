@@ -60,19 +60,16 @@ pub(in crate::encoding::recovery) fn opaque_representation_fields(
         nominal(reader)?,
         owner(reader)?,
         conformance::application(reader)?,
-        match reader.byte()? {
+        super::tag!(reader => {
             0 => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
-            _ => return Err(Error::InvalidTag),
-        },
-        match reader.byte()? {
+        }),
+        super::tag!(reader => {
             0 => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
-            _ => return Err(Error::InvalidTag),
-        },
-        match reader.byte()? {
+        }),
+        super::tag!(reader => {
             0 => PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly,
             1 => PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
     ))
 }
 

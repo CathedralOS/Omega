@@ -22,11 +22,10 @@ pub(in crate::encoding::recovery) fn data_shape(
             },
             _ => return Err(Error::InvalidTag),
         },
-        supply: match reader.byte()? {
+        supply: super::super::tag!(reader => {
             0 => language_semantics::DataSupplyMode::CheckedShape,
             1 => language_semantics::DataSupplyMode::BoundaryOpaque,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         properties: data_properties(reader)?,

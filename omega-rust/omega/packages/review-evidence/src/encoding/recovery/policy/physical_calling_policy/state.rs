@@ -58,7 +58,7 @@ pub(in crate::encoding::recovery) fn state_set(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyMachineStateSet, Error> {
     let states = reader.sequence(1, |reader| {
-        Ok(match reader.byte()? {
+        Ok(super::super::tag!(reader => {
             0 => PackagePolicyMachineState::GeneralRegisters,
             1 => PackagePolicyMachineState::VectorRegisters,
             2 => PackagePolicyMachineState::Flags,
@@ -68,8 +68,7 @@ pub(in crate::encoding::recovery) fn state_set(
             6 => PackagePolicyMachineState::ControlState,
             7 => PackagePolicyMachineState::DebugState,
             8 => PackagePolicyMachineState::ExtendedState,
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })?;
     PackagePolicyMachineStateSet::from_canonical(states).ok_or(Error::NonCanonicalEncoding)
 }

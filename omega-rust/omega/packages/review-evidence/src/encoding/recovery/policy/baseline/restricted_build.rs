@@ -25,11 +25,10 @@ pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
     Ok(PackagePolicyRestrictedBuildRequest {
-        operation: match reader.byte()? {
+        operation: super::super::tag!(reader => {
             0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
             1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         read_grants: reader.sequence(GRANT_MINIMUM_BYTES, grant)?,
         write_grants: reader.sequence(GRANT_MINIMUM_BYTES, grant)?,
         bounds: bounds(reader)?,

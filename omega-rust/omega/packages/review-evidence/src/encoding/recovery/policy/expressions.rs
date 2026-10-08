@@ -34,11 +34,10 @@ pub(in crate::encoding::recovery) fn expression(
                 right: reader.boxed(expression)?,
             },
             7 => Expression::Unary {
-                operator: match reader.byte()? {
-                    0 => PackageReviewContractUnaryOperator::BitwiseNot,
-                    1 => PackageReviewContractUnaryOperator::LogicalNot,
-                    _ => return Err(Error::InvalidTag),
-                },
+                operator: super::tag!(reader => {
+            0 => PackageReviewContractUnaryOperator::BitwiseNot,
+            1 => PackageReviewContractUnaryOperator::LogicalNot,
+        }),
                 operand: reader.boxed(expression)?,
             },
             8 => Expression::Member {
@@ -49,21 +48,19 @@ pub(in crate::encoding::recovery) fn expression(
             9 => Expression::Cast {
                 value: reader.boxed(expression)?,
                 target: type_identity(reader)?,
-                arithmetic_domain: match reader.byte()? {
-                    0 => PackageReviewArithmeticDomain::Exact,
-                    1 => PackageReviewArithmeticDomain::Wrapping,
-                    2 => PackageReviewArithmeticDomain::Saturating,
-                    3 => PackageReviewArithmeticDomain::Trapping,
-                    _ => return Err(Error::InvalidTag),
-                },
+                arithmetic_domain: super::tag!(reader => {
+            0 => PackageReviewArithmeticDomain::Exact,
+            1 => PackageReviewArithmeticDomain::Wrapping,
+            2 => PackageReviewArithmeticDomain::Saturating,
+            3 => PackageReviewArithmeticDomain::Trapping,
+        }),
                 semantic_domain: reader.option(nominal)?,
                 semantic_domain_arguments: reader.sequence(8, type_identity)?,
-                form: match reader.byte()? {
-                    0 => PackageReviewCastForm::Value,
-                    1 => PackageReviewCastForm::RecastShared,
-                    2 => PackageReviewCastForm::RecastMutable,
-                    _ => return Err(Error::InvalidTag),
-                },
+                form: super::tag!(reader => {
+            0 => PackageReviewCastForm::Value,
+            1 => PackageReviewCastForm::RecastShared,
+            2 => PackageReviewCastForm::RecastMutable,
+        }),
             },
             10 => Expression::DomainSubject,
             11 => Expression::Call {
@@ -105,21 +102,19 @@ pub(in crate::encoding::recovery) fn expression(
                 _ => return Err(Error::InvalidTag),
             }),
             20 => Expression::Reference {
-                access: match reader.byte()? {
-                    0 => PackageReviewReferenceAccess::Shared,
-                    1 => PackageReviewReferenceAccess::Mutable,
-                    2 => PackageReviewReferenceAccess::WriteOnly,
-                    _ => return Err(Error::InvalidTag),
-                },
+                access: super::tag!(reader => {
+            0 => PackageReviewReferenceAccess::Shared,
+            1 => PackageReviewReferenceAccess::Mutable,
+            2 => PackageReviewReferenceAccess::WriteOnly,
+        }),
                 target: reader.boxed(expression)?,
             },
             21 => {
-                let ordering = match reader.byte()? {
-                    0 => PackageReviewAtomicLoadOrdering::NoOrdering,
-                    1 => PackageReviewAtomicLoadOrdering::Receive,
-                    2 => PackageReviewAtomicLoadOrdering::GlobalOrder,
-                    _ => return Err(Error::InvalidTag),
-                };
+                let ordering = super::tag!(reader => {
+            0 => PackageReviewAtomicLoadOrdering::NoOrdering,
+            1 => PackageReviewAtomicLoadOrdering::Receive,
+            2 => PackageReviewAtomicLoadOrdering::GlobalOrder,
+        });
                 Expression::AtomicLoad {
                     value: reader.boxed(expression)?,
                     ordering,
@@ -153,27 +148,26 @@ pub(in crate::encoding::recovery) fn binary_operator(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractBinaryOperator, Error> {
     use PackageReviewContractBinaryOperator as Operator;
-    Ok(match reader.byte()? {
-        0 => Operator::Add,
-        1 => Operator::And,
-        2 => Operator::BitwiseAnd,
-        3 => Operator::BitwiseOr,
-        4 => Operator::BitwiseXor,
-        5 => Operator::Divide,
-        6 => Operator::Equal,
-        7 => Operator::Greater,
-        8 => Operator::GreaterOrEqual,
-        9 => Operator::Less,
-        10 => Operator::LessOrEqual,
-        11 => Operator::Modulo,
-        12 => Operator::Multiply,
-        13 => Operator::NotEqual,
-        14 => Operator::Or,
-        15 => Operator::ShiftLeft,
-        16 => Operator::ShiftRight,
-        17 => Operator::Subtract,
-        _ => return Err(Error::InvalidTag),
-    })
+    Ok(super::tag!(reader => {
+            0 => Operator::Add,
+            1 => Operator::And,
+            2 => Operator::BitwiseAnd,
+            3 => Operator::BitwiseOr,
+            4 => Operator::BitwiseXor,
+            5 => Operator::Divide,
+            6 => Operator::Equal,
+            7 => Operator::Greater,
+            8 => Operator::GreaterOrEqual,
+            9 => Operator::Less,
+            10 => Operator::LessOrEqual,
+            11 => Operator::Modulo,
+            12 => Operator::Multiply,
+            13 => Operator::NotEqual,
+            14 => Operator::Or,
+            15 => Operator::ShiftLeft,
+            16 => Operator::ShiftRight,
+            17 => Operator::Subtract,
+        }))
 }
 
 pub(in crate::encoding::recovery) fn call_target(
@@ -191,13 +185,12 @@ pub(in crate::encoding::recovery) fn call_target(
         2 => PackageReviewContractCallTarget::BuiltinFunction(
             BuiltinFunction::from_ordinal(usize::from(reader.u16()?)).ok_or(Error::InvalidTag)?,
         ),
-        3 => PackageReviewContractCallTarget::CollectionView(match reader.byte()? {
+        3 => PackageReviewContractCallTarget::CollectionView(super::tag!(reader => {
             0 => PackageReviewCollectionViewOperation::SharedSlice,
             1 => PackageReviewCollectionViewOperation::MutableSlice,
             2 => PackageReviewCollectionViewOperation::TextView,
             3 => PackageReviewCollectionViewOperation::Bytes,
-            _ => return Err(Error::InvalidTag),
-        }),
+        })),
         4 => PackageReviewContractCallTarget::ProofView {
             name: reader.string()?,
         },
@@ -220,11 +213,10 @@ pub(in crate::encoding::recovery) fn evidence_term(
 ) -> Result<PackageReviewContractEvidenceTerm, Error> {
     Ok(PackageReviewContractEvidenceTerm {
         owner: nominal(reader)?,
-        kind: match reader.byte()? {
+        kind: super::tag!(reader => {
             0 => PackageReviewContractKind::Requires,
             1 => PackageReviewContractKind::Ensures,
-            _ => return Err(Error::InvalidTag),
-        },
+        }),
         lane_position: reader.u32()?,
     })
 }

@@ -20,12 +20,11 @@ pub(in crate::encoding::recovery) fn data_properties(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataProperties, Error> {
     use language_semantics::Multiplicity;
-    let multiplicity = match reader.byte()? {
-        0 => Multiplicity::Unrestricted,
-        1 => Multiplicity::Affine,
-        2 => Multiplicity::Linear,
-        _ => return Err(Error::InvalidTag),
-    };
+    let multiplicity = super::tag!(reader => {
+            0 => Multiplicity::Unrestricted,
+            1 => Multiplicity::Affine,
+            2 => Multiplicity::Linear,
+        });
     let carry = reader.option(super::selected_providers::service::carry)?;
     Ok(PackageReviewDataProperties {
         multiplicity,

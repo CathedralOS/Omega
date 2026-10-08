@@ -52,7 +52,7 @@ pub(in crate::encoding::recovery) fn disposition(
     let mut previous = None;
     let classes = reader.sequence(1, |reader| {
         use TerminalAuthorityClass as Class;
-        let class = match reader.byte()? {
+        let class = super::tag!(reader => {
             0 => Class::FilesystemContentRead,
             1 => Class::FilesystemContentWrite,
             2 => Class::FilesystemMetadataQuery,
@@ -67,8 +67,7 @@ pub(in crate::encoding::recovery) fn disposition(
             11 => Class::InterruptEntry,
             12 => Class::RootMemoryAccess,
             13 => Class::ProcessInput,
-            _ => return Err(Error::InvalidTag),
-        };
+        });
         if previous.is_some_and(|prior| prior >= class) {
             return Err(Error::NonCanonicalEncoding);
         }
