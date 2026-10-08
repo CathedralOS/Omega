@@ -673,20 +673,16 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rsp",
-                Architecture::Aarch64 => "sp",
-            })
-            .unwrap()
-            .id;
-        let foreign_unit = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .unwrap()
-            .units[0];
+        let stack_pointer =
+            named_view(model, case.target, "rsp", "sp", "target names no such view").id;
+        let foreign_unit = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "target names no such view",
+        )
+        .units[0];
         for (key, semantic) in selected_memory_rules(&environment) {
             let contract = memory_contract(semantic, case.target.architecture);
             let row = environment.constraint(key).unwrap();
