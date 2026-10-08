@@ -461,6 +461,11 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
                 .chain(
+                    plan.parameter_storage
+                        .iter()
+                        .map(|storage| storage.type_identity.as_str()),
+                )
+                .chain(
                     plan.trivial_affine_locals
                         .iter()
                         .map(|local| local.type_identity.as_str()),

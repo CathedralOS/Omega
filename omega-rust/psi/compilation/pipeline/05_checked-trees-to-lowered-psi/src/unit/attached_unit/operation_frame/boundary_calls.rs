@@ -299,6 +299,7 @@ impl OperationFrame<'_, '_> {
             inputs.byte_places,
             self.primitive_locals,
             &self.evaluation.structural_locals,
+            Some(&self.evaluation.scalar_bindings),
             Some(self.values),
             &mut selector_values,
             Some(&mut *self.calls),

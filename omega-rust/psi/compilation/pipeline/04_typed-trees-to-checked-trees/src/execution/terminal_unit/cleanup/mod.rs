@@ -276,6 +276,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             attachment_type_identity,
             structural_parameters,
             scalar_parameters: Vec::new(),
+            parameter_storage: Vec::new(),
             erased_scalar_parameters,
             erased_proof_parameters,
             provider_attachment_requirements: Vec::new(),

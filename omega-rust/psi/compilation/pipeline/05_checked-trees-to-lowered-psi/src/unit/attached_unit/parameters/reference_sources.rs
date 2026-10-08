@@ -72,6 +72,7 @@ pub(crate) fn lower_reference_source(
         &[],
         primitive_locals,
         structural_locals,
+        None,
         values,
         selectors,
         calls,

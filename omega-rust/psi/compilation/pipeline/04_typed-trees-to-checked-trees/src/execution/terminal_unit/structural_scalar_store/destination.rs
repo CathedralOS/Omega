@@ -24,6 +24,8 @@ pub(super) enum StoreRoots<'a> {
     Parameters {
         structural: &'a [CheckedUnitStructuralParameterPlan],
         scalar: &'a [CheckedStructuralScalarParameterPlan],
+        /// The `mut` scalar formals the body owns storage for.
+        storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
     },
     RecordLocals,
 }
@@ -174,7 +176,11 @@ pub(super) fn resolve<'a>(
     );
     trace.phase("structural field store: destination parameter");
     match roots {
-        StoreRoots::Parameters { structural, .. } => {
+        StoreRoots::Parameters {
+            structural,
+            storage,
+            ..
+        } => {
             let source_parameters = program.state_parameters(state);
             // The assignment selects its destination; unrelated borrowed
             // inputs do not change that root's authority or require it to
@@ -184,6 +190,25 @@ pub(super) fn resolve<'a>(
                 (parameter.symbol == root_symbol).then_some((plan, parameter))
             });
             let Some((plan, parameter)) = destinations.next() else {
+                // A `mut` scalar formal is storage the body establishes at
+                // entry, so its assignment writes that storage exactly as a
+                // `let mut` local's assignment writes the local's.
+                if storage.iter().any(|row| row.symbol == root_symbol) {
+                    let formal = source_parameters
+                        .iter()
+                        .find(|parameter| parameter.symbol == root_symbol)?;
+                    return (dynamic_index.is_none() && place.segments.is_empty()).then(|| {
+                        local_destination(
+                            program,
+                            &facts.operators,
+                            root_symbol,
+                            formal.type_reference,
+                            place,
+                            dynamic_index,
+                            selectors,
+                        )
+                    });
+                }
                 // An established owned structural local roots a field store
                 // without any parameter loan: emission resolves its live home
                 // place through the structural-local roster, so admission here
@@ -409,7 +434,10 @@ impl<'a> Destination<'a> {
         let Root::Parameter { plan, parameter } = self.root else {
             return Some(());
         };
-        let StoreRoots::Parameters { structural, scalar } = roots else {
+        let StoreRoots::Parameters {
+            structural, scalar, ..
+        } = roots
+        else {
             return None;
         };
         if plan.multiplicity == Multiplicity::Linear

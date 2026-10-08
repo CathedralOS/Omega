@@ -344,6 +344,14 @@ pub(super) fn lower_unit_structural_types_including(
             body.structural_parameters()
                 .map(|parameter| parameter.type_identity.clone()),
         );
+        if let UnitBody::Ordinary(machine) = body {
+            roots.extend(
+                machine
+                    .parameter_storage
+                    .iter()
+                    .map(|storage| storage.type_identity.clone()),
+            );
+        }
         for local in match body {
             UnitBody::Ordinary(machine) => machine.trivial_affine_locals.as_slice(),
             UnitBody::Composed(_) => &[],

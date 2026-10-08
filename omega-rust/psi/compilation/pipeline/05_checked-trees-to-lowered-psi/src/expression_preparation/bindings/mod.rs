@@ -910,6 +910,30 @@ impl ScalarBindings {
         })
     }
 
+    /// A borrow of a scalar formal lends the home its address demand
+    /// published, or a `mut` formal's storage, through the same join a
+    /// computed call operand takes.
+    pub(crate) fn scalar_parameter_borrow(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<StructuralArgument, LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+            parameter_index,
+        } = argument.source
+        else {
+            return unsupported("scalar formal borrow names another source");
+        };
+        let (_, _, scalar_type, _) = self
+            .scalar_parameter_homes
+            .iter()
+            .find(|row| row.0 == parameter_index)
+            .ok_or(LoweringError::Unsupported(
+                "borrowed scalar formal has no published home",
+            ))?;
+        self.primitive_borrow(argument, *scalar_type, structural_types)
+    }
+
     pub(crate) fn prepared_primitive_borrow(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,

@@ -467,6 +467,9 @@ pub(super) fn build_traced(
             state,
             &mut sequence_structural,
             scalar,
+            // A composed state carries a `mut` scalar formal as an SSA value,
+            // not storage, so none of its stores may write one.
+            &[],
             &state_entry_claims[state_index],
             &calls,
             &[],

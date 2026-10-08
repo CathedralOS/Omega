@@ -2649,14 +2649,13 @@ code and preserve check/native behavior for the named customer slices.
   the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Stage 04
   plans a Unit body for a graph-owned scalar machine, and
   `CheckedScalarCallee::find_for_unit_call` lowers that body whenever it
-  exists; the graph is only the fallback. A census over the full checked
-  corpus (2026-10-07) found 16,307 scalar callee lowerings through a Unit body
-  and 109 through a graph; after Unit bodies took scalar tags, 65 through a
-  graph, in six fixtures; four of those now lower as Unit bodies. Unit
-  bodies now carry scalar tags, generic ones
-  included, on their formals and results, and Unit scalar calls take their
-  operand and result types from the callee's signature. Known remaining
-  graph users:
+  exists; the graph is only the fallback. Unit bodies carry scalar tags,
+  generic ones included, on their formals and results; Unit scalar calls take
+  their operand and result types from the callee's signature; and an
+  ordinary body owns entry storage for its `mut` scalar formals. A census
+  over the full checked corpus (2026-10-07, a temporary probe on the graph
+  branch of `find_for_unit_call`) finds one scalar machine still lowered
+  through a graph. Known remaining graph users:
   - the two specializations of `retag_i64` in
     `pass/generics/closed_indexed_quantity`
     (`-> i64 [0..=100] in Quantity<To>`): "result contract". Each
@@ -2667,14 +2666,6 @@ code and preserve check/native behavior for the named customer slices.
     "retained scalar operand disagrees with its destination type" in
     `scalar_computations`, likely where `Quantity<Units::METER>` and
     `Quantity<Units::METER_REORDERED>` must compare equal;
-  - `mutate(mut value: u32)` in
-    `pass/borrows/runtime_direct_immutable_scalar_loan_exit`: a mutable
-    scalar formal reassigned (`value = 8`) and borrowed (`&mut value`); the
-    store's root has no structural parameter plan, so Unit planning stops
-    at "structural field store: destination parameter". The same body
-    over a local (`let mut value: u32 = start;`) already lowers as a Unit
-    body, so the formal needs to be lowered as such a storage local
-    initialized from its argument, as the graph's parameter storage does;
   - ranked loops through the general rank plans, retiring the
     `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
     case, with a fixture for resumable (fuel-suspended) ranked execution.
@@ -2684,7 +2675,10 @@ code and preserve check/native behavior for the named customer slices.
 
   Also account for continuation-arm custody
   (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
-  later-state mutable scalar stores, crash predicates, float prefix
+  later-state mutable scalar stores (a composed state keeps a `mut` scalar
+  formal as an SSA value in its binding prefix, so it refuses the formal's
+  later stores and borrows; give it the entry storage an ordinary body
+  takes from `CheckedUnitParameterStoragePlan`), crash predicates, float prefix
   initializers and debug maps. Map of stage 05 (2026-10-07): `call_catalog`
   already moves every Unit-bodied scalar callee into the Unit closure, so
   `scalar_callees.rs` and `PreparedScalarCallee` serve graph callees only.

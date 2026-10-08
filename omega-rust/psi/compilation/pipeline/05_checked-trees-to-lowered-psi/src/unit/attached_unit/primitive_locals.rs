@@ -9,7 +9,10 @@
 //! publishes the new place in the evaluation's primitive storage, so later
 //! reads, stores and borrows name the place rather than the initializer value.
 //! Each route keeps the returned referent in its own roster and declares its
-//! place with the rest of the body's places.
+//! place with the rest of the body's places. An ordinary body's `mut` scalar
+//! formal is the same storage, established before the first statement from
+//! the incoming value (`establish_parameter_storage`); checking reads such a
+//! formal only as `StorageRead` of its symbol.
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
@@ -141,6 +144,83 @@ fn validate_establishment(
         }
     }
     Ok(())
+}
+
+/// One `mut` scalar formal's storage, established before the first statement.
+pub(super) struct ParameterStorage {
+    /// The formal's dense scalar position, which its borrows name.
+    pub(super) position: usize,
+    pub(super) local: PrimitiveLocal,
+    pub(super) scalar_type: semantic_vocabulary::ScalarType,
+}
+
+/// Establish storage for each `mut` scalar formal of an ordinary body,
+/// initialized from the formal's incoming value. Checking reads such a formal
+/// only through its storage, so the storage dominates every statement, as a
+/// `let mut` local's establishment dominates the statements after its
+/// declaration. Later reads, stores and borrows name this place; the incoming
+/// value is never read again.
+pub(super) fn establish_parameter_storage(
+    storage: &[checked_trees::CheckedUnitParameterStoragePlan],
+    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    values: &[terminal_psi::ValueDeclaration],
+    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    declarations: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
+    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+) -> Result<Vec<ParameterStorage>, LoweringError> {
+    storage
+        .iter()
+        .map(|storage| {
+            let position = scalar_parameters
+                .iter()
+                .position(|parameter| parameter.source_position == storage.source_position)
+                .ok_or(LoweringError::Unsupported(
+                    "parameter storage names no scalar formal",
+                ))?;
+            let value = values.get(position).ok_or(LoweringError::Unsupported(
+                "parameter storage has no incoming value",
+            ))?;
+            let scalar_type = terminal_scalar_type(storage.primitive_type)?;
+            let structural_type = lookup_type_id(type_ids, &storage.type_identity)?;
+            if !storage.symbol.is_valid()
+                || value.scalar_type != scalar_type
+                || !declarations.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
+                })
+            {
+                return unsupported("parameter storage and its incoming value disagree");
+            }
+            let producer = operations.allocate();
+            let place = place_id(allocate_dense(next_place)?);
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: producer,
+                result: structural_result_declaration(
+                    place,
+                    structural_type,
+                    StructuralMultiplicity::Unrestricted,
+                ),
+                kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
+            });
+            Ok(ParameterStorage {
+                position,
+                local: PrimitiveLocal {
+                    symbol: storage.symbol,
+                    declaration: StructuralPlaceDeclaration {
+                        id: place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type,
+                        },
+                    },
+                },
+                scalar_type,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn find(
@@ -319,6 +399,11 @@ impl super::argument_evaluation::Evaluation {
                 .scalar_parameter_home(parameter_index, scalar_type)?
             {
                 place
+            } else if parameter.is_mutable {
+                // A `mut` formal is read through its storage, which the body
+                // established at entry. A home seeded here from the incoming
+                // value would miss every assignment before this borrow.
+                return unsupported("borrowed `mut` scalar formal has no storage");
             } else {
                 self.immutable_primitive_home(
                     parameter.symbol,

@@ -96,8 +96,9 @@ pub(in crate::execution::terminal_unit) fn plan(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
-            // Mutable SSA ingress has no coherent addressable home yet. This
-            // is a storage boundary, not a license to home a copied snapshot.
+            // A `mut` formal's live value is its storage, which only an
+            // ordinary body establishes; this capture cannot tell which body
+            // it serves. Homing a copied snapshot would miss its assignments.
             if parameter.is_mutable || access != CheckedStructuralAccess::SharedBorrow {
                 return None;
             }

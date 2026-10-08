@@ -732,6 +732,21 @@ pub struct CheckedUnitScalarControlPlan {
     pub terminator: CheckedScalarStateTerminator,
 }
 
+/// Storage for one `mut` scalar formal. The body establishes it before its
+/// first statement, initialized from the incoming value, exactly as a
+/// `let mut` declaration establishes a primitive local's storage: reads are
+/// `StorageRead` of `symbol`, assignments store through
+/// `CheckedStoreRoot::Local { symbol }`, and borrows lend this storage, never
+/// the immutable incoming value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitParameterStoragePlan {
+    /// The authored parameter position; one `scalar_parameters` row names it.
+    pub source_position: u32,
+    pub symbol: SymbolHandle,
+    pub type_identity: String,
+    pub primitive_type: PrimitiveType,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
@@ -749,6 +764,8 @@ pub struct CheckedUnitEffectMachinePlan {
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Storage for the `mut` scalar formals, in authored order.
+    pub parameter_storage: Vec<CheckedUnitParameterStoragePlan>,
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,

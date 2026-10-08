@@ -732,6 +732,7 @@ pub(crate) fn lower_structural_arguments(
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
     structural_locals: &[StructuralLocalBinding],
+    scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     caller_scalar_values: Option<&[ValueDeclaration]>,
     selector_values: &mut dyn Iterator<Item = ValueId>,
     mut calls: Option<&mut CallEmissionContext<'_>>,
@@ -860,6 +861,15 @@ pub(crate) fn lower_structural_arguments(
                     path: lower_path(argument, structural_type, source.id, &[])?,
                     access: terminal_access(argument.access),
                 });
+            }
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. } =
+                argument.source
+            {
+                return scalar_bindings
+                    .ok_or(LoweringError::Unsupported(
+                        "borrowed scalar formal has no scalar namespace",
+                    ))?
+                    .scalar_parameter_borrow(argument, structural_types);
             }
             let source_parameter_index =
                 argument

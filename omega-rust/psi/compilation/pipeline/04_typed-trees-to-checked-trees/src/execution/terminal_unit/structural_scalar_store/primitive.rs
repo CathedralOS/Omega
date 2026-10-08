@@ -82,7 +82,17 @@ pub(super) fn store_at(
                 return None;
             }
             super::destination::Root::Local { symbol } => {
-                primitive_local_before(program, state, statement_index as usize, symbol)?;
+                // A local root names a `let mut` local or, when the
+                // destination found its storage row, a `mut` scalar formal.
+                if primitive_local_before(program, state, statement_index as usize, symbol)
+                    .is_none()
+                    && !program
+                        .state_parameters(state)
+                        .iter()
+                        .any(|parameter| parameter.symbol == symbol && parameter.is_mutable)
+                {
+                    return None;
+                }
             }
             _ => {}
         }

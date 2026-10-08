@@ -96,6 +96,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     statement_start: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
@@ -123,6 +124,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     let roots = StoreRoots::Parameters {
         structural: structural_parameters,
         scalar: scalar_parameters,
+        storage: parameter_storage,
     };
     let mut stores = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate().skip(statement_start) {
@@ -196,6 +198,7 @@ pub(super) fn build_structural_call_result_field_store(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     (position, primitive_type): (u32, PrimitiveType),
@@ -208,6 +211,7 @@ pub(super) fn build_structural_call_result_field_store(
         state,
         structural_parameters,
         scalar_parameters,
+        parameter_storage,
         statement_index,
         assignment,
         AssignmentSource::CallResult {
@@ -228,6 +232,7 @@ pub(super) fn build_byte_call_result_store(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     binding_ordinal: u32,
@@ -241,6 +246,7 @@ pub(super) fn build_byte_call_result_store(
         state,
         structural_parameters,
         scalar_parameters,
+        parameter_storage,
         statement_index,
         assignment,
         AssignmentSource::StructuralCallResult {
@@ -1031,6 +1037,7 @@ fn single_parameter_store(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
@@ -1044,6 +1051,7 @@ fn single_parameter_store(
         StoreRoots::Parameters {
             structural: structural_parameters,
             scalar: scalar_parameters,
+            storage: parameter_storage,
         },
         statement_index,
         assignment,

@@ -58,6 +58,44 @@ pub(crate) fn strips_erased_parameter(parameter: &StateParameter) -> Option<bool
     (!parameter.is_const && !parameter.is_mutable).then_some(true)
 }
 
+/// Storage for each `mut` scalar formal among `scalar_parameters`. Checking
+/// reads such a formal as `StorageRead` of its symbol, never as the incoming
+/// value, so the body must own initialized storage for it from entry. The
+/// storage takes the formal's declared type, as a `let mut` local's does; a
+/// carrier checking gives no current-value storage refuses the plan.
+pub(in crate::execution::terminal_unit) fn parameter_storage_plans(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+) -> Option<Vec<checked_trees::CheckedUnitParameterStoragePlan>> {
+    let parameters = program.state_parameters(state);
+    scalar_parameters
+        .iter()
+        .filter_map(|scalar| {
+            let parameter = parameters.get(usize::try_from(scalar.source_position).ok()?);
+            parameter
+                .filter(|parameter| parameter.is_mutable)
+                .map(|parameter| (scalar, parameter))
+        })
+        .map(|(scalar, parameter)| {
+            let primitive_type = crate::values::mutable_scalar_parameter_type(program, parameter)?;
+            if primitive_type != scalar.primitive_type
+                || !validation::is_plain_scalar_storage(program, parameter.type_reference)
+            {
+                return None;
+            }
+            Some(checked_trees::CheckedUnitParameterStoragePlan {
+                source_position: scalar.source_position,
+                symbol: parameter.symbol,
+                type_identity: shapes.add_type(parameter.type_reference, binders, &[])?,
+                primitive_type,
+            })
+        })
+        .collect()
+}
+
 /// The authored `[erased]` scalar formals in authored order, each retaining
 /// its authored parameter position. Contract-term erased formals belong to
 /// the proof lane (`erased_proof_parameter_plans`), so this plan skips

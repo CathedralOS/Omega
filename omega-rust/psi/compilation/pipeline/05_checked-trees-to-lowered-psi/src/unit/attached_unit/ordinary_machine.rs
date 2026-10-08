@@ -285,7 +285,7 @@ pub(super) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let (private_places, call_literal_count, operations) = establish_call_literals(
+    let (private_places, call_literal_count, mut operations) = establish_call_literals(
         checked,
         plan,
         plans,
@@ -301,7 +301,22 @@ pub(super) fn emit(
     let next_literal_argument = 0usize;
     let next_value_identity = next_value;
     let scalar_result_values = scalar_parameters.clone();
-    let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
+    let parameter_storage = primitive_locals::establish_parameter_storage(
+        &plan.parameter_storage,
+        &plan.scalar_parameters,
+        &scalar_parameters,
+        type_ids,
+        structural_types,
+        &mut next_place,
+        &mut operations,
+    )?;
+    let primitive_local_places = parameter_storage
+        .iter()
+        .map(|storage| primitive_locals::PrimitiveLocal {
+            symbol: storage.local.symbol,
+            declaration: storage.local.declaration,
+        })
+        .collect::<Vec<_>>();
     let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
@@ -365,6 +380,15 @@ pub(super) fn emit(
             plan.state,
             &evaluation.structural_parameters,
         )?;
+    evaluation
+        .primitive_storage
+        .extend(parameter_storage.iter().map(|storage| {
+            (
+                storage.local.symbol,
+                storage.local.declaration.id,
+                storage.scalar_type,
+            )
+        }));
     // An ordinary body is one state: its namespace starts, like a composed
     // state's prefix, from its scalar formals before the first statement.
     // Authored locals then stay separate from anonymous operation results,
@@ -377,6 +401,18 @@ pub(super) fn emit(
         structural_types,
         &evaluation.place_observations,
     );
+    // A borrow of a `mut` formal lends its storage, never a home rebuilt from
+    // the incoming value.
+    for storage in &parameter_storage {
+        evaluation.scalar_bindings.register_scalar_parameter_home(
+            u32::try_from(storage.position).map_err(|_| {
+                LoweringError::Unsupported("parameter storage position exceeds u32")
+            })?,
+            storage.local.declaration.id,
+            storage.scalar_type,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )?;
+    }
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();
