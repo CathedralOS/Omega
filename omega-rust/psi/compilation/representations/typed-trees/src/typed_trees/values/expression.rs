@@ -664,6 +664,15 @@ impl ExpressionTable {
         self.name_path_member_symbols.span_or_empty(span)
     }
 
+    /// Whether `path` spells a resolved one-member name: the head is the
+    /// path's resolved symbol and no further members follow — the plain
+    /// `x` spelling, not `x::y` or an unresolved name.
+    pub fn name_path_is_single_member(&self, path: &TableNamePath) -> bool {
+        path.symbol.is_valid()
+            && path.head_symbol == path.symbol
+            && self.name_path_members(path.members).len() == 1
+    }
+
     /// Whether `expression` is the reserved `result` occurrence of its
     /// contract owner: a bare `result` that resolution left unbound. An entry
     /// parameter named `result` shadows the binder, and resolution binds the

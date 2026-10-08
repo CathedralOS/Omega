@@ -16,15 +16,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         else {
             return None;
         };
-        if !path.symbol.is_valid()
-            || path.head_symbol != path.symbol
-            || self
-                .program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-        {
+        if !self.program.expression_table.name_path_is_single_member(path) {
             return None;
         }
         let resolved = match owner {
