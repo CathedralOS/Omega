@@ -178,11 +178,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, StoredLoadForwardingError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(StoredLoadForwardingError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, StoredLoadForwardingError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || StoredLoadForwardingError::SourceMismatch)?;
     let (block_index, load_index) = function
         .blocks
         .iter()

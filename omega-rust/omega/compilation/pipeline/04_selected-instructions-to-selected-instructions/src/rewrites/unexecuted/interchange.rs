@@ -163,11 +163,8 @@ pub(super) fn derive_interchange<'source>(
     use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
     use crate::rewrites::block_edges::function_at;
 
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(InterchangeError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, InterchangeError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || InterchangeError::SourceMismatch)?;
     let (block_index, earlier_first_index) = function
         .blocks
         .iter()

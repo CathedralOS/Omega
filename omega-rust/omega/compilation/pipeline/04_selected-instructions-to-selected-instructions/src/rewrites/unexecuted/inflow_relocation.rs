@@ -210,11 +210,8 @@ fn derive_inflow_span<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<InflowDerivation<'source>, InflowRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(InflowRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, InflowRelocationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || InflowRelocationError::SourceMismatch)?;
     let (block_index, member_index) = function
         .blocks
         .iter()

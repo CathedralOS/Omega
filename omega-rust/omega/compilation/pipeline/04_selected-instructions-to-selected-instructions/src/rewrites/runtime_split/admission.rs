@@ -31,11 +31,8 @@ pub(super) fn admit(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission, RuntimeSplitError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(RuntimeSplitError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, RuntimeSplitError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || RuntimeSplitError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

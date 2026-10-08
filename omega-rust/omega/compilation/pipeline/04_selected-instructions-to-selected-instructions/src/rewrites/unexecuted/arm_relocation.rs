@@ -196,11 +196,8 @@ fn derive_arm_relocation<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<ArmRelocationDerivation<'source>, ArmRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(ArmRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, ArmRelocationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || ArmRelocationError::SourceMismatch)?;
     let (block_index, member_index) = function
         .blocks
         .iter()

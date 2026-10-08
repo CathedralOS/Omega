@@ -182,11 +182,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, DeadStoreEliminationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(DeadStoreEliminationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, DeadStoreEliminationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || DeadStoreEliminationError::SourceMismatch)?;
     let (block_index, store_index) = function
         .blocks
         .iter()

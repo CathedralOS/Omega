@@ -37,11 +37,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RuntimeRematerializationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(RuntimeRematerializationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, RuntimeRematerializationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || RuntimeRematerializationError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

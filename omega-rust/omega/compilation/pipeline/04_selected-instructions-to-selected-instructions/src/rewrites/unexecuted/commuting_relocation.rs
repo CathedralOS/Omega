@@ -177,11 +177,8 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, CommutingRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(CommutingRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, CommutingRelocationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || CommutingRelocationError::SourceMismatch)?;
     let (block_index, first_index) = function
         .blocks
         .iter()

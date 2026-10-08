@@ -633,11 +633,8 @@ pub(super) fn derive_runtime_spill<'source>(
     use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
     use slot::{bits_transport, entry_definitions};
     use crate::rewrites::block_edges::function_at;
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(RuntimeSpillError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, RuntimeSpillError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || RuntimeSpillError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

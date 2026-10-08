@@ -57,11 +57,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, BoundaryBranchError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(BoundaryBranchError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, BoundaryBranchError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || BoundaryBranchError::SourceMismatch)?;
     // The branch names its terminator-carried instruction: the block whose
     // terminator instruction carries the id holds the read position at the
     // end of its body stream.

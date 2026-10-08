@@ -138,11 +138,8 @@ fn reconstruct<'source>(
     materialization: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, BoundaryBooleanError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(BoundaryBooleanError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, BoundaryBooleanError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || BoundaryBooleanError::SourceMismatch)?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()

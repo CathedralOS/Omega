@@ -329,11 +329,8 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, ScheduledRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(ScheduledRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, ScheduledRelocationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || ScheduledRelocationError::SourceMismatch)?;
     let [first_member, ..] = members else {
         return Err(ScheduledRelocationError::UnsupportedPair);
     };

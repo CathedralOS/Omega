@@ -115,11 +115,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, AddressFoldError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(AddressFoldError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, AddressFoldError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || AddressFoldError::SourceMismatch)?;
     let (block_index, consumer_index) = function
         .blocks
         .iter()

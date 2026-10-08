@@ -182,11 +182,8 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, MemberRunRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(MemberRunRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, MemberRunRelocationError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || MemberRunRelocationError::SourceMismatch)?;
     let (run_block, run_start) = function
         .blocks
         .iter()

@@ -289,11 +289,8 @@ fn reconstruct<'source>(
     store: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, StoreMutationMotionError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(StoreMutationMotionError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, StoreMutationMotionError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || StoreMutationMotionError::SourceMismatch)?;
     let (block_index, store_index) = function
         .blocks
         .iter()

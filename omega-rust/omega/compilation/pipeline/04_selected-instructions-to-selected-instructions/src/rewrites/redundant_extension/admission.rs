@@ -146,11 +146,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RedundantExtensionError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(RedundantExtensionError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, RedundantExtensionError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || RedundantExtensionError::SourceMismatch)?;
     let (block_index, extension_index) = function
         .blocks
         .iter()

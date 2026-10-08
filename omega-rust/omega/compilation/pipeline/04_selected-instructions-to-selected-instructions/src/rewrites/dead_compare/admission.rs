@@ -224,11 +224,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, DeadCompareError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(DeadCompareError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, DeadCompareError::SourceMismatch)?;
+    let (plan, function) = crate::rewrites::plan_function(
+        source, function_index, environment, || DeadCompareError::SourceMismatch)?;
     let (block_index, compare_index) = function
         .blocks
         .iter()

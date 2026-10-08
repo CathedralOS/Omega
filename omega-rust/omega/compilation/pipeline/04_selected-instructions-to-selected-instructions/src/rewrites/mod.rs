@@ -231,11 +231,13 @@ pub use load_forwarding::{
 };
 
 use optimization_core::OptimizationWorkBudget;
+use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
+    SelectedFunction, SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
+use crate::rewrites::block_edges::function_at;
 
 /// One step per block plus one per instruction across the whole plan — the
 /// scan surface every family's measured-step contract charges first.
@@ -260,6 +262,22 @@ pub(crate) fn charge_steps<E>(
         return Err(exceeded());
     }
     Ok(())
+}
+
+/// The plan and the function a family audits, once the plan's target has
+/// matched the environment's — both call sites bind the same pair, with the
+/// family's own `SourceMismatch` marking either refusal.
+pub(crate) fn plan_function<'source, E>(
+    source: &'source impl crate::ValidatedSelectedAnalysis,
+    function_index: usize,
+    environment: &ValidatedTargetRegisterEnvironment,
+    mismatch: impl Fn() -> E + Copy,
+) -> Result<(&'source SelectedInstructionPlan, &'source SelectedFunction), E> {
+    let plan = source.selected_plan();
+    if plan.target != environment.target() {
+        return Err(mismatch());
+    }
+    Ok((plan, function_at(plan, function_index, mismatch())?))
 }
 
 pub(crate) fn instruction(
