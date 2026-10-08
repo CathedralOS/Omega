@@ -112,24 +112,11 @@ pub(super) fn selection(
             roots.push((place, disposed));
         }
     }
-    let mut parameter_sources = Vec::new();
-    for cleanup in &evaluation.selection_cleanups {
-        for source in &cleanup.sources {
-            if let Some((position, _)) = evaluation
-                .structural_parameters
-                .iter()
-                .find(|(_, declaration)| declaration.place == *source)
-            {
-                parameter_sources.push((*position, *source));
-            }
-        }
-    }
-    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-    parameter_sources.dedup_by_key(|(_, place)| *place);
     roots.extend(
-        parameter_sources
+        evaluation
+            .cleanup_parameter_places()
             .into_iter()
-            .map(|(_, place)| (place, false)),
+            .map(|place| (place, false)),
     );
     let mut action_roots = Vec::new();
     for action in actions.iter() {

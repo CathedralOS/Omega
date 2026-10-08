@@ -146,6 +146,29 @@ impl Evaluation {
         self.contextual_bindings().with_deferred_case_payloads()
     }
 
+    /// Selected cleanup sources that are declared parameters, in descending
+    /// authored-position order and deduplicated by place.
+    pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
+        let mut parameter_sources = Vec::new();
+        for cleanup in &self.selection_cleanups {
+            for source in &cleanup.sources {
+                if let Some((position, _)) = self
+                    .structural_parameters
+                    .iter()
+                    .find(|(_, declaration)| declaration.place == *source)
+                {
+                    parameter_sources.push((*position, *source));
+                }
+            }
+        }
+        parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
+        parameter_sources.dedup_by_key(|(_, place)| *place);
+        parameter_sources
+            .into_iter()
+            .map(|(_, place)| place)
+            .collect()
+    }
+
     /// Resolve one selected death in the live state value namespace. Result
     /// registries differ between ordinary and graph bodies; owner/parameter
     /// lookup and selection rebinding do not. The caller supplies its registry.
