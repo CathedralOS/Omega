@@ -233,13 +233,6 @@ pub fn is_exact_toolchain_build_prelude_data(
     typed.data_definitions().iter().any(|definition| {
         definition.symbol == symbol
             && definition.name.as_str() == expected_name
-            && typed
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.path == std::path::Path::new("<build-prelude>")
-                })
+            && typed.symbols.is_build_prelude_symbol(symbol)
     })
 }

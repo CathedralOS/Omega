@@ -29,6 +29,17 @@ impl SymbolTable {
         self.sources.as_deref()?.file_at(source_span)
     }
 
+    /// Whether `symbol` was authored in the toolchain-owned build prelude
+    /// translation unit.
+    pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
+        self.symbol_source_span(symbol)
+            .and_then(|span| self.source_file(span))
+            .is_some_and(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file.path == std::path::Path::new("<build-prelude>")
+            })
+    }
+
     /// Product-scope dependency `alias` authorized for the package that owns
     /// `occurrence`. `None` means the occurrence carries no package identity,
     /// no retained sources, or no such product edge -- callers treat every

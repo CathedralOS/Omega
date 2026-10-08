@@ -30,15 +30,7 @@ pub fn is_build_machine(
 
 pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     typed.data_definitions().iter().any(|definition| {
-        definition.name.as_str() == name
-            && typed
-                .symbols
-                .symbol_source_span(definition.symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.path == std::path::Path::new("<build-prelude>")
-                })
+        definition.name.as_str() == name && typed.symbols.is_build_prelude_symbol(definition.symbol)
     })
 }
 
@@ -53,14 +45,7 @@ fn is_exact_toolchain_build_filesystem_facet_call(
                 .attached_data
                 .as_ref()
                 .is_some_and(|attached| matches!(attached.as_str(), "BuildSource" | "BuildOutput"))
-            || !typed
-                .symbols
-                .symbol_source_span(machine.symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.path == std::path::Path::new("<build-prelude>")
-                })
+            || !typed.symbols.is_build_prelude_symbol(machine.symbol)
         {
             return false;
         }

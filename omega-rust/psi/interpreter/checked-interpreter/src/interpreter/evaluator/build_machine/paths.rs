@@ -359,14 +359,7 @@ impl<'program> Evaluator<'program> {
         &self,
         symbol: SymbolHandle,
     ) -> bool {
-        self.program
-            .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| self.program.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.path == std::path::Path::new("<build-prelude>")
-            })
+        self.program.symbols.is_build_prelude_symbol(symbol)
     }
 }
 
