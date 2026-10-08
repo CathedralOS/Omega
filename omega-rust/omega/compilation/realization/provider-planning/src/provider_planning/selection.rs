@@ -210,10 +210,7 @@ fn family_coordinates(
                 && operator_canonical_path(typed, operator) == canonical_path
         })
         .map(|operator| {
-            let requirement_identity = match typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == operator.symbol)
+            let requirement_identity = match typed.machine(operator.symbol)
             {
                 Some(requirement)
                     if requirement.supply_mode

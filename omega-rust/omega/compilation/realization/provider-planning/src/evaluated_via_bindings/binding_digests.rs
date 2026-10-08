@@ -24,9 +24,7 @@ pub(crate) fn producer_closure_digest(
         .iter()
         .map(|symbol| {
             let machine = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == *symbol)
+                .machine(*symbol)
                 .ok_or_else(|| "evaluated binding closure contains a missing machine".to_owned())?;
             let identity = typed
                 .machine_callable_identity_text(machine)

@@ -508,9 +508,7 @@ fn use_site_is_generic_template(
     };
     checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+        .machine(machine_symbol)
         .is_some_and(|machine| !checked.typed.machine_type_parameters(machine).is_empty())
 }
 
@@ -566,15 +564,12 @@ pub fn specialized_provider_machines<'checked>(
                         && application_matches(realization)
                 })
         })
-        .filter_map(|specialization| {
+        .filter_map(|specialization| checked.typed.machine(specialization.instance))
+        .filter(|machine| {
             checked
                 .typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)
-        })
-        .filter(|machine| {
-            checked.typed.symbols.symbol_package_identity(machine.symbol)
+                .symbols
+                .symbol_package_identity(machine.symbol)
                 == machine_package_identity
         })
         .collect()

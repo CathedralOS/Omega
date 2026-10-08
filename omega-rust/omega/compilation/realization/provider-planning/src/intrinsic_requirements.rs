@@ -179,17 +179,15 @@ impl<'typed> IntrinsicRequirement<'typed> {
                     context, schema, operator,
                 )
             }),
-            IntrinsicRequirementKind::TopLevelRequirement => typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == self.symbol)
-                .is_some_and(|requirement| {
+            IntrinsicRequirementKind::TopLevelRequirement => {
+                typed.machine(self.symbol).is_some_and(|requirement| {
                     crate::service_schema::schema_binds_exact_boundary_requirement(
                         context,
                         schema,
                         requirement,
                     )
-                }),
+                })
+            }
         }
     }
 

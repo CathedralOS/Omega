@@ -65,11 +65,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     }
     // Actual machines own their schemas, including token-spelled requirements.
     // A signature view must not supply a fallback schema for an invalid machine.
-    let schema = if let Some(machine) = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == requirement)
-    {
+    let schema = if let Some(machine) = typed.machine(requirement) {
         crate::service_schema::from_typed_boundary_requirement(context, machine)
     } else {
         typed

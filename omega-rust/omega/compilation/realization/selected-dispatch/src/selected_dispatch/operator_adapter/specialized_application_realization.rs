@@ -146,9 +146,7 @@ fn derive_one(
 
     let realization = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == realization_machine)
+        .machine(realization_machine)
         .ok_or_else(|| Diagnostic::error("selected generic realization machine is missing"))?;
     let entry = checked
         .typed

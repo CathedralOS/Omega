@@ -114,9 +114,7 @@ pub(crate) fn selected_policy_machine<'program>(
         );
     };
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == row.realization_machine)
+        .machine(row.realization_machine)
         .ok_or_else(|| "calling policy row has no exact realization machine".to_owned())?;
     if !typed.machine_type_parameters(machine).is_empty() || !machine.conformance_bounds.is_empty()
     {

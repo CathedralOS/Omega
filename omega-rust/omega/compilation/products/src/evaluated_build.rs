@@ -254,15 +254,11 @@ impl ComputedBuildConfig {
     ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
         self.selected_build_machine_symbol
             .map(|selected| {
-                let machine = typed
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == selected)
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "selected build machine disappeared before final checking",
-                        )]
-                    })?;
+                let machine = typed.machine(selected).ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(
+                        "selected build machine disappeared before final checking",
+                    )]
+                })?;
                 typed
                     .machine_callable_identity_text(machine)
                     .ok_or_else(|| {

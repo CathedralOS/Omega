@@ -93,11 +93,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                 {
                     continue;
                 }
-                let Some(instance) = typed
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == receipt.instance)
-                else {
+                let Some(instance) = typed.machine(receipt.instance) else {
                     diagnostics.push(diagnostics::Diagnostic::error(format!(
                         "selected provider `{}` specialization retains no typed instance",
                         provider.name,
@@ -168,11 +164,7 @@ pub(crate) fn derive_selected_requirement_specializations(
             .iter()
             .filter(|receipt| receipt.template == template.symbol)
         {
-            let Some(instance) = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == closed_receipt.instance)
-            else {
+            let Some(instance) = typed.machine(closed_receipt.instance) else {
                 continue;
             };
             if instance.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {

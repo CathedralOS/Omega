@@ -34,9 +34,7 @@ pub(crate) fn execute_admitted_build_program(
     } = machine;
     let typed = prepared.typed();
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+        .machine(machine_symbol)
         .expect("admitted build entry remains in its owned prepared program");
     let initial_arguments = vec![initial_build];
     let evaluation_sponsor = evaluation_sponsor.as_ref();

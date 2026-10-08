@@ -407,7 +407,7 @@ pub fn validate_selected_program_entry_shape(
     let machine_name = selected.machine_name;
     // Description issuance only needs an interface. Final admission still
     // requires the exact selected executable machine and its real entry state.
-    let machine = typed.machines().iter().find(|machine| machine.symbol == selected.machine_symbol)
+    let machine = typed.machine(selected.machine_symbol)
         .ok_or_else(|| vec![Diagnostic::error(format!(
             "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
         ))])?;

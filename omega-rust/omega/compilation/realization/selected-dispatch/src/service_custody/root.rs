@@ -31,11 +31,7 @@ pub fn program_entry_service_requirements(
     checked: &CheckedTrees,
     machine_symbol: symbols::SymbolHandle,
 ) -> Vec<symbols::SymbolHandle> {
-    let Some(machine) = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = checked.machine(machine_symbol) else {
         return Vec::new();
     };
     let Some(entry) = checked.machine_states(machine).first() else {

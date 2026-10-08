@@ -179,9 +179,7 @@ fn derive_checked_expression_operator_application_realization(
     };
     let realization = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == realization_machine)
+        .machine(realization_machine)
         .ok_or_else(|| Diagnostic::error("selected nongeneric realization machine is missing"))?;
     if !realization.lifetime_parameters.is_empty()
         || !checked

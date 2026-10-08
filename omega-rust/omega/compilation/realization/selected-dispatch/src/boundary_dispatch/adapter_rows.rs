@@ -553,12 +553,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         .machine_specializations
         .iter()
         .filter(|receipt| receipt.template == requirement.symbol)
-        .filter_map(|receipt| {
-            typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == receipt.instance)
-        })
+        .filter_map(|receipt| typed.machine(receipt.instance))
         .filter(|instance| {
             instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         })
@@ -695,11 +690,7 @@ fn resolve_family_adapter_row(
                 method.requirement_identity,
             )));
         }
-        let Some(instance) = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == specialization.instance)
-        else {
+        let Some(instance) = typed.machine(specialization.instance) else {
             return Err(Diagnostic::error(format!(
                 "finite family specialization of `{machine_identity}` for tuple `({})` has no retained machine instance",
                 tuple.display.join(", "),
