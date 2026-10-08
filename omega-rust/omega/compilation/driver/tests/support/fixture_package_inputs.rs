@@ -896,7 +896,3 @@ pub fn hosted_program_entry_owner(target: &str) -> &'static str {
     );
     profile.root_slot_owner_name()
 }
-
-    ));
-    build
-}
