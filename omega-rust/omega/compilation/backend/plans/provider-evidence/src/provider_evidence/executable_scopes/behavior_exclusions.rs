@@ -418,7 +418,7 @@ pub fn establish_behavior_exclusions_with_owners(
         return report;
     }
     for &entry in entries {
-        let Some(machine) = module.machines.iter().find(|machine| machine.id == entry) else {
+        let Some(machine) = module.machine(entry) else {
             report.gaps.push(EvidenceGap {
                 entry,
                 machine: entry,
@@ -548,7 +548,7 @@ fn inspect_machine<'module>(
     for block in &machine.blocks {
         for operation in &block.operations {
             if let Some(callee) = operation.kind.direct_callee() {
-                match module.machines.iter().find(|target| target.id == callee) {
+                match module.machine(callee) {
                     Some(target) => pending.push_back(target),
                     None => report.gaps.push(EvidenceGap {
                         entry,
