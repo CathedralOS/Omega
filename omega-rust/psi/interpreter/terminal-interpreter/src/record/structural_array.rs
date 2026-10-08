@@ -26,10 +26,7 @@ impl TerminalExecution<'_> {
         let element = *element;
         if u64::try_from(elements.len()).ok() != Some(*length)
             || !result.qualifications.is_empty()
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == result.place)
+            || self.live_affine_discard_at(result.place).is_some()
             || self
                 .live_claims
                 .values()

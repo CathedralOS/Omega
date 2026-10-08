@@ -226,10 +226,7 @@ impl BlockBindings {
             .keys()
             .chain(self.scalar_arrays.keys())
             .any(|place| {
-                execution
-                    .live_affine_frontier
-                    .iter()
-                    .any(|entry| entry.place == *place)
+                execution.live_affine_discard_at(*place).is_some()
                     && !self.owned_sources.contains(place)
                     && !self.projected_sources.contains(place)
                     && !discarded.contains(place)
@@ -326,10 +323,7 @@ impl TerminalExecution<'_> {
                 &mut local_array_roots,
             )? {
                 if !self.block_parameter_is_declared(target, parameter)
-                    || self
-                        .live_affine_frontier
-                        .iter()
-                        .any(|entry| entry.place == parameter.place)
+                    || self.live_affine_discard_at(parameter.place).is_some()
                     || array_loans.insert(parameter.place, loan).is_some()
                 {
                     return Err(malformed());
@@ -554,10 +548,7 @@ impl TerminalExecution<'_> {
                         }) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || self
-                            .live_affine_frontier
-                            .iter()
-                            .any(|entry| entry.place == parameter.place)
+                        || self.live_affine_discard_at(parameter.place).is_some()
                         || (parameter.access != StructuralAccess::SharedBorrow
                             && (!self.block_parameter_is_declared(target, parameter)
                                 || !self.exclusive_place_source(argument.place, parameter.access)))
@@ -594,10 +585,7 @@ impl TerminalExecution<'_> {
                 }
                 StructuralAccess::SharedBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || self
-                            .live_affine_frontier
-                            .iter()
-                            .any(|entry| entry.place == parameter.place)
+                        || self.live_affine_discard_at(parameter.place).is_some()
                     {
                         return Err(malformed());
                     }
@@ -607,10 +595,7 @@ impl TerminalExecution<'_> {
                         // Borrowed byte views join whole: the argument names
                         // an untracked view root with no projection.
                         if !argument.path.is_empty()
-                            || self
-                                .live_affine_frontier
-                                .iter()
-                                .any(|entry| entry.place == argument.place)
+                            || self.live_affine_discard_at(argument.place).is_some()
                         {
                             return Err(malformed());
                         }

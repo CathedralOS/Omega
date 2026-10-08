@@ -610,10 +610,7 @@ impl TerminalExecution<'_> {
                 ))
             || !referent.qualifications.is_empty()
             || self.structural_values.contains_key(&result.place)
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == result.place)
+            || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
         }

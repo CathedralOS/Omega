@@ -505,6 +505,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.live_affine_frontier.iter()
     }
 
+    /// The live affine discard covering `place`, when the frontier holds one.
+    pub fn live_affine_discard_at(&self, place: PlaceId) -> Option<&StructuralAffineDiscard> {
+        self.live_affine_frontier
+            .iter()
+            .find(|entry| entry.place == place)
+    }
+
     pub fn resume(
         &mut self,
         meter: &mut TerminalFuelMeter,

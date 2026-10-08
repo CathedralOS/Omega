@@ -310,10 +310,7 @@ impl TerminalExecution<'_> {
             .chain(self.element_view_values.keys())
             .copied()
             .filter(|place| {
-                !self
-                    .live_affine_frontier
-                    .iter()
-                    .any(|entry| entry.place == *place)
+                !self.live_affine_discard_at(*place).is_some()
                     && !self
                         .live_claims
                         .values()
@@ -422,10 +419,7 @@ impl TerminalExecution<'_> {
                 .live_claims
                 .values()
                 .any(|claim| claim.place == Some(result.place))
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == result.place)
+            || self.live_affine_discard_at(result.place).is_some()
             || (source.path.is_empty()
                 && self
                     .structural_values
@@ -1114,10 +1108,7 @@ impl TerminalExecution<'_> {
                 .live_claims
                 .values()
                 .any(|claim| claim.place == Some(*source) || claim.place == Some(result.place))
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == result.place)
+            || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
         }

@@ -183,10 +183,7 @@ impl TerminalExecution<'_> {
                 .live_claims
                 .values()
                 .any(|claim| claim.place == Some(place))
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == place)
+            || self.live_affine_discard_at(place).is_some()
             || terminal_semantics::byte_qualification_predicates_in(
                 self.program.catalogs.structural_domains.iter(),
                 structural_type,

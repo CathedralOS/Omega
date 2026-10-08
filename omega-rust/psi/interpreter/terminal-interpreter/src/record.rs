@@ -182,10 +182,7 @@ impl TerminalExecution<'_> {
                                 })
                             || !predicates.implies(declaration.field_type.byte_predicates())
                             || u64::try_from(bytes.len()).map_or(true, |length| length > capacity)
-                            || self
-                                .live_affine_frontier
-                                .iter()
-                                .any(|entry| entry.place == argument.place)
+                            || self.live_affine_discard_at(argument.place).is_some()
                         {
                             return Err(malformed());
                         }

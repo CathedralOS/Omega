@@ -1473,10 +1473,7 @@ impl TerminalExecution<'_> {
             .filter_map(|operation| operation.result.structural())
             .map(|result| result.place)
         {
-            if self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == place)
+            if self.live_affine_discard_at(place).is_some()
                 || self
                     .live_claims
                     .values()
