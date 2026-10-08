@@ -57,15 +57,10 @@ impl LoweredStructuralScalarStore {
     pub(crate) fn bind_range_decision(
         &mut self,
         checked: &checked_trees::CheckedTrees,
-        machine: symbols::SymbolHandle,
-        state: symbols::SymbolHandle,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
         self.range_decided = source_range_decided(
             checked,
-            machine,
-            state,
-            store.statement_index,
             store.primitive_type,
             store.range_decision,
             self.bounded_integer,
@@ -112,9 +107,6 @@ impl LoweredStructuralScalarStore {
 /// Match a retained source judgment to the complete emitted integer range.
 pub(crate) fn source_range_decided(
     checked: &checked_trees::CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
     primitive_type: checked_trees::types::PrimitiveType,
     range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
@@ -123,24 +115,6 @@ pub(crate) fn source_range_decided(
         return Ok(false);
     }
     let decision = checked.facts.proof.integer_assignments.get(range_decision);
-    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
-        .statement_table
-        .statements(authored.statement_nodes)
-        .get(statement_index as usize)
-    else {
-        return unsupported("bounded store lost its authored assignment");
-    };
-    if decision.machine != machine
-        || owner.symbol != machine
-        || decision.state != state
-        || decision.statement_index != statement_index as usize
-        || decision.target != assignment.target
-        || decision.value != assignment.value
-        || checked.primitive_type_reference(decision.target_type) != Some(primitive_type)
-    {
-        return unsupported("bounded store lost its exact completed source judgment");
-    }
     let Some(integer) = bounded_integer else {
         return Ok(false);
     };

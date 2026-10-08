@@ -160,6 +160,22 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub field_identity: String,
     pub index: CheckedScalarExpression,
     pub value: crate::CheckedStoreValue,
+    pub decisions: CheckedIndexedWriteDecisions,
+}
+
+/// What checking already proved about one runtime-indexed write, recorded
+/// against the authored indexed target so lowering never rejoins it. The two
+/// judgments stay independent: an in-bounds index supplies the count
+/// conversion but cannot authorize a byte that violates the owner's byte
+/// predicates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CheckedIndexedWriteDecisions {
+    /// The index is proven within the destination's live extent.
+    pub index_in_bounds: bool,
+    /// The stored byte is proven to preserve the owner's byte predicates.
+    /// Element-view writes keep this `false`; their receiving range is the
+    /// separate `range_decision`.
+    pub predicates_preserved: bool,
 }
 
 /// Exact authored operands of a write through a whole mutable borrowed byte
@@ -171,6 +187,7 @@ pub struct CheckedByteSequenceWritePlan {
     pub destination: crate::CheckedStoreRoot,
     pub index: CheckedScalarExpression,
     pub value: crate::CheckedStoreValue,
+    pub decisions: CheckedIndexedWriteDecisions,
 }
 
 /// Exact authored operands of a runtime-indexed element write through a
@@ -193,6 +210,7 @@ pub struct CheckedElementViewWritePlan {
     /// not authorize the scalar value through this handle.
     pub range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
     pub value: crate::CheckedStoreValue,
+    pub decisions: CheckedIndexedWriteDecisions,
 }
 
 /// Exact authored operands of a scalar store through a representation view:

@@ -12,7 +12,7 @@ use super::destination::{Destination, Root, exact_relevant_field};
 use super::value::{self, AssignmentSource};
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, TypeReferenceNode,
+    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
@@ -61,6 +61,7 @@ pub(super) fn store(
         }
         _ => return None,
     };
+    let selected = element_selector_target(program, state, assignment.target, path)?;
     Some(CheckedUnitEffectOperationPlan::ElementViewWrite(
         checked_trees::CheckedElementViewWritePlan {
             statement_index,
@@ -87,8 +88,49 @@ pub(super) fn store(
                 primitive_type,
                 trace,
             )?,
+            decisions: checked_trees::CheckedIndexedWriteDecisions {
+                index_in_bounds: facts.scalar_index_is_proven(selected),
+                predicates_preserved: false,
+            },
         },
     ))
+}
+
+/// The authored `collection[index]` whose selector this write's element
+/// coordinate names; index checking records its judgment against it. The
+/// target's member and fixed-index steps within the element (`path`) peel
+/// off first. A `local.field = value` store through a `&mut collection[index]`
+/// element view local has no indexed step of its own, so the local's
+/// borrowed `collection[index]` stands in.
+fn element_selector_target(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    target: typed_trees::expression::ExpressionHandle,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let mut target = target;
+    for segment in path.iter().rev() {
+        target = match (segment, program.expression_table.expression(target)) {
+            (CheckedUnitStructuralPathSegment::Field(_), ExpressionNode::Member(member))
+                if member.case_variant.is_none() =>
+            {
+                member.receiver
+            }
+            (CheckedUnitStructuralPathSegment::FixedIndex(_), ExpressionNode::Indexed(indexed)) => {
+                indexed.collection
+            }
+            _ => return None,
+        };
+    }
+    if let ExpressionNode::Name(name) = program.expression_table.expression(target)
+        && let Some((_, local)) = program.state_local_declaration(state, name.symbol)
+        && let ExpressionNode::Borrow(borrow) =
+            program.expression_table.expression(local.initial_value)
+        && borrow.access == language_core::ReferenceAccess::Mutable
+    {
+        return Some(borrow.target);
+    }
+    Some(target)
 }
 
 /// Exact mutable view root, independent of the selected leaf. A parameter

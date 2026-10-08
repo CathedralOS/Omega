@@ -1,11 +1,11 @@
 //! Runtime-indexed scalar writes through a `&mut` byte view, a bounded byte
 //! field, or a `&mut [T]` element view.
 //!
-//! The three leaves replay and emit one shape. Replay rejoins the authored
-//! indexed target, requires the builtin index meaning, and binds the
-//! exact `AssignmentIndex` occurrence and the stored value (a pure
-//! `AssignmentValue` expression, or the scalar result of the statement's own
-//! call) to the checked plan. The operation frame captures the index as a
+//! The three leaves emit one shape from their plan rows: the checked index
+//! expression, the stored value (a pure `AssignmentValue` expression, or the
+//! scalar result of the statement's own call), and the index and byte
+//! predicate judgments checking recorded on the row (`decisions`) against
+//! the authored indexed target. The operation frame captures the index as a
 //! Terminal `u64` coordinate before evaluating the RHS and forwards it through
 //! scalar continuations. Emission observes the destination's length and
 //! ends in a write whose obligation retains the index and any target field
@@ -17,19 +17,17 @@
 //! (`ByteSequenceLength`, the byte field's reused or fresh field length, or
 //! `ElementViewLength`), its final operation, and its diagnostic wording.
 use super::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, PrimitiveType,
-    ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense,
-    direct_expression_contains_short_circuit, emit_direct_expression, emit_u64_coordinate,
-    obligation_id, terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldId,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, ValueId, allocate_dense, direct_expression_contains_short_circuit,
+    emit_direct_expression, emit_u64_coordinate, obligation_id, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types, value_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::ScalarBindings;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::TableAssignment;
 use checked_trees::{
     CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreValue,
     CheckedStructuralByteSequenceFieldByteStorePlan,
@@ -83,8 +81,6 @@ pub(crate) struct IndexedWriteDecisions {
 /// The diagnostics one leaf reports. Each leaf spells its own complete
 /// messages so every rejection keeps its established `&'static str` text.
 struct Wording {
-    lost_index: &'static str,
-    lost_operand: &'static str,
     result_position: &'static str,
     result_not_established: &'static str,
     /// Emission's operand rejection. The byte leaves' destination custody
@@ -93,67 +89,37 @@ struct Wording {
 }
 
 const BYTE_VIEW: Wording = Wording {
-    lost_index: "byte-view write lost its authored index",
-    lost_operand: "byte-view write lost its operand source",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
 
 const BYTE_FIELD: Wording = Wording {
-    lost_index: "byte replacement lost its authored index",
-    lost_operand: "byte replacement lost a scalar source binding",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
 
 const ELEMENT_VIEW: Wording = Wording {
-    lost_index: "element-view write lost its authored index",
-    lost_operand: "element-view write lost its operand source",
     result_position: "element-view store result position exceeds usize",
     result_not_established: "element-view store call result is not this statement's established scalar result",
     operands: "element-view write requires scalar operands",
 };
 
 impl<'a> IndexedWriteLeaf<'a> {
-    /// Join the two independent source decisions after execution planning.
-    /// The index decides count conversion and plain element bounds; byte
+    /// The two independent decisions checking recorded on the plan: the
+    /// index decides count conversion and plain element bounds; byte
     /// predicates additionally require the completed write-preservation mark.
-    pub(crate) fn source_decisions(
-        self,
-        checked: &CheckedTrees,
-        state: SymbolHandle,
-    ) -> Result<IndexedWriteDecisions, LoweringError> {
-        let (_, target) = self.assignment_and_target(checked, state)?;
-        Ok(IndexedWriteDecisions {
-            index: checked.facts.scalar_index_is_proven(target),
-            write: !matches!(self, Self::ElementView(_))
-                && checked.facts.byte_write_is_proven(target),
-        })
-    }
-
-    /// The write statement and its resolved target expression for this leaf.
-    fn assignment_and_target(
-        self,
-        checked: &CheckedTrees,
-        state: SymbolHandle,
-    ) -> Result<
-        (
-            &TableAssignment,
-            checked_trees::expression::ExpressionHandle,
-        ),
-        LoweringError,
-    > {
-        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-        let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
-            .statement_table
-            .statement_at(authored, self.statement_index() as usize)
-        else {
-            return unsupported(self.wording().lost_index);
+    pub(crate) fn source_decisions(self) -> IndexedWriteDecisions {
+        let decisions = match self {
+            Self::ByteView(write) => write.decisions,
+            Self::ByteField(store) => store.decisions,
+            Self::ElementView(write) => write.decisions,
         };
-        let target = indexed_target(checked, state, assignment, self)?;
-        Ok((assignment, target))
+        IndexedWriteDecisions {
+            index: decisions.index_in_bounds,
+            write: decisions.predicates_preserved,
+        }
     }
 
     pub(crate) fn statement_index(self) -> u32 {
@@ -162,33 +128,6 @@ impl<'a> IndexedWriteLeaf<'a> {
             Self::ByteField(store) => store.statement_index,
             Self::ElementView(write) => write.statement_index,
         }
-    }
-
-    /// The bound-row role the authored target's own indexed step mints, or
-    /// `None` when an element-view write rejoins a `&mut collection[index]`
-    /// view local's establishment — that selector carries no authored target
-    /// coordinate, so the caller checks the coordinate itself instead.
-    pub(crate) fn index_role(
-        self,
-        checked: &CheckedTrees,
-        state: SymbolHandle,
-    ) -> Result<Option<CheckedScalarExpressionRole>, LoweringError> {
-        let (assignment, target) = self.assignment_and_target(checked, state)?;
-        let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(target) else {
-            return unsupported(self.wording().lost_index);
-        };
-        let Some(depth) =
-            validation::assignment_target_selectors(&checked.typed, assignment.target)
-                .iter()
-                .position(|selector| *selector == indexed.index)
-                .and_then(|depth| u32::try_from(depth).ok())
-        else {
-            return match self {
-                Self::ElementView(_) => Ok(None),
-                _ => unsupported(self.wording().lost_operand),
-            };
-        };
-        Ok(Some(CheckedScalarExpressionRole::AssignmentIndex { depth }))
     }
 
     pub(crate) fn index(self) -> &'a CheckedScalarExpression {
@@ -264,100 +203,6 @@ impl<'a> IndexedWriteLeaf<'a> {
             }
         }
     }
-}
-
-/// Peel only the retained element projection, authenticating every member
-/// against its resolved declaration. The remaining index is the descriptor's
-/// selector; its occurrence and value still use ordinary assignment replay.
-fn indexed_target(
-    checked: &CheckedTrees,
-    state_symbol: SymbolHandle,
-    assignment: &TableAssignment,
-    leaf: IndexedWriteLeaf<'_>,
-) -> Result<checked_trees::expression::ExpressionHandle, LoweringError> {
-    let IndexedWriteLeaf::ElementView(write) = leaf else {
-        return Ok(assignment.target);
-    };
-    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    let mut target = assignment.target;
-    for segment in write.path.iter().rev() {
-        match (segment, checked.expression_table.expression(target)) {
-            (CheckedUnitStructuralPathSegment::Field(_), ExpressionNode::Member(member))
-                if member.case_variant.is_none() =>
-            {
-                let reference = checked.facts.resolved_types.place(member.receiver);
-                if !reference.is_valid() {
-                    return unsupported("element-view field lost its authored owner");
-                }
-                let reference = checked.facts.resolved_types.carrier(reference);
-                if !reference.is_valid() {
-                    return unsupported("element-view field lost its authored owner");
-                }
-                let owner = checked.typed.closed_data_definition(reference).ok_or(
-                    LoweringError::Unsupported("element-view field has no record declaration"),
-                )?;
-                validation::exact_data_member_field(
-                    &checked.typed,
-                    owner,
-                    member.member_symbol,
-                    member.member.as_str(),
-                    None,
-                )
-                .or_else(|| {
-                    checked.typed.closed_data_member_field(
-                        reference,
-                        member.member_symbol,
-                        member.member.as_str(),
-                    )
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "element-view field changed its declaration",
-                ))?;
-                target = member.receiver;
-            }
-            (CheckedUnitStructuralPathSegment::FixedIndex(_), ExpressionNode::Indexed(indexed)) => {
-                target = indexed.collection;
-            }
-            _ => return unsupported("element-view write changed its authored element projection"),
-        }
-    }
-    // A `&mut collection[index]` element view local carries no indexed step
-    // in this target — `target.field = value` — so the rejoin continues at
-    // its establishment, whose authored indexed expression is the selector.
-    if let ExpressionNode::Name(name) = checked.expression_table.expression(target)
-        && let Some(indexed) = element_view_local_indexed(checked, state, name.symbol)
-    {
-        return Ok(indexed);
-    }
-    Ok(target)
-}
-
-/// The authored `collection[index]` a `&mut T` element view local borrowed at
-/// its establishment. A `local.field = value` store through that view writes
-/// the borrowed element, and its checked plan's index coordinate rejoins this
-/// indexed expression's selector.
-fn element_view_local_indexed(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    symbol: SymbolHandle,
-) -> Option<checked_trees::expression::ExpressionHandle> {
-    let local = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some(local)
-            }
-            _ => None,
-        })?;
-    let Some(borrow) = checked
-        .expression_table
-        .borrow_expression(local.initial_value)
-    else {
-        return None;
-    };
-    matches!(borrow.access, language_core::ReferenceAccess::Mutable).then_some(borrow.target)
 }
 
 /// A leaf's destination after its emission-time check.
@@ -544,11 +389,9 @@ impl Destination {
     pub(crate) fn source_decisions(
         &self,
         checked: &CheckedTrees,
-        machine: SymbolHandle,
-        state: SymbolHandle,
         leaf: IndexedWriteLeaf<'_>,
     ) -> Result<IndexedWriteDecisions, LoweringError> {
-        let mut decisions = leaf.source_decisions(checked, state)?;
+        let mut decisions = leaf.source_decisions();
         if let (IndexedWriteLeaf::ElementView(write), DestinationShape::ElementView { leaf, .. }) =
             (leaf, &self.shape)
         {
@@ -557,9 +400,6 @@ impl Destination {
                     None => true,
                     Some(bounds) => super::structural_scalar_store::source_range_decided(
                         checked,
-                        machine,
-                        state,
-                        write.statement_index,
                         write.element,
                         write.range_decision,
                         Some(bounds),

@@ -58,8 +58,9 @@ pub use dynamic_slot_plans::CheckedDynamicSlotPlan;
 pub use result_binding_plans::{
     CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedByteSequenceValue,
     CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan, CheckedElementViewWritePlan,
-    CheckedRepresentationViewStorePlan, CheckedStructuralByteSequenceFieldByteStorePlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
+    CheckedIndexedWriteDecisions, CheckedRepresentationViewStorePlan,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralResultBindingPlan,
 };
 pub use scalar_state_plans::{
     CheckedGuardedExitPlans, CheckedScalarBranchDestination, CheckedScalarGuardedExit,

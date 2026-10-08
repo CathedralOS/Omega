@@ -97,6 +97,7 @@ pub(super) fn view_write(
             destination: destination.root.destination(),
             index: indexed.0,
             value: indexed.1,
+            decisions: indexed.2,
         },
     ))
 }
@@ -235,6 +236,7 @@ pub(super) fn field_store(
                     field_identity: terminal_field_identity(program, field.symbol)?,
                     index: indexed.0,
                     value: indexed.1,
+                    decisions: indexed.2,
                 },
             ),
         );
@@ -569,6 +571,7 @@ fn indexed_byte_value(
 ) -> Option<(
     checked_trees::CheckedScalarExpression,
     checked_trees::CheckedStoreValue,
+    checked_trees::CheckedIndexedWriteDecisions,
 )> {
     Some((
         value::runtime_index(facts, state, statement_index, index)?,
@@ -583,5 +586,10 @@ fn indexed_byte_value(
             source,
             trace,
         )?,
+        // Both byte leaves index the authored target itself.
+        checked_trees::CheckedIndexedWriteDecisions {
+            index_in_bounds: facts.scalar_index_is_proven(assignment.target),
+            predicates_preserved: facts.byte_write_is_proven(assignment.target),
+        },
     ))
 }

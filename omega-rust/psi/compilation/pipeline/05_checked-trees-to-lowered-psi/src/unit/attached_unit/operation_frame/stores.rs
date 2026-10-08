@@ -388,17 +388,9 @@ impl OperationFrame<'_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_place_observations(&self.evaluation.place_observations);
-        let index = match leaf.index_role(self.checked, self.state)? {
-            Some(index_role) => bindings.expression_at(
-                self.checked,
-                self.state,
-                leaf.statement_index(),
-                index_role,
-            )?,
-            // A `&mut collection[index]` view local's index coordinate was
-            // already checked against its establishment: it lowers directly.
-            None => bindings.expression(&self.checked.facts.proven_scalar_indexes, leaf.index())?,
-        };
+        // The plan's index is the checked expression bound at the target's
+        // selector, or a `&mut collection[index]` view local's coordinate.
+        let index = bindings.expression(&self.checked.facts.proven_scalar_indexes, leaf.index())?;
         // A completed call-result source must be joined before adding private
         // staging slots to the scalar namespace. Pure source expressions name
         // that same authored prefix, even when the RHS later creates a join.
@@ -410,8 +402,7 @@ impl OperationFrame<'_, '_> {
         } else {
             Some(leaf.lower_value(bindings, self.checked, self.state, self.values)?)
         };
-        let decisions =
-            destination.source_decisions(self.checked, self.machine, self.state, leaf)?;
+        let decisions = destination.source_decisions(self.checked, leaf)?;
         let selector_position = self.values.len();
         let coordinate_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
         let coordinate = crate::emission::indexed_write::emit_index_coordinate(
@@ -740,7 +731,7 @@ impl OperationFrame<'_, '_> {
                 (place, root_type, lowered)
             }
         };
-        lowered.bind_range_decision(self.checked, self.machine, self.state, store)?;
+        lowered.bind_range_decision(self.checked, store)?;
         // The carrier's runtime elements are evaluated before the value.
         let indexes = crate::emission::runtime_elements::evaluate_selectors(
             &lowered.steps,
@@ -1204,9 +1195,8 @@ fn push_initialized_scalar_field(
     value: semantic_vocabulary::ValueId,
     next_obligation_identity: &mut u64,
 ) -> Result<(), LoweringError> {
-    let range_obligation = if terminal_semantics::scalar_field_requires_evidence(
-        &target.field_type,
-    ) {
+    let range_obligation = if terminal_semantics::scalar_field_requires_evidence(&target.field_type)
+    {
         Some(crate::terminal_identities::obligation_id(allocate_dense(
             next_obligation_identity,
         )?))
