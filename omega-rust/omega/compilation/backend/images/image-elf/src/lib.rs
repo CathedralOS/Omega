@@ -347,4 +347,17 @@ pub(crate) mod test_support {
             .expect("valid linkage descriptors");
         plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
     }
+
+    /// Extend the import-call fixture through relative payload layout to the
+    /// validated load layout — the point where the load-placement and
+    /// section-header tests diverge.
+    pub(crate) fn import_call_load_layout(
+        image: image::FinalImage,
+        symbol_handle: image::FinalImageSymbolHandle,
+        target: TargetProfile,
+    ) -> crate::ValidatedElfDynamicLoadLayout {
+        let payloads = import_call_indexed_payloads(image, symbol_handle, target);
+        let relative = crate::plan_elf_relative_section_payload_layout(payloads).unwrap();
+        crate::plan_elf_dynamic_load_layout(relative).unwrap()
+    }
 }

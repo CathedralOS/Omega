@@ -7,20 +7,13 @@ use super::{
     checked_sum, decode_rows, derive_contents, dynamic_row, field_mut, indexed_payloads,
     non_authoritative_resolved_compatibility_fingerprint, read_i64, read_u64, validate_candidate,
 };
-use crate::{
-    apply_elf_section_header_placements, plan_elf_dynamic_load_layout,
-    plan_elf_dynamic_section_roster, plan_elf_dynamic_table_section_descriptor,
-    plan_elf_dynamic_tags, plan_elf_indexed_section_payloads,
-    plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
-    plan_elf_relative_section_payload_layout, plan_elf_section_name_table,
-    serialize_elf_dynamic_table, serialize_elf_section_header_table,
-};
+use crate::apply_elf_section_header_placements;
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
+    FinalImageSymbol,
 };
-use object_file::{RelocationKind, SymbolKind};
+use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
 
 fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSectionHeaderTable {
@@ -58,40 +51,8 @@ fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSe
             .unwrap(),
         ),
     });
-    let (offset, kind) = match target {
-        TargetProfile::LinuxX64 => {
-            image.memory.text[0] = 0xe8;
-            (1, RelocationKind::X86_64Relative32)
-        }
-        TargetProfile::LinuxArm64 => {
-            image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
-            (0, RelocationKind::Aarch64Branch26)
-        }
-        _ => unreachable!(),
-    };
-    image
-        .relocation_table
-        .relocations
-        .insert(FinalImageRelocation {
-            section: FinalImageSection::Text,
-            offset,
-            byte_width: 4,
-            symbol_handle,
-            addend: 0,
-            kind,
-        });
-    let linkage = crate::test_support::resolved_linkage(image, target);
-    let templates = plan_elf_procedure_linkage_templates(linkage).unwrap();
-    let descriptors = plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
-    let tags = plan_elf_dynamic_tags(descriptors).unwrap();
-    let dynamic = serialize_elf_dynamic_table(tags).unwrap();
-    let descriptor = plan_elf_dynamic_table_section_descriptor(dynamic).unwrap();
-    let names = plan_elf_section_name_table(descriptor).unwrap();
-    let roster = plan_elf_dynamic_section_roster(names).unwrap();
-    let headers = serialize_elf_section_header_table(roster).unwrap();
-    let payloads = plan_elf_indexed_section_payloads(headers).unwrap();
-    let relative = plan_elf_relative_section_payload_layout(payloads).unwrap();
-    let load = plan_elf_dynamic_load_layout(relative).unwrap();
+    let load = crate::test_support::import_call_load_layout(image, symbol_handle, target);
+    let load = load;
     apply_elf_section_header_placements(load).unwrap()
 }
 
