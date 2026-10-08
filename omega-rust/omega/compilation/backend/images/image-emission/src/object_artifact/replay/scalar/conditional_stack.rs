@@ -21,11 +21,10 @@ use super::conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
 use super::division_stack::replay_x86_scalar_division_region;
-use super::stack_mutation::{
+use super::stack_mutation::{claimed_mutations_and_call_sites,
     aarch64_control_flow_instruction, aarch64_unsupported_sp_write, replay_scalar_mutation,
     validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
 };
-use crate::object_artifact::call_sites::validate_internal_call_site;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 #[allow(clippy::too_many_arguments)]
@@ -203,23 +202,13 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
     division_regions.extend(leaves.iter().copied());
     validate_division_branch_regions(machine, division_branches, &division_regions)?;
 
-    let mut claimed = evidence
-        .mutations
-        .iter()
-        .map(|mutation| (mutation.offset, *mutation))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if claimed.len() != evidence.mutations.len() {
-        return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
-    }
-    let mut call_sites = std::collections::BTreeMap::new();
-    for call in calls {
-        validate_internal_call_site(architecture, machine, bytes, *call)?;
-        let call_start = match architecture {
-            Architecture::X86_64 => call.offset - 1,
-            Architecture::Aarch64 => call.offset,
-        };
-        call_sites.insert(call_start, *call);
-    }
+    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
+        architecture,
+        machine,
+        bytes,
+        evidence,
+        calls,
+    )?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut peak = 0;
     for (start, end, condition) in prefixes {

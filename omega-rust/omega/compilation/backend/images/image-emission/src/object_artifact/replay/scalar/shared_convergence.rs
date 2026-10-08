@@ -22,7 +22,7 @@ use super::super::structural::condition_read::{
 use super::conditional_regions::collect_conditional_tree_regions;
 use super::conditional_stack::replay_scalar_conditional_region;
 use super::division_stack::decode_exact_x86_instruction;
-use crate::object_artifact::call_sites::validate_internal_call_site;
+use super::stack_mutation::claimed_mutations_and_call_sites;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 #[allow(clippy::too_many_arguments)]
@@ -231,23 +231,13 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
             structural_identity = Some(identity);
         }
     }
-    let mut claimed = evidence
-        .mutations
-        .iter()
-        .map(|mutation| (mutation.offset, *mutation))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if claimed.len() != evidence.mutations.len() {
-        return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
-    }
-    let mut call_sites = std::collections::BTreeMap::new();
-    for call in calls {
-        validate_internal_call_site(architecture, machine, bytes, *call)?;
-        let call_start = match architecture {
-            Architecture::X86_64 => call.offset - 1,
-            Architecture::Aarch64 => call.offset,
-        };
-        call_sites.insert(call_start, *call);
-    }
+    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
+        architecture,
+        machine,
+        bytes,
+        evidence,
+        calls,
+    )?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut peak = 0;
     for (start, end, condition) in prefixes {

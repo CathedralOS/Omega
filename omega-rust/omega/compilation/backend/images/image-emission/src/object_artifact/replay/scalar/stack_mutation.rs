@@ -4,11 +4,12 @@
 //! scalar stack evidence and recomputes their depth effects. It does not emit
 //! instructions or select stack layouts.
 
-use machine_code::{ScalarStackMutation, ScalarStackMutationKind};
+use machine_code::{ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind};
 use semantic_vocabulary::MachineId;
 
 use super::super::unit::stack::{x86_64_stack_adjustment, x86_64_stack_release_preserving_flags};
 use crate::ObjectError;
+use target::Architecture;
 
 pub(crate) fn validate_x86_scalar_mutation(
     machine: MachineId,
@@ -130,4 +131,45 @@ pub(crate) fn aarch64_unsupported_sp_write(encoded: u32) -> bool {
         || ((encoded & 0x3a00_0000) == 0x2800_0000
             && matches!((encoded >> 23) & 3, 1 | 3)
             && ((encoded >> 5) & 31) == 31)
+}
+
+/// The canonical replay prelude: stack mutations keyed by offset (rejecting
+/// duplicate offsets, which the canonical evidence order already forbids) and
+/// validated call sites keyed by their architecture-specific call start.
+pub(crate) fn claimed_mutations_and_call_sites(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    evidence: &ScalarStackEvidence,
+    calls: &[machine_code::InternalCallRelocation],
+) -> Result<
+    (
+        std::collections::BTreeMap<usize, ScalarStackMutation>,
+        std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    ),
+    ObjectError,
+> {
+    let claimed = evidence
+        .mutations
+        .iter()
+        .map(|mutation| (mutation.offset, *mutation))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if claimed.len() != evidence.mutations.len() {
+        return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
+    }
+    let mut call_sites = std::collections::BTreeMap::new();
+    for call in calls {
+        crate::object_artifact::call_sites::validate_internal_call_site(
+            architecture,
+            machine,
+            bytes,
+            *call,
+        )?;
+        let call_start = match architecture {
+            Architecture::X86_64 => call.offset - 1,
+            Architecture::Aarch64 => call.offset,
+        };
+        call_sites.insert(call_start, *call);
+    }
+    Ok((claimed, call_sites))
 }
