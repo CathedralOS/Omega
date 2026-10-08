@@ -187,6 +187,21 @@ pub enum FixedViewCopyDecodeError {
     TrailingBytes,
 }
 
+impl From<crate::cursor::Truncated> for FixedViewCopyDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
+}
+
+impl From<crate::cursor::TakeError> for FixedViewCopyDecodeError {
+    fn from(error: crate::cursor::TakeError) -> Self {
+        match error {
+            crate::cursor::TakeError::Truncated => Self::Truncated,
+            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
+        }
+    }
+}
+
 impl std::fmt::Display for FixedViewCopyDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

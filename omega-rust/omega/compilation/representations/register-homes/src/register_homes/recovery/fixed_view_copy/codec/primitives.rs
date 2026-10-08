@@ -1,3 +1,5 @@
+pub(super) use crate::cursor::Cursor;
+
 use crate::FixedViewCopyDecodeError;
 
 pub(super) fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
@@ -118,56 +120,3 @@ pub(super) fn length(bytes: &mut Vec<u8>, value: usize) {
     );
 }
 
-pub(super) struct Cursor<'a> {
-    encoded: &'a [u8],
-    pub(super) offset: usize,
-}
-
-impl<'a> Cursor<'a> {
-    pub(super) const fn new(encoded: &'a [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-
-    pub(super) fn take(&mut self, count: usize) -> Result<&'a [u8], FixedViewCopyDecodeError> {
-        let end = self
-            .offset
-            .checked_add(count)
-            .ok_or(FixedViewCopyDecodeError::Truncated)?;
-        let value = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(FixedViewCopyDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    pub(super) fn array<const N: usize>(&mut self) -> Result<[u8; N], FixedViewCopyDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| FixedViewCopyDecodeError::Truncated)
-    }
-
-    pub(super) fn byte(&mut self) -> Result<u8, FixedViewCopyDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    pub(super) fn u16(&mut self) -> Result<u16, FixedViewCopyDecodeError> {
-        Ok(u16::from_le_bytes(self.array()?))
-    }
-
-    pub(super) fn u32(&mut self) -> Result<u32, FixedViewCopyDecodeError> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    pub(super) fn u64(&mut self) -> Result<u64, FixedViewCopyDecodeError> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    pub(super) fn length(&mut self) -> Result<usize, FixedViewCopyDecodeError> {
-        usize::try_from(self.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)
-    }
-
-    pub(super) fn remaining(&self) -> usize {
-        self.encoded.len() - self.offset
-    }
-}
