@@ -5,7 +5,7 @@
 //! frames preserve the collection and selector through the taken-arm return.
 
 use super::{
-    BigInt, ExitScalars, ExpressionHandle, ExpressionNode, exact_integer_carrier,
+    BigInt, ExitScalars, ExpressionHandle, exact_integer_carrier,
     exit_return_expression, interval_comparison, is_result_reference,
 };
 use checked_trees::{

@@ -3,7 +3,7 @@
 //! normal form those licenses power. The judge keeps only the types it
 //! stores; all candidate computation and shape checking lives here.
 use super::super::{
-    BinaryOperator, ExpressionNode, Machine, SymbolHandle,
+    BinaryOperator, Machine, SymbolHandle,
     TraitDefinition, structural_term_pair,
 };
 use super::StructuralTerm;

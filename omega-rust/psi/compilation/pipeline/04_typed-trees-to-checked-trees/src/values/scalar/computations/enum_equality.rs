@@ -16,7 +16,7 @@
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
-    CheckedScalarComputationKind, CheckedScalarExpression, ExpressionHandle, ExpressionNode,
+    CheckedScalarComputationKind, CheckedScalarExpression, ExpressionHandle,
     PrimitiveType, operator_is_builtin,
 };
 use checked_trees::CheckedScalarComputationStructuralArgument;
