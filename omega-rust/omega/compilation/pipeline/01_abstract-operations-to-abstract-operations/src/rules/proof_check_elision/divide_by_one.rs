@@ -88,4 +88,9 @@ impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
     }
 }
 
-psi_optimization_rule_delegate!(LiveProofCertifiedIntegerDivideByOneEliminationRule, propose = propose_proof_certified_scalar_identities, contract = Self::contract(),proof_certified_integer_divide_by_one_shapes);
+psi_optimization_rule_delegate!(
+    LiveProofCertifiedIntegerDivideByOneEliminationRule,
+    propose = propose_proof_certified_scalar_identities,
+    contract = Self::contract(),
+    proof_certified_integer_divide_by_one_shapes
+);

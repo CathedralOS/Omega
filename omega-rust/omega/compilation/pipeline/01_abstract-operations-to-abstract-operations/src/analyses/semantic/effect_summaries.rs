@@ -57,6 +57,20 @@ pub struct EffectSummaryAnalysis {
     pub functions: Vec<FunctionEffectSummary>,
 }
 
+impl EffectSummaryAnalysis {
+    /// The recorded summary row for one optimization node.
+    pub fn node(
+        &self,
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    ) -> Option<&NodeEffectSummary> {
+        self.nodes
+            .iter()
+            .find(|row| row.machine == machine && row.block == block && row.node == node)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionEffectSummary {
     pub machine: MachineId,

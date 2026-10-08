@@ -71,7 +71,6 @@ pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
     ]
 }
 
-
 /// The shared proposal the remainder-by-constant rules run: find each
 /// fixed-carrier integer `Remainder` whose right operand is the rule's
 /// constant on a live, provably-pure node, then offer the literal
@@ -86,97 +85,91 @@ fn propose_proof_certified_remainder_by_constant(
     expected_constant: impl Fn(IntegerType, IntegerValue) -> bool,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let Some(AnalysisProduct::ScalarConstants(constants)) =
-            analyses.get(AnalysisKind::ScalarConstants)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ScalarConstants,
-            ));
-        };
-        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
-        let mut candidates: Vec<PsiRewriteCandidate> = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                for (node_index, node) in block.nodes.iter().enumerate() {
-                    let (psi_operation, result, scalar_type, left, right) = match &node.operation {
-                        O::IntegerArithmetic {
-                            psi_operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                            arithmetic,
-                            ..
-                        } if arithmetic.operator() == IntegerArithmeticOperator::Remainder => {
-                            (psi_operation, result, scalar_type, left, right)
-                        }
-                        _ => continue,
-                    };
-                    if left == right
-                        || scalar_type.carrier() != IntegerCarrier::Fixed
-                        || (signed_only && scalar_type.sign() != IntegerSign::Signed)
-                        || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                            *machine == function.machine && use_site.value == *result
-                        })
-                    {
-                        continue;
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
+    let mut candidates: Vec<PsiRewriteCandidate> = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let (psi_operation, result, scalar_type, left, right) = match &node.operation {
+                    O::IntegerArithmetic {
+                        psi_operation,
+                        result,
+                        scalar_type,
+                        left,
+                        right,
+                        arithmetic,
+                        ..
+                    } if arithmetic.operator() == IntegerArithmeticOperator::Remainder => {
+                        (psi_operation, result, scalar_type, left, right)
                     }
-                    let Some((constant, constant_fact)) =
-                        constants.literal_integer_constant(function.machine, *right)
-                    else {
-                        continue;
-                    };
-                    if !expected_constant(*scalar_type, constant) || !scalar_type.admits(constant) {
-                        continue;
-                    }
-                    let node_index =
-                        u32::try_from(node_index).expect("optimization node index fits u32");
-                    let effect = effects.nodes.iter().find(|row| {
-                        row.machine == function.machine
-                            && row.block == block.id
-                            && row.node == node_index
-                    });
-                    if effect.is_none_or(|row| {
-                        !row.is_pure_scalar_baseline(unit.identity)
-                    }) {
-                        continue;
-                    }
-                    let Ok(obligation_fact) =
-                        accepted_obligation_fact(unit, function.machine, *psi_operation)
-                    else {
-                        continue;
-                    };
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    let site = PsiRealizationSite::Node(location);
-                    candidates.push(
-                        PsiRewriteCandidate::new_literal_proof_certified_integer_constant_replacement(
-                            unit.identity,
-                            contract,
-                            vec![block.id],
-                            vec![ProvenanceRewrite {
-                                input: site,
-                                disposition: ProvenanceDisposition::RealizedAt(site),
-                                sources: node.provenance.clone(),
-                                fuel: node.fuel.clone(),
-                            }],
-                            constant_fact,
-                            obligation_fact,
-                            -1,
-                            IntegerConstantRewrite {
-                                location,
-                                source_operation: *psi_operation,
-                                result: *result,
-                                scalar_type: *scalar_type,
-                                constant: identity_rewrite::integer_zero(*scalar_type),
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
+                    _ => continue,
+                };
+                if left == right
+                    || scalar_type.carrier() != IntegerCarrier::Fixed
+                    || (signed_only && scalar_type.sign() != IntegerSign::Signed)
+                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == *result
+                    })
+                {
+                    continue;
                 }
+                let Some((constant, constant_fact)) =
+                    constants.literal_integer_constant(function.machine, *right)
+                else {
+                    continue;
+                };
+                if !expected_constant(*scalar_type, constant) || !scalar_type.admits(constant) {
+                    continue;
+                }
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node index fits u32");
+                let effect = effects.node(function.machine, block.id, node_index);
+                if effect.is_none_or(|row| !row.is_pure_scalar_baseline(unit.identity)) {
+                    continue;
+                }
+                let Ok(obligation_fact) =
+                    accepted_obligation_fact(unit, function.machine, *psi_operation)
+                else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                let site = PsiRealizationSite::Node(location);
+                candidates.push(
+                    PsiRewriteCandidate::new_literal_proof_certified_integer_constant_replacement(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        vec![ProvenanceRewrite {
+                            input: site,
+                            disposition: ProvenanceDisposition::RealizedAt(site),
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        constant_fact,
+                        obligation_fact,
+                        -1,
+                        IntegerConstantRewrite {
+                            location,
+                            source_operation: *psi_operation,
+                            result: *result,
+                            scalar_type: *scalar_type,
+                            constant: identity_rewrite::integer_zero(*scalar_type),
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
             }
         }
-        Ok(candidates)
+    }
+    Ok(candidates)
 }

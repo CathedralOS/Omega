@@ -100,11 +100,7 @@ fn propose(
                     .iter()
                     .find(|row| row.machine == function.machine && row.block == block.id)
                     .and_then(|row| row.nodes.iter().find(|row| row.node == node_index));
-                let effect = effects.nodes.iter().find(|row| {
-                    row.machine == function.machine
-                        && row.block == block.id
-                        && row.node == node_index
-                });
+                let effect = effects.node(function.machine, block.id, node_index);
                 if live.is_none_or(|row| row.exit.contains(&shape.result))
                     || effect.is_none_or(|row| !row.is_pure_scalar_baseline(unit.identity))
                 {

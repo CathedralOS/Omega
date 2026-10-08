@@ -35,7 +35,12 @@ impl ProofCertifiedDeadScalarEliminationRule {
     }
 }
 
-psi_optimization_rule_delegate!(ProofCertifiedDeadScalarEliminationRule, propose = propose_proof_certified_dead_scalar_nodes, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    ProofCertifiedDeadScalarEliminationRule,
+    propose = propose_proof_certified_dead_scalar_nodes,
+    contract = Self::contract(),
+    classify
+);
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {

@@ -41,14 +41,8 @@ pub(super) fn propose_proof_certified_integer_constants(
                 }
                 let node_index =
                     u32::try_from(node_index).expect("optimization node index fits u32");
-                let effect = effects.nodes.iter().find(|row| {
-                    row.machine == function.machine
-                        && row.block == block.id
-                        && row.node == node_index
-                });
-                if effect.is_none_or(|row| {
-                    !row.is_pure_scalar_baseline(unit.identity)
-                }) {
+                let effect = effects.node(function.machine, block.id, node_index);
+                if effect.is_none_or(|row| !row.is_pure_scalar_baseline(unit.identity)) {
                     continue;
                 }
                 let Ok(obligation_fact) =
@@ -115,14 +109,8 @@ pub(super) fn propose_proof_certified_scalar_identities(
                 }
                 let node_index =
                     u32::try_from(node_index).expect("optimization node index fits u32");
-                let effect = effects.nodes.iter().find(|row| {
-                    row.machine == function.machine
-                        && row.block == block.id
-                        && row.node == node_index
-                });
-                if effect.is_none_or(|row| {
-                    !row.is_pure_scalar_baseline(unit.identity)
-                }) {
+                let effect = effects.node(function.machine, block.id, node_index);
+                if effect.is_none_or(|row| !row.is_pure_scalar_baseline(unit.identity)) {
                     continue;
                 }
                 let Some((patch_shape, constant_fact)) =

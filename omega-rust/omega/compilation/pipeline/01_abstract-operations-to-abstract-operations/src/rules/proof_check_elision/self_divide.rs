@@ -36,7 +36,13 @@ impl LiveProofCertifiedIntegerSelfDivideEliminationRule {
     }
 }
 
-psi_optimization_rule_delegate!(LiveProofCertifiedIntegerSelfDivideEliminationRule, propose = propose_proof_certified_integer_constants, contract = Self::contract,classify,integer_one);
+psi_optimization_rule_delegate!(
+    LiveProofCertifiedIntegerSelfDivideEliminationRule,
+    propose = propose_proof_certified_integer_constants,
+    contract = Self::contract,
+    classify,
+    integer_one
+);
 
 fn classify(operation: &O) -> Option<(&OperationId, &ValueId, &IntegerType)> {
     let O::IntegerArithmetic {
