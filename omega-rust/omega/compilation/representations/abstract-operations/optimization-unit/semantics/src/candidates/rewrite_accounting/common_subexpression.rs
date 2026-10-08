@@ -68,10 +68,7 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
     };
     let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
     for incoming in &patch.incoming {
-        let edge = function
-            .blocks
-            .iter()
-            .find(|block| block.id == incoming.source)?
+        let edge = function.block(incoming.source)?
             .nodes
             .iter()
             .flat_map(|node| &node.successors)

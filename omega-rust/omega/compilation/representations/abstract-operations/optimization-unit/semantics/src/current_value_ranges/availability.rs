@@ -26,10 +26,7 @@ pub(super) fn validate_current_value_range_fact_at(
                 node,
             },
         )?;
-    let query_block = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)
+    let query_block = function.block(block)
         .ok_or(
             OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
                 machine,

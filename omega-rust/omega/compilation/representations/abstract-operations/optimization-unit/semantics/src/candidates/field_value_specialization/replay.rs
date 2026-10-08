@@ -227,10 +227,7 @@ fn folded_node(
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
     let index = usize::try_from(row.site.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = function
-        .blocks
-        .iter()
-        .find(|block| block.id == row.site.block)
+    let node = function.block(row.site.block)
         .and_then(|block| block.nodes.get(index))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let O::StructuralScalarFieldRead {

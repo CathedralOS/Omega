@@ -460,10 +460,7 @@ pub(super) fn consume_nominal_cleanup(
     {
         return Err(mismatch());
     }
-    let ordinal = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)
+    let ordinal = function.block(block)
         .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
         .ok_or_else(mismatch)?;
     super::references::check_region_access(

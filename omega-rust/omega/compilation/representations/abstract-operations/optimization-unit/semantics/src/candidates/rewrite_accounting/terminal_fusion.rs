@@ -8,10 +8,7 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     function: &PsiOptimizationFunction,
     patch: SharedJumpFusionRewrite,
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let predecessor = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.predecessor.block)?;
+    let predecessor = function.block(patch.predecessor.block)?;
     let predecessor_node = predecessor
         .nodes
         .get(usize::try_from(patch.predecessor.node).ok()?)?;
@@ -19,10 +16,7 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
         .successors
         .iter()
         .find(|edge| edge.psi_edge == patch.incoming_edge)?;
-    let target = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.target)?;
+    let target = function.block(patch.target)?;
     let [terminal] = target.nodes.as_slice() else {
         return None;
     };

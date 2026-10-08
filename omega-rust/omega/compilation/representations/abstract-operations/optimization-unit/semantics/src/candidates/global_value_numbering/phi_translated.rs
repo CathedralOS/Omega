@@ -72,10 +72,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         .iter()
         .find(|row| row.machine == patch.redundant.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let join = function
-        .blocks
-        .iter()
-        .find(|row| row.id == patch.redundant.block)
+    let join = function.block(patch.redundant.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -389,10 +386,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
 
     for input_block in &function.blocks {
         if !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|row| row.id == input_block.id)
+            && output_function.block(input_block.id)
                 != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);

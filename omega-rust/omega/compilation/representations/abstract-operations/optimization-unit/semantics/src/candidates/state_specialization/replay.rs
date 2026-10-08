@@ -234,10 +234,7 @@ fn plan_dispatch(
         if !resolved.structural_bindings.is_empty() || !resolved.cleanup_actions.is_empty() {
             continue;
         }
-        let Some(resolved_block) = function
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == resolved.target)
+        let Some(resolved_block) = function.block(resolved.target)
         else {
             continue;
         };
@@ -385,10 +382,7 @@ fn fused_node(
                 .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
         )
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let dispatch_block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == dispatch)
+    let dispatch_block = function.block(dispatch)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     // The dispatch terminator may trail a pure scalar-computation prefix —
     // an integer state argument's `parameter CMP literal` — so the arm edges

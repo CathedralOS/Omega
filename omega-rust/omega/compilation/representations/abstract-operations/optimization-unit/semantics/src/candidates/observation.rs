@@ -59,10 +59,7 @@ pub fn reconstruct_closed_scalar_node_boundary(
         }
     }
 
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == location.block)?;
+    let block = function.block(location.block)?;
     let target = usize::try_from(location.node).ok()?;
     if target >= block.nodes.len() {
         return None;

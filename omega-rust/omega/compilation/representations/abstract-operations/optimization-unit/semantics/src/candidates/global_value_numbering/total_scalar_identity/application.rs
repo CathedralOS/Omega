@@ -75,10 +75,7 @@ pub(super) fn independently_apply_total_scalar_identity(
         .expect("validated output function exists");
     for input_block in &input_function.blocks {
         if !affected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
+            && output_function.block(input_block.id)
                 != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);

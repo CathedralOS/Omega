@@ -151,10 +151,7 @@ pub(crate) fn validate_structural_root_operations(
                     && parameter.access == terminal_psi::StructuralAccess::Owned
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
-                    && function
-                        .blocks
-                        .iter()
-                        .find(|candidate| candidate.id == *block)
+                    && function.block(*block)
                         .is_some_and(|candidate| {
                             candidate
                                 .structural_parameters
@@ -834,10 +831,7 @@ pub(crate) fn validate_structural_root_operations(
                                 else {
                                     return None;
                                 };
-                                function
-                                    .blocks
-                                    .iter()
-                                    .find(|candidate| candidate.id == block)
+                                function.block(block)
                                     .and_then(|block| {
                                         block.structural_parameters.get(position as usize)
                                     })

@@ -207,10 +207,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let literal = function
-        .blocks
-        .iter()
-        .find(|block| block.id == literal_block)
+    let literal = function.block(literal_block)
         .and_then(|block| {
             usize::try_from(literal_node)
                 .ok()

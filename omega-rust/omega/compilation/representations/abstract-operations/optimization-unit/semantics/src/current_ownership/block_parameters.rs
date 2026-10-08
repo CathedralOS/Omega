@@ -165,10 +165,7 @@ fn consume_projected_source(
             argument.place,
             &argument.path,
         )?;
-        let terminator = function
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)
+        let terminator = function.block(block)
             .and_then(|candidate| u32::try_from(candidate.nodes.len().checked_sub(1)?).ok())
             .ok_or_else(invalid)?;
         super::references::check_region_access(

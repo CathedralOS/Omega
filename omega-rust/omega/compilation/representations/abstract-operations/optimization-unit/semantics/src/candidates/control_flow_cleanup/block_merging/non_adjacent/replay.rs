@@ -200,10 +200,7 @@ pub(super) fn validate(
     for input_block in &function.blocks {
         if input_block.id != patch.target
             && !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
+            && output_function.block(input_block.id)
                 != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);

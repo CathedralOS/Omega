@@ -167,10 +167,7 @@ fn folded_node(
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
     let index = usize::try_from(row.site.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = function
-        .blocks
-        .iter()
-        .find(|block| block.id == row.site.block)
+    let node = function.block(row.site.block)
         .and_then(|block| block.nodes.get(index))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let O::StructuralCaseMembership {
@@ -310,10 +307,7 @@ fn accepted_provenance(
     for row in rows {
         let index = usize::try_from(row.site.node)
             .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-        let node = function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
+        let node = function.block(row.site.block)
             .and_then(|block| block.nodes.get(index))
             .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
         let site = PsiRealizationSite::Node(row.site);

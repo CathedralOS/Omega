@@ -43,10 +43,7 @@ pub(super) fn validate(
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.empty.block)
+    let empty_block = function.block(patch.empty.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -239,10 +236,7 @@ pub(super) fn validate(
     for input_block in &function.blocks {
         if input_block.id != patch.empty.block
             && !expected_blocks.contains(&input_block.id)
-            && output_function
-                .blocks
-                .iter()
-                .find(|block| block.id == input_block.id)
+            && output_function.block(input_block.id)
                 != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);

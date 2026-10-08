@@ -73,10 +73,7 @@ pub(super) fn validate(
     }
     for block in &function.blocks {
         for edge in block.nodes.iter().flat_map(|node| &node.successors) {
-            let destination = function
-                .blocks
-                .iter()
-                .find(|block| block.id == edge.target)
+            let destination = function.block(edge.target)
                 .ok_or(OptimizationUnitValidationError::UnknownSuccessor {
                     machine: function.machine,
                     block: block.id,

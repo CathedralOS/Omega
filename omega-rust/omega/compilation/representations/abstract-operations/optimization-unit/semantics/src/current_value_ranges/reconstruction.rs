@@ -70,10 +70,7 @@ pub(super) fn reconstruct_value_range_fact(
             if operation != scope_operation {
                 return None;
             }
-            let anchor = function
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)?
+            let anchor = function.block(block)?
                 .nodes
                 .get(usize::try_from(node).ok()?)?;
             let (current_operation, obligation, goal) = proof_range_goal(&anchor.operation)?;

@@ -319,10 +319,7 @@ pub(crate) fn unchanged_outside_redundant_parameter_region(
         else {
             return false;
         };
-        let Some(output_block) = output_function
-            .blocks
-            .iter()
-            .find(|block| block.id == *block_id)
+        let Some(output_block) = output_function.block(*block_id)
         else {
             return false;
         };

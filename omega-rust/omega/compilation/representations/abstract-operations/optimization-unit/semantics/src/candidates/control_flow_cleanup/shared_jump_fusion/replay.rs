@@ -40,10 +40,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
     }
 
-    let predecessor = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.predecessor.block)
+    let predecessor = function.block(patch.predecessor.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let predecessor_index = usize::try_from(patch.predecessor.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -70,10 +67,7 @@ pub(super) fn validate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let target = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.target)
+    let target = function.block(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [terminal] = target.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);

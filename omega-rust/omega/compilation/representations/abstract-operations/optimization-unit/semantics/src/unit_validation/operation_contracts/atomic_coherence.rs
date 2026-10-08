@@ -42,10 +42,7 @@ pub(crate) fn validate_function_atomic_coherence(
         dominators,
         function.entry,
         |predecessor, successor, root| {
-            let predecessor = function
-                .blocks
-                .iter()
-                .find(|block| block.id == predecessor)?;
+            let predecessor = function.block(predecessor)?;
             let target = function.block(successor)?;
             let is_parameter = target
                 .structural_parameters
