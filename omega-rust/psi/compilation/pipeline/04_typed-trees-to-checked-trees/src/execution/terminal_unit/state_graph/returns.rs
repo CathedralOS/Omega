@@ -294,11 +294,7 @@ pub(super) fn guarded(
     if tails.next().is_some() {
         return None;
     }
-    let arms = facts
-        .flow
-        .guarded_exits
-        .exits
-        .span(tail.arms)?;
+    let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
@@ -406,9 +402,15 @@ pub(super) fn return_value_operation(
     CheckedUnitEffectOperationPlan,
     Vec<CheckedUnitEffectOperationPlan>,
 )> {
-    if let Some(operation) =
-        literal_result_operation(program, shapes, state, count, statement_ordinal, expression)
-    {
+    if let Some(operation) = literal_result_operation(
+        program,
+        shapes,
+        state,
+        &[],
+        count,
+        statement_ordinal,
+        expression,
+    ) {
         return Some((operation, Vec::new()));
     }
     trace.phase("state graph: structural return value: retained expression root");
@@ -465,13 +467,16 @@ pub(super) fn return_value_operation(
     ))
 }
 
-/// Materialize exact authored literal octets into fresh bounded ownership.
-/// The result ordinal shares the ordinary producer roster; only the selected
-/// return arm executes this operation.
-pub(super) fn literal_result_operation(
+/// Materialize exact authored literal octets into fresh bounded ownership,
+/// or lend a literal's immutable image storage as a borrowed byte view. The
+/// result ordinal shares the ordinary producer roster; only the selected
+/// return arm executes this operation. A body's final expression and a
+/// returning state's value arm complete a literal through this one producer.
+pub(in crate::execution::terminal_unit) fn literal_result_operation(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
+    binders: &[(symbols::SymbolHandle, String)],
     count: &mut usize,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
@@ -513,7 +518,7 @@ pub(super) fn literal_result_operation(
                 )
         {
             (
-                shapes.add_type(referee, &[], &[])?,
+                shapes.add_type(referee, binders, &[])?,
                 validation::reference_result_custody::binding_multiplicity(
                     program,
                     state.return_type,
@@ -521,7 +526,7 @@ pub(super) fn literal_result_operation(
             )
         } else {
             (
-                shapes.add_type(state.return_type, &[], &[])?,
+                shapes.add_type(state.return_type, binders, &[])?,
                 Multiplicity::Unrestricted,
             )
         };
@@ -532,110 +537,11 @@ pub(super) fn literal_result_operation(
         multiplicity,
         local: Default::default(),
     };
-    let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
+    let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishByteSequence {
         result,
         value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
         qualifications,
-    })
-}
-
-/// A returned shared range uses the ordinary subslice producer, preserving
-/// its backing storage and both endpoints. The returned value is a copyable
-/// descriptor, not a permission reference to a private descriptor carrier.
-/// Result provenance separately proves that the backing survives the return.
-#[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn view_result_operation(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    count: &mut usize,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    let range = crate::execution::terminal_unit::calls::view_subslice::admit(
-        program,
-        facts,
-        machine,
-        state,
-        parameters,
-        state.return_type,
-        expression,
-        usize::try_from(statement_ordinal).ok()?,
-        checked_trees::CheckedSubsliceSite::Expression { expression },
-    )?;
-    let source = range.argument();
-    let type_identity = shapes.add_type(state.return_type, &[], &[])?;
-    if source.type_identity != type_identity {
-        return None;
-    }
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity,
-        multiplicity: program.type_multiplicity(state.return_type),
-        local: Default::default(),
-    };
-    *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source })
-}
-
-/// Direct view completion consumes the same source join as structural value
-/// construction. Expression position cannot select another loan-origin walk.
-#[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    count: &mut usize,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
-        program,
-        state.return_type,
-        language_semantics::ReferenceAccess::Mutable,
-    )?;
-    // An explicit borrow forms a projected loan; a reference-valued place
-    // forwards its existing carrier. Both feed the same reference producer,
-    // retaining the exact source and access from the common custody owner.
-    let source = crate::values::reference_sources::plan(
-        program,
-        &facts.borrow,
-        machine,
-        state,
-        usize::try_from(statement_ordinal).ok()?,
-        expression,
-        state.return_type,
-    )?;
-    let type_identity = shapes.add_view_type(
-        state.return_type,
-        &[],
-        language_semantics::ReferenceAccess::Mutable,
-    )?;
-    let referent_identity = shapes.add_type(referee, &[], &[])?;
-    if source.access != CheckedStructuralAccess::MutableBorrow
-        || source.type_identity != referent_identity
-    {
-        return None;
-    }
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity: type_identity.clone(),
-        multiplicity: Multiplicity::Affine,
-        local: Default::default(),
-    };
-    *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        source,
-        storage: checked_trees::CheckedReferenceStorage::Declared,
     })
 }

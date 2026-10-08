@@ -36,12 +36,11 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    LoweringError, MachineContract, Multiplicity, Operation, OperationKind, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense,
-    content_conservation, contract_id, dense_identity, edge_id, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, place_id,
-    terminal_scalar_type, unsupported, value_id,
+    LoweringError, MachineContract, Multiplicity, Operation, PlaceId, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, content_conservation,
+    contract_id, dense_identity, edge_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_structural_crash_route_buckets, place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -731,32 +730,6 @@ pub(super) fn emit(
                                 "returned structural parameter is absent",
                             ))?
                             .place
-                    }
-                    CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
-                        // A literal return establishes its own immutable storage in
-                        // place: the declaration joins the machine's literal roster
-                        // and the establishment runs in this block before the
-                        // terminator forwards the place.
-                        let source = place_id(allocate_dense(&mut next_place)?);
-                        let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-                        let declaration_ordinal =
-                            crate::emission::next_byte_sequence_literal_ordinal(&private_places)?;
-                        private_places.push(StructuralPlaceDeclaration {
-                            id: source,
-                            kind: StructuralPlaceKind::ByteSequenceLiteral {
-                                declaration_ordinal,
-                                structural_type,
-                            },
-                        });
-                        operations.push_leaf(
-                            terminal_psi::OperationResult::Unit,
-                            OperationKind::EstablishByteSequenceLiteral {
-                                destination: source,
-                                bytes: bytes.clone(),
-                                qualifications: Vec::new(),
-                            },
-                        );
-                        source
                     }
                     _ => {
                         return unsupported("structural return source is not an owned whole value");

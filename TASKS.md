@@ -2735,22 +2735,15 @@ code and preserve check/native behavior for the named customer slices.
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
 
-- **SHAPE-RUNGS-GENERALIZED.** (new-scope) Replace these stage 04 shape
-  recognizers with their general operation:
-  - `exact_two_field_record_projection`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs`,
-    used by `execution/terminal_cleanup.rs`), "the first checked
-    projected-transition cleanup rung";
-  - `first_unsupported_statement` in
-    `.../execution/terminal_unit/control/statement_sequence.rs`, which admits
-    a trailing expression only through about ten shape disjuncts;
-  - the per-shape completion producers in the same file (`returned_parameter`,
-    `returned_named_view`, `returned_subslice`, `returned_mutable_view`,
-    `returned_byte_sequence_literal`).
-
-  Acceptance: these functions are gone. New corpus fixtures cover a
-  three-field projected-transition cleanup and a trailing expression outside
-  the old disjuncts; both check and execute. Existing outcomes are unchanged.
+- **SHAPE-RUNGS-GENERALIZED.** (new-scope) `first_unsupported_statement`
+  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/statement_sequence.rs`)
+  still pre-screens the ordinary route's statement kinds before `build`.
+  `build`'s statement walk stops at the first transition and at a value
+  body's first non-call expression, so without the pre-screen a mid-body
+  transition or expression would silently drop the statements after it.
+  Acceptance: `build` itself refuses a body whose walk stops before its
+  trailing completion (final expression or trailing transition run), the
+  pre-screen is gone, and the checked corpus is unchanged.
 
 ## Checker simplification
 

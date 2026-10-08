@@ -45,7 +45,7 @@ mod terminator;
 
 use fused::fused_states;
 pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
-use guards::{forwards_qualified_parameter, retire_guarded_reference_completion};
+use guards::forwards_qualified_parameter;
 pub(super) use guards::{guard_is_boolean, retained_guard};
 pub(super) use result_custody::retained_structural_result;
 pub(super) use successors::{
@@ -468,12 +468,6 @@ pub(super) fn build_traced(
         trace.phase("state graph: operation custody");
         let mut operations = sequence.operations;
         let place_loans = sequence.place_loans;
-        retire_guarded_reference_completion(
-            facts,
-            state,
-            sequence.structural_result.as_ref(),
-            &mut operations,
-        )?;
         operation_custody::admit(program, state, &mut operations, trace)?;
         // Completion custody, not state count or borrow spelling, determines
         // the returned value. The receiving graph rejoins its exact producer

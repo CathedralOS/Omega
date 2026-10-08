@@ -1,0 +1,36 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Leaf { value: i32 [0..=100]; }
+data Triple { left: Leaf; middle: Leaf; right: Leaf; }
+data Main { console: Binding<Console>; }
+
+// Each root sends one child and keeps two: the first keeps the siblings on
+// both sides of its middle field, the second its two leading fields. Every
+// untransferred sibling dies on this edge, not after the destination state
+// has started, and neither outgoing child is overwritten by that cleanup.
+machine select(first: Triple, second: Triple) -> i32 {
+    transition { _ -> finish(first.middle, second.right) }
+    state finish(middle: Leaf, right: Leaf) -> i32 {
+        middle.value + right.value
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Triple = Triple {
+        left: Leaf { value: 98 },
+        middle: Leaf { value: 30 },
+        right: Leaf { value: 97 }
+    };
+    let second: Triple = Triple {
+        left: Leaf { value: 96 },
+        middle: Leaf { value: 95 },
+        right: Leaf { value: 12 }
+    };
+    let result: i32 = select(first, second);
+    transition result == 42 {
+        true -> finish(main, 0)
+        _ -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

@@ -12,9 +12,7 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, Operation, OperationKind, OperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id,
-    place_id, unsupported,
+    Block, Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking};
@@ -917,9 +915,6 @@ impl StateGraphEmission<'_, '_> {
                             lookup_claim_id(&self.claims.source_claims, claim.claim_identity)
                         })
                         .collect::<Result<Vec<_>, _>>()?,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
-                        ..
-                    } => Vec::new(),
                     _ => return unsupported("structural return has no whole claim source"),
                 };
                 if self.content_entry_claims.iter().any(|entry| {
@@ -938,100 +933,18 @@ impl StateGraphEmission<'_, '_> {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => case_emission::result(state, binding_ordinal, &operations)?.place(),
+                    // A forwarded formal returns its own place: completion
+                    // forwards only an owned or shared-view formal whose
+                    // custody already carries the result's contract.
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => {
-                        let parameter = state_parameters
+                        state_parameters
                             .get(parameter_index as usize)
                             .ok_or(LoweringError::Unsupported(
                                 "structural graph return parameter missing",
-                            ))?;
-                        let result_type = crate::terminal_identities::lookup_type_id(
-                            &self.catalogs.type_ids,
-                            &result.type_identity,
-                        )?;
-                        if self.catalogs.structural_types.iter().any(|declaration| {
-                            declaration.id == result_type
-                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Reference { .. })
-                        }) {
-                            // A borrowed formal is referent storage, whereas
-                            // this result is an owned reference carrier. The
-                            // exact admitted ingress receipt supplies its loan;
-                            // use ordinary materialization rather than return
-                            // the differently typed referent place itself.
-                            let [reference] = result.reference_sources.as_slice() else {
-                                return unsupported("reference parameter return lost its single ingress");
-                            };
-                            let access = match reference.source.access {
-                                checked_trees::CheckedStructuralAccess::SharedBorrow => terminal_psi::StructuralAccess::SharedBorrow,
-                                checked_trees::CheckedStructuralAccess::MutableBorrow => terminal_psi::StructuralAccess::MutableBorrow,
-                                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => terminal_psi::StructuralAccess::WriteOnlyBorrow,
-                                checked_trees::CheckedStructuralAccess::Owned => return unsupported("reference parameter return has owned referent access"),
-                            };
-                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                                &reference.source.path,
-                                parameter.structural_type,
-                                &self.catalogs.structural_types,
-                                None,
-                                &mut std::iter::empty(),
-                                None,
-                            )?;
-                            let declaration = crate::unit::attached_unit::reference_results::emit_carrier(
-                                result_type,
-                                terminal_psi::StructuralArgument {
-                                    place: evaluation.current_structural_place(parameter.place),
-                                    path,
-                                    access,
-                                },
-                                None,
-                                &mut self.catalogs.next_place,
-                                &mut operations,
-                            )?;
-                            self.structural_places.push(declaration);
-                            declaration.id
-                        } else {
-                            parameter.place
-                        }
-                    }
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
-                        ref bytes,
-                    } => {
-                        // A literal return establishes its own immutable storage
-                        // in place: the declaration joins the literal roster and
-                        // the establishment runs in this state before the
-                        // terminator forwards the place — the same establishment
-                        // the dense route emits.
-                        let source = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                        let structural_type = crate::terminal_identities::lookup_type_id(
-                            &self.catalogs.type_ids,
-                            &result.type_identity,
-                        )?;
-                        let declaration_ordinal =
-                            crate::emission::next_byte_sequence_literal_ordinal(
-                                &self.catalogs.temporary_places,
-                            )?;
-                        self.catalogs.temporary_places.push(
-                            StructuralPlaceDeclaration {
-                                id: source,
-                                kind: StructuralPlaceKind::ByteSequenceLiteral {
-                                    declaration_ordinal,
-                                    structural_type,
-                                },
-                            },
-                        );
-                        let producer = operations.allocate();
-                        operations.push(Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id: producer,
-                            result: OperationResult::Unit,
-                            kind: OperationKind::EstablishByteSequenceLiteral {
-                                destination: source,
-                                bytes: bytes.clone(),
-                                qualifications: Vec::new(),
-                            },
-                        });
-                        source
+                            ))?
+                            .place
                     }
                     _ => return unsupported("structural graph return needs a whole owned value"),
                 };

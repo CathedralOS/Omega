@@ -1,9 +1,12 @@
 //! Completing a single-state body once every statement is planned.
 //!
 //! Every borrowed window must be closed. The body's structural result is
-//! chosen from its final statement: a returned local, a constructed value, a
-//! returned call's result, or a returned array. A returned reference
-//! establishes its carrier, and returned carriers are released at their
+//! chosen from its final statement: a returned local, the final expression's
+//! checked value, a returned call's result, or a returned array. The checked
+//! value plans the completion the same way whatever its spelling: an existing
+//! whole formal is forwarded and any other value is established by its value
+//! operation, references and views included. A transition tail completes at
+//! the state's terminator instead. Returned carriers are released at their
 //! checked weakening boundary. A scalar body completes with its final
 //! expression's checked value. Structural values retain their ordinary transfer
 //! and cleanup roster across scalar completion; every flow call must be planned.
@@ -11,17 +14,16 @@
 //! still precedes that statement, so it restores parent access at exactly the
 //! checked boundary without ending a loan needed by the final expression.
 use super::{
-    CheckFacts, CheckedScalarExpressionRole, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
     append_exit_reference_releases, append_reference_releases, consume_value_places,
-    parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
-    returned_mutable_view, returned_named_view, returned_parameter, returned_subslice,
-    structural_operands,
+    parameter_qualifications, retain_selected_sources, structural_operands,
 };
-use checked_trees::CheckedUnitCallPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
@@ -84,18 +86,24 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    // A return and its nested call arguments may each establish a structural
-    // value at this statement. Rejoin the returned expression, not a presumed
-    // unique statement root.
-    let returned_value = statements.last().and_then(|statement| {
+    // The completion value is the final expression statement. A return and
+    // its nested call arguments may each establish a structural value at this
+    // statement, so rejoin the returned expression, not a presumed unique
+    // statement root.
+    let tail = statements.last().and_then(|statement| {
         let StatementNode::Expression(expression) = statement else {
             return None;
         };
-        let ordinal = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        Some((
+            u32::try_from(statements.len().checked_sub(1)?).ok()?,
+            *expression,
+        ))
+    });
+    let returned_value = tail.and_then(|(ordinal, expression)| {
         facts
             .values
             .structural_values
-            .root_for_expression(state.symbol, ordinal, *expression)
+            .root_for_expression(state.symbol, ordinal, expression)
     });
     let returned_local = statements.last().and_then(|statement| {
         // A scalar result observes a reference local's value; it does not
@@ -174,18 +182,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             }
         }
         Some(binding.into())
-    } else if let Some(result) = returned_parameter(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        entry_claims,
-    ) {
-        // Completion can forward an existing formal directly. A retained Name
-        // value describes possible materialization, not a requirement to create
-        // a second binding and bypass the exact parameter-return custody owner.
-        Some(result)
     } else if let Some(root) = returned_value {
         // The checked expression owns its value operation. In particular,
         // selecting an owned reference field transfers that descriptor through
@@ -196,89 +192,96 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         if root.machine != machine.symbol || root.type_reference != state.return_type {
             return None;
         }
-        let calls = structural_operands::value_calls(
+        // A value that is an existing whole formal forwards that formal when
+        // the formal already carries the result's contract. A retained Name
+        // value describes possible materialization, not a requirement to
+        // create a second binding and bypass the parameter-return custody owner.
+        if let Some(result) = forwarded_parameter(
             program,
             facts,
-            scalar_callees,
-            shapes,
             machine,
             state,
             structural_parameters,
-            trivial_affine_locals,
             entry_claims,
-            &structural_results,
-            &operations,
-            &mut structural_count,
-            root.root,
-            trace,
-        )?;
-        if facts
-            .flow
-            .ownership
-            .owned_selection_at(state.symbol, root.statement_ordinal)
-            .is_some()
-        {
-            retain_selected_sources(
+            root,
+        ) {
+            Some(result)
+        } else {
+            let calls = structural_operands::value_calls(
+                program,
                 facts,
-                state.symbol,
-                root.statement_ordinal,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                trivial_affine_locals,
+                entry_claims,
                 &structural_results,
+                &operations,
+                &mut structural_count,
+                root.root,
+                trace,
+            )?;
+            if facts
+                .flow
+                .ownership
+                .owned_selection_at(state.symbol, root.statement_ordinal)
+                .is_some()
+            {
+                retain_selected_sources(
+                    facts,
+                    state.symbol,
+                    root.statement_ordinal,
+                    &structural_results,
+                    &mut operations,
+                )?;
+            } else {
+                consume_value_places(facts, root.root, &structural_results, &mut operations)?;
+            }
+            super::consume_value_call_sources(facts, &structural_results, &mut operations, &calls)?;
+            // Completion owns the same stored result carrier as an ordinary
+            // returning call, including reference shells and views. Argument
+            // presentation (`add_type`) may name its referent and cannot
+            // classify this value.
+            let mut result = super::super::call_results::checked_structural_result_type(
+                program,
+                shapes,
+                state.return_type,
+                binders,
+            )?;
+            result.statement_index = root.statement_ordinal;
+            result.binding_ordinal = u32::try_from(structural_count).ok()?;
+            let establishment = structural_operands::establish_value(
+                facts,
+                result.clone(),
+                root.root,
+                calls,
+                None,
+                false,
                 &mut operations,
             )?;
-        } else {
-            consume_value_places(facts, root.root, &structural_results, &mut operations)?;
+            operations.push(establishment);
+            Some(result.into())
         }
-        super::consume_value_call_sources(facts, &structural_results, &mut operations, &calls)?;
-        // Completion owns the same stored result carrier as an ordinary
-        // returning call, including reference shells. Argument presentation
-        // (`add_type`) may name its referent and cannot classify this value.
-        let mut result = super::super::call_results::checked_structural_result_type(
+    } else if let Some((ordinal, expression)) = tail
+        && let Some(operation) = super::super::super::state_graph::returns::literal_result_operation(
             program,
             shapes,
-            state.return_type,
+            state,
             binders,
-        )?;
-        result.statement_index = root.statement_ordinal;
-        result.binding_ordinal = u32::try_from(structural_count).ok()?;
-        let establishment = structural_operands::establish_value(
-            facts,
-            result.clone(),
-            root.root,
-            calls,
-            None,
-            false,
-            &mut operations,
-        )?;
-        operations.push(establishment);
-        Some(result.into())
-    } else if let Some(result) =
-        returned_named_view(program, shapes, state, structural_parameters, binders)
+            &mut structural_count,
+            ordinal,
+            expression,
+        )
     {
-        Some(result)
-    } else if let Some((result, operation)) = returned_subslice(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        &mut structural_count,
-    ) {
+        // A literal lent as a borrowed byte view establishes no structural
+        // value, so it has no root. It completes through the same literal
+        // producer a returning state's value arm uses.
+        trace.phase("statement sequence: structural result: literal value");
+        let result = operation.structural_result_binding()?.clone();
         operations.push(operation);
-        Some(result)
-    } else if let Some((result, operation)) = returned_mutable_view(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        &mut structural_count,
-    ) {
-        operations.push(operation);
-        Some(result)
-    } else if let Some(result) = returned_byte_sequence_literal(program, state) {
-        trace.phase("statement sequence: structural result: byte sequence literal");
-        Some(result)
+        Some(result.into())
     } else if let Some(binding) = returned_call {
         // A call result forwarded straight to the machine's structural return
         // is consumed by that return; it must not also carry disposal debt.
@@ -366,54 +369,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     {
         result.reference_sources =
             super::super::super::reference_results::returned_reference_sources(program, state)?;
-    }
-    if let Some(result) = &mut structural_result
-        && !matches!(
-            result.source,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-        )
-        && (super::super::super::reference_results::parts(program, state.return_type).is_some()
-            || crate::execution::terminal_unit::types::borrowed_named_view(
-                program,
-                state.return_type,
-            ))
-        && let [reference] = result.reference_sources.as_slice()
-    {
-        let binding = CheckedUnitStructuralResultBindingPlan {
-            statement_index: u32::try_from(
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len()
-                    .checked_sub(1)?,
-            )
-            .ok()?,
-            binding_ordinal: u32::try_from(structural_count).ok()?,
-            type_identity: if super::super::super::reference_results::parts(
-                program,
-                state.return_type,
-            )
-            .is_some()
-            {
-                shapes.add_reference_type(state.return_type, binders)?
-            } else {
-                shapes.add_view_type(
-                    state.return_type,
-                    binders,
-                    language_semantics::ReferenceAccess::Shared,
-                )?
-            },
-            multiplicity: Multiplicity::Affine,
-            local: Default::default(),
-        };
-        operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
-            result: binding.clone(),
-            source: reference.source.clone(),
-            storage: checked_trees::CheckedReferenceStorage::Declared,
-        });
-        result.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: binding.binding_ordinal,
-        };
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.
@@ -521,5 +476,116 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_local_symbols,
         structural_results,
         next_scalar_binding: scalar_count,
+    })
+}
+
+/// A completion value that is an existing whole formal forwards that formal:
+/// its own custody crosses the return and no second binding is materialized.
+/// The value's canonical place names the formal; its planned entry must carry
+/// exactly the result's contract. A shared view formal forwards its loan
+/// unchanged. An owned formal needs the result's multiplicity and
+/// qualifications, and a linear one the same checked input-origin claims it
+/// returns. Otherwise the value is established like any other.
+fn forwarded_parameter(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    root: &checked_trees::CheckedStructuralValueRoot,
+) -> Option<CheckedUnitStructuralReturnPlan> {
+    let checked_trees::CheckedStructuralValueKind::Place(value) =
+        &facts.values.structural_values.nodes.get(root.root).kind
+    else {
+        return None;
+    };
+    if !matches!(
+        value.source,
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+    ) || !value.path.is_empty()
+    {
+        return None;
+    }
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(root.statement_ordinal).ok()?,
+        root.expression,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let authored = program.state_parameters(state);
+    let (parameter_index, parameter) = parameters.iter().enumerate().find(|(_, parameter)| {
+        authored
+            .get(parameter.position as usize)
+            .is_some_and(|source| source.symbol == symbol)
+    })?;
+    let source = authored.get(parameter.position as usize)?;
+    if program.normalized_type_identity(source.type_reference)
+        != program.normalized_type_identity(state.return_type)
+    {
+        return None;
+    }
+    let source_plan = CheckedUnitStructuralArgumentSourcePlan::Parameter {
+        parameter_index: u32::try_from(parameter_index).ok()?,
+    };
+    if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
+        if parameter.access != CheckedStructuralAccess::SharedBorrow
+            || !parameter.qualifications.is_empty()
+        {
+            return None;
+        }
+        return Some(CheckedUnitStructuralReturnPlan {
+            source: source_plan,
+            type_identity: parameter.type_identity.clone(),
+            multiplicity: parameter.multiplicity,
+            reference_sources: Vec::new(),
+        });
+    }
+    if parameter.access != CheckedStructuralAccess::Owned
+        || parameter.multiplicity != program.type_multiplicity(state.return_type)
+        || parameter.qualifications
+            != validation::structural_result_qualifications(program, state.return_type).ok()?
+    {
+        return None;
+    }
+    if parameter.multiplicity == Multiplicity::Linear {
+        let returned = validation::reconstruct_structural_parameter_return_claims(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            source.symbol,
+        )
+        .ok()?;
+        let mut input = entry_claims
+            .iter()
+            .filter(|claim| claim.parameter_index as usize == parameter_index)
+            .map(|claim| (claim.claim_identity, claim.path.clone()))
+            .collect::<Vec<_>>();
+        input.sort_by(|left, right| left.1.cmp(&right.1));
+        // Completion and ordinary calls share one input-origin correspondence;
+        // matching paths alone cannot replace the exact checked claim identities.
+        if input != returned {
+            return None;
+        }
+    }
+    Some(CheckedUnitStructuralReturnPlan {
+        source: source_plan,
+        type_identity: parameter.type_identity.clone(),
+        multiplicity: parameter.multiplicity,
+        reference_sources: if validation::reference_result_custody::is_reference_record(
+            program,
+            state.return_type,
+        ) {
+            validation::reference_result_custody::returned_record_sources(program, state)?
+        } else {
+            Vec::new()
+        },
     })
 }

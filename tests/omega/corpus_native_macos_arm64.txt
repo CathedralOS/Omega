@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 7.72, "load1_start": 8.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 5.16, "load1_start": 5.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -207,6 +207,7 @@ pass/borrows/runtime_stored_reference_leaf_field_retirement_exit built 1161ms ex
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit built 1299ms exit:70 @104c2da31081
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit built 2497ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 1190ms exit:70 @104c2da31081
+pass/borrows/runtime_tail_expression_views_exit built 1792ms exit:0 @3b35bf426740+wt
 pass/borrows/runtime_unit_call_mutable_view_local_exit built 2400ms exit:70 @c5248fcf82a0+wt
 pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt
@@ -845,6 +846,7 @@ pass/drops/runtime_scalar_temporary_residual_partition_exit built 1782ms exit:0 
 pass/drops/runtime_temporary_integer_capture_cleanup_exit built 1685ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit built 1682ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1701ms exit:0 @c8b4e81e49fe
+pass/drops/runtime_three_field_projected_transition_cleanup_exit built 1673ms exit:0 @3b35bf426740+wt
 pass/drops/runtime_unit_temporary_nominal_continuation_exit built 1513ms exit:0 @c8b4e81e49fe
 pass/drops/runtime_unobserved_owned_state_transfer_exit built 1858ms exit:0 @9beb2be72f2d+wt
 pass/drops/statically_skipped_claim_bearing_temporary checked 657ms @693920652f41

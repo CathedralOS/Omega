@@ -2,89 +2,12 @@
 //! statement sequence.
 //!
 //! `retained_guard` + `guard_is_boolean` read the authored guard coordinate;
-//! `retire_guarded_reference_completion` and `forwards_qualified_parameter`
-//! admit a guarded return arm's result binding and forwarded parameters. The
-//! terminator module shares these with `build_traced` through `super::`.
+//! `forwards_qualified_parameter` admits a successor's forwarded parameters.
+//! The terminator module shares these with `build_traced` through `super::`.
 use super::super::{
-    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, PrimitiveType,
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole, PrimitiveType,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
-
-/// A sequence is shared by ordinary and composed planning, so it retains the
-/// syntactic tail's reference completion. Guarded composed control owns every
-/// return arm instead. Remove only the exact sequence result binding when its
-/// source coordinate and ingress also occur in the guarded return roster;
-/// ordinary and unconditional completions keep their producer unchanged.
-pub(in crate::execution::terminal_unit) fn retire_guarded_reference_completion(
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    returned: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
-) -> Option<()> {
-    let Some(checked_trees::CheckedUnitStructuralReturnPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
-        reference_sources,
-        ..
-    }) = returned
-    else {
-        return Some(());
-    };
-    let mut tails = facts
-        .flow
-        .guarded_exits
-        .tails
-        .iter()
-        .filter(|tail| tail.state == state.symbol);
-    let Some(tail) = tails.next() else {
-        return Some(());
-    };
-    if tails.next().is_some() {
-        return None;
-    }
-    let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
-    // Each value-return arm owns its own completion. A sibling invocation
-    // or state edge does not produce this sequence's reference binding and
-    // therefore neither contributes a value coordinate nor prevents retiring
-    // the duplicate producer for the exact arm below.
-    let mut returned_statements = arms
-        .iter()
-        .map(|arm| &arm.destination)
-        .chain(tail.fallback.iter())
-        .filter_map(|destination| match destination {
-            checked_trees::CheckedScalarBranchDestination::Return {
-                statement_ordinal, ..
-            } => Some(*statement_ordinal),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    returned_statements.sort_unstable();
-    returned_statements.dedup();
-    let mut matches = operations
-        .iter()
-        .enumerate()
-        .filter_map(|(index, operation)| {
-            let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
-                operation
-            else {
-                return None;
-            };
-            (result.binding_ordinal == *binding_ordinal
-                && returned_statements.contains(&result.statement_index)
-                && reference_sources
-                    .iter()
-                    .any(|candidate| candidate.path.is_empty() && candidate.source == *source))
-            .then_some(index)
-        });
-    let Some(index) = matches.next() else {
-        return Some(());
-    };
-    if matches.next().is_some() {
-        return None;
-    }
-    operations.remove(index);
-    Some(())
-}
 
 /// A returning exit disposes whole roots only: a partial affine drop or a
 /// residual discard at the return has no Terminal return-cleanup row here.
