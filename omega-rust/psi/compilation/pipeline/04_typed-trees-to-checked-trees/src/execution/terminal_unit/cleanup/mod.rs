@@ -37,7 +37,7 @@ use super::{
     BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
     CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, TypeReferenceNode,

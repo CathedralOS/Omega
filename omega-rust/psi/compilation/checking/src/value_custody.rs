@@ -22,6 +22,7 @@ pub(crate) mod intrinsic_boundaries;
 pub(crate) mod literals;
 pub(crate) mod locals;
 pub(crate) mod owned_value_source;
+pub(crate) mod partial_affine_residuals;
 pub(crate) mod permission_provenance;
 pub(crate) mod placed_views;
 pub use placed_views::placed_atomic_observing_results;
