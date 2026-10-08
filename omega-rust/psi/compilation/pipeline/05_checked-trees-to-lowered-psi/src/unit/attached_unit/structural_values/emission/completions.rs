@@ -6,7 +6,7 @@
 use super::super::super::super::{StructuralAccess, StructuralArgument, block_id};
 use super::super::super::{
     LoweringError, Operation, OperationKind, PlaceId, ScalarType, StructuralTypeShape, Terminator,
-    ValueDeclaration, allocate_dense, lookup_type_id, lower_structural_path,
+    allocate_dense, lookup_type_id, lower_structural_path,
     operation_frame::{
         allocate_structural_result, operation_result_declaration, structural_type_declaration,
     },
@@ -241,39 +241,8 @@ impl Emission<'_, '_, '_> {
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
-            let join = block_id(allocate_dense(self.next_block)?);
-            let joined_values = self
-                .values
-                .iter()
-                .map(|value| {
-                    Ok(ValueDeclaration {
-                        id: value_id(allocate_dense(self.next_value)?),
-                        ..*value
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?;
-            let mut structural_parameters = Vec::new();
-            let mut remaining_owners = self.owners.clone();
-            let (pass_through, residuals) = self.partition_owner_continuation(
-                join,
-                &mut remaining_owners,
-                &mut structural_parameters,
-            )?;
-            let place = structural_parameters
-                .last()
-                .ok_or(LoweringError::Unsupported(
-                    "structural continuation has no result",
-                ))?
-                .place;
-            owned_continuation = ValueContinuation {
-                block: join,
-                parameters: joined_values,
-                structural_parameters,
-                place,
-                remaining_owners,
-                pass_through,
-                residuals,
-            };
+            owned_continuation =
+                self.joined_value_continuation(self.values.clone(), self.owners.clone())?;
             &owned_continuation
         };
         let source_count = self.values.len();

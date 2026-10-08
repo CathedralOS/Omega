@@ -1915,6 +1915,48 @@ impl Emission<'_, '_, '_> {
     /// symbol is invalidated) and the rest pass through. The trailing result
     /// slot contributes only its parameter row, carrying the result's own
     /// access (`SharedBorrow` for a `&T` join, `Owned` otherwise).
+
+    /// Continuation minted at an unseen join: fresh identities for the
+    /// given values, `remaining_owners` partitioned against it, and the
+    /// result place bound to the last structural parameter.
+    fn joined_value_continuation(
+        &mut self,
+        values: Vec<ValueDeclaration>,
+        mut remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
+    ) -> Result<ValueContinuation, LoweringError> {
+        let join = block_id(allocate_dense(self.next_block)?);
+        let joined_values = values
+            .iter()
+            .map(|value| {
+                Ok(ValueDeclaration {
+                    id: value_id(allocate_dense(self.next_value)?),
+                    ..*value
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut structural_parameters = Vec::new();
+        let (pass_through, residuals) = self.partition_owner_continuation(
+            join,
+            &mut remaining_owners,
+            &mut structural_parameters,
+        )?;
+        let place = structural_parameters
+            .last()
+            .ok_or(LoweringError::Unsupported(
+                "structural continuation has no result",
+            ))?
+            .place;
+        Ok(ValueContinuation {
+            block: join,
+            parameters: joined_values,
+            structural_parameters,
+            place,
+            remaining_owners,
+            pass_through,
+            residuals,
+        })
+    }
+
     fn partition_owner_continuation(
         &mut self,
         join: BlockId,

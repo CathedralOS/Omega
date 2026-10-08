@@ -6,7 +6,7 @@
 use super::super::super::super::block_id;
 use super::super::super::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
-    Terminator, ValueDeclaration, allocate_dense, unsupported, value_id,
+    Terminator, allocate_dense, unsupported, value_id,
 };
 use super::{Emission, ValueContinuation};
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
@@ -44,45 +44,18 @@ impl Emission<'_, '_, '_> {
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
-            let join = block_id(allocate_dense(self.next_block)?);
-            let joined_values = self.values[..source_count]
-                .iter()
-                .map(|value| {
-                    Ok(ValueDeclaration {
-                        id: value_id(allocate_dense(self.next_value)?),
-                        ..*value
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?;
-            let mut structural_parameters = Vec::new();
             let first_candidate = self.first_candidate();
-            let mut remaining_owners = self
+            let remaining_owners = self
                 .owners
                 .iter()
                 .enumerate()
                 .filter(|(position, _)| Some(*position) != first_candidate)
                 .map(|(_, owner)| owner.clone())
                 .collect::<Vec<_>>();
-            let (pass_through, residuals) = self.partition_owner_continuation(
-                join,
-                &mut remaining_owners,
-                &mut structural_parameters,
-            )?;
-            let place = structural_parameters
-                .last()
-                .ok_or(LoweringError::Unsupported(
-                    "structural continuation has no result",
-                ))?
-                .place;
-            owned_continuation = ValueContinuation {
-                block: join,
-                parameters: joined_values,
-                structural_parameters,
-                place,
+            owned_continuation = self.joined_value_continuation(
+                self.values[..source_count].to_vec(),
                 remaining_owners,
-                pass_through,
-                residuals,
-            };
+            )?;
             &owned_continuation
         };
         for (position, arm) in arms.iter().enumerate() {
