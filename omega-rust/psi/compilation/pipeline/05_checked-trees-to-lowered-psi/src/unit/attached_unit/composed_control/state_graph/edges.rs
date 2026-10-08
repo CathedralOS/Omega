@@ -572,84 +572,15 @@ pub(super) fn validate_bindings(
             };
             continue;
         }
-        let source_index = match transfer.source {
-            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                ..
-            } => return unsupported("Unit graph result was not independently rejoined"),
-            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                ..
-            }
-            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                ..
-            } => return unsupported("Unit graph subslice was not independently rejoined"),
-            checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-                ..
-            } => {
-                return unsupported(
-                    "Unit graph established argument was not independently rejoined",
-                );
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. } => {
-                return unsupported("Unit graph loan argument was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
-                return unsupported("Unit graph case-payload was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
-                ..
-            } => {
-                return unsupported("Unit graph literal argument was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
-                ..
-            } => {
-                return unsupported("Unit graph projected argument was not independently rejoined");
-            }
-        };
+        let source_index = parameter_transfer_source_index(&transfer.source)?;
         let source = state
             .structural_parameters
             .get(source_index as usize)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph borrowed transfer source missing",
             ))?;
-        match transfer.source {
-            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                ..
-            } => return unsupported("Unit graph result was not independently rejoined"),
-            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
-                validate_argument(target.position, source.position)?;
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                ..
-            }
-            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                ..
-            } => return unsupported("Unit graph subslice was not independently rejoined"),
-            checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-                ..
-            } => {
-                return unsupported(
-                    "Unit graph established argument was not independently rejoined",
-                );
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. } => {
-                return unsupported("Unit graph loan argument was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
-                return unsupported("Unit graph case-payload was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
-                ..
-            } => {
-                return unsupported("Unit graph literal argument was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
-                ..
-            } => {
-                return unsupported("Unit graph projected argument was not independently rejoined");
-            }
-        }
+        parameter_transfer_source_index(&transfer.source)?;
+        validate_argument(target.position, source.position)?;
     }
     for ((_, target), transfer) in target
         .scalar_parameters
@@ -964,4 +895,36 @@ fn validate_projected_loan_source(
         expression,
     )?;
     Ok(())
+}
+
+/// Only a `Parameter` transfer source carries a usable index; every other
+/// source is rejected with its rejoin diagnostic.
+fn parameter_transfer_source_index(
+    source: &checked_trees::CheckedStructuralControlTransferSourcePlan,
+) -> Result<u32, LoweringError> {
+    use checked_trees::CheckedStructuralControlTransferSourcePlan as Source;
+    match source {
+        Source::Parameter { index } => Ok(*index),
+        Source::StructuralResult { .. } => {
+            unsupported("Unit graph result was not independently rejoined")
+        }
+        Source::ByteSequenceSubslice { .. } | Source::ElementViewSubslice { .. } => {
+            unsupported("Unit graph subslice was not independently rejoined")
+        }
+        Source::EstablishedValue { .. } => {
+            unsupported("Unit graph established argument was not independently rejoined")
+        }
+        Source::ProjectedLoan { .. } => {
+            unsupported("Unit graph loan argument was not independently rejoined")
+        }
+        Source::CasePayload { .. } => {
+            unsupported("Unit graph case-payload was not independently rejoined")
+        }
+        Source::ByteSequenceLiteral { .. } => {
+            unsupported("Unit graph literal argument was not independently rejoined")
+        }
+        Source::ProjectedValue { .. } => {
+            unsupported("Unit graph projected argument was not independently rejoined")
+        }
+    }
 }
