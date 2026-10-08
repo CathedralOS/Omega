@@ -196,17 +196,7 @@ impl SymbolTableBuilder {
     }
 
     pub fn child_handles(span: HandleSpan<Symbol>) -> impl Iterator<Item = SymbolHandle> {
-        let start = span.start();
-
-        (0..span.count()).map(move |offset| {
-            SymbolHandle::from_parts(
-                start
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("symbol child handle overflow"),
-                start.generation(),
-            )
-        })
+        span.handles()
     }
 
     pub fn finish(self) -> SymbolTable {
