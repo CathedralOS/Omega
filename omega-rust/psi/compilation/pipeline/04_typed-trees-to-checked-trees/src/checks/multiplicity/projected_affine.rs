@@ -192,14 +192,7 @@ pub(super) fn append_replacement(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return;
     };
-    if place.segments.is_empty()
-        || !place.segments.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
-    {
+    if !place.has_only_positional_segments() {
         return;
     }
     let Some(owner) = places.iter().find(|owner| {

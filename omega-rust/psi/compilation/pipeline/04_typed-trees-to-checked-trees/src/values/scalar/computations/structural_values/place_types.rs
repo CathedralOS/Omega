@@ -54,14 +54,7 @@ pub(super) fn projected_leaf_type(
         return None;
     }
     let place = validation::canonical_place_from_expression(program, expression)?;
-    if place.segments.is_empty()
-        || !place.segments.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
-            )
-        })
-    {
+    if !place.has_only_positional_segments() {
         return None;
     }
     let root = match place.root {

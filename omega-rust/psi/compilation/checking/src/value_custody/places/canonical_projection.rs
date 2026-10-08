@@ -18,6 +18,19 @@ impl CanonicalPlace {
         self.segments.extend(segments.iter().copied());
     }
 
+    /// Whether this place names at least one segment and every segment is a
+    /// positional step — a field or a fixed index — so the place denotes a
+    /// statically located storage position rather than a computed traversal.
+    pub fn has_only_positional_segments(&self) -> bool {
+        !self.segments.is_empty()
+            && self.segments.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+    }
+
     /// The canonical label diagnostics quote for this place.
     pub fn label(&self, program: &dyn crate::CheckingInput) -> String {
         facts::canonical_place_label_from_parts(program, self.root, &self.segments)
