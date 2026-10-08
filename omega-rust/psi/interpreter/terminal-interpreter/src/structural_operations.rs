@@ -15,8 +15,9 @@ use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStruct
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{
-    find_structural_case,    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+    find_structural_case,
 };
 
 impl TerminalExecution<'_> {
@@ -689,9 +690,7 @@ impl TerminalExecution<'_> {
                     return None;
                 };
                 let result = machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
+                    .operations()
                     .find(|operation| operation.id == producer)?
                     .result
                     .structural()?;

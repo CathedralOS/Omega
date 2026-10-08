@@ -381,9 +381,7 @@ impl TerminalExecution<'_> {
                                     || !parameter.projected_qualifications.is_empty())
                         })
                     || machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.operations)
+                        .operations()
                         .filter_map(|operation| operation.result.structural())
                         .any(|result| {
                             result.place == *place

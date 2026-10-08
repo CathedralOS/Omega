@@ -494,9 +494,7 @@ fn resolve_float_operation_result_source(
         )
     };
     let mut producers = terminal_machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| operation.id == terminal_operation);
     let producer = producers.next().ok_or_else(invalid_source)?;
     if producers.next().is_some() {

@@ -149,9 +149,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 "restored reborrow call use names an absent Terminal machine",
             ))?;
         let operations = caller
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter(|operation| operation.id == terminal_operation)
             .collect::<Vec<_>>();
         let [operation] = operations.as_slice() else {

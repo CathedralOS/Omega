@@ -69,28 +69,23 @@ fn retained_field_root(
     if declarations.next().is_some() {
         return false;
     }
-    let mut retained = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            if let Some((identity, home)) = operation.structural_result_home() {
-                return identity == producer
-                    && home.operation_result() == Some((producer, declaration));
+    let mut retained = target.graph.operations().filter(|operation| {
+        if let Some((identity, home)) = operation.structural_result_home() {
+            return identity == producer
+                && home.operation_result() == Some((producer, declaration));
+        }
+        match operation {
+            TargetUnitOperation::EstablishElementView {
+                result,
+                view: target_operations::TargetElementView::Established { psi_operation, .. },
             }
-            match operation {
-                TargetUnitOperation::EstablishElementView {
-                    result,
-                    view: target_operations::TargetElementView::Established { psi_operation, .. },
-                }
-                | TargetUnitOperation::ElementViewSubslice {
-                    result,
-                    view: target_operations::TargetElementView::Subslice { psi_operation, .. },
-                } => *psi_operation == producer && result == declaration,
-                _ => false,
-            }
-        });
+            | TargetUnitOperation::ElementViewSubslice {
+                result,
+                view: target_operations::TargetElementView::Subslice { psi_operation, .. },
+            } => *psi_operation == producer && result == declaration,
+            _ => false,
+        }
+    });
     retained.next().is_some() && retained.next().is_none()
 }
 
@@ -130,16 +125,11 @@ pub(super) fn indexed_store_retained(
         access,
         path: path.clone(),
     };
-    let mut writes = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|candidate| {
-            matches!(candidate,
+    let mut writes = target.graph.operations().filter(|candidate| {
+        matches!(candidate,
         TargetUnitOperation::StructuralByteSequenceFieldByteStore { psi_operation: retained, .. }
             if retained == psi_operation)
-        });
+    });
     let Some(TargetUnitOperation::StructuralByteSequenceFieldByteStore {
         destination: retained_destination,
         field: retained_field,
@@ -321,16 +311,11 @@ pub(super) fn indexed_read_retained(
     else {
         return false;
     };
-    let mut reads = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|candidate| {
-            matches!(candidate,
+    let mut reads = target.graph.operations().filter(|candidate| {
+        matches!(candidate,
         TargetUnitOperation::StructuralByteSequenceFieldRead { psi_operation: retained, .. }
             if retained == psi_operation)
-        });
+    });
     let Some(TargetUnitOperation::StructuralByteSequenceFieldRead {
         result: retained_result,
         source: retained_source,
@@ -612,9 +597,7 @@ pub(super) fn view_replacement_retained(
     }
     let mut replacements = target
         .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| match operation {
             TargetUnitOperation::StructuralByteViewFieldStore {
                 psi_operation: identity,
@@ -763,9 +746,7 @@ pub(super) fn replacement_retained(
     }
     let mut replacements = target
         .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| match operation {
             TargetUnitOperation::StructuralByteSequenceFieldStore {
                 psi_operation: identity,
@@ -943,9 +924,7 @@ pub(super) fn retained(
         // content read or a synthesized whole-view descriptor.
         let mut reads = target
             .graph
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter_map(|operation| match operation {
                 TargetUnitOperation::StructuralByteSequenceFieldLength {
                     psi_operation: identity,
@@ -997,9 +976,7 @@ pub(super) fn retained(
             .collect::<Vec<_>>();
         let mut reads = target
             .graph
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter_map(|operation| match operation {
                 TargetUnitOperation::PrimitiveScalarRead {
                     psi_operation: identity,
@@ -1135,9 +1112,7 @@ pub(super) fn retained(
     };
     let mut reads = target
         .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| match operation {
             TargetUnitOperation::StructuralScalarFieldRead {
                 psi_operation,
@@ -1275,9 +1250,7 @@ fn write_destination(
     }
     let mut retained = target
         .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| match operation {
             TargetUnitOperation::Call {
                 psi_operation,
@@ -1365,23 +1338,18 @@ fn scalar_store_place(
     if !retained_field_root(function, target, place) {
         return None;
     }
-    let mut stores = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            matches!(operation,
-                TargetUnitOperation::StructuralScalarFieldStore {
-                    psi_operation: retained, destination: retained_destination,
-                    path: retained_path, field: retained_field, source, indices, ..
-                } if retained == psi_operation && retained_destination == destination
-                    && retained_path == path && retained_field == field
-                    && source.source_value() == value.value
-                    && source.scalar_type() == value.scalar_type
-                    && retained_selectors(path, indices)
-            )
-        });
+    let mut stores = target.graph.operations().filter(|operation| {
+        matches!(operation,
+            TargetUnitOperation::StructuralScalarFieldStore {
+                psi_operation: retained, destination: retained_destination,
+                path: retained_path, field: retained_field, source, indices, ..
+            } if retained == psi_operation && retained_destination == destination
+                && retained_path == path && retained_field == field
+                && source.source_value() == value.value
+                && source.scalar_type() == value.scalar_type
+                && retained_selectors(path, indices)
+        )
+    });
     (stores.next().is_some() && stores.next().is_none()).then_some(place)
 }
 
@@ -1562,19 +1530,14 @@ fn read_access(
                 }
                 _ => return None,
             };
-            let retained = target
-                .graph
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|candidate| {
-                    let actual = match candidate {
-                        TargetUnitOperation::EstablishElementView { result, .. }
-                        | TargetUnitOperation::ElementViewSubslice { result, .. } => result,
-                        _ => return false,
-                    };
-                    actual == result
-                });
+            let retained = target.graph.operations().any(|candidate| {
+                let actual = match candidate {
+                    TargetUnitOperation::EstablishElementView { result, .. }
+                    | TargetUnitOperation::ElementViewSubslice { result, .. } => result,
+                    _ => return false,
+                };
+                actual == result
+            });
             if result.multiplicity == StructuralMultiplicity::Linear
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -1609,22 +1572,17 @@ fn read_access(
             || !retained_custody
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !target
-                .graph
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|operation| {
-                    let Some((retained_producer, home)) = operation.structural_result_home() else {
-                        return false;
-                    };
-                    retained_producer == producer
-                        && home
-                            .operation_result()
-                            .is_some_and(|(actual, declaration)| {
-                                actual == producer && declaration == result
-                            })
-                })
+            || !target.graph.operations().any(|operation| {
+                let Some((retained_producer, home)) = operation.structural_result_home() else {
+                    return false;
+                };
+                retained_producer == producer
+                    && home
+                        .operation_result()
+                        .is_some_and(|(actual, declaration)| {
+                            actual == producer && declaration == result
+                        })
+            })
             || access
                 .replace((StructuralAccess::Owned, result.structural_type))
                 .is_some()

@@ -189,9 +189,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             structural_type,
         } => {
             let mut producers = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter(|operation| operation.id == producer);
             let Some(producer) = producers.next() else {
                 return malformed("byte field store source has no producer");
@@ -234,7 +232,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => owned_source,
             _ => false,
         })
-        || !machine.blocks.iter().flat_map(|block| &block.operations).any(|candidate| {
+        || !machine.operations().any(|candidate| {
             matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == *source)
                 && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
                     && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))

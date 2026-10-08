@@ -810,18 +810,14 @@ impl TerminalExecution<'_> {
                     self.program.structural_types().values(),
                     structural_type,
                 ))
-            && machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|operation| {
-                    operation.id == producer
-                        && operation.result.structural().is_some_and(|result| {
-                            result.place == place
-                                && result.structural_type == structural_type
-                                && result.multiplicity == multiplicity
-                        })
-                })
+            && machine.operations().any(|operation| {
+                operation.id == producer
+                    && operation.result.structural().is_some_and(|result| {
+                        result.place == place
+                            && result.structural_type == structural_type
+                            && result.multiplicity == multiplicity
+                    })
+            })
     }
 
     pub(crate) fn owned_block_source(

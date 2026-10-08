@@ -449,7 +449,7 @@ fn terminal_definition(
             })
         }
         StructuralPlaceKind::ByteSequenceLiteral { .. } => {
-            let mut establishments = machine.blocks.iter().flat_map(|block| &block.operations).filter(|operation| matches!(operation.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == place));
+            let mut establishments = machine.operations().filter(|operation| matches!(operation.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == place));
             establishments.next()?;
             establishments
                 .next()
@@ -474,9 +474,7 @@ fn terminal_definition(
             structural_type,
         } => {
             let mut matching = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter(|operation| operation.id == producer);
             let operation = matching.next()?;
             let result = operation.result.structural()?;

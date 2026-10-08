@@ -35,7 +35,7 @@ pub(crate) fn settle_comparison_occurrences(
         integer: Vec::new(),
     };
     for machine in &module.machines {
-        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        for operation in machine.operations() {
             use terminal_psi::OperationKind;
             if !matches!(
                 operation.kind,

@@ -27,16 +27,12 @@ use terminal_psi::{
 /// This establishes its exact coordinate, not its bounds or storage authority.
 /// Unknown computations and block parameters retain their runtime geometry.
 pub fn constant_runtime_index(machine: &TerminalMachine, index: ValueId) -> Option<u64> {
-    let mut producers = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            operation
-                .result
-                .scalar_ref()
-                .is_some_and(|result| result.id == index)
-        });
+    let mut producers = machine.operations().filter(|operation| {
+        operation
+            .result
+            .scalar_ref()
+            .is_some_and(|result| result.id == index)
+    });
     let producer = producers.next()?;
     if producers.next().is_some() {
         return None;

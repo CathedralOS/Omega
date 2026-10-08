@@ -439,8 +439,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
     }
-    let consuming = machine
-        .operation(consumer)?;
+    let consuming = machine.operation(consumer)?;
     let call_arguments = consuming.kind.structural_arguments();
     // Whole constructors and ordinary calls consume the same completed value.
     // Their source occurrence, rather than the requested destination predicates,
@@ -456,10 +455,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     {
         return None;
     }
-    if machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+    if machine.operations()
         .any(|candidate| {
             candidate.id != consumer
                 && (may_change_owned_source(candidate, source)
@@ -616,16 +612,17 @@ pub fn byte_sequence_source_predicates(
                 byte_parameter_predicates(module, parameter)
             }
             StructuralPlaceKind::ByteSequenceLiteral { .. } => {
-                let mut producers = machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .filter_map(|operation| match &operation.kind {
-                        OperationKind::EstablishByteSequenceLiteral {
-                            destination, bytes, ..
-                        } if *destination == source => Some(bytes),
-                        _ => None,
-                    });
+                let mut producers =
+                    machine
+                        .operations()
+                        .filter_map(|operation| match &operation.kind {
+                            OperationKind::EstablishByteSequenceLiteral {
+                                destination,
+                                bytes,
+                                ..
+                            } if *destination == source => Some(bytes),
+                            _ => None,
+                        });
                 let bytes = producers.next()?;
                 if producers.next().is_some() {
                     return None;
@@ -698,9 +695,7 @@ pub fn byte_sequence_source_predicates(
                     return Some(declared);
                 };
                 if machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
+                    .operations()
                     .any(|candidate| may_change_owned_source(candidate, source))
                 {
                     return byte_owned_result_predicates(module, machine, source);

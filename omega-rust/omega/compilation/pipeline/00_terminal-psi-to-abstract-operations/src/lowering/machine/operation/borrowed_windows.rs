@@ -279,21 +279,17 @@ pub(super) fn source_signature(
             projected_qualifications: parameter.projected_qualifications.clone(),
         });
     }
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| {
-            operation
-                .result
-                .structural()
-                .filter(|result| result.place == place)
-                .map(|result| SourceSignature {
-                    structural_type: result.structural_type,
-                    qualifications: result.qualifications.clone(),
-                    projected_qualifications: result.projected_qualifications.clone(),
-                })
-        })
+    machine.operations().find_map(|operation| {
+        operation
+            .result
+            .structural()
+            .filter(|result| result.place == place)
+            .map(|result| SourceSignature {
+                structural_type: result.structural_type,
+                qualifications: result.qualifications.clone(),
+                projected_qualifications: result.projected_qualifications.clone(),
+            })
+    })
 }
 
 /// Resolve one block-structural parameter through its `BlockParameter` place

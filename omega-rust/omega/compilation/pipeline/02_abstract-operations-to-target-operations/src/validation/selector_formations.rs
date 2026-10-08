@@ -36,12 +36,7 @@ pub(super) fn validate(
             }
         }
     }
-    for operation in target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-    {
+    for operation in target.graph.operations() {
         if let TargetUnitOperation::SelectImplementation { result_home, table } = operation {
             let operation = result_home.defining_operation;
             let Some((result, expected_table)) = formations.remove(&operation) else {

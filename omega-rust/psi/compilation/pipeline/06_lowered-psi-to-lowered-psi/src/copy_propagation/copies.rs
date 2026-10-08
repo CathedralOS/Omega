@@ -48,11 +48,7 @@ pub(super) fn propagate(
         retain_proposition(&guarantee.proposition, retained_values);
     }
     retain_crash_routes(&machine.contract.crash_routes, retained_values);
-    let operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .collect::<Vec<_>>();
+    let operations = machine.operations().collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), retained_values);
         retain_erased_arguments(call_erased_arguments(&operation.kind), retained_values);

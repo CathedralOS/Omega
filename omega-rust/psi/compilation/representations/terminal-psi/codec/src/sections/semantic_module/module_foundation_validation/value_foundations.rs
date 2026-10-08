@@ -4,8 +4,9 @@
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    find_structural_case,    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
+    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
+    find_structural_case,
 };
 
 pub(super) fn validate_establish_scalar_array(
@@ -468,8 +469,7 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
         Some(StructuralPlaceKind::OperationResult { producer, structural_type })
             if producer == operation.id && structural_type == result.structural_type)
         || !module.structural_types.iter().any(|row| {
-            row.id == result.structural_type
-                && row.shape.is_bounded_owned_byte_sequence()
+            row.id == result.structural_type && row.shape.is_bounded_owned_byte_sequence()
         })
     {
         return malformed("byte concatenation result differs from its owned carrier declaration");

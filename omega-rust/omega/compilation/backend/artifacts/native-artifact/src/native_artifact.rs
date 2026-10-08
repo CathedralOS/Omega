@@ -39,8 +39,8 @@ pub use dynamic_elf::{
 };
 pub use emission::RequestedNativeArtifact;
 use identity::{
-    NativeArtifactIdentityFields, compiler_identity_evidence,
-    derive_native_artifact_identity, foreign_call_custody_digest,
+    NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
+    foreign_call_custody_digest,
 };
 
 /// Complete source-independent Terminal-Psi native realization.
@@ -451,7 +451,6 @@ impl NativeArtifact {
         self.boundary_application_coverage.as_ref()
     }
 
-
     pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope.clone()
     }
@@ -610,7 +609,6 @@ impl NativePhysicalEvidenceScope {
         )
         .map(Self::ValidatedOptimizedProjection)
     }
-
 
     const fn requires_boundary_application_coverage(&self) -> bool {
         matches!(
@@ -779,9 +777,7 @@ fn validate_ieee_float_fma_occurrences(
         .iter()
         .flat_map(|machine| {
             machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter(|operation| {
                     matches!(
                         operation.kind,
@@ -853,9 +849,7 @@ fn validate_ieee_float_fma_occurrences(
         }
         for operand in [occurrence.left, occurrence.right, occurrence.addend] {
             let matching_constants = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter(|candidate| {
                     candidate.id == operand.defining_operation
                         && candidate.result.scalar().is_some_and(|result| {

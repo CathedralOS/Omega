@@ -24,10 +24,10 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{ClaimId, ServiceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeSet;
 use terminal_psi::{
-    find_structural_case,
-Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
+    Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
+    find_structural_case,
 };
 
 /// Validate the closed representation foundation needed before the independent
@@ -245,9 +245,7 @@ fn validate_provider_attachment_foundation(
     // The retained declaration kind, not an absent nominal attachment,
     // determines whether the call consumes a provider field.
     let called = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| match operation.kind {
             OperationKind::BoundaryCall { boundary, .. } => Some(boundary),
             _ => None,
@@ -829,20 +827,16 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
         }
     }
     has_return
-        && callee
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .all(|operation| {
-                !matches!(
-                    operation.kind,
-                    OperationKind::Call { .. }
-                        | OperationKind::CallUnit { .. }
-                        | OperationKind::CallStructuralScalar { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::BoundaryCall { .. }
-                )
-            })
+        && callee.operations().all(|operation| {
+            !matches!(
+                operation.kind,
+                OperationKind::Call { .. }
+                    | OperationKind::CallUnit { .. }
+                    | OperationKind::CallStructuralScalar { .. }
+                    | OperationKind::CallStructural { .. }
+                    | OperationKind::BoundaryCall { .. }
+            )
+        })
 }
 
 #[derive(Clone, Copy)]
@@ -867,9 +861,7 @@ fn validate_structural_arguments(
             .iter()
             .find(|parameter| parameter.place == argument.place);
         let result = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter_map(|operation| operation.result.structural())
             .find(|result| result.place == argument.place);
         let owned_array_payload = terminal_semantics::scalar_array_leaf_shape(
@@ -1184,9 +1176,7 @@ fn is_plain_affine_operation_result(
         return false;
     };
     let mut operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| operation.id == producer);
     let Some(operation) = operations.next() else {
         return false;
@@ -1226,26 +1216,22 @@ fn validate_claim_indices(
             .entry_claims
             .iter()
             .any(|entry| entry.claim == claim && matches_path(&entry.path))
-            || machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|operation| {
-                    let Some(result) = operation.result.structural() else {
-                        return false;
-                    };
-                    // Multiplicity does not describe a result's claim set: an affine
-                    // owner carries its linear members' claims at their paths.
-                    machine.structural_places.iter().any(|declaration| {
-                        declaration.id == result.place
-                            && matches!(declaration.kind,
+            || machine.operations().any(|operation| {
+                let Some(result) = operation.result.structural() else {
+                    return false;
+                };
+                // Multiplicity does not describe a result's claim set: an affine
+                // owner carries its linear members' claims at their paths.
+                machine.structural_places.iter().any(|declaration| {
+                    declaration.id == result.place
+                        && matches!(declaration.kind,
                         StructuralPlaceKind::OperationResult { producer, structural_type }
                         if producer == operation.id && structural_type == result.structural_type)
-                    }) && result
-                        .claims
-                        .iter()
-                        .any(|binding| binding.claim == claim && matches_path(&binding.path))
-                });
+                }) && result
+                    .claims
+                    .iter()
+                    .any(|binding| binding.claim == claim && matches_path(&binding.path))
+            });
         if !declared {
             return malformed("claim action does not match a declared structural claim path");
         }

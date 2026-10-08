@@ -84,33 +84,28 @@ pub(crate) fn prune_debug_map(
         .zip(&after.semantic_module.machines)
         .flat_map(|(old_machine, new_machine)| {
             let removed_results = old_machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter(|operation| !operations.contains(&operation.id))
                 .filter_map(|operation| operation.result.scalar().map(|value| value.id));
-            let removed_parameters =
-                old_machine.blocks.iter().zip(&new_machine.blocks).flat_map(
-                    |(old_block, new_block)| {
-                        let retained = new_block
-                            .parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect::<BTreeSet<_>>();
-                        old_block
-                            .parameters
-                            .iter()
-                            .filter(move |parameter| !retained.contains(&parameter.id))
-                            .map(|parameter| parameter.id)
-                    },
-                );
+            let removed_parameters = old_machine.blocks.iter().zip(&new_machine.blocks).flat_map(
+                |(old_block, new_block)| {
+                    let retained = new_block
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.id)
+                        .collect::<BTreeSet<_>>();
+                    old_block
+                        .parameters
+                        .iter()
+                        .filter(move |parameter| !retained.contains(&parameter.id))
+                        .map(|parameter| parameter.id)
+                },
+            );
             removed_results.chain(removed_parameters)
         })
         .collect::<BTreeSet<_>>();
     debug.sites.retain(|site| match site.subject {
-        terminal_psi::DebugSubject::Operation(operation) => {
-            operations.contains(&operation)
-        }
+        terminal_psi::DebugSubject::Operation(operation) => operations.contains(&operation),
         terminal_psi::DebugSubject::Value(value) => !removed_values.contains(&value),
         _ => true,
     });

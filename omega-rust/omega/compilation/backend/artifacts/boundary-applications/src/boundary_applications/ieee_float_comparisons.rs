@@ -116,9 +116,7 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
                     )
                     .chain(
                         machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.operations)
+                            .operations()
                             .filter_map(|operation| operation.result.scalar()),
                     )
                     .filter(|declaration| declaration.id == operand);

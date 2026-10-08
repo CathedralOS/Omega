@@ -71,12 +71,7 @@ pub(super) fn validate(
     let expected = expected_sources(source);
     let mut target_calls = BTreeMap::new();
     let mut result_calls = BTreeMap::new();
-    for operation in target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-    {
+    for operation in target.graph.operations() {
         match operation {
             TargetUnitOperation::Call {
                 psi_operation,

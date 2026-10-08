@@ -225,9 +225,7 @@ pub(super) fn owned_store_destination(
     }
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let mut operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| operation.id == producer);
     let operation = operations.next()?;
     if operations.next().is_some() {
@@ -351,9 +349,7 @@ fn readable_source_type(
     // The verified producer and availability checks retain the actual result root;
     // it never acquires an incoming-parameter identity merely to be observed.
     let result = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| operation.result.structural())
         .find(|result| result.place == source)?;
     (owned_storage(result.structural_type, StructuralAccess::Owned)

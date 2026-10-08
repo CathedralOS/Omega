@@ -12,11 +12,7 @@ pub(super) fn eliminate(
     source_calls: &[lowered_psi::LoweredSourceCallOccurrence],
     retained_values: &[ValueId],
 ) {
-    let operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .collect::<Vec<_>>();
+    let operations = machine.operations().collect::<Vec<_>>();
     // Ranking evidence pins the covered components' parameter tables and
     // keeps the values it names live wherever they are declared; parameters
     // on blocks outside the covered components follow the ordinary rule.

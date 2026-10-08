@@ -113,9 +113,7 @@ fn owned_result(
     }
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let mut operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| operation.id == producer);
     let operation = operations.next()?;
     if operations.next().is_some() {

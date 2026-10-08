@@ -106,7 +106,7 @@ impl TerminalIntegerComparisonOccurrenceProposal {
                 return Err("Terminal integer comparison changed its result type");
             }
             if occurrence.comparison == Comparison::NotEqual {
-                let negations = machine.blocks.iter().flat_map(|block| &block.operations)
+                let negations = machine.operations()
                     .filter(|candidate| matches!(candidate.kind, OperationKind::BooleanNot { operand } if operand == result.id))
                     .count();
                 if negations != 1 {
@@ -130,9 +130,7 @@ impl TerminalIntegerComparisonOccurrenceProposal {
                     )
                     .chain(
                         machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.operations)
+                            .operations()
                             .filter_map(|operation| operation.result.scalar()),
                     )
                     .filter(|declaration| declaration.id == operand);

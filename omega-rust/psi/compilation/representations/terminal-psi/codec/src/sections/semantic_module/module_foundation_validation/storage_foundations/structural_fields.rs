@@ -121,9 +121,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         parameter.structural_type
     } else {
         let Some(result) = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter(|producer| {
                 projected || matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
             })
@@ -353,9 +351,7 @@ fn borrowed_field_store_root_type(
         return Some(structural_type);
     }
     machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|producer| {
             matches!(
                 producer.kind,
@@ -483,9 +479,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // synthetic parameter. The verifier separately checks its producer,
     // dominance, live ownership and loans at this observation.
     if let Some((producer, local)) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|producer| {
             matches!(
                 producer.kind,

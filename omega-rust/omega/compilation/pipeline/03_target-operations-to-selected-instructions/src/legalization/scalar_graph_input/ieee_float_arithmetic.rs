@@ -32,18 +32,13 @@ pub(in crate::legalization) fn row(
         .iter()
         .find(|function| function.machine == machine)
         .ok_or(LegalizationError::custody())?;
-    let mut rows = function
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|row| {
-            matches!(
-                row,
-                TargetUnitOperation::NearestIeeeFloatArithmetic { psi_operation, .. }
-                    if *psi_operation == operation
-            )
-        });
+    let mut rows = function.graph.operations().filter(|row| {
+        matches!(
+            row,
+            TargetUnitOperation::NearestIeeeFloatArithmetic { psi_operation, .. }
+                if *psi_operation == operation
+        )
+    });
     let row = rows.next();
     if rows.next().is_some() {
         return Err(LegalizationError::custody());

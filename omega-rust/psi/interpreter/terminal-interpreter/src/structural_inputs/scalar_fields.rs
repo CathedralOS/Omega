@@ -94,7 +94,7 @@ pub(crate) fn bind(
         &values,
         zero_initialized_arguments,
     )?;
-    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+    for operation in machine.operations() {
         // Preserve the Boolean entry contract. Integer fields can be initialized
         // by earlier stores; their existing runtime read checks missing contents.
         let (source, path, field) = match operation.kind {

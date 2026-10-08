@@ -103,12 +103,14 @@ impl TerminalMachine {
         self.blocks.iter().find(|block| block.id == *id)
     }
 
+    /// Every block's operations, in block order.
+    pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {
+        self.blocks.iter().flat_map(|block| &block.operations)
+    }
+
     /// The operation with `id`, searched across every block's roster.
     pub fn operation(&self, id: OperationId) -> Option<&Operation> {
-        self.blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| operation.id == id)
+        self.operations().find(|operation| operation.id == id)
     }
 
     /// The structural-place declaration keyed `place`, when the machine
@@ -126,9 +128,7 @@ impl TerminalMachine {
         let declaration = self.structural_place(place)?;
         let (producer, structural_type) = declaration.kind.as_operation_result()?;
         let operation = self
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .find(|operation| operation.id == producer)?;
         Some((operation, structural_type))
     }

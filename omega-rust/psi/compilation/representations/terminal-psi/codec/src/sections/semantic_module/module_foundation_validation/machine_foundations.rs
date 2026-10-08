@@ -38,7 +38,7 @@ pub(super) fn validate_machine(
     require_known_services(module, &machine.published_service_ceiling)?;
     validate_parameter_places(machine)?;
     validate_entry_claims(module, machine)?;
-    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+    for operation in machine.operations() {
         validate_operation_foundation(module, machine, operation)?;
     }
     validate_operation_result_places(machine)?;
@@ -153,9 +153,7 @@ fn validate_operation_result_places(machine: &TerminalMachine) -> Result<(), Cod
             continue;
         };
         let mut producers = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter(|operation| operation.id == producer);
         let Some(operation) = producers.next() else {
             return malformed("structural operation-result place has no producer");

@@ -27,12 +27,7 @@ pub(crate) fn validate(
     });
     let mut observed = BTreeSet::new();
     for function in &target.functions {
-        for operation in function
-            .graph
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-        {
+        for operation in function.graph.operations() {
             let (psi_operation, call_target, origin, scalar_arguments, arguments) = match operation
             {
                 TargetUnitOperation::Call {

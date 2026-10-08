@@ -21,9 +21,7 @@ pub(super) fn fold(
     }
     let value_types = super::machine_scalar_value_types(machine);
     let mut literals: BTreeMap<ValueId, ScalarLeafLiteral> = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter_map(|operation| {
             let result = operation.result.scalar()?;
             let literal = match &operation.kind {

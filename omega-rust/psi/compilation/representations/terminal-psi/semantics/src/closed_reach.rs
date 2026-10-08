@@ -37,7 +37,7 @@ pub fn has_schema_application_in_call_closure(
                 }
             }
         }
-        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        for operation in machine.operations() {
             let Some(callee) = operation.kind.direct_callee() else {
                 continue;
             };

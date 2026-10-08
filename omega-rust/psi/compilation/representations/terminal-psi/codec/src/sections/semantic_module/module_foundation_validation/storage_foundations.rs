@@ -40,9 +40,7 @@ fn reference_store_carrier<'path>(
             && parameter.projected_qualifications.is_empty()
     } else {
         machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter_map(|operation| operation.result.structural())
             .any(|result| {
                 result.place == destination
@@ -94,9 +92,7 @@ fn owned_record_store_carrier(
         return None;
     };
     let mut producers = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| operation.id == producer);
     let result = producers.next()?.result.structural()?;
     (producers.next().is_none()
@@ -143,9 +139,7 @@ pub(super) fn validate_establish_reference(
             .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
             .chain(
                 machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
+                    .operations()
                     .filter_map(|candidate| candidate.result.scalar_ref()),
             )
             .find(|value| value.id == storage.byte_offset)
@@ -240,9 +234,7 @@ fn field_store_parent(
         parameter.structural_type
     } else {
         let Some(result) = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter_map(|producer| producer.result.structural())
             .find(|result| result.place == destination)
         else {

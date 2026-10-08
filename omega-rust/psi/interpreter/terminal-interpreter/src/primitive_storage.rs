@@ -480,9 +480,7 @@ impl TerminalExecution<'_> {
                     return None;
                 }
                 machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
+                    .operations()
                     .filter_map(|operation| operation.result.structural())
                     .find(|result| {
                         result.place == place

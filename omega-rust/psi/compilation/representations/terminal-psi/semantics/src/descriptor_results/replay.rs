@@ -11,8 +11,8 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 mod analysis;
 mod replay;
 pub use analysis::DescriptorAnalysis;
-use terminal_psi::find_structural_type;
 use replay::Replay;
+use terminal_psi::find_structural_type;
 
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {

@@ -173,79 +173,87 @@ pub(super) fn validate(
     // One source operation yields at most one retained call row; a second row
     // under the same operation key can only shadow the honest replay.
     let mut target_calls = BTreeMap::new();
-    for call in target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| {
-            let call = match operation {
-                TargetUnitOperation::Call {
-                    origin,
-                    psi_operation,
-                    result,
-                    target,
-                    call_plan,
-                    scalar_arguments,
-                    arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                } => {
-                    let result = match result {
-                        target_operations::TargetCallResult::Unit => EmbeddedResult::Unit,
-                        target_operations::TargetCallResult::Scalar(home) => {
-                            EmbeddedResult::Scalar(home)
-                        }
-                        target_operations::TargetCallResult::Structural {
-                            result,
-                            callee_result,
-                            result_home,
-                            reference_results,
-                        } => EmbeddedResult::Structural {
-                            result,
-                            callee_result,
-                            result_home: result_home.as_ref(),
-                            reference_results,
-                        },
-                    };
-                    (
-                        *psi_operation,
-                        EmbeddedCall::Direct {
-                            origin,
-                            target: *target,
-                            call_plan,
-                            scalar_arguments,
-                            arguments,
-                            result,
-                            claim_transfers,
-                            requirement_obligations,
-                            crash_continuations,
-                        },
-                    )
-                }
-                TargetUnitOperation::NormalizedForeignCall {
-                    psi_operation,
-                    boundary,
+    for call in target.graph.operations().filter_map(|operation| {
+        let call = match operation {
+            TargetUnitOperation::Call {
+                origin,
+                psi_operation,
+                result,
+                target,
+                call_plan,
+                scalar_arguments,
+                arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                let result = match result {
+                    target_operations::TargetCallResult::Unit => EmbeddedResult::Unit,
+                    target_operations::TargetCallResult::Scalar(home) => {
+                        EmbeddedResult::Scalar(home)
+                    }
+                    target_operations::TargetCallResult::Structural {
+                        result,
+                        callee_result,
+                        result_home,
+                        reference_results,
+                    } => EmbeddedResult::Structural {
+                        result,
+                        callee_result,
+                        result_home: result_home.as_ref(),
+                        reference_results,
+                    },
+                };
+                (
+                    *psi_operation,
+                    EmbeddedCall::Direct {
+                        origin,
+                        target: *target,
+                        call_plan,
+                        scalar_arguments,
+                        arguments,
+                        result,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    },
+                )
+            }
+            TargetUnitOperation::NormalizedForeignCall {
+                psi_operation,
+                boundary,
+                provider_execution,
+                binding,
+                scalar_arguments,
+                structural_arguments,
+                result,
+            } => (
+                *psi_operation,
+                EmbeddedCall::NormalizedForeign {
+                    boundary: *boundary,
                     provider_execution,
                     binding,
                     scalar_arguments,
                     structural_arguments,
                     result,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::NormalizedForeign {
-                        boundary: *boundary,
-                        provider_execution,
-                        binding,
-                        scalar_arguments,
-                        structural_arguments,
-                        result,
-                    },
-                ),
-                TargetUnitOperation::BoundarySettlement {
-                    psi_operation,
-                    boundary,
+                },
+            ),
+            TargetUnitOperation::BoundarySettlement {
+                psi_operation,
+                boundary,
+                result,
+                execution,
+                realization,
+                scalar_arguments,
+                runtime_scalar_arguments,
+                arguments,
+                byte_sequence_arguments,
+                completion_claim_sources,
+                completion_receipts,
+            } => (
+                *psi_operation,
+                EmbeddedCall::Settlement {
+                    boundary: *boundary,
                     result,
                     execution,
                     realization,
@@ -255,26 +263,12 @@ pub(super) fn validate(
                     byte_sequence_arguments,
                     completion_claim_sources,
                     completion_receipts,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::Settlement {
-                        boundary: *boundary,
-                        result,
-                        execution,
-                        realization,
-                        scalar_arguments,
-                        runtime_scalar_arguments,
-                        arguments,
-                        byte_sequence_arguments,
-                        completion_claim_sources,
-                        completion_receipts,
-                    },
-                ),
-                _ => return None,
-            };
-            Some(call)
-        })
-    {
+                },
+            ),
+            _ => return None,
+        };
+        Some(call)
+    }) {
         if target_calls.insert(call.0, call.1).is_some() {
             return Err(call.0);
         }
@@ -1016,13 +1010,7 @@ impl Replay<'_> {
         // a home field; their lowering derives the requirement deterministically
         // from that result, so the roster rebuilds it the same way here.
         let mut retained_scalar_homes = BTreeMap::new();
-        for operation in self
-            .target
-            .graph
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-        {
+        for operation in self.target.graph.operations() {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
                 | TargetUnitOperation::ScalarRepresentationView { result_home, .. }

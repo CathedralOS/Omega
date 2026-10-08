@@ -50,11 +50,7 @@ pub(super) fn deduplicate(
         retain_proposition(&guarantee.proposition, &mut retained_values);
     }
     retain_crash_routes(&machine.contract.crash_routes, &mut retained_values);
-    let operations = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .collect::<Vec<_>>();
+    let operations = machine.operations().collect::<Vec<_>>();
     for operation in &operations {
         retain_crash_routes(crash_continuations(&operation.kind), &mut retained_values);
         retain_erased_arguments(call_erased_arguments(&operation.kind), &mut retained_values);
@@ -154,15 +150,13 @@ fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
             (block.id, targets)
         })
         .collect::<BTreeMap<_, _>>();
-    let mut finished = terminal_semantics::control_graph::finished_order(
-        machine.entry,
-        |block, position| {
+    let mut finished =
+        terminal_semantics::control_graph::finished_order(machine.entry, |block, position| {
             successors
                 .get(&block)
                 .and_then(|targets| targets.get(position))
                 .copied()
-        },
-    );
+        });
     finished.reverse();
     finished
 }

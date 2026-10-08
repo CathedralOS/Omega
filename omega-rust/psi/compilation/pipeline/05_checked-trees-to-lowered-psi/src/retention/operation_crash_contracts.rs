@@ -282,9 +282,7 @@ fn validate_named_site_carrier(
             "named operator crash invocation joins a Terminal machine outside the lowered module",
         ))?;
     let operation = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .find(|operation| join.terminal_site.operation() == Some(operation.id))
         .ok_or(LoweringError::Unsupported(
             "named operator crash invocation joins an operation outside its Terminal machine",
@@ -534,9 +532,7 @@ fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<Scalar
         .map(|declaration| (declaration.id, declaration.scalar_type))
         .chain(
             machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
+                .operations()
                 .filter_map(|operation| operation.result.scalar())
                 .map(|declaration| (declaration.id, declaration.scalar_type)),
         )

@@ -377,8 +377,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::IeeeFloatConstant { .. } => {
-                    ieee_literal_retained(operation, targeted.graph.blocks.iter()
-                        .flat_map(|block| &block.operations))
+                    ieee_literal_retained(operation, targeted.graph.operations())
                 }
                 AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
                     byte_concatenation_retained(operation, targeted.graph.operations())
@@ -594,20 +593,15 @@ fn ieee_float_arithmetic_retained(
     else {
         return false;
     };
-    let mut rows = targeted
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|row| match row {
-            target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
-                psi_operation: retained,
-                boundary: row_boundary,
-                realization,
-                ..
-            } if retained == psi_operation => Some((*row_boundary, *realization)),
-            _ => None,
-        });
+    let mut rows = targeted.graph.operations().filter_map(|row| match row {
+        target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+            psi_operation: retained,
+            boundary: row_boundary,
+            realization,
+            ..
+        } if retained == psi_operation => Some((*row_boundary, *realization)),
+        _ => None,
+    });
     let (Some((row_boundary, realization)), None) = (rows.next(), rows.next()) else {
         return false;
     };
@@ -666,9 +660,7 @@ fn byte_operation_retained(
     };
     let graph = &target.graph;
     graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|node| match (operation, node) {
             (
                 AbstractOperation::ByteSequenceWrite { psi_operation, .. },
@@ -762,9 +754,7 @@ fn element_operation_retained(
     };
     let graph = &target.graph;
     graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|node| match (operation, node) {
             (
                 AbstractOperation::EstablishElementView { psi_operation, .. },
