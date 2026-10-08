@@ -1214,12 +1214,10 @@ impl SelectedInstructionPairRule {
     /// saturating-add upper-bound fold. The result is the recorded
     /// `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
-        match self.operand_shape.result_kind {
+        Some(match self.operand_shape.result_kind {
             // Surviving-operand and operand-swapped grammars embed the
             // literal itself.
-            PairOperandResult::SurvivingOperand | PairOperandResult::SwappedOperand => {
-                Some(literal)
-            }
+            PairOperandResult::SurvivingOperand | PairOperandResult::SwappedOperand => literal,
             // The constant-result grammars record the constant the
             // rewritten `MaterializeI64` embeds: a remainder by one or of
             // a zero dividend is always zero, an unsigned or saturating
@@ -1232,26 +1230,24 @@ impl SelectedInstructionPairRule {
             // saturates to that maximum at either `Use` position — the
             // admitted literal itself already carries the bound.
             PairOperandResult::ConstantOfLiteral => match self.consumer {
-                MachineSemanticKind::SaturatingAdd(carrier) => Some(carrier.maximum_bits()),
-                _ => Some(0),
+                MachineSemanticKind::SaturatingAdd(carrier) => carrier.maximum_bits(),
+                _ => 0,
             },
             PairOperandResult::LiteralRecompute => match self.consumer {
-                MachineSemanticKind::CopyI64 => Some(literal),
-                MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
-                MachineSemanticKind::ZeroExtendU16 => Some(literal & 0xFFFF),
-                MachineSemanticKind::ZeroExtendU32 => Some(literal & 0xFFFF_FFFF),
-                MachineSemanticKind::SignExtendI8 => {
-                    Some((literal & 0xFF) as u8 as i8 as i64 as u64)
-                }
+                MachineSemanticKind::CopyI64 => literal,
+                MachineSemanticKind::ZeroExtendU8 => literal & 0xFF,
+                MachineSemanticKind::ZeroExtendU16 => literal & 0xFFFF,
+                MachineSemanticKind::ZeroExtendU32 => literal & 0xFFFF_FFFF,
+                MachineSemanticKind::SignExtendI8 => (literal & 0xFF) as u8 as i8 as i64 as u64,
                 MachineSemanticKind::SignExtendI16 => {
-                    Some((literal & 0xFFFF) as u16 as i16 as i64 as u64)
+                    (literal & 0xFFFF) as u16 as i16 as i64 as u64
                 }
                 MachineSemanticKind::SignExtendI32 => {
-                    Some((literal & 0xFFFF_FFFF) as u32 as i32 as i64 as u64)
+                    (literal & 0xFFFF_FFFF) as u32 as i32 as i64 as u64
                 }
-                _ => None,
+                _ => return None,
             },
-        }
+        })
     }
 
     pub fn matches_producer(self, kind: SelectedInstructionKind) -> bool {
