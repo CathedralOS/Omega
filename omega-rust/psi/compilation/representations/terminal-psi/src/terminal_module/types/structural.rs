@@ -77,6 +77,23 @@ pub struct StructuralFieldDeclaration {
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
 }
 
+/// The one declaration carrying `id` — a cycle through `visiting` or an
+/// absent/ambiguous match means the caller's walk does not own this node.
+pub fn unique_structural_declaration<'d>(
+    declarations: &'d [StructuralTypeDeclaration],
+    id: StructuralTypeId,
+    visiting: &[StructuralTypeId],
+) -> Option<&'d StructuralTypeDeclaration> {
+    if visiting.contains(&id) {
+        return None;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == id);
+    let declaration = matches.next()?;
+    matches.next().is_none().then_some(declaration)
+}
+
 impl StructuralTypeDeclaration {
     /// Whether this declaration names a record shape.
     pub fn is_record_shape(&self) -> bool {

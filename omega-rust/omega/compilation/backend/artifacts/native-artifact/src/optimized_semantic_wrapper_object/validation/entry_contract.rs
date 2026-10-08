@@ -238,18 +238,13 @@ fn zero_valid_record_storage(
     structural_type: semantic_vocabulary::StructuralTypeId,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
 ) -> bool {
-    if visiting.contains(&structural_type) {
-        return false;
-    }
-    let mut matches = declarations
-        .iter()
-        .filter(|declaration| declaration.id == structural_type);
-    let Some(declaration) = matches.next() else {
+    let Some(declaration) = terminal_psi::unique_structural_declaration(
+        declarations,
+        structural_type,
+        visiting,
+    ) else {
         return false;
     };
-    if matches.next().is_some() {
-        return false;
-    }
     visiting.push(structural_type);
     let valid = match &declaration.shape {
         StructuralTypeShape::Record { fields, .. } => fields

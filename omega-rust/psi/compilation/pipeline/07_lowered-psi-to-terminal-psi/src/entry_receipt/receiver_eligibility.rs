@@ -473,6 +473,15 @@ fn source_tree_has_service_field(
 /// same establishment rule `validation::data_requires_establishment` applies
 /// to source is re-derived here against the exact Terminal declarations so a
 /// module cannot smuggle an unestablished shape past the source-side gate.
+
+fn unique_declaration<'d>(
+    declarations: &'d [terminal_psi::StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    visiting: &mut Vec<StructuralTypeId>,
+) -> Option<&'d terminal_psi::StructuralTypeDeclaration> {
+    terminal_psi::unique_structural_declaration(declarations, structural_type, visiting)
+}
+
 fn zero_valid_record_storage(
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -481,18 +490,9 @@ fn zero_valid_record_storage(
     visiting: &mut Vec<StructuralTypeId>,
     entry: symbols::SymbolHandle,
 ) -> bool {
-    if visiting.contains(&structural_type) {
-        return false;
-    }
-    let mut matches = declarations
-        .iter()
-        .filter(|declaration| declaration.id == structural_type);
-    let Some(declaration) = matches.next() else {
+    let Some(declaration) = unique_declaration(declarations, structural_type, visiting) else {
         return false;
     };
-    if matches.next().is_some() {
-        return false;
-    }
     let is_receiver = visiting.is_empty();
     visiting.push(structural_type);
     let valid = zero_valid_shape(
@@ -527,18 +527,9 @@ fn zero_valid_node(
     admit_erased_services: bool,
     entry: symbols::SymbolHandle,
 ) -> bool {
-    if visiting.contains(&structural_type) {
-        return false;
-    }
-    let mut matches = declarations
-        .iter()
-        .filter(|declaration| declaration.id == structural_type);
-    let Some(declaration) = matches.next() else {
+    let Some(declaration) = unique_declaration(declarations, structural_type, visiting) else {
         return false;
     };
-    if matches.next().is_some() {
-        return false;
-    }
     let source = source_reference.and_then(|reference| {
         source_record(checked, reference).filter(|_| {
             declaration.identity == checked.normalized_type_identity(reference).into_string()
