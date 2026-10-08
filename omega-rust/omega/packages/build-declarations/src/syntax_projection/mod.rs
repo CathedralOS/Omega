@@ -426,7 +426,7 @@ fn reject_authored_toolchain_vocabulary(
     Ok(())
 }
 
-fn package_authored_type_name(item: &Item) -> Option<&str> {
+pub fn package_authored_type_name(item: &Item) -> Option<&str> {
     match item {
         Item::Data(data) => Some(data.name.as_str()),
         Item::Domain(domain) => Some(domain.name.as_str()),

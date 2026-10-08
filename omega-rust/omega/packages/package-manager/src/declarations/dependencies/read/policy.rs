@@ -1,6 +1,6 @@
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
-use build_declarations::{BUILD_TYPE_NAME, DependencyOperation, is_dependency_call_name};
+use build_declarations::{BUILD_TYPE_NAME, DependencyOperation, is_dependency_call_name, package_authored_type_name};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{CapabilityMember, ConformanceMember, Item};
@@ -41,14 +41,6 @@ pub(super) fn reject_authored_toolchain_vocabulary(
     Ok(())
 }
 
-fn package_authored_type_name(item: &Item) -> Option<&str> {
-    match item {
-        Item::Data(data) => Some(data.name.as_str()),
-        Item::Domain(domain) => Some(domain.name.as_str()),
-        Item::Trait(definition) => Some(definition.name.as_str()),
-        _ => None,
-    }
-}
 
 fn machine_leaf_name(name: &str) -> &str {
     name.rsplit("::").next().unwrap_or(name)

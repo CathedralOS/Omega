@@ -39,4 +39,5 @@ pub use syntax_projection::{
     project_build_declaration_from_source, project_build_declaration_from_syntax_trees,
     project_build_declaration_in_entry, project_build_declaration_syntax,
     project_build_entry_syntax,
+    package_authored_type_name,
 };
