@@ -41,18 +41,11 @@ impl TerminalExecution<'_> {
                     .program
                     .structural_types()
                     .get(&structural_type)
-                    .is_some_and(|declaration| {
-                        declaration.shape.is_bounded_owned_byte_sequence()
-                    })
+                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
                 {
                     return self.owned_byte_sequence_storage(place);
                 }
-                let operation = machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .find(|operation| operation.id == producer)
-                    .ok_or_else(malformed)?;
+                let operation = machine.operation(producer).ok_or_else(malformed)?;
                 let result = operation.result.structural().ok_or_else(malformed)?;
                 if !matches!(
                     operation.kind,
@@ -95,9 +88,7 @@ impl TerminalExecution<'_> {
             .program
             .structural_types()
             .get(&structural_type)
-            .is_some_and(|declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            });
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
         if (!bounded_owner && !qualifications.is_empty())
             || !projected_qualifications.is_empty()
             || self
@@ -178,12 +169,7 @@ impl TerminalExecution<'_> {
             .kind
             .as_operation_result()
             .ok_or_else(malformed)?;
-        let operation = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| operation.id == producer)
-            .ok_or_else(malformed)?;
+        let operation = machine.operation(producer).ok_or_else(malformed)?;
         let result = operation.result.structural().ok_or_else(malformed)?;
         let value = self.structural_values.get(&place).ok_or_else(malformed)?;
         if !matches!(
