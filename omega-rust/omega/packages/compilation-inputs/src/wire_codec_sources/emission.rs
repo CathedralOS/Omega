@@ -92,11 +92,7 @@ impl MachineEmitter<'_> {
     /// and the chain continues to `next` after the last byte.
     fn enc_tag_bytes(&mut self, tag_bytes: &[u8], label: impl Fn(usize) -> String, next: &str) {
         for (index, byte) in tag_bytes.iter().enumerate() {
-            let byte_next = if index + 1 == tag_bytes.len() {
-                next.to_string()
-            } else {
-                label(index + 1)
-            };
+            let byte_next = byte_next_label(tag_bytes.len(), index, &label, next);
             self.enc_byte(&label(index), *byte, &byte_next);
         }
     }
@@ -112,11 +108,7 @@ impl MachineEmitter<'_> {
         carry_arg: &str,
     ) {
         for (index, byte) in tag_bytes.iter().enumerate() {
-            let byte_next = if index + 1 == tag_bytes.len() {
-                next.to_string()
-            } else {
-                label(index + 1)
-            };
+            let byte_next = byte_next_label(tag_bytes.len(), index, &label, next);
             self.dec_byte(&label(index), *byte, &byte_next, carry, carry_arg);
         }
     }
@@ -871,37 +863,52 @@ impl MachineEmitter<'_> {
     /// per state so each subtraction's bound is a requires premise, since
     /// arithmetic call arguments cannot carry it. On any guard failure the
     /// content's `first` state is entered with `bad + 1`.
+    /// The three bound-establishing states every decode window opens with:
+    /// `open` tests the cursor premise, `open_in` derives `room`, `slack`
+    /// derives `slack = room - raw` and re-tests it. `next` receives
+    /// `(slack, room)`; `skip` is the bad-byte fallthrough.
+    fn window_open_states(
+        &mut self,
+        open: &str,
+        open_in: &str,
+        slack: &str,
+        next: &str,
+        skip: &str,
+    ) {
+        self.state(
+            open,
+            "raw: u64",
+            "",
+            &format!(
+                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                self.limit
+            ),
+        );
+        self.state(
+            open_in,
+            "raw: u64",
+            &format!("at <= {}", self.limit),
+            &format!(
+                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+        self.state(
+            slack,
+            "raw: u64, room: u64",
+            &format!("raw <= room && room <= {}", self.limit),
+            &format!(
+                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {next}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+            ),
+        );
+    }
+
     fn dec_open_window(&mut self, name: &str, first: &str) {
         let open = format!("{name}_open");
         let open_in = format!("{name}_open_in");
         let slack_state = format!("{name}_slack");
         let end_state = format!("{name}_end");
         self.dec_varint(name, &open, "", "");
-        self.state(
-            &open,
-            "raw: u64",
-            "",
-            &format!(
-                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
-                self.limit
-            ),
-        );
-        self.state(
-            &open_in,
-            "raw: u64",
-            &format!("at <= {}", self.limit),
-            &format!(
-                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack_state}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-            ),
-        );
-        self.state(
-            &slack_state,
-            "raw: u64, room: u64",
-            &format!("raw <= room && room <= {}", self.limit),
-            &format!(
-                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {end_state}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-            ),
-        );
+        self.window_open_states(&open, &open_in, &slack_state, &end_state, first);
         self.state(
             &end_state,
             "slack: u64, room: u64",
@@ -1030,6 +1037,19 @@ impl MachineEmitter<'_> {
             );
         }
         self.dec_close_window(name, next);
+    }
+}
+
+fn byte_next_label(
+    len: usize,
+    index: usize,
+    label: &impl Fn(usize) -> String,
+    next: &str,
+) -> String {
+    if index + 1 == len {
+        next.to_string()
+    } else {
+        label(index + 1)
     }
 }
 
@@ -1604,36 +1624,12 @@ pub(super) fn emit_decode_machine(
                 // callers (the shared varint states) cannot carry a premise
                 // through, so `at <= buffer.len` is tested here and only the
                 // true arm does the range arithmetic.
-                emitter.state(
-                    &open,
-                    "raw: u64",
-                    "",
-                    &format!(
-                        "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
-                        emitter.limit
-                    ),
-                );
-                emitter.state(
-                    &open_in,
-                    "raw: u64",
-                    &format!("at <= {}", emitter.limit),
-                    &format!(
-                        "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {view_slack}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-                    ),
-                );
+                emitter.window_open_states(&open, &open_in, &view_slack, &view_prep, &view_skip);
                 // The window's far edge derives through its complements, one
                 // bound per state: `slack` must be a named local before a
                 // guard can establish it (arithmetic call arguments do not
                 // substitute into a callee's requires), and each derived
                 // bound is re-tested before the state that needs it.
-                emitter.state(
-                    &view_slack,
-                    "raw: u64, room: u64",
-                    &format!("raw <= room && room <= {}", emitter.limit),
-                    &format!(
-                        "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {view_prep}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-                    ),
-                );
                 emitter.state(
                     &view_prep,
                     "slack: u64, room: u64",
