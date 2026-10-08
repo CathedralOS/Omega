@@ -3,8 +3,8 @@
 //! their operands through the shared value producer, not a return-only role.
 
 use super::{
-    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, StatementPlanner,
-    lower_call_arguments, lower_return_expression, retain_call_arguments,
+    CheckedScalarExpressionRole, ExpressionHandle, StatementPlanner, lower_return_expression,
+    retain_expression_call_arguments,
 };
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
@@ -28,31 +28,22 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
     } = planner;
     let unit_statement =
         validation::unit_statement_call_is_supported(program, machine, state, expression);
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-        && let Some(arguments) = lower_call_arguments(
-            program,
-            operators,
-            state,
-            statement_ordinal,
-            0,
-            &validation::CallSite::Expression { expression, call },
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        )
-    {
-        retain_call_arguments(
-            arguments,
-            scalar_parameters,
-            locals,
-            expressions,
-            proof_terms,
-            source_bindings,
-            binding_symbols,
-        );
-    }
+    retain_expression_call_arguments(
+        program,
+        operators,
+        state,
+        statement_ordinal,
+        expression,
+        scalar_parameters,
+        parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+        expressions,
+        proof_terms,
+        source_bindings,
+        binding_symbols,
+    );
     if !unit_statement
         && let Some(result_type) = result_type
         && let Some(return_expression) = lower_return_expression(

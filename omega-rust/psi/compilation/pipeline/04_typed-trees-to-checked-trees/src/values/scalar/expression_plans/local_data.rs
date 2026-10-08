@@ -7,9 +7,9 @@
 //! suppress the ordinary computation builder that owns runtime evaluation.
 
 use super::{
-    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, ScalarLocal,
-    StatementPlanner, lower_call_arguments, lower_direct_call_binding_arguments,
-    lower_return_expression, lower_selected_operator_operands, retain_call_arguments,
+    CheckedScalarExpressionRole, LoweredCallArguments, ScalarLocal, StatementPlanner,
+    lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
+    retain_call_arguments, retain_expression_call_arguments,
 };
 
 pub(super) fn plan(
@@ -70,25 +70,18 @@ pub(super) fn plan(
             .primitive_type_reference(local.type_reference)
             .is_none())
         && let Some(expression) = super::value_call_expression(program, local.initial_value)
-        && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-        && let Some(arguments) = lower_call_arguments(
+    {
+        retain_expression_call_arguments(
             program,
             operators,
             state,
             statement_ordinal,
-            0,
-            &validation::CallSite::Expression { expression, call },
+            expression,
             scalar_parameters,
             parameters,
             parameter_types,
             locals,
             exact_integer_casts,
-        )
-    {
-        retain_call_arguments(
-            arguments,
-            scalar_parameters,
-            locals,
             expressions,
             proof_terms,
             source_bindings,

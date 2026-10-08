@@ -3,8 +3,8 @@
 
 use super::{
     CheckedScalarExpressionRole, ExpressionNode, StatementPlanner,
-    assignment_target_primitive_type, lower_call_arguments, lower_index_expression,
-    lower_return_expression, retain_call_arguments, retain_subslice_endpoints,
+    assignment_target_primitive_type, lower_index_expression, lower_return_expression,
+    retain_expression_call_arguments, retain_subslice_endpoints,
 };
 
 pub(super) fn plan(
@@ -97,26 +97,18 @@ pub(super) fn plan(
     // lands does not change their source bindings. The
     // qualified-call spelling below stays for the cast
     // chains only ordinary integer-returning machines have.
-    if let Some(expression) = super::value_call_expression(program, assignment.value)
-        && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-        && let Some(arguments) = lower_call_arguments(
+    if let Some(expression) = super::value_call_expression(program, assignment.value) {
+        retain_expression_call_arguments(
             program,
             operators,
             state,
             statement_ordinal,
-            0,
-            &validation::CallSite::Expression { expression, call },
+            expression,
             scalar_parameters,
             parameters,
             parameter_types,
             locals,
             exact_integer_casts,
-        )
-    {
-        retain_call_arguments(
-            arguments,
-            scalar_parameters,
-            locals,
             expressions,
             proof_terms,
             source_bindings,

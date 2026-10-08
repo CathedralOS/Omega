@@ -123,6 +123,56 @@ impl<'p> StatementPlanner<'p, '_> {
     }
 }
 
+/// Lower one value-call expression's scalar arguments and retain them. The
+/// call-producing statements each guard the same lowering with their own
+/// source test (`value_call_expression` for assignment and local data, the
+/// statement's own expression for an expression statement).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn retain_expression_call_arguments(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    state: &typed_trees::state::State,
+    statement_ordinal: u32,
+    expression: ExpressionHandle,
+    scalar_parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[typed_trees::signature::StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+    expressions: &mut Vec<CheckedLocatedScalarExpression>,
+    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
+    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
+    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
+) {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return;
+    };
+    let Some(arguments) = lower_call_arguments(
+        program,
+        operators,
+        state,
+        statement_ordinal,
+        0,
+        &validation::CallSite::Expression { expression, call },
+        scalar_parameters,
+        parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    ) else {
+        return;
+    };
+    retain_call_arguments(
+        arguments,
+        scalar_parameters,
+        locals,
+        expressions,
+        proof_terms,
+        source_bindings,
+        binding_symbols,
+    );
+}
+
 pub(crate) fn build_checked_scalar_expression_plans(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
