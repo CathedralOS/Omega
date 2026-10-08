@@ -28,10 +28,7 @@ use super::{
     decidable_kind, outcome,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::condition_state::{
-    ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
-    reaching_event,
-};
+use crate::rewrites::condition_state::ConditionStateError;
 use crate::rewrites::sealed;
 
 /// What the pole operand forces on the reader's predicate over
@@ -157,74 +154,17 @@ fn reconstruct<'source>(
     // state bounds every path, and mark the cone of blocks that can reach
     // the materialization's block — only their entry sets can feed the
     // result.
-    let (successors, predecessors) = adjacency(function);
-    let entry = entry_index(function).ok_or(BoundaryBooleanError::SourceMismatch)?;
-    let cone = backward_cone(&predecessors, block_index);
-    // Every flag unit the materialization reads must reach from the same
-    // compare: on every execution path to the materialization, the last
-    // event touching each used unit is that one instruction, and the unit
-    // is among its published definitions — a clobber there would leave
-    // the observed value unknown. The validator resolves each unit's
-    // reaching event on its own, so a producer that admitted divergent
-    // sites or an uncovered unit cannot pass validation.
-    let mut compare_site = None;
-    for unit in &materialization_instruction.implicit_uses {
-        let event = reaching_event(
-            function,
-            entry,
-            &successors,
-            &cone,
-            block_index,
-            materialization_index,
-            *unit,
-        )
-        .map_err(|_| BoundaryBooleanError::UnsupportedUse)?;
-        if compare_site.is_some_and(|site| site != event) {
-            return Err(BoundaryBooleanError::UnsupportedUse);
-        }
-        compare_site = Some(event);
-    }
-    let compare_site = compare_site.ok_or(BoundaryBooleanError::UnsupportedUse)?;
-    let compare_instruction = instruction_at(function, compare_site);
-    if materialization_instruction
-        .implicit_uses
-        .iter()
-        .any(|unit| !compare_instruction.implicit_defs.contains(unit))
-    {
-        return Err(BoundaryBooleanError::UnsupportedUse);
-    }
-    let (left, right) =
-        boundary_operands(function, compare_instruction).map_err(condition_error)?;
-    let outcome = outcome(materialization_instruction.kind, left, right)
-        .ok_or(BoundaryBooleanError::UnsupportedLiteral)?;
-    // A decided predicate rewrites to the target's own materialize row: a
-    // single `[def]` at the boolean result's class carrying no unit
-    // traffic — the fold drops the flag uses, and any implicit definition
-    // or clobber the row added would publish unit state the source
-    // instruction never had. The equality collapse needs no row at all: the
-    // reader keeps its own — every flag-reading boolean kind shares it.
-    let row = match outcome {
-        Outcome::Constant(_) => {
-            let row = environment
-                .constraint(environment.selected_keys().materialize_i64)
-                .ok_or(BoundaryBooleanError::ConstraintMismatch)?;
-            if row.operands.len() != 1
-                || row.operands[0].operand != 0
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || row.operands[0].class != result_register.class
-                || row.operands[0].fixed_view.is_some()
-                || row.operands[0].tied_to.is_some()
-                || row.operands[0].early_clobber
-                || !row.implicit_uses.is_empty()
-                || !row.implicit_defs.is_empty()
-                || !row.clobbers.is_empty()
-            {
-                return Err(BoundaryBooleanError::ConstraintMismatch);
-            }
-            Some(row)
-        }
-        Outcome::Equal => None,
-    };
+    let derivation = super::derive_boolean_fold(
+        function,
+        block_index,
+        materialization_index,
+        materialization_instruction,
+        result_register.class,
+        environment,
+        condition_error,
+    )?;
+    let outcome = derivation.outcome;
+    let row = derivation.row;
     Ok(Reconstructed {
         function,
         block_index,
@@ -234,7 +174,7 @@ fn reconstruct<'source>(
         result,
         outcome,
         row,
-        successors,
+        successors: derivation.successors,
         implicit_uses: materialization_instruction.implicit_uses.len(),
     })
 }
