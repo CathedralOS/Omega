@@ -1,6 +1,6 @@
 //! Building one checked machine from its typed states and statements.
 
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control::statement_sequence;
 
 use crate::execution::terminal_unit::calls::{
@@ -23,7 +23,7 @@ use crate::execution::terminal_unit::{
 pub(crate) fn build_checked_machine_traced(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -53,7 +53,7 @@ pub(crate) fn build_checked_machine_traced(
 pub(crate) fn build_checked_machine_residual_parts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

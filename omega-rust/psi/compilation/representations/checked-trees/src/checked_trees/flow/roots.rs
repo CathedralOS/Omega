@@ -270,14 +270,6 @@ pub struct FlowFacts {
     /// transitions. These are populated only after multiplicity checking has
     /// recorded the authoritative state-exit permission events.
     pub terminal_structural_control_cleanups: super::CheckedStructuralControlCleanupPlans,
-    /// Exact attached scalar-return plan for a claim-free affine structural
-    /// entry frontier.
-    pub terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans,
-    /// One result-bearing bodyless boundary call whose successful completion
-    /// consumes the exact structural claim frontier.
-    pub terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans,
-    /// Exact whole claim-free owned-affine identity returns.
-    pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
 }
 
 impl FlowFacts {
@@ -307,10 +299,6 @@ impl FlowFacts {
                 super::CheckedNominalAffineUnitCleanupPlans::default(),
             terminal_structural_control_cleanups:
                 super::CheckedStructuralControlCleanupPlans::default(),
-            terminal_structural_scalar_returns: super::CheckedStructuralScalarReturnPlans::default(
-            ),
-            terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans::default(),
-            terminal_structural_returns: super::CheckedStructuralReturnPlans::default(),
         }
     }
 }

@@ -15,7 +15,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
-    ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
+    ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
     append_exit_reference_releases, append_reference_releases, consume_value_places,
     parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
     returned_mutable_view, returned_named_view, returned_parameter, returned_subslice,
@@ -27,7 +27,7 @@ use checked_trees::CheckedUnitCallPlan;
 pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleePlans<'a>,
+    pub(super) scalar_callees: ScalarCalleeClosure,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
@@ -80,24 +80,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     trace.phase("statement sequence: borrowed windows closed");
     if !windows.is_closed() {
         return None;
-    }
-    trace.phase("statement sequence: structural return types");
-    // Only an ordinary structural call imports the callee's return types.
-    if operations.iter().any(|operation| {
-        operation
-            .call()
-            .is_some_and(|call| call.is_module() && call.structural_result().is_some())
-    }) {
-        for plan in &facts.flow.terminal_structural_returns.structural_types {
-            if shapes
-                .types
-                .get(&plan.identity)
-                .is_some_and(|existing| existing != plan)
-            {
-                return None;
-            }
-            shapes.types.insert(plan.identity.clone(), plan.clone());
-        }
     }
     let statements = program.statement_table.statements(state.statement_nodes);
     // A return and its nested call arguments may each establish a structural

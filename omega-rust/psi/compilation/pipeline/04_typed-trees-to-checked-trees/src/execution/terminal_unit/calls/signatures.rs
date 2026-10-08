@@ -227,27 +227,6 @@ fn service_parameter_access_matches(
     }
 }
 
-pub(crate) fn structural_scalar_signature(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<(
-    Option<String>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    structural_scalar_signature_traced(
-        program,
-        shapes,
-        machine,
-        state,
-        binders,
-        &LocalConstructionTrace::default(),
-    )
-}
-
 /// A boundary machine retains its data owner identity as ABI metadata.
 pub(crate) fn boundary_owner_scalar_signature(
     program: &dyn ::validation::CheckingInput,

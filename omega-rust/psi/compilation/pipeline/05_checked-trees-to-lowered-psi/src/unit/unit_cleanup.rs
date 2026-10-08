@@ -150,22 +150,6 @@ pub(crate) fn selected_cleanups(
             checked
                 .facts
                 .flow
-                .terminal_structural_scalar_returns
-                .machines
-                .iter()
-                .flat_map(|plan| &plan.cleanup_actions)
-                .filter_map(|action| match action {
-                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                        Some(cleanup)
-                    }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_)
-                    | checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => None,
-                }),
-        )
-        .chain(
-            checked
-                .facts
-                .flow
                 .terminal_unit_effects
                 .composed_machines
                 .iter()

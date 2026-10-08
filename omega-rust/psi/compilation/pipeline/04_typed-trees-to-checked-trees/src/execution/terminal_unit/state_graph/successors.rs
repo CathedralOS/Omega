@@ -18,7 +18,7 @@ use super::{
     Multiplicity, StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
     TypeReferenceNode,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -168,7 +168,7 @@ fn declared_contains_reference(
 /// result binding exactly as a later statement's call would.
 #[derive(Clone, Copy)]
 pub(in crate::execution::terminal_unit) struct EdgeCalls<'a> {
-    pub(super) scalar_callees: ScalarCalleePlans<'a>,
+    pub(super) scalar_callees: ScalarCalleeClosure,
     pub(super) entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
     pub(super) local_results: &'a [(
         checked_trees::CheckedUnitStructuralResultBindingPlan,

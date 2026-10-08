@@ -11,7 +11,7 @@ use super::{
     CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TransitionExit,
     TransitionTargetNode, control,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, parameter_qualifications, projected_parameter_qualifications,
 };
@@ -269,7 +269,7 @@ pub(super) fn scalar_completion(
 pub(super) fn guarded(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -395,7 +395,7 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
 pub(super) fn return_value_operation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

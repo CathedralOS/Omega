@@ -5,7 +5,7 @@
 
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
-use super::{CheckFacts, ScalarCalleePlans};
+use super::{CheckFacts, ScalarCalleeClosure};
 use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
 
 pub(crate) fn retain(
@@ -357,10 +357,7 @@ fn schedule(
     structural_operands::value_calls(
         program,
         facts,
-        ScalarCalleePlans {
-            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
-            structural_returns: &facts.flow.terminal_structural_scalar_returns,
-        },
+        ScalarCalleeClosure,
         shapes,
         machine,
         state,

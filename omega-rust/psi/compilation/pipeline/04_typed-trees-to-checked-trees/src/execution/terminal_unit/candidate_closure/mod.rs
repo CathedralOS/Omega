@@ -4,7 +4,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::scalar_targets;
 use checked_trees::{
@@ -220,7 +220,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 pub(super) fn retain_available(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,

@@ -24,7 +24,7 @@ use super::{
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StatementNode,
     SymbolHandle,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
@@ -32,8 +32,8 @@ use crate::execution::terminal_unit::control::call_results::bind_scalar_call_res
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::execution::terminal_unit::control::structural_operands;
-use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at;
+use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, parameter_qualifications,
 };
@@ -310,7 +310,7 @@ fn statement_call_target(
 pub(in crate::execution::terminal_unit) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

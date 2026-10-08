@@ -78,8 +78,7 @@
 //! therefore become sparse after a strip: the Terminal consumer rejoins each
 //! retained parameter to `state_parameters(state)[position]` for its type, symbol
 //! and custody, so renumbering densely would bind the wrong source parameter.
-//! Arity checks count `abi_parameter_count`, not `state_parameters(state).len()`,
-//! and `strips_erased_parameter` decides which bindings may be stripped at all.
+//! `strips_erased_parameter` decides which bindings may be stripped at all.
 //! The dense scalar value namespace that `CheckedScalarExpression::Parameter`
 //! indexes is the same partition: `values::scalar::occupies_scalar_position`
 //! excludes erased bindings there, so a body reading a retained parameter after
@@ -108,26 +107,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
-    CheckedBoundaryMachineResultPlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedByteSequenceCarrier,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseOutcomePlan,
+    CheckedBoundaryMachineResultPlan, CheckedByteSequenceCarrier, CheckedClosedSumCaseOutcomePlan,
     CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedIntegerBinaryKind,
+    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedNormalCleanupAction, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
-    CheckedStructuralReturnPlans, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralResultPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
+    CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitPlanGapReason, CheckedUnitScalarResultBindingPlan,
@@ -165,10 +158,9 @@ pub(crate) mod plan_gaps;
 mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
-pub(crate) mod returns;
 mod scalar_locals;
+pub(crate) mod scalar_return_expressions;
 mod scalar_targets;
-pub(crate) mod shared_convergence;
 mod state_graph;
 mod structural_scalar_store;
 mod structural_value_calls;
@@ -177,21 +169,20 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
-/// Scalar callees available to this planning pass, independent of published facts.
+/// Present when the planning pass ends in the candidate closure, which
+/// resolves each scalar call to its callee's scalar graph or ordinary
+/// scalar-result body. A pass without it (provider settlement) has no closure
+/// to defer to and admits only callees it can settle itself.
 #[derive(Clone, Copy)]
-pub(crate) struct ScalarCalleePlans<'plans> {
-    pub(crate) boundary_returns: &'plans CheckedBoundaryScalarReturnPlans,
-    pub(crate) structural_returns: &'plans CheckedStructuralScalarReturnPlans,
-}
+pub(crate) struct ScalarCalleeClosure;
 
 pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -637,32 +628,9 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             }
         }
         match operation {
-            // An ordinary structural result retains its claim-free realization's
-            // carrier; a boundary result retains only its own type.
+            // A boundary result retains its own type; an ordinary structural
+            // result's types belong to its callee's Unit body.
             CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
-                (
-                    CheckedUnitCallRoute::Module { .. },
-                    CheckedUnitCallResult::Structural {
-                        binding: result, ..
-                    },
-                ) => {
-                    let Some(realization) = facts
-                        .flow
-                        .terminal_structural_returns
-                        .claim_free_affine_machines
-                        .iter()
-                        .find(|plan| {
-                            plan.machine == call.target.machine && plan.state == call.target.state
-                        })
-                    else {
-                        continue;
-                    };
-                    retained_type_identities
-                        .extend(realization.attachment_type_identity.as_deref());
-                    retained_type_identities
-                        .insert(realization.structural_parameter.type_identity.as_str());
-                    retained_type_identities.insert(result.type_identity.as_str());
-                }
                 (
                     CheckedUnitCallRoute::Boundary,
                     CheckedUnitCallResult::Structural {

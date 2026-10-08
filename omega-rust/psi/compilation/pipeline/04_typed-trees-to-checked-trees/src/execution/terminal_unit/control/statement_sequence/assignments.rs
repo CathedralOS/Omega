@@ -15,7 +15,7 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
-    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
+    LocalConstructionTrace, Multiplicity, ScalarCalleeClosure, ShapeCollector, SymbolHandle,
     checked_structural_result_type, consume_results, consume_value_places, is_unit,
     retain_selected_sources, statement_call_target, structural_operands,
 };
@@ -24,7 +24,7 @@ use super::{
 pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleePlans<'a>,
+    pub(super) scalar_callees: ScalarCalleeClosure,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,

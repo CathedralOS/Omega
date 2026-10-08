@@ -24,22 +24,6 @@ pub(crate) fn machine_has_content_evidence(
             .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
 }
 
-pub(crate) fn service_reach_is_empty(
-    facts: &CheckFacts,
-    summary: language_semantics::ServiceReachSummary,
-) -> bool {
-    facts
-        .service_reaches
-        .rows
-        .services(summary.direct)
-        .is_empty()
-        && facts
-            .service_reaches
-            .rows
-            .services(summary.transitive)
-            .is_empty()
-}
-
 pub(crate) fn has_exact_root_affine_discard(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,

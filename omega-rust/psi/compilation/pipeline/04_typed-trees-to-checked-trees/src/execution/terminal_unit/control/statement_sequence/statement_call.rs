@@ -13,7 +13,7 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, ExpressionNode,
-    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, StatementNode,
+    LocalConstructionTrace, Multiplicity, ScalarCalleeClosure, ShapeCollector, StatementNode,
     SymbolHandle, bind_scalar_call_result, bind_structural_call_result, build_call_operation,
     consume_results, structural_operands,
 };
@@ -23,7 +23,7 @@ use checked_trees::CheckedUnitPartialAffineDiscardPlan;
 pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) facts: &'program CheckFacts,
-    pub(super) scalar_callees: ScalarCalleePlans<'a>,
+    pub(super) scalar_callees: ScalarCalleeClosure,
     pub(super) shapes: &'a mut ShapeCollector<'shapes>,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,

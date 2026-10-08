@@ -346,15 +346,6 @@ fn projected_read_retains_parent(
     Some(())
 }
 
-pub(super) fn checked_whole_affine_discard_parameters(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: symbols::SymbolHandle,
-    state: &typed_trees::state::State,
-) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
-    checked_whole_affine_discard_parameters_excluding_results(program, facts, machine, state, &[])
-}
-
 fn checked_whole_affine_discard_parameters_excluding_results(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

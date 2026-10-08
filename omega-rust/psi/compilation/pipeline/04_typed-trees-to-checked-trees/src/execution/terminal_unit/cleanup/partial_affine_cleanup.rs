@@ -6,7 +6,8 @@ use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, PermissionEventKind, PrimitiveType, ScalarCalleePlans, control,
+    CheckedUnitStructuralTypePlan, PermissionEventKind, PrimitiveType, ScalarCalleeClosure,
+    control,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(
@@ -37,10 +38,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             control::build_checked_machine_residual_parts(
                 program,
                 facts,
-                ScalarCalleePlans {
-                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
-                    structural_returns: &facts.flow.terminal_structural_scalar_returns,
-                },
+                ScalarCalleeClosure,
                 shapes,
                 machine,
                 None,

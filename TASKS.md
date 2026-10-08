@@ -2172,6 +2172,9 @@ crash and native exit behavior.
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`).
     `ClosedReachApplication`, a template alias or equal runtime signatures
     cannot identify the specialization.
+    `pass/providers/specialized_structural_fixed_operator_terminal_custody`
+    has an unused `exercise` beside an empty entry, so its build proves
+    nothing: give it an entry that executes the operator.
   - **Directed float arithmetic.** Install the remaining named directed
     arithmetic as Omega builtins through stage 00
     `provider_admission/compiler_builtins.rs` (one
@@ -2629,27 +2632,14 @@ code and preserve check/native behavior for the named customer slices.
   `--filter calls/,boundary/,providers/` is unchanged;
   `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
 
-- **RETURN-ROSTERS-RETIRED.** (split-of:RETURN-ROUTES-RETIRED) No machine
-  lowers through a return route any more: `CheckedReturnPlan` and stage 05
-  `returns/` are gone, and every machine in the structural-scalar,
-  boundary-scalar and claim-free affine rosters lowers as its ordinary Unit
-  body. The rosters survive only as a second description of those callees:
-  stage 04 call admission (`structural_value_calls.rs`,
-  `cleanup/partial_affine_cleanup.rs`, and the claim-free affine branch of
-  `calls/structural_result_call.rs`), stage 05 type, domain and parameter
-  catalogs (`unit/attached_unit/catalog.rs`, `parameters.rs`) and the cleanup
-  catalogs (`unit/unit_cleanup.rs`, `composed_control/state_graph/cleanup.rs`).
-  Derive those reads from the callees' Unit bodies and delete the rosters with
-  their stage 04 builders in `execution/terminal_unit/returns/`. A caller arm
-  matching a callee's outcome-specific guarantee has no producer: Terminal's
-  `OutcomeSpecificCallEvidence` is never emitted, and no corpus fixture
-  writes `ensures Result::Case -> { ... }`. Coordinate operator returns with
+- **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED) A
+  caller arm matching a callee's outcome-specific guarantee
+  (`ensures Result::Case -> { ... }`) has no producer. Parsing and resolution
+  accept the clause and Terminal defines `OutcomeSpecificCallEvidence`, but
+  stage 05 never emits it, and no corpus fixture writes the clause. Add a run
+  fixture whose caller arm needs one case's guarantee, then emit the evidence
+  for the callee's Unit-body exit. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
-  `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
-  an unused `exercise` beside an empty entry, so its build proves nothing:
-  give it an entry that executes the operator. Acceptance: no
-  `terminal_*_returns` field remains in `FlowFacts`, and the full check
-  corpus and the native corpus are unchanged.
 
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Lower scalar machines through
   the same body route as Unit machines and delete

@@ -30,20 +30,14 @@ pub(crate) fn finalize_execution(
         crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
             program, &facts,
         );
-    facts.flow.terminal_structural_returns =
-        crate::execution::terminal_unit::returns::build_checked_structural_return_plans(
-            program, &facts,
+    let mut terminal_unit_effects =
+        crate::execution::terminal_unit::build_checked_unit_effect_plans_with_call_frames(
+            program,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleeClosure,
+            call_frames.as_ref(),
         );
-    let crate::execution::execution_plans::ExecutionPlans {
-        boundary_returns,
-        unit_effects: mut terminal_unit_effects,
-        structural_scalar_returns,
-        mut cleanup_diagnostics,
-    } = crate::execution::execution_plans::build_execution_plans(
-        program,
-        &facts,
-        call_frames.as_ref(),
-    );
+    let mut cleanup_diagnostics = Vec::new();
     // Both cleanup lanes keep their dispatchers apart from the ordinary
     // roster, but every shape a Unit body names lives in that roster's one
     // type namespace. A body that kills a same-statement temporary on a shared
@@ -77,8 +71,6 @@ pub(crate) fn finalize_execution(
     if !cleanup_diagnostics.is_empty() {
         return Err(cleanup_diagnostics);
     }
-    facts.flow.terminal_boundary_scalar_returns = boundary_returns;
-    facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
     facts.flow.terminal_unit_effects = terminal_unit_effects;
     crate::execution::terminal_unit::cleanup::finalize_scalar_actions(program, &mut facts)
         .ok_or_else(|| {

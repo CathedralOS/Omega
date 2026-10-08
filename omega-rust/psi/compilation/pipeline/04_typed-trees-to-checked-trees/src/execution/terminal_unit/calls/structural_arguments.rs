@@ -1,7 +1,7 @@
 //! Structural call arguments: their custody, restored reborrow aliases,
 //! exact borrow access and the claim transfers a call performs.
 
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
@@ -25,7 +25,7 @@ use crate::execution::terminal_unit::{
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: Option<ScalarCalleePlans<'_>>,
+    scalar_callees: Option<ScalarCalleeClosure>,
     call: &checked_trees::FlowCallFact,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,

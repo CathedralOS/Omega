@@ -12,7 +12,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventSource,
-    ScalarCalleePlans, ShapeCollector, Signature, StatementNode, TransitionExit,
+    ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, TransitionExit,
     TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -768,7 +768,7 @@ impl DispatchSubject {
 fn subject_call(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

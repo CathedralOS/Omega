@@ -41,8 +41,8 @@
 //! retains ordinary exact claim transfers into the callee.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan, ScalarCalleePlans,
-    TransitionExit, TransitionTargetNode, control,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    ScalarCalleeClosure, TransitionExit, TransitionTargetNode, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::{
@@ -170,7 +170,7 @@ pub(super) fn completion(
 pub(super) fn arm_call(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

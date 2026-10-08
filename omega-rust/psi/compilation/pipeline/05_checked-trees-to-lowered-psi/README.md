@@ -130,12 +130,3 @@ Content result records remain with [content lowering](src/proofs/content_conserv
 Their existing public re-exports are unchanged. Proof completion runs only after
 the complete call/storage closure is assembled; it is not a side effect of
 emitting one expression.
-
-Nominal structural returns prepare their shared Boolean convergence once, then
-reuse the validated decision for block emission. They collect runtime inputs through
-[ordinary operation traversal](src/returns/structural_scalar_return/shared_convergence.rs),
-rather than a catalogue of arithmetic compositions. This grants no arithmetic
-authority: emission retains each operation, proof completion discharges every
-canonical pre-result obligation, and independent verification checks source
-custody and the completed graph. Unsupported storage or cleanup relationships
-remain separate admission limits.

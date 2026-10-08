@@ -337,26 +337,6 @@ fn apply_fact_pruning(
         .terminal_structural_control_cleanups
         .states
         .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .terminal_boundary_scalar_returns
-        .machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .terminal_boundary_scalar_returns
-        .boundary_machines
-        .retain(|row| !pruned.contains(&row.machine));
-    facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_machines
-        .retain(|row| retained.contains(&row.machine));
 }
 
 /// Whether a contract-fact owner survives pruning: machine owners must be

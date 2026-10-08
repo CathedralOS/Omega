@@ -8,13 +8,10 @@ identities, then transfers the frozen typed owner and preparation judgments.
 Preparation and specialization are independent of checking; this package
 contains no typed elaboration or fallback route.
 [finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
-check facts, finalizes scalar graphs, assembles structural control and return
-plans, then completes affine cleanup. It returns the facts only after cleanup
-diagnostics clear; the checker never publishes an intermediate plan set.
-[execution_plans.rs](src/execution/execution_plans.rs) builds independent scalar
-returns, Unit closure, then dependent structural returns. It returns owned plans
-and diagnostics; finalization owns dependent cleanup. There is no production
-re-entry for rebuilding plans after provider settlement.
+check facts, finalizes scalar graphs, assembles structural control cleanup and
+the Unit closure, then completes affine cleanup. It returns the facts only after
+cleanup diagnostics clear; the checker never publishes an intermediate plan set.
+There is no production re-entry for rebuilding plans after provider settlement.
 [lib.rs](src/lib.rs) wires the public API.
 Public borrow requirements are in
 [loan resources and compatibility](../../../../../wiki/spec/terminal-psi/loans.md).
@@ -91,10 +88,9 @@ requirement-level satisfiers remain supply edges. This source-only obligation
 runs for every checking caller, independently of Omega's later provider selection
 and native permission checks.
 
-Unit planning borrows an explicit `ScalarCalleePlans` roster: independent boundary
-and primitive-reference returns precede the Unit closure, and the complete
-structural-scalar return roster follows that closure. Preliminary call-free
-discovery has no callee roster; it cannot read a partially published one from
+Unit planning passes a `ScalarCalleeClosure` marker when it builds the candidate
+closure, where a call may target a scalar graph callee. Preliminary call-free
+discovery passes none; it cannot read a partially published closure from
 `CheckFacts`. Provider installation consumes these source-derived plans rather
 than rebuilding them. The test-only evidence-mutation helper reconstructs plans
 transactionally so a failed reconstruction leaves its original fixture intact.
@@ -107,7 +103,7 @@ transactionally so a failed reconstruction leaves its original fixture intact.
 | `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
 | `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
 | `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |
-| `execution/scalar/`, `execution/unit/`, `execution/control_cleanup.rs` | Executable graph discovery, callee closure, return plans and checked cleanup construction. |
+| `execution/terminal_scalar/`, `execution/terminal_unit/`, `execution/terminal_cleanup.rs` | Executable graph discovery, callee closure and checked cleanup construction. |
 | `values/` | Ranking, initializer, argument, transition, and nested-expression origins. |
 | `checks/contracts/`, `checks/ranges/`, `checks/termination/` | Proof consumers and diagnostics, not competing durable fact models. |
 
@@ -665,22 +661,6 @@ The focused source-to-artifact regression is
 It verifies retained requirements and unchanged call routes, not execution of
 arbitrary host records as entry proofs. Generic/lifetime attachments, broader
 entry arithmetic, and mutable value-origin transport remain distinct work.
-
-## Scalar convergence inputs
-
-[shared_convergence.rs](src/execution/unit/shared_convergence.rs) collects
-runtime inputs by walking supported scalar operations. Arithmetic association,
-cast-chain length, and combinations of exact and proof-free operations do not
-select separate producer families. Collection establishes input coordinates and
-supported carrier/operation shapes, not arithmetic safety.
-
-Boolean, structural-member, and nominal-cleanup custody retain their own
-restrictions. The lowerer collects the same inputs from its representation,
-emits each operation in order, and completes its canonical proof obligations.
-Every arithmetic prefix and partial cast needs its own proof. A final zero
-factor, cancellation, or representable result cannot excuse an earlier unsafe
-operation. Missing proof remains a failure, not a reason to trust this collector.
-See [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md).
 
 ## Bounded Terminal correspondence
 

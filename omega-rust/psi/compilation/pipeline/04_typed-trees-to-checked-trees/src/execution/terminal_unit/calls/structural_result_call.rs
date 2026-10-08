@@ -10,14 +10,12 @@ use checked_trees::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 
-use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{base_type_identity, machine_binders};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, Multiplicity, SymbolHandle, TypeReferenceNode,
-    is_reference,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
+    SymbolHandle, TypeReferenceNode, is_reference,
 };
 
 pub(super) fn build(
@@ -25,8 +23,6 @@ pub(super) fn build(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &LocalConstructionTrace,
     planned: super::call_operations::PlannedCall<'_>,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -38,7 +34,6 @@ pub(super) fn build(
         target_machine,
         target_state,
         target_contract,
-        scalar_parameters,
         scalar_arguments,
         erased_scalar_arguments,
         erased_proof_arguments,
@@ -312,67 +307,7 @@ pub(super) fn build(
             ),
         );
     }
-    phase("call operation: claim-free affine result");
-    let target = facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_for_machine(target_machine.symbol)?;
-    let [argument] = structural_arguments.as_slice() else {
-        return None;
-    };
-    let source_matches = if let Some(index) = argument.source_parameter_index() {
-        let source = caller_parameters.get(usize::try_from(index).ok()?)?;
-        source.type_identity == argument.type_identity
-            && source.multiplicity == Multiplicity::Affine
-            && source.access == CheckedStructuralAccess::Owned
-            && source.qualifications.is_empty()
-    } else if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
-        caller_structural_results.iter().any(|(source, _)| {
-            source.binding_ordinal == ordinal
-                && source.statement_index <= coordinate.statement_index
-                && source.type_identity == argument.type_identity
-                && source.multiplicity == Multiplicity::Affine
-        })
-    } else {
-        false
-    };
-    if target.state != target_state.symbol
-        || target.result.type_identity != result.type_identity
-        || result.multiplicity != Multiplicity::Affine
-        || target.scalar_parameters != scalar_parameters
-        || target.structural_parameter.type_identity != argument.type_identity
-        || !source_matches
-        || argument.access != CheckedStructuralAccess::Owned
-        || !argument.path.is_empty()
-        || !transfers.is_empty()
-        || !service_reach_is_empty(facts, call.service_reach)
-    {
-        return None;
-    }
-    with_structural_custody(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        CheckedUnitCallParts {
-            coordinate,
-            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-            source_site,
-            target: call_target,
-            route: CheckedUnitCallRoute::Module {
-                contract_commitment: Some(target_contract.commitment),
-                erased_scalar_arguments,
-                erased_proof_arguments,
-            },
-            scalar_arguments,
-            structural_arguments,
-            result: CheckedUnitCallResult::Structural {
-                binding: result.clone(),
-                discard_result_on_return: true,
-            },
-            transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-        },
-    )
+    None
 }
 
 /// Admit one ordinary structural call and record its custody: the checker's

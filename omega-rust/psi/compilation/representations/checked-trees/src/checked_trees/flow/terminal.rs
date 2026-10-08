@@ -3,9 +3,7 @@
 //!
 //! `terminal_selections.rs` selects machines, `scalar_graph_plans.rs`,
 //! `structural_control_plans.rs` and `composed_unit_control_plans.rs` carry
-//! control graphs, `scalar_return_plans.rs` and `structural_return_plans.rs`
-//! describe scalar and claim-free affine callees for call admission,
-//! `structural_return.rs` carries a Unit body's structural result,
+//! control graphs, `structural_return.rs` carries a Unit body's structural result,
 //! `structural_type_plans.rs` and `structural_argument_plans.rs` carry
 //! structural types and arguments,
 //! `affine_cleanup_plans.rs` carries affine cleanup and `unit_plans.rs` names
@@ -23,11 +21,9 @@ mod composed_unit_control_plans;
 mod dynamic_slot_plans;
 mod result_binding_plans;
 mod scalar_graph_plans;
-mod scalar_return_plans;
 mod structural_argument_plans;
 mod structural_control_plans;
 mod structural_return;
-mod structural_return_plans;
 mod structural_type_plans;
 mod terminal_selections;
 mod unit_call_plans;
@@ -71,16 +67,9 @@ pub use scalar_graph_plans::{
     CheckedScalarPrimitiveLocalPlan, CheckedScalarStateGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor,
 };
-pub use scalar_return_plans::{
-    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
-    CheckedStructuralBooleanConvergencePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans,
-};
 pub use structural_argument_plans::{
-    CheckedCallScalarArgument, CheckedReferenceStorage, CheckedUnitCallCoordinate,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedCallScalarArgument, CheckedReferenceStorage, CheckedStructuralScalarParameterPlan,
+    CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
 pub use structural_control_plans::{
@@ -92,9 +81,6 @@ pub use structural_control_plans::{
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
-pub use structural_return_plans::{
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
-};
 pub use structural_type_plans::{
     CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
     CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt, CheckedRuntimeIndex,

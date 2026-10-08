@@ -1,5 +1,5 @@
 //! Structural argument plans: entry claims, call coordinates, scalar
-//! arguments and structural argument sources.
+//! parameters and arguments, and structural argument sources.
 
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
@@ -7,6 +7,7 @@ use crate::checked_trees::flow::terminal::{
 use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
+use typed_trees::types::PrimitiveType;
 
 /// Physical interpretation retained by one source-checked reference capture.
 /// A view begins at the source's actual projected address. Aggregate views
@@ -44,6 +45,14 @@ pub enum CheckedCallScalarArgument {
     Pure(CheckedScalarExpression),
     /// Exact node selected by the operand coordinate's checked computation root.
     Computation(crate::CheckedScalarComputationHandle),
+}
+
+/// One scalar formal of a call target or an erased scalar formal of a body:
+/// its authored parameter position and primitive carrier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedStructuralScalarParameterPlan {
+    pub source_position: u32,
+    pub primitive_type: PrimitiveType,
 }
 
 impl CheckedCallScalarArgument {

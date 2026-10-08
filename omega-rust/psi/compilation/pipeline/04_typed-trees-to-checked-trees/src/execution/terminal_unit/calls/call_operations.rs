@@ -1,7 +1,7 @@
 //! Building one checked call operation and the value result it is expected
 //! to produce.
 
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
@@ -42,7 +42,6 @@ pub(super) struct PlannedCall<'p> {
     pub(super) target_machine: &'p typed_trees::machine::Machine,
     pub(super) target_state: &'p typed_trees::state::State,
     pub(super) target_contract: &'p checked_trees::MachineContractPlan,
-    pub(super) scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub(super) scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
     pub(super) erased_scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
     pub(super) erased_proof_arguments: Vec<checked_trees::CheckedProofTerm>,
@@ -55,7 +54,7 @@ pub(super) struct PlannedCall<'p> {
 pub(in crate::execution) fn build_call_operation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: Option<ScalarCalleePlans<'_>>,
+    scalar_callees: Option<ScalarCalleeClosure>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -554,8 +553,6 @@ pub(in crate::execution) fn build_call_operation(
             facts,
             machine,
             state,
-            caller_parameters,
-            caller_structural_results,
             trace,
             PlannedCall {
                 coordinate,
@@ -564,7 +561,6 @@ pub(in crate::execution) fn build_call_operation(
                 target_machine,
                 target_state,
                 target_contract,
-                scalar_parameters,
                 scalar_arguments,
                 erased_scalar_arguments,
                 erased_proof_arguments,

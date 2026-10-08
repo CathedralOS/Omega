@@ -98,22 +98,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .terminal_nominal_affine_unit_cleanups
             .machines
             .iter()
-            .any(|plan| has_receipt(&plan.machine.structural_parameters))
-        || flow
-            .terminal_structural_scalar_returns
-            .machines
-            .iter()
-            .any(|machine| has_receipt(&machine.structural_parameters))
-        || flow
-            .terminal_boundary_scalar_returns
-            .boundary_machines
-            .iter()
-            .any(|machine| has_receipt(&machine.structural_parameters))
-        || flow
-            .terminal_boundary_scalar_returns
-            .machines
-            .iter()
-            .any(|machine| has_receipt(&machine.structural_parameters));
+            .any(|plan| has_receipt(&plan.machine.structural_parameters));
     if unsupported_receipt {
         return unsupported(
             "fused Service parameter receipt appears outside supported Unit parameter custody",

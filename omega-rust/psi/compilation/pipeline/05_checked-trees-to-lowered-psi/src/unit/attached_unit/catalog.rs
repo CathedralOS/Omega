@@ -515,25 +515,6 @@ fn selected_declaration<'a>(
         &mut selected,
     )?;
     select_from(plans.structural_types(), identity, &mut selected)?;
-    for roster in [
-        &checked
-            .facts
-            .flow
-            .terminal_structural_returns
-            .structural_types,
-        &checked
-            .facts
-            .flow
-            .terminal_boundary_scalar_returns
-            .structural_types,
-        &checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .structural_types,
-    ] {
-        select_from(roster.iter(), identity, &mut selected)?;
-    }
     selected.ok_or_else(|| {
         LoweringError::Unsupported("Unit closure references a missing structural type")
     })

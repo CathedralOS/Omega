@@ -15,7 +15,7 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, parameter_qualifications, state_flow,
 };
 
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::boundary_machine::boundary_result_plan;
@@ -124,7 +124,7 @@ fn evaluated_value_root<'a>(
 pub(in crate::execution::terminal_unit) fn value_calls(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -616,7 +616,7 @@ pub(in crate::execution::terminal_unit) fn result(
 pub(in crate::execution::terminal_unit) fn plan_call_operands(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

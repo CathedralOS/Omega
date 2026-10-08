@@ -14,7 +14,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls, FusedStates,
-    ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
+    ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, closed_sum, control,
     guard_is_boolean, retained_guard, returns, successor, terminal_calls,
 };
@@ -27,7 +27,7 @@ use super::{
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
     state_index: usize,
@@ -719,7 +719,7 @@ fn internal_destination(
 fn guarded_return_arm(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

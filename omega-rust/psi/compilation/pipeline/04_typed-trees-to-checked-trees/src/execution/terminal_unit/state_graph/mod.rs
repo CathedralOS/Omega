@@ -22,12 +22,12 @@ use super::{
     PermissionEventSource, StatementNode, TransitionExit, TransitionGuardNode,
     TransitionTargetNode, TypeReferenceNode,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
-use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
+use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_reference, machine_binders, state_flow,
 };
@@ -158,7 +158,7 @@ fn runtime_component_ranks(
 pub(super) fn build_traced(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -181,21 +181,6 @@ pub(super) fn build_traced(
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
         // A scalar graph does not own the body: stage 05 lowers this Unit body
         // whenever it exists and falls back to the graph only without one.
-        // A machine in the structural-scalar or boundary-scalar callee roster
-        // keeps that roster's ordinary body instead.
-        trace.phase("state graph: result signature: scalar owner precedence");
-        if scalar_callees
-            .structural_returns
-            .for_machine(machine.symbol)
-            .is_some()
-            || scalar_callees
-                .boundary_returns
-                .machines
-                .iter()
-                .any(|plan| plan.machine == machine.symbol)
-        {
-            return None;
-        }
         // A result guarantee (`ensures`, a closed result range) is the
         // machine's normal-return obligation, published on its contract and
         // proved at its exits, exactly as for an ordinary single-state body.

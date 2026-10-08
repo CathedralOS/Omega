@@ -1,6 +1,6 @@
 //! Execute checked normal-edge actions before the current frame is retired.
-//! Unit, scalar and structural returns select the same nominal action executor. A selected
-//! dependency without an executable plan declines; typed-only evaluation has
+//! A machine's Unit nominal cleanup plan selects the nominal action executor. A
+//! selected dependency without an executable plan declines; typed-only evaluation has
 //! no authority to invent a cleanup call from a type or machine name.
 
 use crate::interpreter::evaluator::{
@@ -48,26 +48,6 @@ impl<'program> Evaluator<'program> {
                         Halt::Unsupported("cleanup source parameter is absent".into())
                     })?;
                 actions.push((cleanup, parameter));
-            }
-        } else if let Some(plan) = flow
-            .terminal_structural_scalar_returns
-            .for_machine(machine.symbol)
-        {
-            if plan.state != state.symbol {
-                return unsupported("scalar cleanup plan names another return state");
-            }
-            for action in &plan.cleanup_actions {
-                if let CheckedNormalCleanupAction::InvokeNominal(cleanup) = action {
-                    let parameter = plan
-                        .structural_parameters
-                        .get(cleanup.source_parameter_index().ok_or_else(|| {
-                            Halt::Unsupported("cleanup requires a parameter source".into())
-                        })? as usize)
-                        .ok_or_else(|| {
-                            Halt::Unsupported("cleanup source parameter is absent".into())
-                        })?;
-                    actions.push((cleanup, parameter));
-                }
             }
         }
         Ok(actions)

@@ -58,20 +58,6 @@ pub(crate) fn strips_erased_parameter(parameter: &StateParameter) -> Option<bool
     (!parameter.is_const && !parameter.is_mutable).then_some(true)
 }
 
-/// The authored parameters that own an ABI position. An `[erased]` binding
-/// occurrence stays in the typed signature (its `position` index is still the
-/// authored one) but never receives a structural or scalar plan entry, so
-/// every "every parameter is planned" consistency check counts this instead
-/// of `state_parameters(state).len()`.
-pub(in crate::execution::terminal_unit) fn abi_parameter_count(
-    parameters: &[StateParameter],
-) -> usize {
-    parameters
-        .iter()
-        .filter(|parameter| !parameter.relevance.is_erased())
-        .count()
-}
-
 /// The authored `[erased]` scalar formals in authored order, each retaining
 /// its authored parameter position. Contract-term erased formals belong to
 /// the proof lane (`erased_proof_parameter_plans`), so this plan skips

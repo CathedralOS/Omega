@@ -1,19 +1,17 @@
-//! Ordinary scalar calls retain an existing body plan, never a fabricated graph.
-//! A missing legacy return row may use a complete ordinary scalar-result body.
-//! A retained legacy row must match; its drift cannot select that fallback.
-//! Availability closes dependencies, while the receiving lowerer independently
-//! replays every retained operation and its authored source custody.
+//! Ordinary scalar calls retain an existing body plan, never a fabricated graph:
+//! the callee's scalar graph, its scalar-result state graph, or its ordinary
+//! scalar-result body. Availability closes dependencies, while the receiving
+//! lowerer independently replays every retained operation and its authored
+//! source custody.
 use super::{
-    CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode, PrimitiveType,
-    SignatureContractKind, SymbolHandle, returns,
+    CarryPolicy, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    MachineSupplyMode, PrimitiveType, SignatureContractKind, SymbolHandle,
 };
-use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
 use crate::execution::terminal_unit::calls::{
     call_claim_transfers, entry_claims, free_structural_scalar_signature,
-    structural_scalar_signature, structural_signature,
 };
 
 use crate::execution::terminal_unit::structural_scalar_graph_signature;
@@ -22,12 +20,12 @@ use crate::execution::terminal_unit::structural_scalar_graph_signature;
 pub(super) fn registered_structural_graph_target<'facts>(
     program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
-    scalar_callees: Option<ScalarCalleePlans<'_>>,
+    scalar_callees: Option<ScalarCalleeClosure>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     result: PrimitiveType,
 ) -> Option<&'facts checked_trees::CheckedScalarStateGraph> {
-    let scalar_callees = scalar_callees?;
+    scalar_callees?;
     let mut graphs = facts
         .flow
         .terminal_scalar_graphs
@@ -43,15 +41,6 @@ pub(super) fn registered_structural_graph_target<'facts>(
         || retained.result_type != Some(result)
         || retained.structural_parameters.is_empty()
         || !retained.parameter_storage.is_empty()
-        || scalar_callees
-            .structural_returns
-            .for_machine(machine_symbol)
-            .is_some()
-        || scalar_callees
-            .boundary_returns
-            .machines
-            .iter()
-            .any(|plan| plan.machine == machine_symbol)
     {
         return None;
     }
@@ -83,43 +72,6 @@ pub(super) fn registered_structural_graph_target<'facts>(
         return None;
     }
     Some(retained)
-}
-
-pub(super) fn registered_primitive_store_target<'plans>(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    scalar_callees: Option<ScalarCalleePlans<'plans>>,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    result: PrimitiveType,
-) -> Option<&'plans CheckedStructuralScalarReturnMachinePlan> {
-    let scalar_callees = scalar_callees?;
-    let mut targets = scalar_callees
-        .structural_returns
-        .machines
-        .iter()
-        .filter(|plan| plan.machine == machine_symbol);
-    let plan = targets.next()?;
-    if targets.next().is_some()
-        || plan.state != state_symbol
-        || plan.result_type != result
-        || facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine_symbol)
-            .is_some()
-        || scalar_callees
-            .boundary_returns
-            .machines
-            .iter()
-            .any(|target| target.machine == machine_symbol)
-    {
-        return None;
-    }
-    let machine = program.machine_by_symbol(machine_symbol)?;
-    let mut shapes = ShapeCollector::new(program);
-    let expected = returns::primitive_effects::build_machine(program, facts, &mut shapes, machine)?;
-    (expected == *plan).then_some(plan)
 }
 
 /// A registered scalar producer survives ordinary candidate pruning. Only the
@@ -219,7 +171,7 @@ impl ScalarCallSite<'_> {
 pub(super) fn available_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
+    scalar_callees: ScalarCalleeClosure,
     candidates: &[CheckedUnitEffectMachinePlan],
     composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
     caller: &ScalarCallSite<'_>,
@@ -296,65 +248,6 @@ pub(super) fn available_target(
             // A registered scalar-graph callee must return a scalar; a
             // structural result is never callable in scalar position.
             plan.result_type?,
-        )
-    } else if scalar_callees
-        .structural_returns
-        .machines
-        .iter()
-        .any(|plan| plan.machine == *target_machine)
-    {
-        let plan = registered_primitive_store_target(
-            program,
-            facts,
-            Some(scalar_callees),
-            *target_machine,
-            *target_state,
-            result.primitive_type,
-        )?;
-        (
-            &plan.structural_parameters,
-            &plan.scalar_parameters,
-            &[][..],
-            plan.result_type,
-        )
-    } else if scalar_callees
-        .boundary_returns
-        .machines
-        .iter()
-        .any(|plan| plan.machine == *target_machine)
-    {
-        let mut targets = scalar_callees
-            .boundary_returns
-            .machines
-            .iter()
-            .filter(|plan| plan.machine == *target_machine);
-        let plan = targets.next()?;
-        if targets.next().is_some() || plan.state != *target_state {
-            return None;
-        }
-        let mut shapes = ShapeCollector::new(program);
-        let binders = machine_binders(program, machine);
-        let signature = if plan.scalar_parameters.is_empty() {
-            structural_signature(program, &mut shapes, state, &binders)
-                .map(|(attachment, structural)| (attachment, structural, Vec::new()))
-        } else {
-            structural_scalar_signature(program, &mut shapes, machine, state, &binders)
-        };
-        let (attachment, structural, scalar) = signature?;
-        // Dependency pruning must recognize the scheduled final expression as
-        // well as a direct call result. Both retain one exact completion owner;
-        // otherwise an ordered helper disappears only when another helper calls it.
-        if attachment != plan.attachment_type_identity
-            || structural != plan.structural_parameters
-            || scalar != plan.scalar_parameters
-        {
-            return None;
-        }
-        (
-            &plan.structural_parameters,
-            &plan.scalar_parameters,
-            plan.entry_claims.as_slice(),
-            plan.result_type,
         )
     } else if let Some((composed_index, plan)) = composed {
         // A state graph reaches callers through its entry state's signature,

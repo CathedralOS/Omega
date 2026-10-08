@@ -198,20 +198,3 @@ pub(in crate::execution::terminal_unit) fn outer_calls_traced<'a>(
         trace,
     )
 }
-
-pub(in crate::execution::terminal_unit) fn outer_calls<'a>(
-    program: &dyn ::validation::CheckingInput,
-    facts: &'a CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    calls: &'a [checked_trees::FlowCallFact],
-) -> Option<Vec<&'a checked_trees::FlowCallFact>> {
-    outer_calls_traced(
-        program,
-        facts,
-        machine,
-        state,
-        calls,
-        &LocalConstructionTrace::default(),
-    )
-}
