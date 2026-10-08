@@ -957,23 +957,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
         if depth > MAX_SCALAR_TERM_DEPTH {
             return Err(CodecError::ScalarTermNestingTooDeep);
         }
-        match term {
-            semantic_vocabulary::scalar_term_unary_operand!(operand) => {
-                pending.push((operand, depth + 1));
-            }
-            semantic_vocabulary::scalar_term_binary_operands!(left, right) => {
-                pending.push((left, depth + 1));
-                pending.push((right, depth + 1));
-            }
-            ScalarTerm::Value { .. }
-            | ScalarTerm::BooleanField { .. }
-            | ScalarTerm::IntegerField { .. }
-            | ScalarTerm::IeeeFloatField { .. }
-            | ScalarTerm::ViewExtent { .. }
-            | ScalarTerm::ByteSequencePredicate { .. }
-            | ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_) => {}
+        for operand in term.operands() {
+            pending.push((operand, depth + 1));
         }
     }
     Ok(())
