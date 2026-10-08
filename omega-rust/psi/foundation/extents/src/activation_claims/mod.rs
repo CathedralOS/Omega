@@ -260,6 +260,17 @@ impl ActivationClaimLedger {
         self.live.iter().find(|claim| claim.id == id)
     }
 
+    /// The live position of claim `id`, or the not-live diagnostic.
+    fn live_position(&self, id: ActivationClaimId) -> Result<usize, ExtentDiagnostic> {
+        let Some(position) = self.live.iter().position(|claim| claim.id == id) else {
+            return Err(ExtentDiagnostic(format!(
+                "claim {} is not live in this activation",
+                id.0
+            )));
+        };
+        Ok(position)
+    }
+
     /// Admit one claim: `committed <= bound` and a valid alignment, nothing
     /// else. The bound charge composes into the activation's closed demand
     /// before establishment — see [`compose_claim_bounds`].
@@ -323,12 +334,7 @@ impl ActivationClaimLedger {
         committed_at: u64,
         bound_at: u64,
     ) -> Result<(ActivationClaimId, ActivationClaimId), ExtentDiagnostic> {
-        let Some(position) = self.live.iter().position(|claim| claim.id == id) else {
-            return Err(ExtentDiagnostic(format!(
-                "claim {} is not live in this activation",
-                id.0
-            )));
-        };
+        let position = self.live_position(id)?;
         let claim = &self.live[position];
         if committed_at == 0
             || committed_at >= claim.committed
@@ -385,18 +391,8 @@ impl ActivationClaimLedger {
         lower_id: ActivationClaimId,
         upper_id: ActivationClaimId,
     ) -> Result<ActivationClaimId, ExtentDiagnostic> {
-        let Some(lower_position) = self.live.iter().position(|claim| claim.id == lower_id) else {
-            return Err(ExtentDiagnostic(format!(
-                "claim {} is not live in this activation",
-                lower_id.0
-            )));
-        };
-        let Some(upper_position) = self.live.iter().position(|claim| claim.id == upper_id) else {
-            return Err(ExtentDiagnostic(format!(
-                "claim {} is not live in this activation",
-                upper_id.0
-            )));
-        };
+        let lower_position = self.live_position(lower_id)?;
+        let upper_position = self.live_position(upper_id)?;
         if lower_position != self.live.len() - 2 || upper_position != self.live.len() - 1 {
             return Err(ExtentDiagnostic(
                 "claim children merge only as the two newest live claims".into(),

@@ -181,6 +181,13 @@ fn decode_transfer(
     }
 }
 
+/// The position of the block offset `target`, when the roster declares it.
+fn position_by_offset(blocks: &[Block], target: usize) -> Option<usize> {
+    blocks
+        .iter()
+        .position(|candidate| candidate.offset == target)
+}
+
 fn validate_topology(
     architecture: Architecture,
     machine: MachineId,
@@ -223,10 +230,7 @@ fn validate_topology(
             .checked_add(block.byte_count)
             .ok_or_else(|| invalid(block.offset))?;
         for target in targets {
-            let Some(next) = blocks
-                .iter()
-                .position(|candidate| candidate.offset == target)
-            else {
+            let Some(next) = position_by_offset(blocks, target) else {
                 return Err(invalid(target));
             };
             if next <= index {
@@ -299,10 +303,7 @@ pub(crate) fn validate_stack(
             return Err(ObjectError::MissingBalancedScalarReturn(machine));
         }
         for target in targets {
-            let next = blocks
-                .iter()
-                .position(|candidate| candidate.offset == target)
-                .expect("topology validated");
+            let next = position_by_offset(blocks, target).expect("topology validated");
             if incoming[next].is_some_and(|depth| depth != outgoing) {
                 return Err(ObjectError::InvalidScalarStackEvidence {
                     machine,
