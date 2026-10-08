@@ -97,10 +97,7 @@ pub(crate) struct PrimitiveLoan {
 }
 
 fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|entry| entry.id == place)?;
+    let declaration = machine.structural_place(place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let operation = machine.operation(producer)?;
     let result = operation.result.structural()?;

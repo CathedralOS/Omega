@@ -80,10 +80,7 @@ fn owned_record_store_carrier(
     let StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
-    } = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == destination)?
+    } = machine.structural_place(destination)?
         .kind
     else {
         return None;

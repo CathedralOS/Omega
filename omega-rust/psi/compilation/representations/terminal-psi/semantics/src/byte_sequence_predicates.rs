@@ -65,10 +65,7 @@ pub fn byte_field_root(
     {
         return None;
     }
-    let place = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
+    let place = machine.structural_place(source)?;
     let parameter = match place.kind {
         StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
             crate::arrival_storage::arrival_parameter(machine, source)?
@@ -256,10 +253,7 @@ pub fn byte_owned_result_predicates(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
+    let declaration = machine.structural_place(source)?;
     let StructuralPlaceKind::OperationResult {
         structural_type, ..
     } = declaration.kind
@@ -582,10 +576,7 @@ pub fn byte_sequence_source_predicates(
             return *result;
         }
         let fuel = fuel.checked_sub(1)?;
-        let place = machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == source)?;
+        let place = machine.structural_place(source)?;
         // Mark an in-progress replay before following children. A malformed
         // cycle contributes no predicates, and shared subgraphs replay once.
         let index = memo.len();

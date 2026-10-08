@@ -64,10 +64,7 @@ fn collect_calls(
     let Some(signature) = &source.structural else {
         return Ok(());
     };
-    let Some(declaration) = signature
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)
+    let Some(declaration) = signature.structural_place(place)
     else {
         return Ok(());
     };

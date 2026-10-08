@@ -40,10 +40,7 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RuntimeRematerializationError::SourceMismatch
         })?;
-    let victim = function
-        .virtual_registers
-        .iter()
-        .find(|value| value.id == register)
+    let victim = function.virtual_register(register)
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     let VirtualRegisterOrigin::InstructionResult {
         instruction: definition,

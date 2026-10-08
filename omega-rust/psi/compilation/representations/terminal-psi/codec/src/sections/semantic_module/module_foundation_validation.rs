@@ -619,10 +619,7 @@ fn validate_operation_foundation(
                         structural_type,
                     },
                 ..
-            }) = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == actual_result.place)
+            }) = machine.structural_place(actual_result.place)
             else {
                 return malformed(
                     "mixed structural-result call result has no operation-result declaration",

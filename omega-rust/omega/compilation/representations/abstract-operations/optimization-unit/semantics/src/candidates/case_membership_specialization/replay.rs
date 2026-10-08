@@ -56,10 +56,7 @@ fn membership_evidence<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<MembershipEvidence<'a>> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?;
+    let declaration = function.structural_place(place)?;
     Some(MembershipEvidence {
         declaration,
         root_type: declared_structural_type(function, declaration),
@@ -200,10 +197,7 @@ fn folded_node(
         // position, or an `EstablishCase` payload child's producer at a
         // `Case` then `Field` position.
         Some(producer) => {
-            let resolved = function
-                .structural_places
-                .iter()
-                .find(|declaration| declaration.id == row.source)
+            let resolved = function.structural_place(row.source)
                 .and_then(|declaration| {
                     optimization_unit::established_case_at(
                         unit,
@@ -221,10 +215,7 @@ fn folded_node(
         // resolve to a closed roster of exactly the claimed case: the place's
         // root type at an empty path, or the nested type its path descends to.
         None => {
-            let declaration = function
-                .structural_places
-                .iter()
-                .find(|declaration| declaration.id == row.source);
+            let declaration = function.structural_place(row.source);
             if declaration
                 .and_then(|declaration| sole_case_at_path(unit, function, declaration, path))
                 != Some(row.proven_case)

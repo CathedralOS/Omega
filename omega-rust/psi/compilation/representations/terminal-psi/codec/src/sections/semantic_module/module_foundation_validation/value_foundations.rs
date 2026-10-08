@@ -212,10 +212,7 @@ pub(super) fn validate_establish_byte_sequence_literal(
             structural_type, ..
         },
         ..
-    }) = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == *destination)
+    }) = machine.structural_place(*destination)
     else {
         return malformed("byte-sequence literal establishment has no literal declaration");
     };
@@ -318,10 +315,7 @@ pub(super) fn validate_establish_trivial_affine_local(
             structural_type, ..
         },
         ..
-    }) = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == *destination)
+    }) = machine.structural_place(*destination)
     else {
         return malformed("trivial affine local establishment has no local declaration");
     };

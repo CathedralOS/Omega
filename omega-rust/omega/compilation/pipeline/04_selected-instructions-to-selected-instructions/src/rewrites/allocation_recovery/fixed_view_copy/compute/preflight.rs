@@ -215,10 +215,7 @@ pub(super) fn find_site_block(
     to_view: register_model::RegisterViewId,
 ) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
     for block in &function.blocks {
-        let site = block
-            .instructions
-            .iter()
-            .find(|candidate| candidate.id == instruction)
+        let site = block.instruction(instruction)
             .or_else(|| {
                 let destination = terminator_instruction(&block.terminator);
                 (destination.id == instruction).then_some(destination)

@@ -38,10 +38,7 @@ impl TerminalExecution<'_> {
             parameter.access == StructuralAccess::Owned
                 && parameter.multiplicity == StructuralMultiplicity::Affine
         } else {
-            let declaration = machine
-                .structural_places
-                .iter()
-                .find(|declaration| declaration.id == destination)
+            let declaration = machine.structural_place(destination)
                 .ok_or_else(malformed)?;
             let StructuralPlaceKind::OperationResult {
                 producer,

@@ -239,10 +239,7 @@ fn replay_edge_transfers(
                 .find(|row| row.block == edge.block)
                 .ok_or(LiveRangeError::FunctionMismatch { function })?;
             for destination in &successor.virtual_live_in {
-                let parameter = selected
-                    .virtual_registers
-                    .iter()
-                    .find(|row| row.id == *destination)
+                let parameter = selected.virtual_register(*destination)
                     .ok_or(LiveRangeError::FunctionMismatch { function })?;
                 if !matches!(parameter.origin, VirtualRegisterOrigin::BlockParameter { block, .. } if block == edge.block)
                 {

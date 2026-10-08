@@ -628,10 +628,7 @@ pub(super) fn derive_runtime_spill<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RuntimeSpillError::SourceMismatch
         })?;
-    let victim = function
-        .virtual_registers
-        .iter()
-        .find(|value| value.id == register)
+    let victim = function.virtual_register(register)
         .ok_or(RuntimeSpillError::UnsupportedValue)?;
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 64)
         .map_err(|_| RuntimeSpillError::UnsupportedValue)?;
@@ -1913,10 +1910,7 @@ pub(super) fn parameter_definitions(
                     if parameter != victim.id {
                         return Err(RuntimeSpillError::UnsupportedUse);
                     }
-                    let value = function
-                        .virtual_registers
-                        .iter()
-                        .find(|value| value.id == argument)
+                    let value = function.virtual_register(argument)
                         .ok_or(RuntimeSpillError::UnsupportedValue)?;
                     if value.scalar_type != victim.scalar_type
                         || value.class != victim.class
@@ -1984,10 +1978,7 @@ pub(super) fn parameter_definitions(
             let SelectedValueTransport::Registers { argument, .. } = binding.transport else {
                 return Err(RuntimeSpillError::UnsupportedUse);
             };
-            let value = function
-                .virtual_registers
-                .iter()
-                .find(|value| value.id == argument)
+            let value = function.virtual_register(argument)
                 .ok_or(RuntimeSpillError::UnsupportedValue)?;
             if value.scalar_type != victim.scalar_type || value.class != victim.class {
                 return Err(RuntimeSpillError::UnsupportedValue);

@@ -40,10 +40,7 @@ pub(super) fn replay_source_exit_copies(
             });
         }
         let first = emission.members[0];
-        let source = source_function
-            .virtual_registers
-            .iter()
-            .find(|register| register.id == first.virtual_register)
+        let source = source_function.virtual_register(first.virtual_register)
             .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
                 function: function_index,
                 register: first.virtual_register.0,

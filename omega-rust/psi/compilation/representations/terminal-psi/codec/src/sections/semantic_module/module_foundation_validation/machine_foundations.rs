@@ -101,10 +101,7 @@ fn validate_block_parameter_places(machine: &TerminalMachine) -> Result<(), Code
 /// kind matches its position and self-ness.
 fn validate_parameter_places(machine: &TerminalMachine) -> Result<(), CodecError> {
     for parameter in &machine.structural_parameters {
-        let Some(place) = machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == parameter.place)
+        let Some(place) = machine.structural_place(parameter.place)
         else {
             return malformed("structural parameter has no declared structural place");
         };
@@ -207,10 +204,7 @@ fn validate_partial_affine_discards(
                 .iter()
                 .find(|parameter| parameter.place == discard.place);
             let block_parameter = || {
-                let declaration = machine
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == discard.place)?;
+                let declaration = machine.structural_place(discard.place)?;
                 let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
                 else {
                     return None;

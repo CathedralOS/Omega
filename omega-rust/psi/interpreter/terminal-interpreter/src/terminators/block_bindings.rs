@@ -775,10 +775,7 @@ impl TerminalExecution<'_> {
         let Some(machine) = self.program.machines().get(&self.current_machine) else {
             return false;
         };
-        let Some(declaration) = machine
-            .structural_places
-            .iter()
-            .find(|declaration| declaration.id == place)
+        let Some(declaration) = machine.structural_place(place)
         else {
             return false;
         };
@@ -825,10 +822,7 @@ impl TerminalExecution<'_> {
         place: PlaceId,
     ) -> Option<&StructuralParameterDeclaration> {
         let machine = self.program.machines().get(&self.current_machine)?;
-        let declaration = machine
-            .structural_places
-            .iter()
-            .find(|declaration| declaration.id == place)?;
+        let declaration = machine.structural_place(place)?;
         match declaration.kind {
             StructuralPlaceKind::Parameter { position } => machine
                 .structural_parameters

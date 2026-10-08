@@ -552,10 +552,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .iter()
         .find(|parameter| parameter.place == *source)
         .or_else(|| {
-            let declaration = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == *source)?;
+            let declaration = machine.structural_place(*source)?;
             let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
                 return None;
             };

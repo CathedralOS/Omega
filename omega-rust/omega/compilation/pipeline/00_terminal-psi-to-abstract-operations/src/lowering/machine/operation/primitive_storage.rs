@@ -25,10 +25,7 @@ pub(super) fn parameter<'a>(
     {
         return Some(parameter);
     }
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)?;
+    let declaration = machine.structural_place(place)?;
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };

@@ -184,10 +184,7 @@ pub(super) fn admit<'source>(
         return Err(RedundantExtensionError::UnsupportedUse);
     }
     let find_register = |register| {
-        function
-            .virtual_registers
-            .iter()
-            .find(|entry| entry.id == register)
+        function.virtual_register(register)
     };
     let value_register =
         find_register(value).ok_or(RedundantExtensionError::UnsupportedProducer)?;

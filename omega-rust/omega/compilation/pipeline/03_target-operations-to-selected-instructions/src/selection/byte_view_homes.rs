@@ -46,7 +46,7 @@ pub(super) fn own_view_root(source: &LegalizedScalarFunction, place: PlaceId) ->
     match source
         .structural
         .as_ref()
-        .and_then(|contract| contract.structural_places.iter().find(|d| d.id == place))
+        .and_then(|contract| contract.structural_place(place))
         .map(|declaration| declaration.kind)
     {
         Some(StructuralPlaceKind::BlockParameter { .. }) => None,
@@ -157,10 +157,7 @@ fn bound_view_roots_recurse(
     let Some(contract) = source.structural.as_ref() else {
         return Err(SelectedInstructionError::custody());
     };
-    let Some(declaration) = contract
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == parameter)
+    let Some(declaration) = contract.structural_place(parameter)
     else {
         return Err(SelectedInstructionError::custody());
     };
@@ -178,10 +175,7 @@ fn bound_view_roots_recurse(
                 .map(|root| vec![(root, bound_view.root_length)])
                 .ok_or_else(|| SelectedInstructionError::custody());
         }
-        let kind = contract
-            .structural_places
-            .iter()
-            .find(|declaration| declaration.id == place)
+        let kind = contract.structural_place(place)
             .map(|declaration| declaration.kind);
         match kind {
             // A bound un-sliced place is its own root; the parameter's checked

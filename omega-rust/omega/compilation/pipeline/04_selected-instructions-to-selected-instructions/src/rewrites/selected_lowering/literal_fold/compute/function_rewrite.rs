@@ -145,18 +145,12 @@ pub(super) fn rewritten_consumer(
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let literal = block
-        .instructions
-        .iter()
-        .find(|instruction| instruction.id == action.literal_instruction)
+    let literal = block.instruction(action.literal_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
     let literal_provenance = literal.provenance.clone();
-    let mut consumer = block
-        .instructions
-        .iter()
-        .find(|instruction| instruction.id == action.consumer_instruction)
+    let mut consumer = block.instruction(action.consumer_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?
@@ -170,10 +164,7 @@ pub(super) fn rewritten_consumer(
     let result_scalar = action
         .result
         .and_then(|result| {
-            function
-                .virtual_registers
-                .iter()
-                .find(|register| register.id == result)
+            function.virtual_register(result)
         })
         .map(|register| register.scalar_type);
     let rewritten_kind = pair

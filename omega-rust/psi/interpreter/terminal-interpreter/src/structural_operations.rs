@@ -287,10 +287,7 @@ impl TerminalExecution<'_> {
                     structural_type, ..
                 },
             ..
-        }) = machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == destination)
+        }) = machine.structural_place(destination)
         else {
             return Err(malformed());
         };
@@ -609,10 +606,7 @@ impl TerminalExecution<'_> {
                     structural_type, ..
                 },
             ..
-        }) = machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == destination)
+        }) = machine.structural_place(destination)
         else {
             return Err(malformed());
         };
@@ -678,10 +672,7 @@ impl TerminalExecution<'_> {
             })
             .map(|parameter| parameter.access)
             .or_else(|| {
-                let declaration = machine
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == destination)?;
+                let declaration = machine.structural_place(destination)?;
                 let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                     producer,
                     structural_type,

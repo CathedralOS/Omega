@@ -67,10 +67,7 @@ pub(super) fn validate(
                 }
                 match operand {
                     ByteSequenceOperand::Whole { source, length } => {
-                        let kind = function
-                            .structural_places
-                            .iter()
-                            .find(|place| place.id == *source)
+                        let kind = function.structural_place(*source)
                             .map(|place| &place.kind);
                         super::byte_views::validate_source(
                             function,

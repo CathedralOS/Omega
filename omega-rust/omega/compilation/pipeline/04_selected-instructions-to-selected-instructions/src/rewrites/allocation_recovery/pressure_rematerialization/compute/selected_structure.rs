@@ -11,10 +11,7 @@ pub(super) fn find_instruction(
     block: &selected_instructions::SelectedBlock,
     id: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .find(|instruction| instruction.id == id)
+    block.instruction(id)
         .or_else(|| match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }

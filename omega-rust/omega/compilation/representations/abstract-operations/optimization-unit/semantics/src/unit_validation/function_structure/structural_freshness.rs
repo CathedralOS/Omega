@@ -43,10 +43,7 @@ fn call_argument_changes(
         {
             return true;
         }
-        let Some(declaration) = function
-            .structural_places
-            .iter()
-            .find(|row| row.id == place)
+        let Some(declaration) = function.structural_place(place)
         else {
             return true;
         };

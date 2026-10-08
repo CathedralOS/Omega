@@ -56,10 +56,7 @@ pub(super) fn establish(
     let Some(signature) = function.structural.as_ref() else {
         return Err(invalid());
     };
-    let Some(place) = signature
-        .structural_places
-        .iter()
-        .find(|place| place.id == *destination)
+    let Some(place) = signature.structural_place(*destination)
     else {
         return Err(invalid());
     };

@@ -106,10 +106,7 @@ pub(super) fn fold_usage(
             // the block's successor edges on each visit.
             let Some(consumer) = function.block(action.block)
                 .and_then(|block| {
-                    block
-                        .instructions
-                        .iter()
-                        .find(|instruction| instruction.id == action.consumer_instruction)
+                    block.instruction(action.consumer_instruction)
                 })
             else {
                 continue;

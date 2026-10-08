@@ -39,10 +39,7 @@ pub(super) fn apply_fixed_view_copy(
     row: &register_model::RegisterInstructionConstraint,
     require_use_access: bool,
 ) -> Result<(), FixedViewCopyError> {
-    let source = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == copy.source_virtual_register)
+    let source = function.virtual_register(copy.source_virtual_register)
         .cloned()
         .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
             function: function_index,

@@ -94,10 +94,7 @@ pub(super) fn admit<'source>(
         return Err(RedundantCompareError::ConstraintMismatch);
     }
     for (position, operand) in compare_instruction.operands.iter().enumerate() {
-        let register = function
-            .virtual_registers
-            .iter()
-            .find(|register| register.id == operand.virtual_register)
+        let register = function.virtual_register(operand.virtual_register)
             .ok_or(RedundantCompareError::ConstraintMismatch)?;
         if row.operands[position].operand != operand.operand
             || row.operands[position].access != RegisterOperandAccess::Use

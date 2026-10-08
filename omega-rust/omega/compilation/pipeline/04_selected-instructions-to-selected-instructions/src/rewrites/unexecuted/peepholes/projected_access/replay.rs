@@ -100,10 +100,7 @@ pub fn validate_projected_access_fold(
     }
     let pointer = pointer_operand.virtual_register;
     let find_register = |register| {
-        function
-            .virtual_registers
-            .iter()
-            .find(|entry| entry.id == register)
+        function.virtual_register(register)
     };
     let pointer_register = find_register(pointer).ok_or(ProjectedAccessError::UnsupportedUse)?;
     let tail_register =

@@ -76,10 +76,7 @@ pub(crate) fn partial_affine_root_type(
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
-    } = function
-        .structural_places
-        .iter()
-        .find(|candidate| candidate.id == place)?
+    } = function.structural_place(place)?
         .kind
     else {
         return None;

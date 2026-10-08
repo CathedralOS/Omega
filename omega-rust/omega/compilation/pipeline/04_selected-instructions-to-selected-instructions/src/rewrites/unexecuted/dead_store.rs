@@ -388,10 +388,7 @@ pub(super) fn byte_span_row_shape(
         .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?
         .virtual_register;
-    let register = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == count)
+    let register = function.virtual_register(count)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
     if !origin_carries(register.origin, length) {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
@@ -493,10 +490,7 @@ pub(super) fn covering_span_row(
     // must carry the `length` value the row claims, so a resolved constant
     // — or a same-extent dead span naming the value — really is the reach
     // the instruction writes.
-    let register = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == count)
+    let register = function.virtual_register(count)
         .ok_or_else(reject)?;
     if !origin_carries(register.origin, length) {
         return Err(reject());

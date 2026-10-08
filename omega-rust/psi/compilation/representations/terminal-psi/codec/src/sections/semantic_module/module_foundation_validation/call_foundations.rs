@@ -274,10 +274,7 @@ pub(super) fn validate_call_structural(
                 structural_type,
             },
         ..
-    }) = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == actual_result.place)
+    }) = machine.structural_place(actual_result.place)
     else {
         return malformed("structural call result has no operation-result place declaration");
     };

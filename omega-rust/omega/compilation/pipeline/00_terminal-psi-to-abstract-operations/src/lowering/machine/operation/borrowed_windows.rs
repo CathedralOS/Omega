@@ -83,10 +83,7 @@ fn lower_move(
         return Err(invalid());
     }
     if !matches!(
-        machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == result.place)
+        machine.structural_place(result.place)
             .map(|place| place.kind),
         Some(StructuralPlaceKind::OperationResult {
             producer,
@@ -299,10 +296,7 @@ pub(super) fn block_parameter(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&StructuralParameterDeclaration> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)?;
+    let declaration = machine.structural_place(place)?;
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };

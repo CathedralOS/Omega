@@ -130,10 +130,7 @@ fn projected_local(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Option<&StructuralOperationResult> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
+    let declaration = function.structural_place(source)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     function.block_nodes().find_map(|node| {
         let (operation, result) = node.operation.structural_result()?;

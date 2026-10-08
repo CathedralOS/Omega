@@ -26,10 +26,7 @@ pub(super) fn classify(
             classification: None,
         });
     };
-    let victim = selected
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == choice.selected_victim)
+    let victim = selected.virtual_register(choice.selected_victim)
         .ok_or(RecoveryClassificationError::VictimMismatch {
             function,
             register: choice.selected_victim.0,

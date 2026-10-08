@@ -530,10 +530,7 @@ impl TerminalExecution<'_> {
             .or_else(|| {
                 // An initialized local owns its backing. Recover that fact from
                 // its checked producer, never from the requested argument access.
-                let place = machine
-                    .structural_places
-                    .iter()
-                    .find(|place| place.id == argument.place)?;
+                let place = machine.structural_place(argument.place)?;
                 let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                     producer,
                     structural_type,

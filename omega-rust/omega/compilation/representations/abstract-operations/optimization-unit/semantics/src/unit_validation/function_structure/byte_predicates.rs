@@ -183,10 +183,7 @@ pub(crate) fn owned_byte_predicates(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|row| row.id == place)?;
+    let declaration = function.structural_place(place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let result = function
         .block_nodes()
@@ -339,10 +336,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
     source: PlaceId,
     consumer: semantic_vocabulary::OperationId,
 ) -> Option<ByteSequencePredicateSet> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
+    let declaration = function.structural_place(source)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let node = function
         .block_nodes()
@@ -551,10 +545,7 @@ where
     Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
     Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
 {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
+    let declaration = function.structural_place(source)?;
     match declaration.kind {
         StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
             let parameter = function.arrival_parameter(source)?;

@@ -144,10 +144,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if !bounded_field {
         return malformed("byte field store does not select a bounded byte field");
     }
-    let Some(source_place) = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == *source)
+    let Some(source_place) = machine.structural_place(*source)
     else {
         return malformed("byte field store source is unknown");
     };

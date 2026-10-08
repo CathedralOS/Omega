@@ -34,10 +34,7 @@ pub(super) fn membership_evidence<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<MembershipEvidence<'a>> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?;
+    let declaration = function.structural_place(place)?;
     Some(MembershipEvidence {
         declaration,
         root_type: declared_structural_type(function, declaration),

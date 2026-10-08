@@ -178,10 +178,7 @@ pub(super) fn reconstruct(
             .operands
             .first()
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        let vreg = selected_function
-            .virtual_registers
-            .iter()
-            .find(|vreg| vreg.id == operand.virtual_register)
+        let vreg = selected_function.virtual_register(operand.virtual_register)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
         if origin_value(vreg.origin) != Some(value) {
             return Err(OptimizedOrdinaryCallableEntryError::RootMismatch);

@@ -141,10 +141,7 @@ fn register_admits(
     victim: VirtualRegisterId,
     value: u128,
 ) -> bool {
-    let Some(register) = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == victim)
+    let Some(register) = function.virtual_register(victim)
     else {
         return false;
     };

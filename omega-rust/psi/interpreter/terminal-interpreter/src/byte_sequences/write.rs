@@ -29,10 +29,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let result = machine
-            .structural_places
-            .iter()
-            .find(|declaration| declaration.id == place)
+        let result = machine.structural_place(place)
             .and_then(|declaration| declaration.kind.as_operation_result());
         let (structural_type, qualifications, projected_qualifications) =
             if let Some((producer, structural_type)) = result {
@@ -159,10 +156,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let declaration = machine
-            .structural_places
-            .iter()
-            .find(|declaration| declaration.id == place)
+        let declaration = machine.structural_place(place)
             .ok_or_else(malformed)?;
         let (producer, structural_type) = declaration
             .kind

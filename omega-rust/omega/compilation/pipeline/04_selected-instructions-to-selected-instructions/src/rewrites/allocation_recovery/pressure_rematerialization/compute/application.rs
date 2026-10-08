@@ -17,10 +17,7 @@ pub(super) fn apply(
     action: &PressureRematerializationAction,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), PressureRematerializationError> {
-    let source = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == action.victim)
+    let source = function.virtual_register(action.victim)
         .cloned()
         .ok_or(PressureRematerializationError::DecisionMismatch {
             function: function_index,

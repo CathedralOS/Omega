@@ -205,10 +205,7 @@ impl TerminalExecution<'_> {
             // Admission already verified the exact producer and its declaration
             // custody. Execution must find that home's current instance; it
             // cannot recover a value from a future or retired producer.
-            let declaration = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == root)
+            let declaration = machine.structural_place(root)
                 .ok_or_else(malformed)?;
             let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                 structural_type, ..

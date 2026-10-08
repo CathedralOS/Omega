@@ -121,10 +121,7 @@ pub(super) fn admit<'source>(
         return Err(CopiedCallOperandError::UnsupportedConsumer);
     }
     let find_register = |register| {
-        function
-            .virtual_registers
-            .iter()
-            .find(|entry| entry.id == register)
+        function.virtual_register(register)
     };
     // Every operand's register must exist in the function's roster before
     // the row contract can even be read against it.

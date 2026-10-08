@@ -55,10 +55,7 @@ pub(super) fn argument(
     let (root, source, result_custody) = if let Some(arrival) =
         caller.arrival_parameter(actual.place)
     {
-        let place = caller
-            .structural_places
-            .iter()
-            .find(|place| place.id == actual.place)
+        let place = caller.structural_place(actual.place)
             .ok_or(LegalizationError::custody())?;
         let source = match place.kind {
             StructuralPlaceKind::Parameter { .. } => {

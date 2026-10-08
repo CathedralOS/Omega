@@ -66,10 +66,7 @@ pub fn field_evidence<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<FieldEvidence<'a>> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?;
+    let declaration = function.structural_place(place)?;
     Some(FieldEvidence {
         declaration,
         root_type: declared_structural_type(function, declaration),
@@ -1053,10 +1050,7 @@ pub fn descended_field_child(
     visiting: &mut BTreeSet<PlaceId>,
 ) -> Option<(PlaceId, Establishment)> {
     let child = structural_child(function, producer, place, field)?;
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|candidate| candidate.id == child)?;
+    let declaration = function.structural_place(child)?;
     if declared_structural_type(function, declaration) != Some(next) || !visiting.insert(child) {
         return None;
     }
@@ -1070,10 +1064,7 @@ pub fn leaf_copy_source<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<(PlaceId, &'a StructuralCopyPath)> {
-    let StructuralPlaceKind::OperationResult { producer, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
+    let StructuralPlaceKind::OperationResult { producer, .. } = function.structural_place(place)?
         .kind
     else {
         return None;
@@ -1324,10 +1315,7 @@ pub fn established_case_at(
                 // every segment with no canonical step leave the copy
                 // uncrossed.
                 if let Some((source, spelled)) = leaf_copy_source(function, place) {
-                    let source_declaration = function
-                        .structural_places
-                        .iter()
-                        .find(|candidate| candidate.id == source)?;
+                    let source_declaration = function.structural_place(source)?;
                     let source_type = declared_structural_type(function, source_declaration)?;
                     let copied = match spelled {
                         StructuralCopyPath::Case(path) => path.clone(),
@@ -1356,10 +1344,7 @@ pub fn established_case_at(
                 // uniform binding names — the bound place's own
                 // establishment is the parameter's.
                 let bound = bound_place(function, place)?;
-                let bound_declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|candidate| candidate.id == bound)?;
+                let bound_declaration = function.structural_place(bound)?;
                 let bound_type = declared_structural_type(function, bound_declaration);
                 if declared.is_some() && bound_type != declared {
                     return None;
@@ -1390,10 +1375,7 @@ pub fn bound_place(
     place: PlaceId,
     rewrites: &dyn Fn(&O, PlaceId) -> bool,
 ) -> Option<PlaceId> {
-    let StructuralPlaceKind::BlockParameter { block, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
+    let StructuralPlaceKind::BlockParameter { block, .. } = function.structural_place(place)?
         .kind
     else {
         return None;
@@ -1609,10 +1591,7 @@ fn establishment_scalar(
                 // own chain decides the proof; a source that establishes a
                 // different case declines at the `Case` step.
                 if let Some((source, spelled)) = leaf_copy_source(function, place) {
-                    let declaration = function
-                        .structural_places
-                        .iter()
-                        .find(|declaration| declaration.id == source)?;
+                    let declaration = function.structural_place(source)?;
                     let source_type = declared_structural_type(function, declaration)?;
                     let copied = match spelled {
                         StructuralCopyPath::Case(path) => path.clone(),
@@ -1642,10 +1621,7 @@ fn establishment_scalar(
                 // establishment is the parameter's, provided the binding
                 // preserves the declared structural type exactly.
                 let bound = bound_place(function, place)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == bound)?;
+                let declaration = function.structural_place(bound)?;
                 let bound_type = declared_structural_type(function, declaration);
                 if declared.is_some() && bound_type != declared {
                     return None;

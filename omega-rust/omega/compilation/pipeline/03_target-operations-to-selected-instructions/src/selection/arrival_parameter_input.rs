@@ -29,10 +29,7 @@ pub(super) fn store_destination(
         return false;
     }
     parameter(source, expected.place) == Some(expected)
-        && match signature
-            .structural_places
-            .iter()
-            .find(|row| row.id == expected.place)
+        && match signature.structural_place(expected.place)
             .map(|row| row.kind)
         {
             Some(StructuralPlaceKind::BlockParameter { .. }) => {

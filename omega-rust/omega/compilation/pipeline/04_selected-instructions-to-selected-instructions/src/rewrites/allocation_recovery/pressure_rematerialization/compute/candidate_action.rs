@@ -53,10 +53,7 @@ pub(super) fn derive(
             function: function_index,
         });
     }
-    let victim = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == candidate.victim)
+    let victim = function.virtual_register(candidate.victim)
         .ok_or(PressureRematerializationError::MaterializeMismatch {
             function: function_index,
         })?;
@@ -75,10 +72,7 @@ pub(super) fn derive(
         .ok_or(PressureRematerializationError::MaterializeMismatch {
             function: function_index,
         })?;
-    let original = block
-        .instructions
-        .iter()
-        .find(|instruction| instruction.id == *defining_instruction)
+    let original = block.instruction(*defining_instruction)
         .ok_or(PressureRematerializationError::MaterializeMismatch {
             function: function_index,
         })?;

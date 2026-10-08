@@ -232,10 +232,7 @@ pub(super) fn admit<'source>(
         .position(|register| register.id == output)
         .ok_or(CopyRemovalError::UnsupportedRegister)?;
     let output_register = &function.virtual_registers[register_index];
-    let input_register = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == input)
+    let input_register = function.virtual_register(input)
         .ok_or(CopyRemovalError::UnsupportedRegister)?;
     // The roster must agree this copy defines the destination: an origin
     // naming another surface keeps a definition the removal cannot honor,
