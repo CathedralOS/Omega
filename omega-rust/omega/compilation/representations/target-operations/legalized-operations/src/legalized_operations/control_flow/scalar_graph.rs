@@ -33,6 +33,11 @@ pub struct LegalizedScalarFunction {
 }
 
 impl LegalizedScalarFunction {
+    /// The block keyed `block`, when the function declares it.
+    pub fn block(&self, block: BlockId) -> Option<&LegalizedScalarBlock> {
+        self.blocks.iter().find(|row| row.id == block)
+    }
+
     /// Whether a retained instruction, terminator or outgoing edge reads this value.
     pub fn references_value(&self, value: ValueId) -> bool {
         self.blocks.iter().any(|block| {
