@@ -167,10 +167,7 @@ pub fn reconstruct_psi_closed_region_observation(
     if requested.is_empty() {
         return None;
     }
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)?;
+    let function = unit.function(machine)?;
     if requested.iter().any(|block| {
         !function.block(*block).is_some()
     }) {

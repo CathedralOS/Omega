@@ -329,10 +329,7 @@ fn call_result_constant(
             O::Call { result, callee, .. } if *result == argument => Some(*callee),
             _ => None,
         })?;
-    let callee_function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == callee)?;
+    let callee_function = input.function(callee)?;
     let mut returned = callee_function
         .block_nodes()
         .filter_map(|node| match &node.operation {
@@ -756,10 +753,7 @@ pub(super) fn validate(
     }
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.machine)
+    let output_function = output.function(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {

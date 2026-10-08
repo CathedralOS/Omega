@@ -112,6 +112,11 @@ use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 impl SelectedInstructionPlan {
+    /// The selected function for `machine`, when the plan carries it.
+    pub fn function(&self, machine: MachineId) -> Option<&SelectedFunction> {
+        self.functions.function(machine)
+    }
+
     /// Every function's blocks, in function order.
     pub fn blocks(&self) -> impl Iterator<Item = &SelectedBlock> + '_ {
         self.functions.iter().flat_map(|function| &function.blocks)

@@ -92,10 +92,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     if patch.leader.machine != patch.redundant.machine {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|row| row.machine == patch.leader.machine)
+    let function = input.function(patch.leader.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let leader_block = function
         .block(patch.leader.block)

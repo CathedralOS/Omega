@@ -14,10 +14,7 @@ pub fn reconstruct_closed_scalar_node_boundary(
     unit: &PsiOptimizationUnit,
     location: NodeLocation,
 ) -> Option<ClosedScalarObservationBoundary> {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == location.machine)?;
+    let function = unit.function(location.machine)?;
     let mut live_entry = function
         .blocks
         .iter()

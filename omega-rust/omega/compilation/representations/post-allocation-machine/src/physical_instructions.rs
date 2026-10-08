@@ -60,6 +60,16 @@ pub struct PostAllocationMachinePlan {
 }
 
 impl PostAllocationMachinePlan {
+    /// The machine function for `machine`, when the plan carries it.
+    pub fn function(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+    ) -> Option<&PostAllocationMachineFunction> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+
     /// Every function's blocks, in function order.
     pub fn blocks(&self) -> impl Iterator<Item = &PostAllocationMachineBlock> + '_ {
         self.functions.iter().flat_map(|function| &function.blocks)

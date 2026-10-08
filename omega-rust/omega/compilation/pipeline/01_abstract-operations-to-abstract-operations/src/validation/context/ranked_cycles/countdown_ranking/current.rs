@@ -21,10 +21,7 @@ pub(super) fn derive(
 ) -> Result<Vec<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
     let mut certificates = Vec::new();
     for component in &snapshot.components {
-        let function = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == component.id.machine)
+        let function = unit.function(component.id.machine)
             .ok_or_else(|| mismatch(component))?;
         certificates.push(derive_one(function, component)?);
     }

@@ -43,10 +43,7 @@ pub(super) fn replay_installed_provider_calls(
             let boundary_declaration =
                 terminal_psi::find_boundary_machine(&plan.boundary_machines, *boundary)
                     .ok_or_else(malformed)?;
-            let candidate = plan
-                .functions
-                .iter()
-                .find(|function| function.machine == provider.candidate)
+            let candidate = plan.function(provider.candidate)
                 .ok_or_else(malformed)?;
             let terminal_candidate = module.machine(provider.candidate)
                 .ok_or_else(malformed)?;

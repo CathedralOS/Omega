@@ -80,10 +80,7 @@ fn derive_placed_entry_abi(
         return Err(PlacedViewInputTranslationError::InputIsNotDirectEntry.into());
     }
     let Some(entry) = source
-        .plan
-        .functions
-        .iter()
-        .find(|function| function.machine == source.plan.entry)
+        .plan.function(source.plan.entry)
     else {
         return Err(
             PlacedViewInputTranslationError::UnsupportedEntryFunctionShape(source.plan.entry)

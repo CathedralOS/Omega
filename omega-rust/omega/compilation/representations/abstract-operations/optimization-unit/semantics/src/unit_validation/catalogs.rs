@@ -791,10 +791,7 @@ pub(super) fn validate_final_authorities(
         ..
     } = indexes;
     for fact in &unit.ownership_frontier_facts {
-        if unit
-            .functions
-            .iter()
-            .find(|function| function.machine == fact.machine)
+        if unit.function(fact.machine)
             .is_none()
             && !pruned.contains(&fact.machine)
         {

@@ -15,10 +15,7 @@ pub(super) fn validate_current_value_range_fact_at(
     block: BlockId,
     node: u32,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    let function = unit.function(machine)
         .ok_or(
             OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
                 machine,

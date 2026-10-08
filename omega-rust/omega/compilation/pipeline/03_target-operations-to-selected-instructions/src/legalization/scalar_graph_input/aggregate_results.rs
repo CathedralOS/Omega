@@ -508,10 +508,7 @@ pub(in crate::legalization) fn call_argument(
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
-        let target_caller = native
-            .functions
-            .iter()
-            .find(|function| function.machine == caller.machine)
+        let target_caller = native.function(caller.machine)
             .ok_or(LegalizationError::custody())?;
         let ordinal = callee
             .scalar_parameter_count()
@@ -632,10 +629,7 @@ pub(in crate::legalization) fn call_argument(
             custody,
         );
     }
-    let caller_target = native
-        .functions
-        .iter()
-        .find(|function| function.machine == caller.machine)
+    let caller_target = native.function(caller.machine)
         .ok_or(LegalizationError::custody())?;
     let (source, binding) = if let Some(source) = caller.structural_parameter(argument.place)
     {

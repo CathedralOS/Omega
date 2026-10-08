@@ -30,10 +30,7 @@ pub(in crate::legalization) fn installed_operation(
     else {
         return Ok(None);
     };
-    let function = native
-        .functions
-        .iter()
-        .find(|function| function.machine == caller.machine)
+    let function = native.function(caller.machine)
         .ok_or_else(|| LegalizationError::custody())?;
     let mut calls = function
         .graph
@@ -77,10 +74,7 @@ pub(in crate::legalization) fn installed_operation(
     let declaration = plan
         .boundary_machine(*boundary)
         .ok_or_else(|| LegalizationError::custody())?;
-    let candidate = plan
-        .functions
-        .iter()
-        .find(|function| function.machine == callee)
+    let candidate = plan.function(callee)
         .ok_or_else(|| LegalizationError::custody())?;
     if declaration.identity != provider.requirement_identity
         || declaration.scalar_parameters.len() != arguments.len()

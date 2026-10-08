@@ -131,6 +131,16 @@ impl ResolvedMachineLayout {
         &self.functions
     }
 
+    /// The resolved layout for `machine`, when the layout carries it.
+    pub fn function(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+    ) -> Option<&ResolvedSelectedFunctionLayout> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+
     /// Every function's block layouts, in function order.
     pub fn blocks(&self) -> impl Iterator<Item = &ResolvedSelectedBlockLayout> + '_ {
         self.functions()

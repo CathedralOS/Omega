@@ -13,10 +13,7 @@ pub(in crate::legalization::scalar_graph_input) fn call_indices(
     if elements.is_empty() {
         return Ok(Vec::new());
     }
-    let function = native
-        .functions
-        .iter()
-        .find(|function| function.machine == caller.machine)
+    let function = native.function(caller.machine)
         .ok_or(crate::LegalizationError::custody())?;
     let (call_block, call_position) = function
         .graph

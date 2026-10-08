@@ -20,10 +20,7 @@ pub(super) fn reconstruct_value_range_fact(
     if supplied.valid_in.revision != unit.identity || supplied.valid_in.value != supplied.value {
         return None;
     }
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == supplied.valid_in.machine)?;
+    let function = unit.function(supplied.valid_in.machine)?;
     match supplied.support {
         ValueRangeSupport::ScalarConstant(identity) => {
             if supplied.valid_in.scope != ValueRangeScope::EntireValue
@@ -197,10 +194,7 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
     query_block: BlockId,
     query_node: u32,
 ) -> Option<ValueRangeFact> {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)?;
+    let function = unit.function(machine)?;
     let dominators = independent_reachable_dominators(function);
     for block in &function.blocks {
         if !dominators.contains_key(&block.id) {

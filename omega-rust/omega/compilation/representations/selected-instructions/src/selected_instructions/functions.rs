@@ -12,6 +12,7 @@
 //! content, so the plan identity of a rewrite hashes only the functions the
 //! rewrite touched.
 
+use semantic_vocabulary::MachineId;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
@@ -106,6 +107,11 @@ impl SelectedFunctions {
 
     pub fn clear(&mut self) {
         self.0.clear();
+    }
+
+    /// The selected function for `machine`, when the storage carries it.
+    pub fn function(&self, machine: MachineId) -> Option<&SelectedFunction> {
+        self.iter().find(|function| function.machine == machine)
     }
 
     /// Reports storage reuse for diagnostics and allocation regression controls.

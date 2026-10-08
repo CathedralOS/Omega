@@ -156,10 +156,7 @@ pub(crate) fn candidate_function(
     input: &PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,
 ) -> Result<&PsiOptimizationFunction, OptimizationUnitValidationError> {
-    input
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    input.function(machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
 

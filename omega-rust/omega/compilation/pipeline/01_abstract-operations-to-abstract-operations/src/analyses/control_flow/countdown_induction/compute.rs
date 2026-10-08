@@ -18,10 +18,7 @@ pub(super) fn propose(
             .iter()
             .find(|component| component.id == certificate.component)
             .ok_or(CountedLoopAnalysisError::CertificateComponentRosterMismatch)?;
-        let function = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == certificate.component.machine)
+        let function = unit.function(certificate.component.machine)
             .ok_or_else(|| shape(certificate.component.machine))?;
         // The region is projected from the validated Terminal-SCC custody the
         // certificate keys on, not from a private loop-forest re-derivation.

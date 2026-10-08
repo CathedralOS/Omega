@@ -62,10 +62,7 @@ pub(crate) fn revalidate_rewrite_output(
         derived_metadata::reconstruct_declared_places(output_function)?;
     output.identity = recompute_psi_optimization_unit_identity(output);
     validate_psi_optimization_unit(output)?;
-    Ok(output
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    Ok(output.function(machine)
         .expect("output function exists"))
 }
 

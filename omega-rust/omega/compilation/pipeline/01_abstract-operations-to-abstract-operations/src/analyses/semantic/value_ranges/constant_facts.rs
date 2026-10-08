@@ -17,10 +17,7 @@ pub(super) fn collect(unit: &PsiOptimizationUnit) -> Vec<ValueRangeFact> {
         let Some(identity) = constant.identity else {
             continue;
         };
-        let Some(function) = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == constant.valid_in.machine)
+        let Some(function) = unit.function(constant.valid_in.machine)
         else {
             continue;
         };

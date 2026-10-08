@@ -27,10 +27,7 @@ pub(in crate::legalization) fn row(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<Option<&TargetUnitOperation>, LegalizationError> {
-    let function = native
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    let function = native.function(machine)
         .ok_or(LegalizationError::custody())?;
     let mut rows = function.graph.operations().filter(|row| {
         matches!(

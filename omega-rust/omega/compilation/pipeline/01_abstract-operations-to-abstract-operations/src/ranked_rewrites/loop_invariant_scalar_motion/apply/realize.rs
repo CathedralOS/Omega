@@ -118,10 +118,7 @@ pub(crate) fn realize(
                 _ => None,
             };
             if let Some(callee) = crash_custody {
-                let callee_function = unit
-                    .functions
-                    .iter()
-                    .find(|function| function.machine == callee)
+                let callee_function = unit.function(callee)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
                 let (arguments, crash_continuations) = match &mut node.operation {
                     O::Call {
@@ -219,10 +216,7 @@ pub(crate) fn realize(
     // The consumed scan runs against the seed unit: the consumers have
     // already left the member roster in `output`.
     let consumed: BTreeSet<PlaceId> = {
-        let seed_function = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == machine)
+        let seed_function = unit.function(machine)
             .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
         relocated_affine
             .iter()

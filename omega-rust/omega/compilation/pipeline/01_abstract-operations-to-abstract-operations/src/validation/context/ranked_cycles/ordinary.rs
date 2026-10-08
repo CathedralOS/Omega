@@ -37,10 +37,7 @@ pub(super) fn rederive_components(
             // A new current cycle there receives no admitted-machine authority.
             continue;
         }
-        let function = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == machine.id)
+        let function = unit.function(machine.id)
             .ok_or_else(invalid)?;
         let current = topology::derive_components(&graph::optimization_graph(function));
         if current != terminal {

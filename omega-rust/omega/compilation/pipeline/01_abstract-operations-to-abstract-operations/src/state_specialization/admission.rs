@@ -325,10 +325,7 @@ fn call_result_constant(
             _ => None,
         })?;
     let callee_function = evidence
-        .unit
-        .functions
-        .iter()
-        .find(|function| function.machine == callee)?;
+        .unit.function(callee)?;
     let mut returned = callee_function
         .block_nodes()
         .filter_map(|node| match &node.operation {

@@ -41,10 +41,7 @@ pub(crate) fn rewrite_relocated_case_result_frontiers(
     relocated: &BTreeMap<MachineId, BTreeSet<PlaceId>>,
 ) {
     for (machine, places) in relocated {
-        let Some(function) = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == *machine)
+        let Some(function) = unit.function(*machine)
         else {
             continue;
         };

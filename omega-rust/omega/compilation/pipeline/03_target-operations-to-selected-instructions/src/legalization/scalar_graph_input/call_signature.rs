@@ -13,10 +13,7 @@ pub(in crate::legalization) fn signature(
     plan: &AbstractOperationPlan,
 ) -> Result<AbstractCallSignature<'_>, LegalizationError> {
     match target.into() {
-        AbstractCallTarget::Machine(machine) => plan
-            .functions
-            .iter()
-            .find(|function| function.machine == machine)
+        AbstractCallTarget::Machine(machine) => plan.function(machine)
             .map(AbstractCallSignature::Machine)
             .ok_or(LegalizationError::custody()),
         AbstractCallTarget::Dynamic {

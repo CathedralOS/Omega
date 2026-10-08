@@ -77,10 +77,7 @@ fn reconstruct_provenance(
     candidate: &LoopInvariantScalarMotionCandidate,
 ) -> Result<Vec<ProvenanceRewrite>, LoopInvariantScalarMotionError> {
     let machine = candidate.component().machine;
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    let function = input.function(machine)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     let mut rows = Vec::new();
     for block in &function.blocks {
@@ -145,10 +142,7 @@ fn unique_source(
     machine: MachineId,
     source: PsiProvenance,
 ) -> Option<(NodeLocation, &OptimizationNode)> {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)?;
+    let function = unit.function(machine)?;
     let mut matches = function.blocks.iter().flat_map(|block| {
         block
             .nodes

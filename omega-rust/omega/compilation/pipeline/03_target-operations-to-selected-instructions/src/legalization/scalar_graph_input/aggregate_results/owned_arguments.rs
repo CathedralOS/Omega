@@ -71,10 +71,7 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        let retained = native
-            .functions
-            .iter()
-            .find(|function| function.machine == caller.machine)
+        let retained = native.function(caller.machine)
             .and_then(structural_parameters)
             .and_then(|parameters| {
                 parameters

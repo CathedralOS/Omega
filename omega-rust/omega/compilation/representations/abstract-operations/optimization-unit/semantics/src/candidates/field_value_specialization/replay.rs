@@ -526,10 +526,7 @@ pub(super) fn validate(
     output_function.declared_places = reconstruct_declared_places(output_function)?;
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.machine)
+    let output_function = output.function(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {

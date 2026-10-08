@@ -67,10 +67,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|row| row.machine == patch.redundant.machine)
+    let function = input.function(patch.redundant.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let join = function
         .block(patch.redundant.block)

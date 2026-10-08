@@ -302,10 +302,7 @@ pub(crate) fn unchanged_outside_redundant_parameter_region(
     else {
         return false;
     };
-    let Some(output_function) = output
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+    let Some(output_function) = output.function(machine)
     else {
         return false;
     };
