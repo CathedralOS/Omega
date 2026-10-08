@@ -179,130 +179,83 @@ pub(crate) fn snapshot_state_node(
     }
 }
 
+macro_rules! state_signature_snapshot {
+    ($syntax_trees:ident, $signature:ident) => {
+        StateSignatureSnapshot {
+            name: snapshot_identifier(&$signature.name),
+            spelling: $signature.spelling.map(|spelling| spelling.symbol()),
+            lifetime_parameters: $signature
+                .lifetime_parameters
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
+            type_parameters: $syntax_trees
+                .items
+                .type_parameters($signature.type_parameters)
+                .iter()
+                .map(|parameter| snapshot_type_parameter($syntax_trees, parameter))
+                .collect(),
+            is_default: $signature.is_default,
+            parameters: $syntax_trees
+                .items
+                .state_parameters($signature.parameters)
+                .iter()
+                .map(|handle| {
+                    snapshot_state_parameter(
+                        $syntax_trees,
+                        $syntax_trees.items.state_parameter(*handle),
+                    )
+                })
+                .collect(),
+            native_callback_parameters: $signature
+                .native_callback_parameters
+                .iter()
+                .map(|parameter| NativeCallbackParameterSnapshot {
+                    name: snapshot_identifier(&parameter.name),
+                    binder: snapshot_identifier(&parameter.binder),
+                    native_ordinal: parameter.native_ordinal,
+                })
+                .collect(),
+            return_type: snapshot_type_reference_handle($syntax_trees, $signature.return_type),
+            service_reach_is_installation_bound: $signature.service_reach_is_installation_bound,
+            service_reaches: snapshot_identifier_slice(
+                $syntax_trees
+                    .items
+                    .identifier_path_members($signature.service_reaches),
+            ),
+            invokes: snapshot_identifier_slice(
+                $syntax_trees
+                    .items
+                    .identifier_path_members($signature.invokes),
+            ),
+            suspends: $signature.suspends,
+            blocks: $signature.blocks,
+            contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),
+            default_body: $syntax_trees
+                .items
+                .statements($signature.default_body)
+                .iter()
+                .map(|handle| {
+                    snapshot_statement($syntax_trees, $syntax_trees.statements.statement(*handle))
+                })
+                .collect(),
+            terminates_guarantee: $signature.terminates_guarantee,
+        }
+    };
+}
+
 pub(crate) fn snapshot_state_signature(
     syntax_trees: &SyntaxTrees,
     signature: &StateSignature,
 ) -> StateSignatureSnapshot {
-    StateSignatureSnapshot {
-        name: snapshot_identifier(&signature.name),
-        spelling: signature.spelling.map(|spelling| spelling.symbol()),
-        lifetime_parameters: signature
-            .lifetime_parameters
-            .iter()
-            .map(snapshot_identifier)
-            .collect(),
-        type_parameters: syntax_trees
-            .items
-            .type_parameters(signature.type_parameters)
-            .iter()
-            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-            .collect(),
-        is_default: signature.is_default,
-        parameters: syntax_trees
-            .items
-            .state_parameters(signature.parameters)
-            .iter()
-            .map(|handle| {
-                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
-            })
-            .collect(),
-        native_callback_parameters: signature
-            .native_callback_parameters
-            .iter()
-            .map(|parameter| NativeCallbackParameterSnapshot {
-                name: snapshot_identifier(&parameter.name),
-                binder: snapshot_identifier(&parameter.binder),
-                native_ordinal: parameter.native_ordinal,
-            })
-            .collect(),
-        return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
-        service_reaches: snapshot_identifier_slice(
-            syntax_trees
-                .items
-                .identifier_path_members(signature.service_reaches),
-        ),
-        invokes: snapshot_identifier_slice(
-            syntax_trees
-                .items
-                .identifier_path_members(signature.invokes),
-        ),
-        suspends: signature.suspends,
-        blocks: signature.blocks,
-        contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
-        default_body: syntax_trees
-            .items
-            .statements(signature.default_body)
-            .iter()
-            .map(|handle| {
-                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
-            })
-            .collect(),
-        terminates_guarantee: signature.terminates_guarantee,
-    }
+    state_signature_snapshot!(syntax_trees, signature)
 }
 
 pub(crate) fn snapshot_state_signature_node(
     syntax_trees: &SyntaxTrees,
     signature: &crate::item::StateSignatureNode,
 ) -> StateSignatureSnapshot {
-    StateSignatureSnapshot {
-        name: snapshot_identifier(&signature.name),
-        spelling: signature.spelling.map(|spelling| spelling.symbol()),
-        lifetime_parameters: signature
-            .lifetime_parameters
-            .iter()
-            .map(snapshot_identifier)
-            .collect(),
-        type_parameters: syntax_trees
-            .items
-            .type_parameters(signature.type_parameters)
-            .iter()
-            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
-            .collect(),
-        is_default: signature.is_default,
-        parameters: syntax_trees
-            .items
-            .state_parameters(signature.parameters)
-            .iter()
-            .map(|handle| {
-                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
-            })
-            .collect(),
-        native_callback_parameters: signature
-            .native_callback_parameters
-            .iter()
-            .map(|parameter| NativeCallbackParameterSnapshot {
-                name: snapshot_identifier(&parameter.name),
-                binder: snapshot_identifier(&parameter.binder),
-                native_ordinal: parameter.native_ordinal,
-            })
-            .collect(),
-        return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
-        service_reaches: snapshot_identifier_slice(
-            syntax_trees
-                .items
-                .identifier_path_members(signature.service_reaches),
-        ),
-        invokes: snapshot_identifier_slice(
-            syntax_trees
-                .items
-                .identifier_path_members(signature.invokes),
-        ),
-        suspends: signature.suspends,
-        blocks: signature.blocks,
-        contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
-        default_body: syntax_trees
-            .items
-            .statements(signature.default_body)
-            .iter()
-            .map(|handle| {
-                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
-            })
-            .collect(),
-        terminates_guarantee: signature.terminates_guarantee,
-    }
+    state_signature_snapshot!(syntax_trees, signature)
 }
 
 pub(crate) fn snapshot_state_parameter(
