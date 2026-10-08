@@ -24,8 +24,9 @@ use crate::{
     StagedOptimizedRelocationFreeObjectContainer,
     validate_optimized_relocation_free_object_container,
 };
+use crate::cursor::Cursor;
 use codec::{
-    Cursor, decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
+    decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
     encode_artifact_content, encode_manifest_content,
 };
 
@@ -414,6 +415,12 @@ pub enum OptimizedObjectArtifactRecordDecodeError {
     TrailingBytes,
 }
 
+impl From<crate::cursor::Truncated> for OptimizedObjectArtifactRecordDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactManifestDecodeError {
     WrongMagic,
@@ -457,6 +464,12 @@ impl std::fmt::Display for OptimizedObjectArtifactManifestDecodeError {
 }
 
 impl std::error::Error for OptimizedObjectArtifactManifestDecodeError {}
+
+impl From<crate::cursor::Truncated> for OptimizedObjectArtifactManifestDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Artifact(OptimizedObjectArtifactRecordDecodeError::Truncated)
+    }
+}
 
 impl From<OptimizedObjectArtifactRecordDecodeError> for OptimizedObjectArtifactManifestDecodeError {
     fn from(error: OptimizedObjectArtifactRecordDecodeError) -> Self {

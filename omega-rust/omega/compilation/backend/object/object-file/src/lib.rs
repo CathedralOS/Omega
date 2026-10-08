@@ -108,6 +108,7 @@
 //! test `omgtro_version_2_covers_normalized_foreign_imports` pins it.
 
 mod artifact_custody;
+pub(crate) mod cursor;
 mod fragment_container;
 mod names;
 mod object_plan;

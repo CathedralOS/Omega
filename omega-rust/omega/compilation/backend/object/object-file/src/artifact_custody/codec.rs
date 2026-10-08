@@ -1,5 +1,6 @@
 //! Canonical object-artifact and manifest wire encoding.
 
+use crate::cursor::Cursor;
 use super::{
     Architecture, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -175,45 +176,3 @@ pub(super) fn decode_optional_array(
     }
 }
 
-pub(super) struct Cursor<'a> {
-    bytes: &'a [u8],
-    position: usize,
-}
-
-impl<'a> Cursor<'a> {
-    pub(super) const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, position: 0 }
-    }
-
-    pub(super) fn remaining(&self) -> usize {
-        self.bytes.len().saturating_sub(self.position)
-    }
-
-    pub(super) fn take(
-        &mut self,
-        length: usize,
-    ) -> Result<&'a [u8], OptimizedObjectArtifactRecordDecodeError> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or(OptimizedObjectArtifactRecordDecodeError::Truncated)?;
-        let value = self
-            .bytes
-            .get(self.position..end)
-            .ok_or(OptimizedObjectArtifactRecordDecodeError::Truncated)?;
-        self.position = end;
-        Ok(value)
-    }
-
-    pub(super) fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], OptimizedObjectArtifactRecordDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| OptimizedObjectArtifactRecordDecodeError::Truncated)
-    }
-
-    pub(super) fn byte(&mut self) -> Result<u8, OptimizedObjectArtifactRecordDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-}

@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 pub(crate) mod publication;
 pub(crate) mod text_section;
 
+use crate::cursor::Cursor;
 use crate::object_target_policy;
 use machine_code::{
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
@@ -239,6 +240,12 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
+}
+
+impl From<crate::cursor::Truncated> for RelocationFreeObjectDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
 }
 
 pub fn canonical_private_machine_symbol_name(machine: MachineId) -> String {
@@ -806,10 +813,10 @@ fn decode_plan_content(
     let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
     let target = decode_target(cursor)?;
     let text_section = RelocationFreeObjectTextSection {
-        name: cursor.string()?,
+        name: cursor_string(cursor)?,
         alignment: u64::from_le_bytes(cursor.array()?),
         byte_count: u64::from_le_bytes(cursor.array()?),
-        bytes: cursor.bytes()?,
+        bytes: cursor_bytes(cursor)?,
     };
     let symbol_policy_tag = cursor.byte()?;
     if symbol_policy_tag != 1 {
@@ -817,7 +824,7 @@ fn decode_plan_content(
             symbol_policy_tag,
         ));
     }
-    let symbol_count = cursor.length()?;
+    let symbol_count = cursor_length(cursor)?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for _ in 0..symbol_count {
         let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
@@ -825,7 +832,7 @@ fn decode_plan_content(
         let source_function_index = u64::from_le_bytes(cursor.array()?);
         let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
             .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-        let name = cursor.string()?;
+        let name = cursor_string(cursor)?;
         let section_offset = u64::from_le_bytes(cursor.array()?);
         let byte_count = u64::from_le_bytes(cursor.array()?);
         let linkage_tag = cursor.byte()?;
@@ -854,7 +861,7 @@ fn decode_plan_content(
         .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let semantic_entry_symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
         .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-    let import_count = cursor.length()?;
+    let import_count = cursor_length(cursor)?;
     let mut normalized_imports = Vec::with_capacity(import_count);
     for _ in 0..import_count {
         let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
@@ -862,7 +869,7 @@ fn decode_plan_content(
         let boundary = BoundaryMachineId::new(u64::from_le_bytes(cursor.array()?))
             .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?;
         let ordinal = u32::from_le_bytes(cursor.array()?);
-        let name = cursor.string()?;
+        let name = cursor_string(cursor)?;
         normalized_imports.push(RelocationFreeObjectNormalizedImport {
             symbol,
             boundary,
@@ -870,7 +877,7 @@ fn decode_plan_content(
             name,
         });
     }
-    let field_count = cursor.length()?;
+    let field_count = cursor_length(cursor)?;
     let mut unresolved_normalized_foreign_calls = Vec::with_capacity(field_count);
     for _ in 0..field_count {
         let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
@@ -894,7 +901,7 @@ fn decode_plan_content(
     if relocation_requirements
         == RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     {
-        let literal_count = cursor.length()?;
+        let literal_count = cursor_length(cursor)?;
         unresolved_byte_literal_addresses.reserve(literal_count);
         for _ in 0..literal_count {
             unresolved_byte_literal_addresses.push(decode_byte_literal_address(cursor)?);
@@ -905,7 +912,7 @@ fn decode_plan_content(
         if cursor.byte()? != 4 {
             return Err(RelocationFreeObjectDecodeError::TrailingBytes);
         }
-        let count = cursor.length()?;
+        let count = cursor_length(cursor)?;
         for _ in 0..count {
             unresolved_implementation_table_addresses
                 .push(decode_implementation_table_address(cursor)?);
@@ -1022,7 +1029,7 @@ fn decode_machine_register(
 fn decode_placed_callback_materializations(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<PlacedCallbackAddressMaterialization>, RelocationFreeObjectDecodeError> {
-    let count = cursor.length()?;
+    let count = cursor_length(cursor)?;
     let mut materializations = Vec::with_capacity(count);
     for _ in 0..count {
         let destination = match cursor.byte()? {
@@ -1129,59 +1136,21 @@ fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFree
     Ok(())
 }
 
-struct Cursor<'a> {
-    encoded: &'a [u8],
-    position: usize,
+fn cursor_length(
+    cursor: &mut Cursor,
+) -> Result<usize, RelocationFreeObjectDecodeError> {
+    usize::try_from(u64::from_le_bytes(cursor.array()?))
+        .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
 }
 
-impl<'a> Cursor<'a> {
-    const fn new(encoded: &'a [u8]) -> Self {
-        Self {
-            encoded,
-            position: 0,
-        }
-    }
+fn cursor_bytes(cursor: &mut Cursor) -> Result<Vec<u8>, RelocationFreeObjectDecodeError> {
+    let length = cursor_length(cursor)?;
+    Ok(cursor.take(length)?.to_vec())
+}
 
-    fn remaining(&self) -> usize {
-        self.encoded.len().saturating_sub(self.position)
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'a [u8], RelocationFreeObjectDecodeError> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or(RelocationFreeObjectDecodeError::LengthOverflow)?;
-        let value = self
-            .encoded
-            .get(self.position..end)
-            .ok_or(RelocationFreeObjectDecodeError::Truncated)?;
-        self.position = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], RelocationFreeObjectDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| RelocationFreeObjectDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, RelocationFreeObjectDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn length(&mut self) -> Result<usize, RelocationFreeObjectDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
-    }
-
-    fn bytes(&mut self) -> Result<Vec<u8>, RelocationFreeObjectDecodeError> {
-        let length = self.length()?;
-        Ok(self.take(length)?.to_vec())
-    }
-
-    fn string(&mut self) -> Result<String, RelocationFreeObjectDecodeError> {
-        String::from_utf8(self.bytes()?).map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
-    }
+fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDecodeError> {
+    String::from_utf8(cursor_bytes(cursor)?)
+        .map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
 }
 
 #[cfg(test)]

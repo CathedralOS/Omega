@@ -82,3 +82,11 @@ pub enum FunctionFragmentObjectContainerManifestDecodeError {
     IdentityMismatch,
     TrailingBytes,
 }
+
+impl From<crate::cursor::Truncated>
+    for FunctionFragmentObjectContainerManifestDecodeError
+{
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
+}

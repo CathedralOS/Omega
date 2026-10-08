@@ -1,4 +1,5 @@
 //! Canonical version-1 publication encoding, not admission against a source.
+use crate::cursor::Cursor;
 use super::{
     Architecture, FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
     FunctionFragmentObjectContainerManifestDecodeError,
@@ -201,47 +202,4 @@ pub(super) fn decode_target(
     })
 }
 
-pub(super) struct Cursor<'a> {
-    bytes: &'a [u8],
-    position: usize,
-}
 
-impl<'a> Cursor<'a> {
-    pub(super) const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, position: 0 }
-    }
-
-    pub(super) fn remaining(&self) -> usize {
-        self.bytes.len().saturating_sub(self.position)
-    }
-
-    pub(super) fn take(
-        &mut self,
-        length: usize,
-    ) -> Result<&'a [u8], FunctionFragmentObjectContainerManifestDecodeError> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or(FunctionFragmentObjectContainerManifestDecodeError::Truncated)?;
-        let value = self
-            .bytes
-            .get(self.position..end)
-            .ok_or(FunctionFragmentObjectContainerManifestDecodeError::Truncated)?;
-        self.position = end;
-        Ok(value)
-    }
-
-    pub(super) fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], FunctionFragmentObjectContainerManifestDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| FunctionFragmentObjectContainerManifestDecodeError::Truncated)
-    }
-
-    pub(super) fn byte(
-        &mut self,
-    ) -> Result<u8, FunctionFragmentObjectContainerManifestDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-}
