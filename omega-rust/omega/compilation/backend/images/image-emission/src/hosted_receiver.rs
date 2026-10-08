@@ -856,7 +856,7 @@ fn receiver_layout(
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
 ) -> Result<(u64, u64), Diagnostic> {
     use calling_conventions::CallingPolicy;
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     let invalid = || invalid(artifact.target);
     let (expected_policy, receiver_register) = match artifact.target {
         target_

@@ -1,6 +1,7 @@
 //! Ordinary floating ABI rows retain exact semantic formats and target placements.
 
-use super::{installed_scalar_abi_is_canonical, scalar_home_shape};
+use super::installed_scalar_abi_is_canonical;
+use crate::object_artifact::replay::unit::call_custody::unit_scalar_shape;
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,
 };
@@ -57,7 +58,7 @@ fn floating_scalar_abi_accepts_exact_formats_without_widening_unit_homes() {
         for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
             let abi = fixture(target, format);
             assert!(installed_scalar_abi_is_canonical(&abi, target));
-            assert_eq!(scalar_home_shape(ScalarType::IeeeFloat(format)), None);
+            assert_eq!(unit_scalar_shape(ScalarType::IeeeFloat(format)), None);
         }
     }
 }
