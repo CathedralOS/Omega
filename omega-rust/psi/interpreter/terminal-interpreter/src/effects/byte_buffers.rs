@@ -384,6 +384,9 @@ impl TerminalExecution<'_> {
         if let Some(prepared) = self.prepare_shared_descriptor_argument(parameter, argument)? {
             return Ok(Some(prepared));
         }
+        if let Some(prepared) = self.prepare_owner_view_argument(parameter, argument)? {
+            return Ok(Some(prepared));
+        }
         // Reuse the ordinary call's exact initialized-array binding. It can
         // enter a checked provider and be forwarded again. External staging
         // lends its exact range, never field-replacement authority.
@@ -487,6 +490,68 @@ impl TerminalExecution<'_> {
             return Ok(Some((referent.clone(), binding)));
         }
         Ok(None)
+    }
+
+    /// A whole bounded owner lent to a plain shared view (`observe(line)` for
+    /// `bytes: &[u8]`) presents its live bytes under the view's declaration.
+    /// The owner keeps its identity for alias checks; the view formal's
+    /// domains must hold for the bytes it observes.
+    fn prepare_owner_view_argument(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
+        let types = self.program.structural_types();
+        if parameter.access != StructuralAccess::SharedBorrow
+            || !argument.path.is_empty()
+            || !types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+        {
+            return Ok(None);
+        }
+        let Some(owner) = self.structural_values.get(&argument.place) else {
+            return Ok(None);
+        };
+        if !types
+            .get(&owner.structural_type)
+            .is_some_and(|declaration| declaration.is_bounded_owned_byte_sequence())
+        {
+            return Ok(None);
+        }
+        if argument.access != StructuralAccess::SharedBorrow
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.projected_qualifications.is_empty()
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(argument.place))
+        {
+            return Err(malformed());
+        }
+        let binding = self
+            .byte_sequence_values
+            .get(&argument.place)
+            .ok_or_else(malformed)?;
+        let ByteSequenceBinding::Immutable(bytes) =
+            self.reborrow_byte_sequence_binding(binding, owner, StructuralAccess::SharedBorrow)?
+        else {
+            return Err(malformed());
+        };
+        if !terminal_semantics::byte_literal_qualifications_hold_in(
+            self.program.catalogs.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.qualifications,
+            bytes.bytes(),
+        ) {
+            return Err(malformed());
+        }
+        let mut view = owner.clone();
+        view.structural_type = parameter.structural_type;
+        view.qualifications = parameter.qualifications.clone();
+        let bytes = bytes.with_descriptor_home(view.clone());
+        Ok(Some((view, ByteSequenceBinding::Immutable(bytes))))
     }
 
     fn resolve_mutable_boundary_binding(
