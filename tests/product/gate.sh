@@ -31,8 +31,12 @@ fi
 # The program entry needs this checkout's accepted lock. The lock and review
 # state are host-local and ignored; accepting every pending decision records
 # project acceptance for the measurement, not that an audit occurred
-# (tools/sample_native_gate.py follows the same rule).
+# (tools/sample_native_gate.py follows the same rule). Each run starts from
+# no accepted state, so a lock or review left by another checkout or
+# compiler can neither block the run nor stand in for its review.
 # Exit 3 reports pending review decisions, which the next step accepts.
+rm -f "${gate:?}/omega.lock" "${gate:?}/omega.admissions"
+rm -rf "${gate:?}/build/package-manager"
 review_status=0
 "$omega_cli" update --project "$gate" --target "$target" || review_status=$?
 if [ "$review_status" -ne 0 ] && [ "$review_status" -ne 3 ]; then
