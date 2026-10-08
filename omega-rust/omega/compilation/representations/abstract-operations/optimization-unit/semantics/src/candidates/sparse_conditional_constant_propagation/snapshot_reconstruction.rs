@@ -1,6 +1,7 @@
 //! Independent SCCP lattice and machine-snapshot reconstruction.
+use crate::unit_validation::derived_metadata::expected_edges;
 use optimization_unit::{
-    OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
+    OptimizationFact, PsiOptimizationFunction, PsiProvenance,
     ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
     SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
     literal_scalar_constant_fact_identity, scalar_value_definition,
@@ -121,7 +122,7 @@ pub(crate) fn validator_scalar_constant_facts(
             let Some(node) = block.nodes.last() else {
                 continue;
             };
-            let operation_successors = validator_scalar_operation_successors(&node.operation);
+            let operation_successors = expected_edges(&node.operation);
             let successors = match &node.operation {
                 abstract_operations::AbstractOperation::Jump { .. }
                 | abstract_operations::AbstractOperation::StructuralCase { .. } => {
@@ -217,67 +218,6 @@ pub(crate) fn validator_scalar_constant_facts(
         .collect()
 }
 
-pub(crate) fn validator_scalar_operation_successors(
-    operation: &abstract_operations::AbstractOperation,
-) -> Vec<OptimizationEdge> {
-    use abstract_operations::AbstractOperation as O;
-    match operation {
-        O::Jump {
-            psi_edge,
-            target,
-            bindings,
-            structural_bindings,
-            cleanup_actions,
-        } => vec![OptimizationEdge {
-            structural_bindings: structural_bindings.clone(),
-            psi_edge: *psi_edge,
-            target: *target,
-            bindings: bindings.clone(),
-            cleanup_actions: cleanup_actions.clone(),
-            provenance: vec![PsiProvenance::Edge(*psi_edge)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Edge(*psi_edge),
-                units: 1,
-            }],
-        }],
-        O::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|successor| OptimizationEdge {
-                structural_bindings: successor.structural_bindings.clone(),
-                psi_edge: successor.psi_edge,
-                target: successor.target,
-                bindings: successor.bindings.clone(),
-                cleanup_actions: successor.cleanup_actions.clone(),
-                provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
-                fuel: vec![optimization_unit::FuelSettlement {
-                    site: PsiProvenance::Edge(successor.psi_edge),
-                    units: 1,
-                }],
-            })
-            .collect(),
-        O::StructuralCase { cases, .. } => cases
-            .iter()
-            .map(|case| OptimizationEdge {
-                psi_edge: case.psi_edge,
-                target: case.target,
-                bindings: Vec::new(),
-                structural_bindings: Vec::new(),
-                cleanup_actions: case.cleanup_actions.clone(),
-                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
-                fuel: vec![optimization_unit::FuelSettlement {
-                    site: PsiProvenance::Edge(case.psi_edge),
-                    units: 1,
-                }],
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
 pub(crate) fn validator_sccp_snapshot(
     function: &PsiOptimizationFunction,
     values: &BTreeMap<ValueId, ValidatorSccpValue>,
@@ -300,7 +240,7 @@ pub(crate) fn validator_sccp_snapshot(
         .flat_map(|block| {
             let reachable_source = reachable.contains(&block.id);
             block.nodes.last().into_iter().flat_map(move |node| {
-                validator_scalar_operation_successors(&node.operation)
+                expected_edges(&node.operation)
                     .into_iter()
                     .map(move |successor| {
                         let state = if feasible_edges.contains(&successor.psi_edge) {
