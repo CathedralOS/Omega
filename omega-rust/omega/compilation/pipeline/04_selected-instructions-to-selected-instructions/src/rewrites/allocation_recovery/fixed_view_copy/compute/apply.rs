@@ -1,5 +1,5 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
-use super::{RegisterInstructionConstraint, ScalarType, SelectedInstructionId, SelectedTerminator};
+use super::{RegisterInstructionConstraint, ScalarType};
 use crate::FixedViewCopy;
 use crate::FixedViewCopyError;
 

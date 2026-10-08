@@ -4,7 +4,7 @@ use super::{
     SelectedInstructionId, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-    ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity,
+    ValidatedSelectedInstructions, VirtualRegisterId,
 };
 use crate::FixedViewCopyError;
 use crate::FixedViewCopyPolicy;
