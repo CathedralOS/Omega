@@ -13,6 +13,7 @@
 //! other instruction, register, call, and function included. A producer
 //! admission error therefore fails validation even when the proposal is
 //! exactly what that producer emitted.
+use crate::rewrites::block_edges::function_at;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -207,10 +208,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(BoundaryBooleanError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(BoundaryBooleanError::SourceMismatch)?;
+    let function = function_at(plan, function_index, BoundaryBooleanError::SourceMismatch)?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()

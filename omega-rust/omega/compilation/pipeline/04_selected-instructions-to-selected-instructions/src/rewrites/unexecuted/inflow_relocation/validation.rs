@@ -19,7 +19,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
     transport_conflict,
 };
@@ -63,10 +63,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(InflowRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(InflowRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, InflowRelocationError::SourceMismatch)?;
     let (block_index, member_index) = function
         .blocks
         .iter()

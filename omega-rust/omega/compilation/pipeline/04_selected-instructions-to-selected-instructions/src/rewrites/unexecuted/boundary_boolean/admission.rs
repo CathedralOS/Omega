@@ -4,6 +4,7 @@
 //! same compare definition — in-block or across predecessor edges — and
 //! prove one compare operand sits at a carrier-domain pole that fixes the
 //! predicate, or collapses it to equality, without consulting the other.
+use crate::rewrites::block_edges::function_at;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
@@ -135,10 +136,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(BoundaryBooleanError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(BoundaryBooleanError::SourceMismatch)?;
+    let function = function_at(plan, function_index, BoundaryBooleanError::SourceMismatch)?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()

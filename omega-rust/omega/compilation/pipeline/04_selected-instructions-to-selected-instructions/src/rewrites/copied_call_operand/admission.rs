@@ -24,7 +24,7 @@ use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::block_instructions;
+use crate::rewrites::block_edges::{block_instructions, function_at};
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -93,10 +93,7 @@ pub(super) fn admit<'source>(
     {
         return Err(CopiedCallOperandError::EffectSurfaceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(CopiedCallOperandError::SourceMismatch)?;
+    let function = function_at(plan, function_index, CopiedCallOperandError::SourceMismatch)?;
     // The consumer is a body instruction: a direct call at a mid-block
     // position. A terminator's carried instruction is not a call form the
     // family declares.

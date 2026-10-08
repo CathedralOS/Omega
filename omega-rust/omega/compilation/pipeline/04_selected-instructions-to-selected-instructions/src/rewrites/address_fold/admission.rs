@@ -12,6 +12,7 @@ use selected_instructions::{
 
 use super::AddressFoldError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -118,10 +119,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(AddressFoldError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(AddressFoldError::SourceMismatch)?;
+    let function = function_at(plan, function_index, AddressFoldError::SourceMismatch)?;
     let (block_index, consumer_index) = function
         .blocks
         .iter()

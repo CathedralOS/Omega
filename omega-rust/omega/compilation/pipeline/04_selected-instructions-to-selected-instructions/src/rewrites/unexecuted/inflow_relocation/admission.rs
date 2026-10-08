@@ -21,7 +21,7 @@ use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, Selected
 
 use super::InflowRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, terminator_instruction,
     terminator_successors,
 };
@@ -58,10 +58,7 @@ pub(super) fn admit(
     if plan.target != environment.target() {
         return Err(InflowRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(InflowRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, InflowRelocationError::SourceMismatch)?;
     let (block_index, member_index) = function
         .blocks
         .iter()

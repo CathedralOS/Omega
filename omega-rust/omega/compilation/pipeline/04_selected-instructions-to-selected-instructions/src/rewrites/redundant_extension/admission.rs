@@ -16,6 +16,7 @@ use semantic_vocabulary::IntegerValue;
 
 use super::RedundantExtensionError;
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub block_index: usize,
@@ -149,10 +150,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(RedundantExtensionError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RedundantExtensionError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RedundantExtensionError::SourceMismatch)?;
     let (block_index, extension_index) = function
         .blocks
         .iter()

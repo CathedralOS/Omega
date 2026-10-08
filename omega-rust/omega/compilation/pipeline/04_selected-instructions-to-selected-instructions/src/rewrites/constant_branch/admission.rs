@@ -26,7 +26,7 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::terminator_instruction;
+use crate::rewrites::block_edges::{terminator_instruction, function_at};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,
@@ -105,10 +105,7 @@ pub(super) fn admit<'source>(
     {
         return Err(ConstantBranchError::EffectSurfaceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ConstantBranchError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ConstantBranchError::SourceMismatch)?;
     // The branch names its terminator-carried instruction: the block whose
     // terminator instruction carries the id holds the read position at the
     // end of its body stream.

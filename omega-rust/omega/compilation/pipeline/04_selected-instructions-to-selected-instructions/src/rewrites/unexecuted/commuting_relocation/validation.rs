@@ -29,6 +29,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
+use crate::rewrites::block_edges::function_at;
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the admitted run's and destination's coordinates inside
@@ -71,10 +72,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(CommutingRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(CommutingRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, CommutingRelocationError::SourceMismatch)?;
     let (block_index, first_index) = function
         .blocks
         .iter()

@@ -32,7 +32,7 @@ use super::super::admission::{
 };
 use super::EquivalentCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
+use crate::rewrites::block_edges::{function_at, edge_surface, terminator_successors};
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, immediate_bits, instruction_at, materialized_bits,
     reaching_events,
@@ -145,10 +145,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(EquivalentCompareError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(EquivalentCompareError::SourceMismatch)?;
+    let function = function_at(plan, function_index, EquivalentCompareError::SourceMismatch)?;
     let (block_index, compare_index) = function
         .blocks
         .iter()

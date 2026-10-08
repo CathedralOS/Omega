@@ -45,6 +45,7 @@ use super::{
     require_dominated_uses, slot, stored_transport_size, surviving_home_exists,
 };
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::function_at;
 
 /// The validator's own reconstruction of the spill the contract permits: the
 /// admitted victim, its proven definitions, the use blocks the spill serves,
@@ -449,10 +450,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(RuntimeSpillError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RuntimeSpillError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RuntimeSpillError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

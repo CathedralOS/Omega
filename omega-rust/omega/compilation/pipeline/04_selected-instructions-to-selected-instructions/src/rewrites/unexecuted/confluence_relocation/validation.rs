@@ -22,7 +22,7 @@ use super::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
     transport_conflict,
 };
@@ -82,10 +82,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(ConfluenceRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ConfluenceRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ConfluenceRelocationError::SourceMismatch)?;
     let (block_index, first_index) = function
         .blocks
         .iter()

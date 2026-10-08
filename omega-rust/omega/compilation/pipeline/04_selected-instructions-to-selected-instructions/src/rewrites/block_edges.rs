@@ -17,6 +17,16 @@ use selected_instructions::{
 
 use crate::rewrites::window_hazards::{has_memory_rows, register_reads, register_writes};
 
+/// The function a plan-level rewrite entrypoint resolves — every
+/// admission and audit begins by naming the index its member recorded.
+pub(super) fn function_at<'p, E>(
+    plan: &'p selected_instructions::SelectedInstructionPlan,
+    function_index: usize,
+    miss: E,
+) -> Result<&'p SelectedFunction, E> {
+    plan.functions.get(function_index).ok_or(miss)
+}
+
 /// The instruction a terminator carries — a position every traversal of
 /// its block observes, and the body-end landing position a destination can
 /// name.

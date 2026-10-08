@@ -98,7 +98,7 @@ use super::motion::{
     place_store_shape, reaches_visited, reconvergent_join, settlement_before, sole_predecessor,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,
@@ -131,10 +131,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(StoreMutationMotionError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(StoreMutationMotionError::SourceMismatch)?;
+    let function = function_at(plan, function_index, StoreMutationMotionError::SourceMismatch)?;
     let (block_index, store_index) = function
         .blocks
         .iter()

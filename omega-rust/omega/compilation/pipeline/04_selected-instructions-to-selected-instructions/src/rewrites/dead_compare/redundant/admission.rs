@@ -43,7 +43,7 @@ use super::super::admission::{
 };
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
+use crate::rewrites::block_edges::{function_at, edge_surface, terminator_successors};
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
@@ -66,10 +66,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(RedundantCompareError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RedundantCompareError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RedundantCompareError::SourceMismatch)?;
     let (block_index, compare_index) = function
         .blocks
         .iter()

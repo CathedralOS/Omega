@@ -13,6 +13,7 @@ use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
 use super::RuntimeRematerializationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{control, require_dominated_uses};
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -40,10 +41,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(RuntimeRematerializationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RuntimeRematerializationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RuntimeRematerializationError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

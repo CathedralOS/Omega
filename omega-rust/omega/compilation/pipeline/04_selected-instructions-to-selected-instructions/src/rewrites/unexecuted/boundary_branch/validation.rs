@@ -30,7 +30,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_instruction;
+use crate::rewrites::block_edges::{terminator_instruction, function_at};
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
@@ -179,10 +179,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(BoundaryBranchError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(BoundaryBranchError::SourceMismatch)?;
+    let function = function_at(plan, function_index, BoundaryBranchError::SourceMismatch)?;
     // The branch names its terminator-carried instruction: the block whose
     // terminator instruction carries the id holds the read position at the
     // end of its body stream.

@@ -29,7 +29,7 @@ use selected_instructions::{
 
 use super::DeadCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, terminator_successors};
+use crate::rewrites::block_edges::{function_at, block_instructions, terminator_successors};
 use crate::rewrites::condition_state::{EventSite, instruction_at};
 
 pub(super) struct Admission<'source> {
@@ -228,10 +228,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(DeadCompareError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(DeadCompareError::SourceMismatch)?;
+    let function = function_at(plan, function_index, DeadCompareError::SourceMismatch)?;
     let (block_index, compare_index) = function
         .blocks
         .iter()

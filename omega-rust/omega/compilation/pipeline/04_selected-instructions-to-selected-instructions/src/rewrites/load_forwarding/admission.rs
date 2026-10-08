@@ -98,7 +98,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
 use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
@@ -182,10 +182,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(StoredLoadForwardingError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(StoredLoadForwardingError::SourceMismatch)?;
+    let function = function_at(plan, function_index, StoredLoadForwardingError::SourceMismatch)?;
     let (block_index, load_index) = function
         .blocks
         .iter()

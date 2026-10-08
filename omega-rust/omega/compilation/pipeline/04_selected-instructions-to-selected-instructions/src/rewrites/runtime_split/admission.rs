@@ -15,6 +15,7 @@ use semantic_vocabulary::{ScalarType, ValueId};
 use super::RuntimeSplitError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{control, require_dominated_uses};
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -34,10 +35,7 @@ pub(super) fn admit(
     if plan.target != environment.target() {
         return Err(RuntimeSplitError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RuntimeSplitError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RuntimeSplitError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

@@ -12,7 +12,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
     terminator_instruction, terminator_successors,
 };
@@ -204,10 +204,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(ScheduledRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ScheduledRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ScheduledRelocationError::SourceMismatch)?;
     let [first_member, ..] = members else {
         return Err(ScheduledRelocationError::UnsupportedPair);
     };

@@ -24,7 +24,7 @@ use selected_instructions::{
 
 use super::CopyRemovalError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, terminator_successors};
+use crate::rewrites::block_edges::{function_at, block_instructions, terminator_successors};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -206,10 +206,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(CopyRemovalError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(CopyRemovalError::SourceMismatch)?;
+    let function = function_at(plan, function_index, CopyRemovalError::SourceMismatch)?;
     let (block_index, copy_index) = function
         .blocks
         .iter()

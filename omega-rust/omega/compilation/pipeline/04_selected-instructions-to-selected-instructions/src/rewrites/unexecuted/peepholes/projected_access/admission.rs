@@ -24,6 +24,7 @@ use super::ProjectedAccessError;
 use super::pair::{ProjectedAccessRule, access_width, declared_consumer, projected_access_for};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::rewrites::block_edges::function_at;
 
 /// One admitted projected-access pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -91,10 +92,7 @@ pub(super) fn admit<'source>(
     {
         return Err(ProjectedAccessError::EffectSurfaceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ProjectedAccessError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ProjectedAccessError::SourceMismatch)?;
     // The consumer is a body instruction: a dereference at a mid-block
     // position. A terminator's carried instruction is not an access form
     // the family declares.

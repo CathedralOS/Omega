@@ -28,6 +28,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::function_at;
 
 /// Independently consume the proposed program: the replay re-derives the
 /// projected-access fold and its reconstructed access record from the
@@ -62,10 +63,7 @@ pub fn validate_projected_access_fold(
     {
         return Err(ProjectedAccessError::EffectSurfaceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ProjectedAccessError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ProjectedAccessError::SourceMismatch)?;
     let (block_index, position, consumer) = function
         .blocks
         .iter()

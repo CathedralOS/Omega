@@ -16,6 +16,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -47,10 +48,7 @@ pub(super) fn admit(
     if plan.target != environment.target() {
         return Err(InterchangeError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(InterchangeError::SourceMismatch)?;
+    let function = function_at(plan, function_index, InterchangeError::SourceMismatch)?;
     let (block_index, earlier_first_index) = function
         .blocks
         .iter()

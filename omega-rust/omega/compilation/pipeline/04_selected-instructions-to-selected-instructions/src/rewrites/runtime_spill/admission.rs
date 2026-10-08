@@ -18,6 +18,7 @@ use super::{
     VictimLineage, next_chunk, slot, stored_transport_size, surviving_home_exists,
 };
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::function_at;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -107,10 +108,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(RuntimeSpillError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(RuntimeSpillError::SourceMismatch)?;
+    let function = function_at(plan, function_index, RuntimeSpillError::SourceMismatch)?;
     let victim = function
         .virtual_registers
         .iter()

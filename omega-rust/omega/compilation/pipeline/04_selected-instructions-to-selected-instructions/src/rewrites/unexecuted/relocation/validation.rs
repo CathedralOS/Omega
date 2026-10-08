@@ -25,7 +25,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, all_edges, crossed_window, edge_surface, terminator_instruction,
     terminator_successors,
 };
@@ -101,10 +101,7 @@ fn reconstruct<'source>(
     if plan.target != environment.target() {
         return Err(MemberRunRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(MemberRunRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, MemberRunRelocationError::SourceMismatch)?;
     let (run_block, run_start) = function
         .blocks
         .iter()

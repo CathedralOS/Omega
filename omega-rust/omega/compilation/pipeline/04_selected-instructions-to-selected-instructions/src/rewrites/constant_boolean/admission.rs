@@ -9,6 +9,7 @@
 //! grammar decides the predicate, whose unit-flow axis states the retired
 //! and preserved unit roles, and whose effect axis is checked against the
 //! bound machine-effect catalog.
+use crate::rewrites::block_edges::function_at;
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
@@ -109,10 +110,7 @@ pub(super) fn admit<'source>(
     {
         return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(ConstantBooleanError::SourceMismatch)?;
+    let function = function_at(plan, function_index, ConstantBooleanError::SourceMismatch)?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()

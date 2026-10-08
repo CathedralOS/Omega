@@ -15,7 +15,7 @@ use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId};
 
 use super::MemberRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
+use crate::rewrites::block_edges::{function_at, 
     CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface,
     terminator_instruction, terminator_successors,
 };
@@ -67,10 +67,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(MemberRunRelocationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(MemberRunRelocationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, MemberRunRelocationError::SourceMismatch)?;
     let (run_block, run_start) = function
         .blocks
         .iter()

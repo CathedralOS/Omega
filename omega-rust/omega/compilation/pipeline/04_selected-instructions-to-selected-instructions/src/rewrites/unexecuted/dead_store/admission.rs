@@ -88,7 +88,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
+use crate::rewrites::block_edges::{function_at, terminator_instruction, terminator_successors};
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
@@ -190,10 +190,7 @@ pub(super) fn admit<'source>(
     if plan.target != environment.target() {
         return Err(DeadStoreEliminationError::SourceMismatch);
     }
-    let function = plan
-        .functions
-        .get(function_index)
-        .ok_or(DeadStoreEliminationError::SourceMismatch)?;
+    let function = function_at(plan, function_index, DeadStoreEliminationError::SourceMismatch)?;
     let (block_index, store_index) = function
         .blocks
         .iter()
