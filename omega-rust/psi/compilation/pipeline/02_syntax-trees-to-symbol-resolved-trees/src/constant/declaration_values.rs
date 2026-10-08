@@ -353,6 +353,8 @@ pub(crate) fn selected_expression_constant(
 ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
     let table = &program.tables.bodies.expressions;
     let path = table.name_path_node(expression)?;
+    // A data or case `where` fact binds its own field and payload names
+    // before constants, so a field binding shadows a same-spelled constant.
     if matches!(
         program.symbols.get(path.head_symbol).kind,
         SymbolKind::Local
@@ -360,6 +362,7 @@ pub(crate) fn selected_expression_constant(
             | SymbolKind::MachineParameter
             | SymbolKind::TypeParameter
             | SymbolKind::ConformanceParameter
+            | SymbolKind::Field
     ) {
         return None;
     }

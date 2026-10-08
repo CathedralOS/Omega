@@ -2920,6 +2920,7 @@ pass/dependent/state_arrival_byte_predicate_guarded_compile checked 959ms @cfe60
 pass/dependent/state_arrival_contract_guarded_compile checked 291ms @2d8ed253669f
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 294ms @2d8ed253669f
 pass/dependent/valuation_order_cycle checked 314ms @2d8ed253669f
+pass/dependent/where_field_shadows_module_const_exit checked 2497ms check-target:macos_arm64 @efcffba14022+wt
 pass/dependent/zero_case_absorbs_nested_gate_compile checked 1223ms check-target:macos_arm64 @2d8ed253669f
 pass/dependent/zeroed_record_member_sum_elision checked 1198ms check-target:macos_arm64 @2d8ed253669f
 pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
