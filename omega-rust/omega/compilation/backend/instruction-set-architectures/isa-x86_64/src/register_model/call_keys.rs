@@ -28,11 +28,7 @@ pub fn x86_64_preservation_convention_for_target(
         ObjectFormat::Elf | ObjectFormat::MachO => "system-v-amd64",
         ObjectFormat::Coff => "microsoft-x64",
     };
-    model
-        .model()
-        .conventions
-        .iter()
-        .find(|convention| convention.name == name)
+    model.model().convention_named(name)
 }
 
 pub const X86_64_SYSTEM_V_CALL: RegisterConstraintKey = RegisterConstraintKey {

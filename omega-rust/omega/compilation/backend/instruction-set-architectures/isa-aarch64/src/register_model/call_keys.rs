@@ -22,11 +22,7 @@ pub fn aarch64_preservation_convention_for_target(
         ObjectFormat::MachO => "darwin-aapcs64",
         ObjectFormat::Coff => return None,
     };
-    model
-        .model()
-        .conventions
-        .iter()
-        .find(|convention| convention.name == name)
+    model.model().convention_named(name)
 }
 
 pub const AARCH64_AAPCS64_CALL: RegisterConstraintKey = RegisterConstraintKey {
