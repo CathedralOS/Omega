@@ -1248,7 +1248,7 @@ pub(crate) fn footprint(
     let physical = aarch64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
-        super::crash::effects(&units("pc"))
+        selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"))
     } else if let SelectedInstructionKind::TrappingInteger { .. } = kind {
         super::trapping_forms::effects(read_indices, write_indices)
     } else if matches!(

@@ -634,7 +634,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .clone()
     };
     if semantic == MachineSemanticKind::Crash {
-        return crate::selected_form_encoding::crash::effects(&units("rip"));
+        return selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"));
     }
     if let MachineSemanticKind::TrappingInteger(form) = semantic {
         return TrappingShape::of(form).encoded_effects();

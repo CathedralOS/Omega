@@ -1,24 +1,12 @@
 //! Exact operand-free architectural trap for a semantic Crash leaf.
-use register_model::{RegisterInstructionConstraint, RegisterUnitId};
+use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineEffectDeclaration, MachineEncodedEffects,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
     MachineSizeKnowledge, MachineTrapBehavior,
 };
-
-pub(crate) fn effects(program_counter: &[RegisterUnitId]) -> MachineEncodedEffects {
-    MachineEncodedEffects {
-        // Like a branch, an exception records its site and transfers control;
-        // no caller-owned value or storage is returned or cleaned up.
-        implicit_unit_uses: program_counter.to_vec(),
-        implicit_unit_defs: program_counter.to_vec(),
-        trap: MachineEncodedTrapBehavior::ExplicitCrashV1,
-        control: MachineEncodedControlEffect::CrashV1,
-        ..MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new())
-    }
-}
 
 pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> MachineEffectDeclaration {
     MachineEffectDeclaration {
@@ -37,15 +25,15 @@ pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> Machine
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(2),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(&constraint.implicit_uses),
+            encoded: MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
         }],
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MachineAlternativeFamily, MachineAlternativeKey, effects};
-    use selected_instructions::SelectedInstructionKind;
+    use super::{MachineAlternativeFamily, MachineAlternativeKey};
+    use selected_instructions::{MachineEncodedEffects, SelectedInstructionKind};
 
     #[test]
     fn crash_rejects_changed_bytes_operands_and_alternatives() {
@@ -84,7 +72,7 @@ mod tests {
         assert_eq!(encoded.bytes(), &[0x0f, 0x0b]);
         assert_eq!(
             encoded.footprint().encoded,
-            effects(&physical.model().view_named("rip").unwrap().units)
+            MachineEncodedEffects::crash_v1(&physical.model().view_named("rip").unwrap().units)
         );
         for bit in 0..16 {
             let mut bytes = encoded.bytes().to_vec();

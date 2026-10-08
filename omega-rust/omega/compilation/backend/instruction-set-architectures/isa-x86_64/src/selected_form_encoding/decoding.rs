@@ -2181,7 +2181,7 @@ pub(crate) fn footprint(
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
-        super::crash::effects(&units("rip"))
+        selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"))
     } else if let SelectedInstructionKind::AtomicAccess { .. } = kind {
         unreachable!("atomic footprint returned above");
     } else if matches!(

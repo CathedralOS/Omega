@@ -678,6 +678,19 @@ impl MachineEncodedEffects {
             control: MachineEncodedControlEffect::FallThroughV1,
         }
     }
+
+    /// A crash alternative's effect row: like a branch it records its site
+    /// and transfers control; no caller-owned value or storage is returned
+    /// or cleaned up.
+    pub fn crash_v1(program_counter: &[register_model::RegisterUnitId]) -> Self {
+        Self {
+            implicit_unit_uses: program_counter.to_vec(),
+            implicit_unit_defs: program_counter.to_vec(),
+            trap: MachineEncodedTrapBehavior::ExplicitCrashV1,
+            control: MachineEncodedControlEffect::CrashV1,
+            ..Self::fallthrough_v1(Vec::new(), Vec::new())
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -492,7 +492,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .clone()
     };
     if semantic == MachineSemanticKind::Crash {
-        return crate::selected_form_encoding::crash::effects(&units("pc"));
+        return selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"));
     }
     let view = |name: &str| {
         physical
