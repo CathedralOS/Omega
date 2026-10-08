@@ -107,9 +107,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             ) {
                 continue;
             }
-            let Some(conformance) = program
-                .conformance_by_symbol(selected.symbol)
-            else {
+            let Some(conformance) = program.conformance_by_symbol(selected.symbol) else {
                 continue;
             };
             if conformance.lifetime_parameters.is_empty() {
@@ -387,31 +385,16 @@ fn collect_expression_elision_calls(
             );
         }
         ExpressionNode::Match(dispatch) => {
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                dispatch.subject,
-                calls,
-            );
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    collect_expression_elision_calls(
-                        program,
-                        caller_machine,
-                        caller_state,
-                        pattern,
-                        calls,
-                    );
-                }
+            program.expression_table.match_deep_all(dispatch, |handle| {
                 collect_expression_elision_calls(
                     program,
                     caller_machine,
                     caller_state,
-                    arm.value,
+                    handle,
                     calls,
                 );
-            }
+                true
+            });
         }
         ExpressionNode::Binary(binary) => {
             collect_expression_elision_calls(

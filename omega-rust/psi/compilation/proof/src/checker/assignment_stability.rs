@@ -155,17 +155,13 @@ pub(crate) fn collect_read_place_paths(
     }
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            collect_read_place_paths(proof_plan, dispatch.subject, paths);
-            for arm in proof_plan
+            proof_plan
                 .program
                 .expression_table
-                .match_arms(dispatch.arms)
-            {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    collect_read_place_paths(proof_plan, pattern, paths);
-                }
-                collect_read_place_paths(proof_plan, arm.value, paths);
-            }
+                .match_deep_all(dispatch, |handle| {
+                    collect_read_place_paths(proof_plan, handle, paths);
+                    true
+                });
         }
         ExpressionNode::Binary(binary) => {
             collect_read_place_paths(proof_plan, binary.left, paths);
