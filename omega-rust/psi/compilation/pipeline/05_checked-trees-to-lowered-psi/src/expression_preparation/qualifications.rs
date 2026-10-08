@@ -42,13 +42,9 @@ impl PreparedScalarQualifications {
     ) -> Result<Self, LoweringError> {
         let mut references = Vec::new();
         for symbol in signatures {
-            let machine = checked
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == *symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification closure lost a machine",
-                ))?;
+            let machine = checked.machine(*symbol).ok_or(LoweringError::Unsupported(
+                "scalar qualification closure lost a machine",
+            ))?;
             for state in checked.machine_states(machine) {
                 for parameter in checked.state_parameters(state) {
                     if checked
@@ -67,13 +63,9 @@ impl PreparedScalarQualifications {
             }
         }
         for symbol in bodies.iter().filter(|symbol| !signatures.contains(symbol)) {
-            let machine = checked
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == *symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification closure lost a machine",
-                ))?;
+            let machine = checked.machine(*symbol).ok_or(LoweringError::Unsupported(
+                "scalar qualification closure lost a machine",
+            ))?;
             for state in checked.machine_states(machine) {
                 references.extend(
                     checked

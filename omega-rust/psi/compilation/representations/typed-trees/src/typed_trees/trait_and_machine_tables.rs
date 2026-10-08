@@ -425,9 +425,7 @@ impl TypedTrees {
 
     /// The machine `symbol` declares, if any.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
-        self.machines()
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+        machine::machine_by_symbol(self.machines(), symbol)
     }
 
     /// The state `state_symbol` of machine `machine_symbol`, or `None` when

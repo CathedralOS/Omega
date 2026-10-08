@@ -346,15 +346,9 @@ pub(super) fn emit_structural(
                 &checked.typed,
                 checked
                     .typed
-                    .machine_states(
-                        checked
-                            .machines()
-                            .iter()
-                            .find(|machine| machine.symbol == *target_machine)
-                            .ok_or(LoweringError::Unsupported(
-                                "structural result has no exact target machine",
-                            ))?,
-                    )
+                    .machine_states(checked.machine(*target_machine).ok_or(
+                        LoweringError::Unsupported("structural result has no exact target machine"),
+                    )?)
                     .iter()
                     .find(|candidate| candidate.symbol == *target_state)
                     .ok_or(LoweringError::Unsupported(

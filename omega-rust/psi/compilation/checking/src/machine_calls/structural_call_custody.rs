@@ -1018,9 +1018,7 @@ pub fn structural_call_custody(
         .state_in_machine(caller, caller_state)
         .ok_or("structural call has no exact caller state")?;
     let target = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == *target_machine)
+        .machine(*target_machine)
         .ok_or("structural call has no exact callee")?;
     let destination =
         typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)

@@ -169,9 +169,8 @@ fn owned_projection(
         let facts::PlaceSegment::Field { symbol } = segment else {
             return false;
         };
-        let TypeReferenceNode::Named { symbol: owner, .. } = program
-            .type_reference_table
-            .type_reference(
+        let TypeReferenceNode::Named { symbol: owner, .. } =
+            program.type_reference_table.type_reference(
                 program
                     .type_reference_table
                     .unconstrained_type_reference(reference),
@@ -183,9 +182,7 @@ fn owned_projection(
         // record arguments name the data declaration. Resolve that semantic
         // attachment before checking the field's owner; spelling is irrelevant.
         let owner = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == *owner)
+            .machine(*owner)
             .map_or(*owner, |machine| machine.attached_data_symbol);
         let Some(data) = program
             .data_definitions()

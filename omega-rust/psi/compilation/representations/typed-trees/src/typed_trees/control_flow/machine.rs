@@ -380,3 +380,10 @@ pub fn resolve_satisfied_declaration<'program>(
     }
     Some(SatisfiedDeclaration::Operator(operator))
 }
+
+/// The machine keyed `symbol`, when declared. Machines are keyed by symbol
+/// rather than name, so dispatch and evidence lookups resolve identity
+/// directly.
+pub fn machine_by_symbol(machines: &[Machine], symbol: SymbolHandle) -> Option<&Machine> {
+    machines.iter().find(|machine| machine.symbol == symbol)
+}
