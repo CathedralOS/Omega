@@ -218,8 +218,6 @@ fn source_place_root(
         return Some((path.symbol, binding_type, owned_root_is_writable));
     }
     program
-        .machine_owned_data(current_machine)
-        .iter()
-        .find(|owned| owned.symbol == path.symbol)
+        .machine_owned_data_by_symbol(current_machine, path.symbol)
         .map(|owned| (path.symbol, owned.type_reference, true))
 }

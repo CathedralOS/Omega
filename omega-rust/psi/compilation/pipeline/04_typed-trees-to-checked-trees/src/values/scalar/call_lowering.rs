@@ -239,9 +239,7 @@ fn proof_field_type(
                 if Some(variant.symbol) == case_symbol =>
             {
                 program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == field_symbol)
+                    .data_payload_field_by_symbol(variant, field_symbol)
                     .map(|field| field.type_reference)
             }
             _ => None,

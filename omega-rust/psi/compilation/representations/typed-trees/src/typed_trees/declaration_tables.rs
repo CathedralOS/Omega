@@ -234,6 +234,17 @@ impl TypedTrees {
         self.data_payload_fields.span_or_empty(variant.payload)
     }
 
+    /// The payload field keyed `symbol` within `variant`, when declared.
+    pub fn data_payload_field_by_symbol(
+        &self,
+        variant: &data::DataVariant,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&data::DataField> {
+        self.data_payload_fields(variant)
+            .iter()
+            .find(|candidate| candidate.symbol == symbol)
+    }
+
     pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {
         self.tables
             .domain_definitions

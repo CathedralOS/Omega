@@ -203,9 +203,7 @@ fn check_destination(
                         if Some(variant.symbol) == literal.case_symbol =>
                     {
                         program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|declared| declared.symbol == field.field_symbol)
+                            .data_payload_field_by_symbol(variant, field.field_symbol)
                             .map(|declared| declared.type_reference)
                     }
                     _ => None,

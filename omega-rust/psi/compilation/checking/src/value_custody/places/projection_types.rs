@@ -231,9 +231,7 @@ fn machine_member_type_reference(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     crate::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
         program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| owned.symbol == symbol)
+            .machine_owned_data_by_symbol(machine, symbol)
             .map(|owned| owned.type_reference)
             .or_else(|| attached_data_field_type_reference(program, machine, symbol))
     })

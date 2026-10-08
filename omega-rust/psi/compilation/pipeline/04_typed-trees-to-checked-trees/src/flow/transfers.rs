@@ -674,9 +674,7 @@ fn exact_structural_symbol_place(
                         };
                         (variant.symbol == variant_symbol).then(|| {
                             program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .find(|field| field.symbol == *symbol)
+                                .data_payload_field_by_symbol(variant, *symbol)
                         })?
                     })
                 } else {

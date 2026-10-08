@@ -392,9 +392,7 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                 }
                 reference = if let Some(variant) = selected_case.take() {
                     program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|candidate| candidate.symbol == *field)?
+                        .data_payload_field_by_symbol(variant, *field)?
                         .type_reference
                 } else {
                     let definition = crate::declarations::data_queries::data_definition_by_symbol(

@@ -610,9 +610,7 @@ fn qualified_leaf_carrier(
                         })
                         .and_then(|variant| {
                             program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .find(|field| field.symbol == *symbol)
+                                .data_payload_field_by_symbol(variant, *symbol)
                         })?,
                     None => program
                         .data_members(data)

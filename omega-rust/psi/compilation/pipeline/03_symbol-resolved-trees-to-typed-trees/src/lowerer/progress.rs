@@ -391,9 +391,7 @@ fn declared_field_with_symbol<'program>(
         .find_map(|member| match member {
             typed::data::DataMember::Field(field) => (field.symbol == symbol).then_some(field),
             typed::data::DataMember::Variant(variant) => program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.symbol == symbol),
+                .data_payload_field_by_symbol(variant, symbol),
         })
 }
 

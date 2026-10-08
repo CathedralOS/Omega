@@ -422,9 +422,7 @@ fn receiver_field_type_machine_symbol(
     receiver_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     program
-        .machine_owned_data(machine)
-        .iter()
-        .find(|owned| owned.symbol == receiver_symbol)
+        .machine_owned_data_by_symbol(machine, receiver_symbol)
         .map(|owned| machine_symbol_from_type_reference_handle(program, owned.type_reference))
         .or_else(|| {
             attached_data_field_type_reference(program, machine, receiver_symbol).map(

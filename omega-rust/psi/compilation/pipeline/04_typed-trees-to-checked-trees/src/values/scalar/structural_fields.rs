@@ -345,9 +345,7 @@ pub(super) fn structural_parameter_field_path(
                             return None;
                         };
                         program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|field| field.symbol == member.member_symbol)
+                            .data_payload_field_by_symbol(variant, member.member_symbol)
                             .map(|field| (variant.path_identity(), field_identity(field)))
                     })?;
                 fields.push(CheckedStructuralPredicatePathSegment::Case(case));

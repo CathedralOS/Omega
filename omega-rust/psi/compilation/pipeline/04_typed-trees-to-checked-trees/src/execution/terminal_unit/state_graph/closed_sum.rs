@@ -744,9 +744,7 @@ impl DispatchSubject {
                     return None;
                 }
                 let field = program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == *symbol)?;
+                    .data_payload_field_by_symbol(variant, *symbol)?;
                 destructures
                     .contains(&(variant.name.as_str(), field.name.as_str()))
                     .then_some(Some(field))

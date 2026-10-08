@@ -128,9 +128,7 @@ pub fn structural_member_identity(
                     Some(variant.path_identity())
                 }
                 typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == symbol)
+                    .data_payload_field_by_symbol(variant, symbol)
                     .map(|field| field.path_identity()),
                 typed_trees::data::DataMember::Field(_) => None,
             })

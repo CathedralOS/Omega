@@ -656,9 +656,7 @@ fn type_reference_for_symbol(
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
-                .machine_owned_data(machine)
-                .iter()
-                .find(|owned| owned.symbol == symbol)
+                .machine_owned_data_by_symbol(machine, symbol)
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {
@@ -876,9 +874,7 @@ fn origin_for_symbol(
         return Some(InvocationTarget::Service(service));
     }
     if let Some(owned) = program
-        .machine_owned_data(machine)
-        .iter()
-        .find(|owned| owned.symbol == symbol)
+        .machine_owned_data_by_symbol(machine, symbol)
     {
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);

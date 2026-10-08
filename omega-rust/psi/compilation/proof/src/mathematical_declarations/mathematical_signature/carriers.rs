@@ -158,9 +158,7 @@ impl<'a> Elaborator<'a> {
                         }
                         DataMember::Variant(variant) => self
                             .program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|field| field.symbol == member.member_symbol)
+                            .data_payload_field_by_symbol(variant, member.member_symbol)
                             .map(|field| field.type_reference),
                         _ => None,
                     })

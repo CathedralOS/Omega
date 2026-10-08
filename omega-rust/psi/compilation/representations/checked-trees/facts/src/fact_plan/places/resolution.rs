@@ -227,9 +227,7 @@ fn symbol_type_reference(
             symbols::SymbolKind::Machine => {
                 let machine = program.machine(declaration.parent)?;
                 program
-                    .machine_owned_data(machine)
-                    .iter()
-                    .find(|owned| owned.symbol == symbol)
+                    .machine_owned_data_by_symbol(machine, symbol)
                     .map(|owned| owned.type_reference)
             }
             symbols::SymbolKind::Variant => {
@@ -248,9 +246,7 @@ fn symbol_type_reference(
                             _ => None,
                         })?;
                 program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == symbol)
+                    .data_payload_field_by_symbol(variant, symbol)
                     .map(|field| field.type_reference)
             }
             symbols::SymbolKind::Data => {

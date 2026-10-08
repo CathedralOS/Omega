@@ -781,9 +781,7 @@ fn type_reference_for_symbol(
         })
         .or_else(|| {
             program
-                .machine_owned_data(machine)
-                .iter()
-                .find(|owned| owned.symbol == symbol)
+                .machine_owned_data_by_symbol(machine, symbol)
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {

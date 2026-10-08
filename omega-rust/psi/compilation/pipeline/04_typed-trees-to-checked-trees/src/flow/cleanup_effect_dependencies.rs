@@ -628,9 +628,7 @@ fn select_type(
                 return None;
             };
             let field = program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.symbol == symbol)?;
+                .data_payload_field_by_symbol(variant, symbol)?;
             (field, &path[2..])
         }
         _ => return None,

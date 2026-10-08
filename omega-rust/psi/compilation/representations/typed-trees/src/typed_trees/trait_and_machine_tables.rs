@@ -591,6 +591,17 @@ impl TypedTrees {
         self.machine_owned_data.span_or_empty(machine.owned_data)
     }
 
+    /// The owned-data row keyed `symbol` within `machine`, when declared.
+    pub fn machine_owned_data_by_symbol(
+        &self,
+        machine: &machine::Machine,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&machine::OwnedData> {
+        self.machine_owned_data(machine)
+            .iter()
+            .find(|candidate| candidate.symbol == symbol)
+    }
+
     pub fn push_machine_trait_conformance(
         &mut self,
         machine: &mut machine::Machine,

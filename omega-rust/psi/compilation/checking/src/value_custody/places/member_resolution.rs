@@ -170,9 +170,7 @@ fn container_member_type_position(
                 return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
             }
             program
-                .machine_owned_data(machine)
-                .iter()
-                .find(|owned| owned.symbol == symbol)
+                .machine_owned_data_by_symbol(machine, symbol)
                 .map(|owned| {
                     ContainerOutcome::Position(MemberPosition::Reference(owned.type_reference))
                 })
@@ -216,9 +214,7 @@ fn container_member_type_position(
                 return ContainerOutcome::Unmapped;
             };
             program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.symbol == symbol)
+                .data_payload_field_by_symbol(variant, symbol)
                 .map(|field| {
                     ContainerOutcome::Position(MemberPosition::Reference(field.type_reference))
                 })
@@ -436,9 +432,7 @@ fn whole_program_member_type_position(
                 }
                 typed_trees::data::DataMember::Variant(variant) => {
                     if let Some(field) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.symbol == symbol)
+                        .data_payload_field_by_symbol(variant, symbol)
                     {
                         return Some(MemberPosition::Reference(field.type_reference));
                     }

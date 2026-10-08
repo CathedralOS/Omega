@@ -45,9 +45,7 @@ fn entry_place_at_write_boundary(
                                 (field.symbol == symbol).then_some(field)
                             }
                             typed_trees::data::DataMember::Variant(variant) => program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .find(|field| field.symbol == symbol),
+                                .data_payload_field_by_symbol(variant, symbol),
                         })
                 })?;
                 projection.push(PlaceSegment::Field(symbol));
